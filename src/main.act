@@ -1,0 +1,6 @@
+"""Actus Impulse Engine package entry point."""
+import aie;
+
+verb main() -> u32 {
+    return 0u32;
+}

@@ -1,0 +1,13 @@
+[package]
+name = "twin-e"
+version = "0.1.0"
+edition = "alpha"
+entry = "main"
+source_root = "src"
+
+[build]
+target = "host"
+profile = "debug"
+native_module = "actus"
+position_independent = true
+verify_no_float_ir = true

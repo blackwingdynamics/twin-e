@@ -1,0 +1,77 @@
+"""Position-independent binary snapshots backed by the packed storage array."""
+open struct FabricSnapshot {
+    erg columns: Array[u8, 4096],
+    erg free_list_head: u32,
+    erg active_count: u32,
+}
+
+open verb serialize_minicolumn(abs column: Minicolumn) -> Array[u8, 64] {
+    erg snapshot: Array[u8,64] = Array[u8, 64]();
+    erg i: u32 = 0u32;
+    loop {
+        if i >= 64u32 {
+            break;
+        }
+        snapshot[i] = column.storage[i];
+        i += 1u32;
+    }
+    return snapshot;
+}
+
+open verb deserialize_minicolumn(
+    ins column: Minicolumn,
+    abs snapshot: Array[u8, 64]
+) -> Void {
+    erg i: u32 = 0u32;
+    loop {
+        if i >= 64u32 {
+            break;
+        }
+        column.storage[i] = snapshot[i];
+        i += 1u32;
+    }
+}
+
+open verb serialize_fabric(abs fabric: CorticalFabric[64]) -> FabricSnapshot {
+    erg snapshot: FabricSnapshot = FabricSnapshot {columns: Array[u8, 4096](), free_list_head: fabric.free_list_head, active_count: fabric.active_count};
+    erg i: u32 = 0u32;
+    loop {
+        if i >= 64u32 {
+            break;
+        }
+        erg column: Array[u8,64] = serialize_minicolumn(column: abs fabric.columns[i]);
+        erg byte: u32 = 0u32;
+        loop {
+            if byte >= 64u32 {
+                break;
+            }
+            snapshot.columns[(i * 64u32) + byte] = column[byte];
+            byte += 1u32;
+        }
+        i += 1u32;
+    }
+    return snapshot;
+}
+
+open verb deserialize_fabric(
+    ins fabric: CorticalFabric[64],
+    abs snapshot: FabricSnapshot
+) -> Void {
+    erg i: u32 = 0u32;
+    loop {
+        if i >= 64u32 {
+            break;
+        }
+        erg byte: u32 = 0u32;
+        loop {
+            if byte >= 64u32 {
+                break;
+            }
+            fabric.columns[i].storage[byte] = snapshot.columns[(i * 64u32) + byte];
+            byte += 1u32;
+        }
+        i += 1u32;
+    }
+    fabric.free_list_head = snapshot.free_list_head;
+    fabric.active_count = snapshot.active_count;
+}

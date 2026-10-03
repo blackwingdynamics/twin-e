@@ -1,0 +1,57 @@
+"""The 64-byte cache-line representation used by the impulse engine."""
+open pack Minicolumn {
+    erg storage: Array[u8, 64];
+    layout little;
+    fields {
+        erg charge: u8 at 0;
+        erg threshold: u8 at 8;
+        erg myelination: u8 at 16;
+        erg idle_ticks: u8 at 24;
+        erg flags: u8 at 32;
+        erg payload: u8 at 40;
+        erg layer_depth: u16 at 48;
+        erg coincidence_low: u64 at 64;
+        erg coincidence_high: u64 at 128;
+        erg axon_0: u32 at 192;
+        erg axon_1: u32 at 224;
+        erg axon_2: u32 at 256;
+        erg axon_3: u32 at 288;
+        erg axon_4: u32 at 320;
+        erg axon_5: u32 at 352;
+        erg axon_6: u32 at 384;
+        erg axon_7: u32 at 416;
+        erg free_list_link: u32 at 448;
+        erg inhibitory_link: u32 at 480;
+    }
+}
+
+open const NULL_INDEX: u32 = 4294967295u32;
+
+
+open const FLAG_ACTIVE: u8 = 1u8;
+
+
+open const FLAG_INHIBITED: u8 = 2u8;
+
+
+open const FLAG_REFRACTORY: u8 = 4u8;
+
+
+open const FLAG_CONSOLIDATED: u8 = 8u8;
+
+
+open struct Wavefront {
+    erg mask_low: u64,
+    erg mask_high: u64,
+    erg energy: u8,
+}
+
+open struct CorticalFabric[N: Usize] {
+    erg columns: Array[Minicolumn, N],
+    erg free_list_head: u32,
+    erg active_count: u32,
+}
+
+open verb minicolumn_size_bytes() -> u32 {
+    return 64u32;
+}
