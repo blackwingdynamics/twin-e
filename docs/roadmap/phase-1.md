@@ -104,9 +104,9 @@ Current status and remaining work for the Actus Impulse Engine.
 
 ### P2 — Source organization
 
-- [ ] Split `engine.act` into coincidence, forwarding, neurogenesis, and decay modules.
-- [ ] Reduce `meta limitless("file")` and `meta limitless("verb")` exceptions where source splitting removes the need.
-- [ ] Add public API documentation to the facade.
+- [x] Split the former `engine.act` implementation into coincidence, forwarding, neurogenesis, and decay modules.
+- [~] Reduce `meta limitless("file")` and `meta limitless("verb")` exceptions where source splitting removes the need. The file-level exception is gone; remaining verb-level guards protect the coincidence core, fabric initializer core, neurogenesis helpers, and the two four-slot forwarding dispatchers.
+- [x] Add public API documentation to the facade and the split public modules.
 
 ## Final acceptance criteria
 
@@ -116,6 +116,8 @@ The AIE release is complete when:
 - [x] A complete fabric snapshot round-trips with fabric metadata.
 - [x] The generic API decision is backed by compiler evidence; generic verbs are supported by the current compiler.
 - [x] Strict check, native build, executable run, and zero-float IR audit pass.
+
+P2 source organization is complete. The remaining `[~]` item records compiler source-limit exceptions that still protect intentionally bounded generic helper bodies; removing those requires either further mechanical splitting or a compiler limit change.
 
 ## Last verified toolchain result
 

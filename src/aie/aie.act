@@ -1,8 +1,19 @@
-"""Public facade for the Actus Impulse Engine."""
+"""Public facade for the Actus Impulse Engine.
+
+This facade exports the fixed-size minicolumn layout, arena fabric,
+coincidence evaluation, impulse forwarding, neurogenesis, decay, and
+position-independent `.brain` snapshot APIs.
+"""
 open minicolumn;
 
 open fabric;
 
-open engine;
+open coincidence;
+
+open forwarding;
+
+open neurogenesis;
+
+open decay;
 
 open serialization;

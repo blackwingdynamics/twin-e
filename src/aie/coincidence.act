@@ -1,0 +1,86 @@
+"""Evaluate binary coincidence and maintain local firing state."""
+open verb popcount_u64(erg value: u64) -> u32 {
+    erg working: u64 = value;
+    erg count: u32 = 0u32;
+    loop {
+        if working == 0u64 {
+            break;
+        }
+        working &= working - 1u64;
+        count += 1u32;
+    }
+    return count;
+}
+
+verb none_u8() -> Option[u8] {
+    erg value: Option[u8] = Option[u8].None;
+    return value;
+}
+
+verb some_u8(abs value: u8) -> Option[u8] {
+    erg result: Option[u8] = Option[u8].Some(value);
+    return result;
+}
+
+verb none_u32() -> Option[u32] {
+    erg value: Option[u32] = Option[u32].None;
+    return value;
+}
+
+verb some_u32(abs value: u32) -> Option[u32] {
+    erg result: Option[u32] = Option[u32].Some(value);
+    return result;
+}
+
+open verb evaluate_minicolumn[N: Usize](
+    ins fabric: CorticalFabric[N],
+    abs wave: Wavefront,
+    erg target_idx: u32
+) -> Option[u8] {
+    return evaluate_minicolumn_core(
+        fabric: ins fabric,
+        wave: abs wave,
+        target_idx: target_idx
+    );
+}
+
+"""Evaluate one packed column, update plastic state, and apply inhibition."""
+meta limitless("verb")
+verb evaluate_minicolumn_core[N: Usize](
+    ins fabric: CorticalFabric[N],
+    abs wave: Wavefront,
+    erg target_idx: u32
+) -> Option[u8] {
+    erg valid: Bool = target_idx < (N as u32);
+    erg eligible: Bool = valid && (fabric.columns[target_idx].flags & (4u8 | 2u8)) == 0u8;
+    erg overlap: u32 = 0u32;
+    if valid {
+        erg low: u64 = wave.mask_low & fabric.columns[target_idx].coincidence_low;
+        erg high: u64 = wave.mask_high & fabric.columns[target_idx].coincidence_high;
+        overlap = (popcount_u64(value: low) as u32) + (popcount_u64(value: high) as u32);
+    }
+    erg fires: Bool = eligible && overlap >= (fabric.columns[target_idx].threshold as u32);
+    if fires {
+        fabric.columns[target_idx].charge = 0u8;
+        fabric.columns[target_idx].idle_ticks = 0u8;
+        if fabric.columns[target_idx].myelination < 255u8 {
+            fabric.columns[target_idx].myelination += 1u8;
+        }
+        if fabric.columns[target_idx].inhibitory_link != 4294967295u32 && fabric.columns[target_idx].inhibitory_link < (N as u32) {
+            erg inhibitory_idx: u32 = fabric.columns[target_idx].inhibitory_link;
+            fabric.columns[inhibitory_idx].flags |= 2u8;
+        }
+    } else if eligible {
+        erg accumulated: u32 = (fabric.columns[target_idx].charge as u32) + overlap;
+        if accumulated > 255u32 {
+            fabric.columns[target_idx].charge = 255u8;
+        } else {
+            fabric.columns[target_idx].charge = accumulated as u8;
+        };
+    }
+    erg result: Option[u8] = Option[u8].None;
+    if fires {
+        result = Option[u8].Some(fabric.columns[target_idx].payload);
+    }
+    return result;
+}
