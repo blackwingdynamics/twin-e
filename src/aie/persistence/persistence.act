@@ -1,0 +1,2 @@
+"""Public persistence facade for position-independent AIE snapshots."""
+open serialization;

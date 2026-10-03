@@ -119,6 +119,11 @@ The AIE release is complete when:
 
 P2 source organization is complete. The remaining `[~]` item records compiler source-limit exceptions that still protect intentionally bounded generic helper bodies; removing those requires either further mechanical splitting or a compiler limit change.
 
+### Directory layout
+
+- [x] Move AIE modules into `layout/`, `runtime/`, and `persistence/` subdirectories using hierarchical canonical facades.
+- [x] Verify parent-facade exports without direct nested imports; external code continues to use `import aie;`.
+
 ## Last verified toolchain result
 
 The updated release Actus compiler verified:

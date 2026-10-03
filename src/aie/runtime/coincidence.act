@@ -66,7 +66,7 @@ verb evaluate_minicolumn_core[N: Usize](
         if fabric.columns[target_idx].myelination < 255u8 {
             fabric.columns[target_idx].myelination += 1u8;
         }
-        if fabric.columns[target_idx].inhibitory_link != 4294967295u32 && fabric.columns[target_idx].inhibitory_link < (N as u32) {
+        if fabric.columns[target_idx].inhibitory_link != null_index() && fabric.columns[target_idx].inhibitory_link < (N as u32) {
             erg inhibitory_idx: u32 = fabric.columns[target_idx].inhibitory_link;
             fabric.columns[inhibitory_idx].flags |= 2u8;
         }

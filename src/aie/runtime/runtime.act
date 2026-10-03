@@ -1,0 +1,10 @@
+"""Public runtime facade for AIE state transitions."""
+open fabric;
+
+open coincidence;
+
+open forwarding;
+
+open neurogenesis;
+
+open decay;

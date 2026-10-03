@@ -88,7 +88,7 @@ open verb empty_fired_destinations() -> Array[u32, 8] {
         if i >= 8u32 {
             break;
         }
-        fired[i] = 4294967295u32;
+        fired[i] = null_index();
         i += 1u32;
     }
     return fired;
@@ -114,19 +114,19 @@ verb fabric_init_core[N: Usize](ins fabric: CorticalFabric[N]) {
         fabric.columns[i].layer_depth = 0u16;
         fabric.columns[i].coincidence_low = 0u64;
         fabric.columns[i].coincidence_high = 0u64;
-        fabric.columns[i].axon_0 = 4294967295u32;
-        fabric.columns[i].axon_1 = 4294967295u32;
-        fabric.columns[i].axon_2 = 4294967295u32;
-        fabric.columns[i].axon_3 = 4294967295u32;
-        fabric.columns[i].axon_4 = 4294967295u32;
-        fabric.columns[i].axon_5 = 4294967295u32;
-        fabric.columns[i].axon_6 = 4294967295u32;
-        fabric.columns[i].axon_7 = 4294967295u32;
-        fabric.columns[i].inhibitory_link = 4294967295u32;
+        fabric.columns[i].axon_0 = null_index();
+        fabric.columns[i].axon_1 = null_index();
+        fabric.columns[i].axon_2 = null_index();
+        fabric.columns[i].axon_3 = null_index();
+        fabric.columns[i].axon_4 = null_index();
+        fabric.columns[i].axon_5 = null_index();
+        fabric.columns[i].axon_6 = null_index();
+        fabric.columns[i].axon_7 = null_index();
+        fabric.columns[i].inhibitory_link = null_index();
         if i + 1u32 < (N as u32) {
             fabric.columns[i].free_list_link = (i as u32) + 1u32;
         } else {
-            fabric.columns[i].free_list_link = 4294967295u32;
+            fabric.columns[i].free_list_link = null_index();
         }
         i += 1u32;
     }
@@ -136,11 +136,11 @@ verb fabric_init_core[N: Usize](ins fabric: CorticalFabric[N]) {
 
 open verb allocate_column[N: Usize](ins fabric: CorticalFabric[N]) -> Option[u32] {
     erg slot: u32 = 0u32;
-    erg available: Bool = fabric.free_list_head != 4294967295u32;
+    erg available: Bool = fabric.free_list_head != null_index();
     if available {
         slot = fabric.free_list_head;
         fabric.free_list_head = fabric.columns[slot].free_list_link;
-        fabric.columns[slot].free_list_link = 4294967295u32;
+        fabric.columns[slot].free_list_link = null_index();
         fabric.columns[slot].flags = 1u8;
         fabric.active_count += 1u32;
     }
@@ -152,12 +152,12 @@ open verb allocate_column[N: Usize](ins fabric: CorticalFabric[N]) -> Option[u32
 }
 
 open verb allocate_column_index[N: Usize](ins fabric: CorticalFabric[N]) -> u32 {
-    erg slot: u32 = 4294967295u32;
-    erg available: Bool = fabric.free_list_head != 4294967295u32;
+    erg slot: u32 = null_index();
+    erg available: Bool = fabric.free_list_head != null_index();
     if available {
         slot = fabric.free_list_head;
         fabric.free_list_head = fabric.columns[slot].free_list_link;
-        fabric.columns[slot].free_list_link = 4294967295u32;
+        fabric.columns[slot].free_list_link = null_index();
         fabric.columns[slot].flags = 1u8;
         fabric.active_count += 1u32;
     }
@@ -177,15 +177,15 @@ open verb free_column[N: Usize](ins fabric: CorticalFabric[N], erg slot: u32) ->
     fabric.columns[slot].layer_depth = 0u16;
     fabric.columns[slot].coincidence_low = 0u64;
     fabric.columns[slot].coincidence_high = 0u64;
-    fabric.columns[slot].axon_0 = 4294967295u32;
-    fabric.columns[slot].axon_1 = 4294967295u32;
-    fabric.columns[slot].axon_2 = 4294967295u32;
-    fabric.columns[slot].axon_3 = 4294967295u32;
-    fabric.columns[slot].axon_4 = 4294967295u32;
-    fabric.columns[slot].axon_5 = 4294967295u32;
-    fabric.columns[slot].axon_6 = 4294967295u32;
-    fabric.columns[slot].axon_7 = 4294967295u32;
-    fabric.columns[slot].inhibitory_link = 4294967295u32;
+    fabric.columns[slot].axon_0 = null_index();
+    fabric.columns[slot].axon_1 = null_index();
+    fabric.columns[slot].axon_2 = null_index();
+    fabric.columns[slot].axon_3 = null_index();
+    fabric.columns[slot].axon_4 = null_index();
+    fabric.columns[slot].axon_5 = null_index();
+    fabric.columns[slot].axon_6 = null_index();
+    fabric.columns[slot].axon_7 = null_index();
+    fabric.columns[slot].inhibitory_link = null_index();
     fabric.columns[slot].free_list_link = fabric.free_list_head;
     fabric.free_list_head = slot;
     if fabric.active_count > 0u32 {

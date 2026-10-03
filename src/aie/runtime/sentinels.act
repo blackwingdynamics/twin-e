@@ -1,0 +1,4 @@
+"""Private runtime sentinel helpers shared by runtime siblings."""
+verb null_index() -> u32 {
+    return 4294967295u32;
+}

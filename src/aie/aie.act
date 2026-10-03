@@ -4,16 +4,8 @@ This facade exports the fixed-size minicolumn layout, arena fabric,
 coincidence evaluation, impulse forwarding, neurogenesis, decay, and
 position-independent `.brain` snapshot APIs.
 """
-open minicolumn;
+open layout;
 
-open fabric;
+open runtime;
 
-open coincidence;
-
-open forwarding;
-
-open neurogenesis;
-
-open decay;
-
-open serialization;
+open persistence;

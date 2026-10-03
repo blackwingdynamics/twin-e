@@ -19,7 +19,7 @@ verb neurogenesis_core[N: Usize](
     erg source_idx: u32
 ) -> Option[u32] {
     erg slot: u32 = allocate_column_index(fabric: ins fabric);
-    erg has_allocation: Bool = slot != 4294967295u32;
+    erg has_allocation: Bool = slot != null_index();
     if has_allocation {
         seed_column(
             fabric: ins fabric,
@@ -115,6 +115,7 @@ verb link_allocated[N: Usize](
     return link_choice < 8u32;
 }
 
+meta limitless("verb")
 verb choose_link[N: Usize](
     abs fabric: CorticalFabric[N],
     erg source: u32,
@@ -129,15 +130,16 @@ verb choose_link[N: Usize](
     erg six: u32 = 6u32;
     erg seven: u32 = 7u32;
     erg eight: u32 = 8u32;
+    erg empty: u32 = null_index();
     return case true {
-        true if available && source < (N as u32) && fabric.columns[source].axon_0 == 4294967295u32 => zero,
-        true if available && source < (N as u32) && fabric.columns[source].axon_1 == 4294967295u32 => one,
-        true if available && source < (N as u32) && fabric.columns[source].axon_2 == 4294967295u32 => two,
-        true if available && source < (N as u32) && fabric.columns[source].axon_3 == 4294967295u32 => three,
-        true if available && source < (N as u32) && fabric.columns[source].axon_4 == 4294967295u32 => four,
-        true if available && source < (N as u32) && fabric.columns[source].axon_5 == 4294967295u32 => five,
-        true if available && source < (N as u32) && fabric.columns[source].axon_6 == 4294967295u32 => six,
-        true if available && source < (N as u32) && fabric.columns[source].axon_7 == 4294967295u32 => seven,
+        true if available && source < (N as u32) && fabric.columns[source].axon_0 == empty => zero,
+        true if available && source < (N as u32) && fabric.columns[source].axon_1 == empty => one,
+        true if available && source < (N as u32) && fabric.columns[source].axon_2 == empty => two,
+        true if available && source < (N as u32) && fabric.columns[source].axon_3 == empty => three,
+        true if available && source < (N as u32) && fabric.columns[source].axon_4 == empty => four,
+        true if available && source < (N as u32) && fabric.columns[source].axon_5 == empty => five,
+        true if available && source < (N as u32) && fabric.columns[source].axon_6 == empty => six,
+        true if available && source < (N as u32) && fabric.columns[source].axon_7 == empty => seven,
         _ => eight,
     };
 }

@@ -13,7 +13,7 @@ open verb store_destination[N: Usize](
     );
     fired[index] = case dat evaluation {
         Option.Some(_) => target,
-        Option.None => 4294967295u32,
+        Option.None => null_index(),
     };
     return 0u32;
 }
@@ -31,7 +31,7 @@ verb forward_one[N: Usize](
     );
     return case dat evaluation {
         Option.Some(_) => target,
-        Option.None => 4294967295u32,
+        Option.None => null_index(),
     };
 }
 
