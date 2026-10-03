@@ -1,3 +1,5 @@
+import config;
+
 """Allocate and connect a minicolumn for a novel wavefront."""
 open verb neurogenesis[N: Usize](
     ins fabric: CorticalFabric[N],
@@ -49,7 +51,7 @@ verb seed_column[N: Usize](
     erg slot: u32,
     abs wave: Wavefront
 ) {
-    fabric.columns[slot].threshold = 20u8;
+    fabric.columns[slot].threshold = NEUROGENESIS_THRESHOLD;
     fabric.columns[slot].myelination = 1u8;
     fabric.columns[slot].idle_ticks = 0u8;
     fabric.columns[slot].coincidence_low = wave.mask_low;

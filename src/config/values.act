@@ -1,0 +1,42 @@
+"""Package-wide typed constants for AIE policy and binary formats."""
+open const NULL_INDEX: u32 = 4294967295u32;
+
+
+open const FLAG_ACTIVE: u8 = 1u8;
+
+
+open const FLAG_INHIBITED: u8 = 2u8;
+
+
+open const FLAG_REFRACTORY: u8 = 4u8;
+
+
+open const FLAG_CONSOLIDATED: u8 = 8u8;
+
+
+open const DEFAULT_THRESHOLD: u8 = 30u8;
+
+
+open const NEUROGENESIS_THRESHOLD: u8 = 20u8;
+
+
+open const DECAY_IDLE_LIMIT: u8 = 240u8;
+
+
+open const DECAY_MYELINATION_LIMIT: u8 = 100u8;
+
+
+open const MAX_U8: u8 = 255u8;
+
+
+open const BRAIN_MAGIC: u32 = 1095322161u32;
+
+
+open const BRAIN_VERSION: u16 = 1u16;
+
+
+open const BRAIN_HEADER_BYTES: u16 = 12u16;
+
+
+open const BRAIN_PAYLOAD_BYTES: u32 = 4096u32;
+

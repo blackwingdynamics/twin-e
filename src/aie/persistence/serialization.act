@@ -1,3 +1,5 @@
+import config;
+
 """Position-independent binary snapshots backed by the packed storage array."""
 open struct FabricSnapshot {
     erg magic: u32,
@@ -10,7 +12,7 @@ open struct FabricSnapshot {
 }
 
 open verb snapshot_is_valid(abs snapshot: FabricSnapshot) -> Bool {
-    return snapshot.magic == 1095322161u32 && snapshot.version == 1u16 && snapshot.header_bytes == 12u16 && snapshot.payload_bytes == 4096u32;
+    return snapshot.magic == BRAIN_MAGIC && snapshot.version == BRAIN_VERSION && snapshot.header_bytes == BRAIN_HEADER_BYTES && snapshot.payload_bytes == BRAIN_PAYLOAD_BYTES;
 }
 
 open verb serialize_minicolumn(abs column: Minicolumn) -> Array[u8, 64] {
@@ -41,7 +43,7 @@ open verb deserialize_minicolumn(
 }
 
 open verb serialize_fabric(abs fabric: CorticalFabric[64]) -> FabricSnapshot {
-    erg snapshot: FabricSnapshot = FabricSnapshot {magic: 1095322161u32, version: 1u16, header_bytes: 12u16, payload_bytes: 4096u32, columns: Array[u8, 4096](
+    erg snapshot: FabricSnapshot = FabricSnapshot {magic: BRAIN_MAGIC, version: BRAIN_VERSION, header_bytes: BRAIN_HEADER_BYTES, payload_bytes: BRAIN_PAYLOAD_BYTES, columns: Array[u8, 4096](
     ), free_list_head: fabric.free_list_head, active_count: fabric.active_count};
     erg i: u32 = 0u32;
     loop {

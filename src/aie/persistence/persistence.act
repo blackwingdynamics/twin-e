@@ -1,2 +1,4 @@
 """Public persistence facade for position-independent AIE snapshots."""
+import config;
+
 open serialization;

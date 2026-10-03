@@ -1,16 +1,24 @@
+import config;
+
 """Advance homeostasis and reclaim idle, weak minicolumns."""
 open verb global_homeostatic_sweep[N: Usize](ins fabric: CorticalFabric[N]) -> Void {
+    erg active_flag: u8 = FLAG_ACTIVE;
+    erg refractory_flag: u8 = FLAG_REFRACTORY;
+    erg inhibited_flag: u8 = FLAG_INHIBITED;
+    erg max_value: u8 = MAX_U8;
+    erg idle_limit: u8 = DECAY_IDLE_LIMIT;
+    erg myelination_limit: u8 = DECAY_MYELINATION_LIMIT;
     erg i: u32 = 0u32;
     loop {
         if i >= (N as u32) {
             break;
         }
-        if (fabric.columns[i].flags & 1u8) != 0u8 {
-            fabric.columns[i].flags &= ~(4u8 | 2u8);
-            if fabric.columns[i].idle_ticks < 255u8 {
+        if (fabric.columns[i].flags & active_flag) != 0u8 {
+            fabric.columns[i].flags &= ~(refractory_flag | inhibited_flag);
+            if fabric.columns[i].idle_ticks < max_value {
                 fabric.columns[i].idle_ticks += 1u8;
             }
-            if fabric.columns[i].idle_ticks >= 240u8 && fabric.columns[i].myelination < 100u8 {
+            if fabric.columns[i].idle_ticks >= idle_limit && fabric.columns[i].myelination < myelination_limit {
                 erg reclaim_idx: u32 = i as u32;
                 free_column(fabric: ins fabric, slot: erg reclaim_idx);
             }

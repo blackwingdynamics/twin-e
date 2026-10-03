@@ -1,3 +1,5 @@
+import config;
+
 """Bounded ownership and free-list management for cortical minicolumns."""
 verb fabric_none_u32() -> Option[u32] {
     erg value: Option[u32] = Option[u32].None;
@@ -106,7 +108,7 @@ verb fabric_init_core[N: Usize](ins fabric: CorticalFabric[N]) {
             break;
         }
         fabric.columns[i].charge = 0u8;
-        fabric.columns[i].threshold = 30u8;
+        fabric.columns[i].threshold = DEFAULT_THRESHOLD;
         fabric.columns[i].myelination = 0u8;
         fabric.columns[i].idle_ticks = 0u8;
         fabric.columns[i].flags = 0u8;
@@ -141,7 +143,7 @@ open verb allocate_column[N: Usize](ins fabric: CorticalFabric[N]) -> Option[u32
         slot = fabric.free_list_head;
         fabric.free_list_head = fabric.columns[slot].free_list_link;
         fabric.columns[slot].free_list_link = null_index();
-        fabric.columns[slot].flags = 1u8;
+        fabric.columns[slot].flags = FLAG_ACTIVE;
         fabric.active_count += 1u32;
     }
     erg result: Option[u32] = Option[u32].None;
@@ -158,7 +160,7 @@ open verb allocate_column_index[N: Usize](ins fabric: CorticalFabric[N]) -> u32 
         slot = fabric.free_list_head;
         fabric.free_list_head = fabric.columns[slot].free_list_link;
         fabric.columns[slot].free_list_link = null_index();
-        fabric.columns[slot].flags = 1u8;
+        fabric.columns[slot].flags = FLAG_ACTIVE;
         fabric.active_count += 1u32;
     }
     return slot;

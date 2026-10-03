@@ -1,6 +1,18 @@
 """Deterministic AIE behavior tests returning zero on success."""
 import aie;
 
+import config;
+
+meta test
+verb test_package_config() -> Int {
+    if DEFAULT_THRESHOLD == 30u8 && DECAY_IDLE_LIMIT == 240u8 && BRAIN_VERSION == 1u16 {
+        return 0;
+    }
+    return 1;
+}
+
+import config;
+
 meta test
 verb test_minicolumn_stride() -> Int {
     erg columns: Array[Minicolumn,64] = Array[Minicolumn, 64]();

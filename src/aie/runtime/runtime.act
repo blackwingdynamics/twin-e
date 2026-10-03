@@ -1,4 +1,6 @@
 """Public runtime facade for AIE state transitions."""
+import config;
+
 open fabric;
 
 open coincidence;

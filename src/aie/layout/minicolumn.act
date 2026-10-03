@@ -25,21 +25,6 @@ open pack Minicolumn {
     }
 }
 
-open const NULL_INDEX: u32 = 4294967295u32;
-
-
-open const FLAG_ACTIVE: u8 = 1u8;
-
-
-open const FLAG_INHIBITED: u8 = 2u8;
-
-
-open const FLAG_REFRACTORY: u8 = 4u8;
-
-
-open const FLAG_CONSOLIDATED: u8 = 8u8;
-
-
 open struct Wavefront {
     erg mask_low: u64,
     erg mask_high: u64,

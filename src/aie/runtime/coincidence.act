@@ -1,3 +1,5 @@
+import config;
+
 """Evaluate binary coincidence and maintain local firing state."""
 open verb popcount_u64(erg value: u64) -> u32 {
     erg working: u64 = value;
@@ -51,8 +53,11 @@ verb evaluate_minicolumn_core[N: Usize](
     abs wave: Wavefront,
     erg target_idx: u32
 ) -> Option[u8] {
+    erg max_value: u8 = MAX_U8;
+    erg refractory_flag: u8 = FLAG_REFRACTORY;
+    erg inhibited_flag: u8 = FLAG_INHIBITED;
     erg valid: Bool = target_idx < (N as u32);
-    erg eligible: Bool = valid && (fabric.columns[target_idx].flags & (4u8 | 2u8)) == 0u8;
+    erg eligible: Bool = valid && (fabric.columns[target_idx].flags & (refractory_flag | inhibited_flag)) == 0u8;
     erg overlap: u32 = 0u32;
     if valid {
         erg low: u64 = wave.mask_low & fabric.columns[target_idx].coincidence_low;
@@ -63,17 +68,17 @@ verb evaluate_minicolumn_core[N: Usize](
     if fires {
         fabric.columns[target_idx].charge = 0u8;
         fabric.columns[target_idx].idle_ticks = 0u8;
-        if fabric.columns[target_idx].myelination < 255u8 {
+        if fabric.columns[target_idx].myelination < max_value {
             fabric.columns[target_idx].myelination += 1u8;
         }
         if fabric.columns[target_idx].inhibitory_link != null_index() && fabric.columns[target_idx].inhibitory_link < (N as u32) {
             erg inhibitory_idx: u32 = fabric.columns[target_idx].inhibitory_link;
-            fabric.columns[inhibitory_idx].flags |= 2u8;
+            fabric.columns[inhibitory_idx].flags |= inhibited_flag;
         }
     } else if eligible {
         erg accumulated: u32 = (fabric.columns[target_idx].charge as u32) + overlap;
-        if accumulated > 255u32 {
-            fabric.columns[target_idx].charge = 255u8;
+        if accumulated > (max_value as u32) {
+            fabric.columns[target_idx].charge = max_value;
         } else {
             fabric.columns[target_idx].charge = accumulated as u8;
         };

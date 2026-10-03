@@ -1,0 +1,8 @@
+# Actus compiler output
+capsula/
+
+# Local native build artifacts
+target/
+*.o
+*.obj
+*.exe
