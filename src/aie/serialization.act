@@ -1,8 +1,16 @@
 """Position-independent binary snapshots backed by the packed storage array."""
 open struct FabricSnapshot {
+    erg magic: u32,
+    erg version: u16,
+    erg header_bytes: u16,
+    erg payload_bytes: u32,
     erg columns: Array[u8, 4096],
     erg free_list_head: u32,
     erg active_count: u32,
+}
+
+open verb snapshot_is_valid(abs snapshot: FabricSnapshot) -> Bool {
+    return snapshot.magic == 1095322161u32 && snapshot.version == 1u16 && snapshot.header_bytes == 12u16 && snapshot.payload_bytes == 4096u32;
 }
 
 open verb serialize_minicolumn(abs column: Minicolumn) -> Array[u8, 64] {
@@ -33,7 +41,8 @@ open verb deserialize_minicolumn(
 }
 
 open verb serialize_fabric(abs fabric: CorticalFabric[64]) -> FabricSnapshot {
-    erg snapshot: FabricSnapshot = FabricSnapshot {columns: Array[u8, 4096](), free_list_head: fabric.free_list_head, active_count: fabric.active_count};
+    erg snapshot: FabricSnapshot = FabricSnapshot {magic: 1095322161u32, version: 1u16, header_bytes: 12u16, payload_bytes: 4096u32, columns: Array[u8, 4096](
+    ), free_list_head: fabric.free_list_head, active_count: fabric.active_count};
     erg i: u32 = 0u32;
     loop {
         if i >= 64u32 {
@@ -56,7 +65,10 @@ open verb serialize_fabric(abs fabric: CorticalFabric[64]) -> FabricSnapshot {
 open verb deserialize_fabric(
     ins fabric: CorticalFabric[64],
     abs snapshot: FabricSnapshot
-) -> Void {
+) -> Bool {
+    if !snapshot_is_valid(snapshot: abs snapshot) {
+        return false;
+    }
     erg i: u32 = 0u32;
     loop {
         if i >= 64u32 {
@@ -74,4 +86,5 @@ open verb deserialize_fabric(
     }
     fabric.free_list_head = snapshot.free_list_head;
     fabric.active_count = snapshot.active_count;
+    return true;
 }

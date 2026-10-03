@@ -198,13 +198,60 @@ verb test_serialization_roundtrip() -> Int {
     fabric.columns[0].payload = 91u8;
     fabric.columns[0].coincidence_low = 123u64;
     erg snapshot: FabricSnapshot = serialize_fabric(fabric: abs fabric);
+    if !snapshot_is_valid(snapshot: abs snapshot) {
+        return 1;
+    }
     fabric.columns[0].payload = 0u8;
     fabric.columns[0].coincidence_low = 0u64;
     fabric.free_list_head = 63u32;
     fabric.active_count = 63u32;
-    deserialize_fabric(fabric: ins fabric, snapshot: abs snapshot);
-    if fabric.columns[0].payload == 91u8 && fabric.columns[0].coincidence_low == 123u64 && fabric.active_count == 1u32 && fabric.free_list_head == 1u32 {
+    erg restored: Bool = deserialize_fabric(fabric: ins fabric, snapshot: abs snapshot);
+    if restored && fabric.columns[0].payload == 91u8 && fabric.columns[0].coincidence_low == 123u64 && fabric.active_count == 1u32 && fabric.free_list_head == 1u32 {
         return 0;
     }
     return 1;
+}
+
+meta test
+verb test_snapshot_rejects_corrupted_headers() -> Int {
+    erg fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](), free_list_head: 0u32, active_count: 0u32};
+    fabric_init(fabric: ins fabric);
+    allocate_column(fabric: ins fabric);
+    fabric.columns[0].payload = 91u8;
+    erg snapshot: FabricSnapshot = serialize_fabric(fabric: abs fabric);
+    snapshot.magic = 0u32;
+    if snapshot_is_valid(snapshot: abs snapshot) {
+        return 1;
+    }
+    erg rejected_magic: Bool = deserialize_fabric(fabric: ins fabric, snapshot: abs snapshot);
+    if rejected_magic {
+        return 1;
+    }
+    snapshot = serialize_fabric(fabric: abs fabric);
+    snapshot.version = 2u16;
+    if snapshot_is_valid(snapshot: abs snapshot) {
+        return 1;
+    }
+    erg rejected_version: Bool = deserialize_fabric(fabric: ins fabric, snapshot: abs snapshot);
+    if rejected_version {
+        return 1;
+    }
+    return 0;
+}
+
+meta test
+verb test_snapshot_rejects_truncated_payload() -> Int {
+    erg fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](), free_list_head: 0u32, active_count: 0u32};
+    fabric_init(fabric: ins fabric);
+    allocate_column(fabric: ins fabric);
+    erg snapshot: FabricSnapshot = serialize_fabric(fabric: abs fabric);
+    snapshot.payload_bytes = 4095u32;
+    if snapshot_is_valid(snapshot: abs snapshot) {
+        return 1;
+    }
+    erg rejected_truncated: Bool = deserialize_fabric(fabric: ins fabric, snapshot: abs snapshot);
+    if rejected_truncated {
+        return 1;
+    }
+    return 0;
 }

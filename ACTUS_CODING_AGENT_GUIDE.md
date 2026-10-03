@@ -309,9 +309,35 @@ The following are required compiler behaviors:
   const references receive deterministic diagnostics.
 
 Const expressions and additional compile-time positions beyond the bounded
-`Array` capacity slice are not silently implied by this feature. They require
-their own constant-expression contract and evidence before an agent may use
-them in examples.
+`Array` capacity slice are not silently implied by this feature. However, once
+a const parameter is declared on a generic verb, its value may be used as a
+compile-time expression value inside that verb:
+
+```act
+verb capacity[N: Usize]() -> u32 {
+    if 0u32 < (N as u32) {
+        return N as u32;
+    }
+    return 0u32;
+}
+
+verb main() -> Int {
+    return capacity[4]() as Int;
+}
+```
+
+The compiler specializes `N` to the concrete literal before native lowering.
+This works through casts, binary expressions, conditions, indexing, and
+nested expression arguments. Explicit generic verb calls use the same square
+bracket syntax as generic type applications. A const argument must still be
+a positive compile-time `Usize` literal or an already-declared const
+parameter; runtime expressions, zero, nested type applications, and
+reference-role-qualified arguments are rejected.
+
+Do not assume that arbitrary constant arithmetic is accepted as a generic
+argument, or that a const parameter is a mutable runtime binding. Use a
+named `const` for reusable compile-time expressions outside a generic
+parameter's specialization contract.
 
 ### 6.4 `Option` and `Result`
 
@@ -1226,7 +1252,8 @@ specialization, and strict/native acceptance. Use literal arguments such as
 are implemented.
 
 Const parameters may also be used as type arguments in generic verb
-signatures and bodies:
+signatures and bodies, and their specialized values may be read in the verb
+body:
 
 ```act
 struct Storage[N: Usize] {
@@ -1237,12 +1264,19 @@ verb clear[N: Usize](ins storage: Storage[N]) {
     storage.values[0] = 42u32;
 }
 
+verb capacity[N: Usize](ins storage: Storage[N]) -> u32 {
+    if 0u32 < (N as u32) {
+        return N as u32;
+    }
+    return 0u32;
+}
+
 verb main() -> Int {
     erg storage: Storage[4] = Storage[4] {
         values: Array[u32, 4](),
     };
     clear(storage: ins storage);
-    return storage.values[0] as Int;
+    return capacity(storage: ins storage) as Int;
 }
 ```
 
@@ -1251,6 +1285,42 @@ declared const parameter. Runtime expressions, zero capacities, reference
 roles, and nested arguments remain invalid. `Buffer` is a compiler-owned
 builtin type name; use a domain-specific name such as `Storage` for a user
 defined generic aggregate.
+
+Generic verbs may call other generic verbs without manually materializing the
+helper. The compiler propagates the concrete caller substitution transitively:
+
+```act
+verb inner[N: Usize](ins storage: Storage[N]) -> u32 {
+    return N as u32;
+}
+
+verb outer[N: Usize](ins storage: Storage[N]) -> u32 {
+    return inner(storage: ins storage);
+}
+```
+
+When `outer` is reached as `outer[4]`, the compiler also materializes the
+reachable `inner[4]` instance before native declaration and lowering. This
+propagation is deterministic and deduplicated; do not add duplicate helper
+verbs or handwritten concrete wrappers.
+
+Const generic parameters are also valid read-only compile-time values inside
+case guards. They may be used directly or through a cast and are resolved
+before native lowering:
+
+```act
+verb choose[N: Usize]() -> u32 {
+    return case true {
+        true if 0u32 < (N as u32) => N as u32,
+        _ => 0u32,
+    };
+}
+```
+
+The compiler specializes `choose[4]` with the concrete value `4`; `N` is not
+a mutable runtime binding and cannot be assigned, borrowed, or transferred.
+Case-guard access must remain deterministic across direct and transitively
+specialized generic verbs.
 
 #### Array return ABI
 

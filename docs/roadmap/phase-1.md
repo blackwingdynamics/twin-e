@@ -58,7 +58,9 @@ Current status and remaining work for the Actus Impulse Engine.
 - [x] Restore for one `Minicolumn`.
 - [x] Fabric column snapshot and restore APIs.
 - [x] The full fabric snapshot stores `free_list_head` and `active_count` as separate metadata.
+- [x] Added `.brain` snapshot magic, version, header-size, and payload-size metadata.
 - [x] Serialization round-trip test.
+- [x] Rejection tests for corrupted headers and truncated payload metadata.
 
 ### Tests and native verification
 
@@ -91,13 +93,13 @@ Current status and remaining work for the Actus Impulse Engine.
 
 - [x] Add `free_list_head` to the snapshot format.
 - [x] Add `active_count` to the snapshot format.
-- [ ] Add a snapshot header and version for the `.brain` format.
-- [ ] Add rejection tests for corrupted and truncated snapshots.
+- [x] Add a snapshot header and version for the `.brain` format.
+- [x] Add rejection tests for corrupted and truncated snapshots.
 
 ### P1 — Generic API
 
 - [x] Recheck const-generic verb support in the new compiler; the compiler accepts generic verbs and the native regression test passes.
-- [~] Generalize engine verbs currently fixed to `CorticalFabric[64]`; compiler support exists, but the AIE implementation is still fixed to 64 columns.
+- [x] Generalize engine and fabric verbs to `CorticalFabric[N]`; serialization remains a fixed 64-column `.brain` format by contract.
 - [x] Add a native specialization test for a const-generic verb.
 
 ### P2 — Source organization
@@ -121,7 +123,7 @@ The updated release Actus compiler verified:
 
 ```text
 check --strict: passed
-test --strict: 8 passed
+test --strict: 10 passed
 object build: passed
 executable build: passed
 executable run: exit_code=0
