@@ -80,6 +80,8 @@ selective_load=1
   files with independent headers and checksums.
 - [x] Add a manifest-driven allocation planner that maps the next global index
   to an existing shard or plans the next shard range.
+- [x] Append a planned shard descriptor and publish the next manifest generation
+  with updated total-column and active-count metadata.
 - [~] Replace the fixed two-shard fabric loader and allocator with the dynamic
   manifest-driven descriptor collection.
 - [ ] Move shard count, capacity, payload sizes, and file size into the global

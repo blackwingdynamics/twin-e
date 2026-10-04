@@ -112,6 +112,43 @@ verb validate_dynamic(dat bytes: Buffer) -> Int {
     };
 }
 
+verb verify_appended_plan(abs value: AllocationPlan) -> Int {
+    if value.global_index != 96u32 || value.shard_id != 3u32 || value.local_index != 0u32 || value.creates_shard {
+        return 2;
+    }
+    return 0;
+}
+
+verb validate_appended_path(abs path: Path) -> Int {
+    erg loaded = read_to_bytes(path: abs path);
+    return case dat loaded {
+        Result.Err(_) => 3,
+        Result.Ok(bytes) => {
+            erg query: u32 = 96u32;
+            erg plan = plan_dynamic_allocation(bytes: abs bytes, global_index: erg query);
+            return case dat plan {
+                Result.Err(_) => 4,
+                Result.Ok(value) => verify_appended_plan(value: abs value),
+            };
+        },
+    };
+}
+
+verb append_and_validate(abs path: Path) -> Int {
+    erg new_count: u32 = 2u32;
+    erg new_checksum: u64 = 4u64;
+    erg new_active_count: u32 = 5u32;
+    erg appended = append_manifest_shard(path: abs path, new_column_count: erg new_count, new_checksum: erg new_checksum, active_count: erg new_active_count);
+    erg append_status: Int = case dat appended {
+        Result.Err(_) => 6,
+        Result.Ok(_) => 0,
+    };
+    if append_status != 0 {
+        return append_status;
+    }
+    return validate_appended_path(path: abs path);
+}
+
 verb run_dynamic(abs path: Path) -> Int {
     erg descriptors: Buffer = build_descriptors();
     erg generation: u64 = 9u64;
@@ -126,6 +163,14 @@ verb run_dynamic(abs path: Path) -> Int {
     if save_status != 0 {
         return save_status;
     }
+    erg initial_status: Int = validate_dynamic_path(path: abs path);
+    if initial_status != 0 {
+        return initial_status;
+    }
+    return append_and_validate(path: abs path);
+}
+
+verb validate_dynamic_path(abs path: Path) -> Int {
     erg loaded = read_to_bytes(path: abs path);
     return case dat loaded {
         Result.Err(_) => 2,
@@ -138,7 +183,7 @@ verb emit_dynamic(abs path: Path) -> Int {
     if status != 0 {
         return status;
     }
-    erg message: String = "AIE_MANIFEST_DYNAMIC shards=3 allocation_shard=3 local_index=0 creates_shard=1 roundtrip=1";
+    erg message: String = "AIE_MANIFEST_DYNAMIC shards=3 appended_shard=3 allocation_shard=3 local_index=0 roundtrip=1";
     println(text: abs message);
     return 0;
 }

@@ -430,6 +430,13 @@ verb manifest_dynamic_checksum(abs input: Buffer, erg length: u32) -> u64 {
     return checksum;
 }
 
+verb write_manifest_u32_at(ins output: Buffer, abs value: u32, abs offset: u32) {
+    output[offset] = (value & 255u32) as u8;
+    output[offset + 1u32] = ((value / 256u32) & 255u32) as u8;
+    output[offset + 2u32] = ((value / 65536u32) & 255u32) as u8;
+    output[offset + 3u32] = ((value / 16777216u32) & 255u32) as u8;
+}
+
 open verb manifest_dynamic_bytes_are_valid(abs bytes: Buffer) -> Bool {
     erg length_result = buffer_length(buffer: abs bytes);
     erg length: Int = case dat length_result {
@@ -621,5 +628,91 @@ open verb plan_dynamic_allocation(abs bytes: Buffer, erg global_index: u32) -> R
     return case dat location_result {
         Result.Err(error) => Err(error),
         Result.Ok(location) => Ok(AllocationPlan {global_index: location.global_index, shard_id: location.shard_id, local_index: location.local_index, creates_shard: false}),
+    };
+}
+
+verb extend_manifest_bytes(
+    dat bytes: Buffer,
+    abs path: Path,
+    erg new_column_count: u32,
+    erg new_checksum: u64,
+    erg active_count: u32
+) -> Result[Int, IoError] {
+    if !manifest_dynamic_bytes_are_valid(bytes: abs bytes) {
+        drop(bytes);
+        return Err(IoError.InvalidData);
+    }
+    erg old_length_result = buffer_length(buffer: abs bytes);
+    erg old_length: Int = case dat old_length_result {
+        Result.Ok(value) => value,
+        Result.Err(_) => -1,
+    };
+    erg old_length_u32: u32 = old_length as u32;
+    erg total_offset: u32 = 20u32;
+    erg count_offset: u32 = 28u32;
+    erg generation_offset: u32 = 12u32;
+    erg old_total: u32 = read_manifest_u32(input: abs bytes, offset: abs total_offset);
+    erg old_count: u32 = read_manifest_u32(input: abs bytes, offset: abs count_offset);
+    erg old_generation: u64 = read_manifest_u64(input: abs bytes, offset: abs generation_offset);
+    erg old_total_check: u32 = old_total + 0u32;
+    erg old_count_check: u32 = old_count + 0u32;
+    erg old_total_value: u32 = old_total + 0u32;
+    erg old_count_id: u32 = old_count + 0u32;
+    erg old_count_count: u32 = old_count + 0u32;
+    if new_column_count == 0u32 || old_count_check >= BRAIN_MANIFEST_DYNAMIC_MAX_SHARDS || old_total_check > 4294967295u32 - new_column_count {
+        drop(bytes);
+        return Err(IoError.InvalidInput);
+    }
+    erg new_length: u32 = old_length_u32 + BRAIN_MANIFEST_DESCRIPTOR_BYTES as u32;
+    if new_length > BRAIN_MANIFEST_DYNAMIC_MAX_BYTES {
+        drop(bytes);
+        return Err(IoError.InvalidInput);
+    }
+    erg capacity: Int = new_length as Int;
+    erg reserved = reserve(buffer: ins bytes, capacity: erg capacity);
+    erg shard_id: u32 = old_count_id;
+    erg payload_offset: u32 = BRAIN_SHARD_HEADER_BYTES as u32;
+    erg payload_bytes: u32 = new_column_count * BRAIN_SHARD_COLUMN_STRIDE_BYTES as u32;
+    erg binding_offset: u32 = 0u32;
+    erg binding_bytes: u32 = 0u32;
+    erg state: u32 = 1u32;
+    erg generation: u64 = old_generation + 1u64;
+    erg new_total: u32 = old_total_value + new_column_count;
+    erg new_shard_count: u32 = old_count_count + 1u32;
+    erg header_length_offset: u32 = 8u32;
+    erg header_generation_offset: u32 = 12u32;
+    erg header_total_offset: u32 = 20u32;
+    erg header_active_offset: u32 = 24u32;
+    erg header_count_offset: u32 = 28u32;
+    erg header_checksum_offset: u32 = 44u32;
+    append_manifest_u32(output: ins bytes, value: abs shard_id);
+    append_manifest_u32(output: ins bytes, value: abs old_total);
+    append_manifest_u32(output: ins bytes, value: abs new_column_count);
+    append_manifest_u32(output: ins bytes, value: abs payload_offset);
+    append_manifest_u32(output: ins bytes, value: abs payload_bytes);
+    append_manifest_u32(output: ins bytes, value: abs binding_offset);
+    append_manifest_u32(output: ins bytes, value: abs binding_bytes);
+    append_manifest_u64(output: ins bytes, value: abs new_checksum);
+    append_manifest_u32(output: ins bytes, value: abs state);
+    write_manifest_u32_at(output: ins bytes, value: abs new_length, offset: abs header_length_offset);
+    write_manifest_u64(output: ins bytes, value: abs generation, offset: abs header_generation_offset);
+    write_manifest_u32_at(output: ins bytes, value: abs new_total, offset: abs header_total_offset);
+    write_manifest_u32_at(output: ins bytes, value: abs active_count, offset: abs header_active_offset);
+    write_manifest_u32_at(output: ins bytes, value: abs new_shard_count, offset: abs header_count_offset);
+    erg checksum: u64 = manifest_dynamic_checksum(input: abs bytes, length: erg new_length);
+    write_manifest_u64(output: ins bytes, value: abs checksum, offset: abs header_checksum_offset);
+    return write_file(path: abs path, contents: abs bytes);
+}
+
+open verb append_manifest_shard(
+    abs path: Path,
+    erg new_column_count: u32,
+    erg new_checksum: u64,
+    erg active_count: u32
+) -> Result[Int, IoError] {
+    erg loaded = read_to_bytes(path: abs path);
+    return case dat loaded {
+        Result.Err(error) => Err(error),
+        Result.Ok(bytes) => extend_manifest_bytes(bytes: dat bytes, path: abs path, new_column_count: erg new_column_count, new_checksum: erg new_checksum, active_count: erg active_count),
     };
 }
