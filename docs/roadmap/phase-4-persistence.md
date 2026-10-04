@@ -112,8 +112,8 @@ selective_load=1
 
 - [ ] Store the `TokenBinding` sidecar in shard-owned payload records.
 - [ ] Restore tokenizer, context, and codebook binding versions per shard.
-- [ ] Persist global `free_list_head` and `active_count` through the manifest or
-  a dedicated allocator section.
+- [x] Persist global `free_list_head` and `active_count` through the manifest
+  allocator header fields.
 - [ ] Define deterministic global-index allocation across shard boundaries.
 - [ ] Verify allocation, free, restore, and reallocation across multiple shards.
 

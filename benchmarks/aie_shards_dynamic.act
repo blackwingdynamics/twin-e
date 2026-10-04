@@ -154,9 +154,10 @@ verb write_manifest_status(abs path: Path) -> Int {
     erg descriptors: Buffer = build_manifest_descriptors();
     erg generation: u64 = 1u64;
     erg active_count: u32 = 3u32;
+    erg free_list_head: u32 = 5u32;
     erg total_columns: u32 = 6u32;
     erg shard_count: u32 = 3u32;
-    erg result = write_manifest_dynamic(path: abs path, generation: erg generation, active_count: erg active_count, total_column_count: erg total_columns, shard_count: erg shard_count, descriptors: abs descriptors);
+    erg result = write_manifest_dynamic(path: abs path, generation: erg generation, active_count: erg active_count, free_list_head: erg free_list_head, total_column_count: erg total_columns, shard_count: erg shard_count, descriptors: abs descriptors);
     return case dat result {
         Result.Err(_) => 7,
         Result.Ok(_) => 0,

@@ -103,7 +103,19 @@ verb verify_dynamic_plan(abs value: AllocationPlan) -> Int {
     return 0;
 }
 
+verb verify_allocator_head(abs bytes: Buffer) -> Int {
+    erg head: u32 = dynamic_manifest_free_list_head(bytes: abs bytes);
+    if head != 5u32 {
+        return 3;
+    }
+    return 0;
+}
+
 verb validate_dynamic(dat bytes: Buffer) -> Int {
+    erg allocator_status: Int = verify_allocator_head(bytes: abs bytes);
+    if allocator_status != 0 {
+        return allocator_status;
+    }
     erg query: u32 = 96u32;
     erg plan = plan_dynamic_allocation(bytes: abs bytes, global_index: erg query);
     return case dat plan {
@@ -119,18 +131,24 @@ verb verify_appended_plan(abs value: AllocationPlan) -> Int {
     return 0;
 }
 
+verb validate_appended_bytes(abs bytes: Buffer) -> Int {
+    erg allocator_status: Int = verify_allocator_head(bytes: abs bytes);
+    if allocator_status != 0 {
+        return allocator_status;
+    }
+    erg query: u32 = 96u32;
+    erg plan = plan_dynamic_allocation(bytes: abs bytes, global_index: erg query);
+    return case dat plan {
+        Result.Err(_) => 4,
+        Result.Ok(value) => verify_appended_plan(value: abs value),
+    };
+}
+
 verb validate_appended_path(abs path: Path) -> Int {
     erg loaded = read_to_bytes(path: abs path);
     return case dat loaded {
         Result.Err(_) => 3,
-        Result.Ok(bytes) => {
-            erg query: u32 = 96u32;
-            erg plan = plan_dynamic_allocation(bytes: abs bytes, global_index: erg query);
-            return case dat plan {
-                Result.Err(_) => 4,
-                Result.Ok(value) => verify_appended_plan(value: abs value),
-            };
-        },
+        Result.Ok(bytes) => validate_appended_bytes(bytes: abs bytes),
     };
 }
 
@@ -138,7 +156,8 @@ verb append_and_validate(abs path: Path) -> Int {
     erg new_count: u32 = 2u32;
     erg new_checksum: u64 = 4u64;
     erg new_active_count: u32 = 5u32;
-    erg appended = append_manifest_shard(path: abs path, new_column_count: erg new_count, new_checksum: erg new_checksum, active_count: erg new_active_count);
+    erg new_free_list_head: u32 = 5u32;
+    erg appended = append_manifest_shard(path: abs path, new_column_count: erg new_count, new_checksum: erg new_checksum, active_count: erg new_active_count, free_list_head: erg new_free_list_head);
     erg append_status: Int = case dat appended {
         Result.Err(_) => 6,
         Result.Ok(_) => 0,
@@ -153,9 +172,10 @@ verb run_dynamic(abs path: Path) -> Int {
     erg descriptors: Buffer = build_descriptors();
     erg generation: u64 = 9u64;
     erg active_count: u32 = 3u32;
+    erg free_list_head: u32 = 5u32;
     erg total_columns: u32 = 96u32;
     erg shard_count: u32 = 3u32;
-    erg saved = write_manifest_dynamic(path: abs path, generation: erg generation, active_count: erg active_count, total_column_count: erg total_columns, shard_count: erg shard_count, descriptors: abs descriptors);
+    erg saved = write_manifest_dynamic(path: abs path, generation: erg generation, active_count: erg active_count, free_list_head: erg free_list_head, total_column_count: erg total_columns, shard_count: erg shard_count, descriptors: abs descriptors);
     erg save_status: Int = case dat saved {
         Result.Err(_) => 1,
         Result.Ok(_) => 0,
@@ -266,7 +286,7 @@ verb emit_dynamic(abs path: Path) -> Int {
     if state_status != 0 {
         return state_status;
     }
-    erg message: String = "AIE_MANIFEST_DYNAMIC shards=3 appended_shard=3 allocation_shard=3 local_index=0 roundtrip=1";
+    erg message: String = "AIE_MANIFEST_DYNAMIC shards=3 appended_shard=3 allocation_shard=3 local_index=0 allocator_head=5 roundtrip=1";
     println(text: abs message);
     return 0;
 }

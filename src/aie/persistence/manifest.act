@@ -480,6 +480,7 @@ open verb manifest_dynamic_bytes_are_valid(abs bytes: Buffer) -> Bool {
     erg offset_38: u32 = 38u32;
     erg offset_40: u32 = 40u32;
     erg offset_44: u32 = 44u32;
+    erg offset_52: u32 = 52u32;
     erg stored_length: u32 = read_manifest_u32(input: abs bytes, offset: abs offset_8);
     erg shard_count: u32 = read_manifest_u32(input: abs bytes, offset: abs offset_28);
     erg stored_checksum: u64 = read_manifest_u64(input: abs bytes, offset: abs offset_44);
@@ -492,6 +493,10 @@ open verb manifest_dynamic_bytes_are_valid(abs bytes: Buffer) -> Bool {
         return false;
     }
     erg total_columns: u32 = read_manifest_u32(input: abs bytes, offset: abs offset_20);
+    erg free_list_head: u32 = read_manifest_u32(input: abs bytes, offset: abs offset_52);
+    if free_list_head != NULL_INDEX && free_list_head >= total_columns {
+        return false;
+    }
     erg descriptor_index: u32 = 0u32;
     erg expected_first: u32 = 0u32;
     loop {
@@ -517,6 +522,11 @@ open verb manifest_dynamic_bytes_are_valid(abs bytes: Buffer) -> Bool {
         descriptor_index += 1u32;
     }
     return expected_first == total_columns;
+}
+
+open verb dynamic_manifest_free_list_head(abs bytes: Buffer) -> u32 {
+    erg offset: u32 = 52u32;
+    return read_shard_u32(input: abs bytes, offset: abs offset);
 }
 
 open verb manifest_locate_column_dynamic(abs bytes: Buffer, erg global_index: u32) -> Result[ColumnLocation, IoError] {
@@ -550,6 +560,7 @@ open verb write_manifest_dynamic(
     abs path: Path,
     erg generation: u64,
     erg active_count: u32,
+    erg free_list_head: u32,
     erg total_column_count: u32,
     erg shard_count: u32,
     abs descriptors: Buffer
@@ -596,7 +607,7 @@ open verb write_manifest_dynamic(
     append_manifest_u16(output: ins output, value: abs code_version);
     append_manifest_u16(output: ins output, value: abs zero_u16);
     append_manifest_u64(output: ins output, value: abs zero_u64);
-    append_manifest_u32(output: ins output, value: abs zero_u32);
+    append_manifest_u32(output: ins output, value: abs free_list_head);
     append_manifest_u32(output: ins output, value: abs zero_u32);
     append_manifest_u32(output: ins output, value: abs zero_u32);
     erg descriptor_index: u32 = 0u32;
@@ -720,7 +731,8 @@ verb extend_manifest_bytes(
     abs path: Path,
     erg new_column_count: u32,
     erg new_checksum: u64,
-    erg active_count: u32
+    erg active_count: u32,
+    erg free_list_head: u32
 ) -> Result[Int, IoError] {
     if !manifest_dynamic_bytes_are_valid(bytes: abs bytes) {
         drop(bytes);
@@ -768,6 +780,7 @@ verb extend_manifest_bytes(
     erg header_total_offset: u32 = 20u32;
     erg header_active_offset: u32 = 24u32;
     erg header_count_offset: u32 = 28u32;
+    erg header_free_list_offset: u32 = 52u32;
     erg header_checksum_offset: u32 = 44u32;
     append_manifest_u32(output: ins bytes, value: abs shard_id);
     append_manifest_u32(output: ins bytes, value: abs old_total);
@@ -783,6 +796,7 @@ verb extend_manifest_bytes(
     write_manifest_u32_at(output: ins bytes, value: abs new_total, offset: abs header_total_offset);
     write_manifest_u32_at(output: ins bytes, value: abs active_count, offset: abs header_active_offset);
     write_manifest_u32_at(output: ins bytes, value: abs new_shard_count, offset: abs header_count_offset);
+    write_manifest_u32_at(output: ins bytes, value: abs free_list_head, offset: abs header_free_list_offset);
     erg checksum: u64 = manifest_dynamic_checksum(input: abs bytes, length: erg new_length);
     write_manifest_u64(output: ins bytes, value: abs checksum, offset: abs header_checksum_offset);
     return write_file(path: abs path, contents: abs bytes);
@@ -792,11 +806,12 @@ open verb append_manifest_shard(
     abs path: Path,
     erg new_column_count: u32,
     erg new_checksum: u64,
-    erg active_count: u32
+    erg active_count: u32,
+    erg free_list_head: u32
 ) -> Result[Int, IoError] {
     erg loaded = read_to_bytes(path: abs path);
     return case dat loaded {
         Result.Err(error) => Err(error),
-        Result.Ok(bytes) => extend_manifest_bytes(bytes: dat bytes, path: abs path, new_column_count: erg new_column_count, new_checksum: erg new_checksum, active_count: erg active_count),
+        Result.Ok(bytes) => extend_manifest_bytes(bytes: dat bytes, path: abs path, new_column_count: erg new_column_count, new_checksum: erg new_checksum, active_count: erg active_count, free_list_head: erg free_list_head),
     };
 }
