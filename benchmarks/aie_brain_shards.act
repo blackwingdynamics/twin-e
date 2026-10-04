@@ -85,6 +85,23 @@ verb read_both(ins fabric: CorticalFabric[64], abs path_zero: Path, abs path_one
     };
 }
 
+verb corrupted_shard_rejected(ins fabric: CorticalFabric[64], abs path: Path) -> Bool {
+    erg loaded = read_to_bytes(path: abs path);
+    return case dat loaded {
+        Result.Err(_) => false,
+        Result.Ok(bytes) => {
+            bytes[53u32] = 12u8;
+            erg shard_zero: u32 = 0u32;
+            erg result = read_shard_bytes(fabric: ins fabric, bytes: dat bytes, shard_id: erg shard_zero);
+            erg status: Int = case dat result {
+                Result.Err(_) => 1,
+                Result.Ok(_) => 0,
+            };
+            return status == 1 && fabric.columns[0u32].payload == 11u8;
+        },
+    };
+}
+
 verb run_paths(abs path_zero: Path, abs path_one: Path) -> Int {
     erg fabric: CorticalFabric[64] = make_fabric();
     erg written: Bool = write_both(path_zero: abs path_zero, path_one: abs path_one, fabric: abs fabric);
@@ -96,7 +113,11 @@ verb run_paths(abs path_zero: Path, abs path_one: Path) -> Int {
     if !loaded || fabric.columns[0u32].payload != 11u8 || fabric.columns[0u32].axon_0 != 32u32 || fabric.columns[32u32].payload != 22u8 {
         return 4;
     }
-    erg message: String = "AIE_BRAIN_SHARDS roundtrip=1 shard0=1 shard1=1 cross_shard_axon=32";
+    erg corruption_rejected: Bool = corrupted_shard_rejected(fabric: ins fabric, path: abs path_zero);
+    if !corruption_rejected {
+        return 5;
+    }
+    erg message: String = "AIE_BRAIN_SHARDS roundtrip=1 shard0=1 shard1=1 cross_shard_axon=32 corrupted_rejected=1";
     println(text: abs message);
     return 0;
 }

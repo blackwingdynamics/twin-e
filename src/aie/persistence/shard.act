@@ -59,6 +59,39 @@ verb read_shard_u32(abs input: Buffer, abs offset: u32) -> u32 {
     return (input[offset] as u32) + ((input[offset + 1u32] as u32 * 256u32)) + ((input[offset + 2u32] as u32 * 65536u32)) + ((input[offset + 3u32] as u32 * 16777216u32));
 }
 
+verb read_shard_u64(abs input: Buffer, abs offset: u32) -> u64 {
+    erg low: u64 = read_shard_u32(input: abs input, offset: abs offset) as u64;
+    erg high_offset: u32 = offset + 4u32;
+    erg high: u64 = read_shard_u32(input: abs input, offset: abs high_offset) as u64;
+    return low + (high * 4294967296u64);
+}
+
+verb shard_payload_checksum(abs input: Buffer) -> u64 {
+    erg checksum: u64 = 0u64;
+    erg index: u32 = 48u32;
+    loop {
+        if index >= BRAIN_SHARD_FILE_BYTES {
+            break;
+        }
+        checksum += (input[index] as u64) * ((index - 47u32) as u64);
+        index += 1u32;
+    }
+    return checksum;
+}
+
+verb write_shard_u64(ins output: Buffer, abs value: u64, abs offset: u32) {
+    erg low: u32 = (value & 4294967295u64) as u32;
+    erg high: u32 = (value / 4294967296u64) as u32;
+    output[offset] = (low & 255u32) as u8;
+    output[offset + 1u32] = ((low / 256u32) & 255u32) as u8;
+    output[offset + 2u32] = ((low / 65536u32) & 255u32) as u8;
+    output[offset + 3u32] = ((low / 16777216u32) & 255u32) as u8;
+    output[offset + 4u32] = (high & 255u32) as u8;
+    output[offset + 5u32] = ((high / 256u32) & 255u32) as u8;
+    output[offset + 6u32] = ((high / 65536u32) & 255u32) as u8;
+    output[offset + 7u32] = ((high / 16777216u32) & 255u32) as u8;
+}
+
 verb shard_io_error(dat error: IoError) -> Result[Int, IoError] {
     return case dat error {
         IoError.EndOfStream => Err(IoError.EndOfStream),
@@ -120,10 +153,13 @@ open verb write_shard(abs path: Path, abs fabric: CorticalFabric[64], erg shard_
         }
         column += 1u32;
     }
+    erg checksum: u64 = shard_payload_checksum(input: abs output);
+    erg checksum_offset: u32 = 40u32;
+    write_shard_u64(output: ins output, value: abs checksum, offset: abs checksum_offset);
     return write_file(path: abs path, contents: abs output);
 }
 
-verb read_shard_bytes(ins fabric: CorticalFabric[64], dat bytes: Buffer, erg shard_id: u32) -> Result[Int, IoError] {
+open verb read_shard_bytes(ins fabric: CorticalFabric[64], dat bytes: Buffer, erg shard_id: u32) -> Result[Int, IoError] {
     erg length_result = buffer_length(buffer: abs bytes);
     erg length: Int = case dat length_result {
         Result.Ok(value) => value,
@@ -147,8 +183,10 @@ verb read_shard_bytes(ins fabric: CorticalFabric[64], dat bytes: Buffer, erg sha
     erg offset_34: u32 = 34u32;
     erg offset_36: u32 = 36u32;
     erg offset_38: u32 = 38u32;
-    erg header: ShardHeader = ShardHeader {magic: read_shard_u32(input: abs bytes, offset: abs offset_0), version: read_shard_u16(input: abs bytes, offset: abs offset_4), header_bytes: read_shard_u16(input: abs bytes, offset: abs offset_6), shard_id: read_shard_u32(input: abs bytes, offset: abs offset_8), first_column_index: read_shard_u32(input: abs bytes, offset: abs offset_12), column_count: read_shard_u32(input: abs bytes, offset: abs offset_16), column_stride_bytes: read_shard_u16(input: abs bytes, offset: abs offset_20), binding_stride_bytes: read_shard_u16(input: abs bytes, offset: abs offset_22), column_payload_bytes: read_shard_u32(input: abs bytes, offset: abs offset_24), binding_payload_bytes: read_shard_u32(input: abs bytes, offset: abs offset_28), tokenizer_version: read_shard_u16(input: abs bytes, offset: abs offset_32), context_version: read_shard_u16(input: abs bytes, offset: abs offset_34), code_version: read_shard_u16(input: abs bytes, offset: abs offset_36), reserved: read_shard_u16(input: abs bytes, offset: abs offset_38), checksum: 0u64};
-    if !shard_header_matches(header: abs header, shard_id: erg shard_id) {
+    erg checksum_offset: u32 = 40u32;
+    erg header: ShardHeader = ShardHeader {magic: read_shard_u32(input: abs bytes, offset: abs offset_0), version: read_shard_u16(input: abs bytes, offset: abs offset_4), header_bytes: read_shard_u16(input: abs bytes, offset: abs offset_6), shard_id: read_shard_u32(input: abs bytes, offset: abs offset_8), first_column_index: read_shard_u32(input: abs bytes, offset: abs offset_12), column_count: read_shard_u32(input: abs bytes, offset: abs offset_16), column_stride_bytes: read_shard_u16(input: abs bytes, offset: abs offset_20), binding_stride_bytes: read_shard_u16(input: abs bytes, offset: abs offset_22), column_payload_bytes: read_shard_u32(input: abs bytes, offset: abs offset_24), binding_payload_bytes: read_shard_u32(input: abs bytes, offset: abs offset_28), tokenizer_version: read_shard_u16(input: abs bytes, offset: abs offset_32), context_version: read_shard_u16(input: abs bytes, offset: abs offset_34), code_version: read_shard_u16(input: abs bytes, offset: abs offset_36), reserved: read_shard_u16(input: abs bytes, offset: abs offset_38), checksum: read_shard_u64(input: abs bytes, offset: abs checksum_offset)};
+    erg actual_checksum: u64 = shard_payload_checksum(input: abs bytes);
+    if !shard_header_matches(header: abs header, shard_id: erg shard_id) || header.checksum != actual_checksum {
         drop(bytes);
         return Err(IoError.InvalidData);
     }
