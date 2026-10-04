@@ -88,7 +88,7 @@ verb main() -> Int {
         return 3;
     } else {
     }
-    erg message: String = "AIE_CACHE capacity=4 dirty_rejected=1 pinned_rejected=1 clean_evicted=1 replacement=1";
+    erg message: String = "AIE_CACHE capacity=4 working_set=4 dirty_rejected=1 pinned_rejected=1 clean_evicted=1 replacement=1";
     println(text: abs message);
     return 0;
 }

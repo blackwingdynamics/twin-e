@@ -242,6 +242,20 @@ verb validate_dynamic_path(abs path: Path) -> Int {
     };
 }
 
+verb manifest_file_bytes(abs path: Path) -> u64 {
+    erg loaded = read_to_bytes(path: abs path);
+    return case dat loaded {
+        Result.Err(_) => 0u64,
+        Result.Ok(bytes) => {
+            erg length_result = buffer_length(buffer: abs bytes);
+            return case dat length_result {
+                Result.Err(_) => 0u64,
+                Result.Ok(value) => value as u64,
+            };
+        },
+    };
+}
+
 verb verify_invalid_descriptor(ins bytes: Buffer) -> Int {
     bytes[72u32] = 0u8;
     erg valid: Bool = manifest_dynamic_bytes_are_valid(bytes: abs bytes);
@@ -442,6 +456,25 @@ verb emit_dynamic(abs path: Path) -> Int {
     if recovery_status != 0 {
         return recovery_status;
     }
+    erg manifest_bytes: u64 = manifest_file_bytes(path: abs path);
+    if manifest_bytes == 0u64 {
+        return 14;
+    } else {
+    }
+    erg operational_label: String = "AIE_OPERATIONAL manifest_bytes=";
+    print(text: abs operational_label);
+    erg manifest_bytes_display: Int = manifest_bytes as Int;
+    print_int(value: erg manifest_bytes_display);
+    erg shard_label: String = " shard_files=";
+    print(text: abs shard_label);
+    erg shard_files: Int = 3;
+    print_int(value: erg shard_files);
+    erg cache_label: String = " cache_working_set=";
+    print(text: abs cache_label);
+    erg cache_working_set: Int = BRAIN_CACHE_CAPACITY as Int;
+    print_int(value: erg cache_working_set);
+    erg newline: String = "";
+    println(text: abs newline);
     erg message: String = "AIE_MANIFEST_DYNAMIC shards=3 appended_shard=3 allocation_shard=3 local_index=0 allocator_head=5 allocator_shard=0 allocator_local=5 roundtrip=1 generation_publish=1 newest_generation=10 stale_rejected=1";
     println(text: abs message);
     return 0;

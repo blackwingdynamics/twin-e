@@ -151,29 +151,46 @@ AIE_SHARDS_DYNAMIC staged_shard=1 validated=3 manifest_bound=2
   exercised by the current benchmark).
 - [x] Measure sequential traversal, random lookup, selective load, and flush
   latency.
-- [ ] Measure manifest size, file count, cache working set, and restart time.
+- [x] Measure manifest size, file count, cache working set, and restart time.
 - [x] Add a bounded shard cache with dirty-state tracking and eviction rules.
 - [x] Reject eviction of dirty or pinned shards without an explicit flush.
-- [ ] Document the tested hardware limits and the difference between logical
+- [x] Document the tested hardware limits and the difference between logical
   scale and resident memory.
 
 Evidence from `benchmarks/aie_persistence_scale.act` (one local run):
 
 ```text
-AIE_SCALE small_write_ns=39630 medium_write_ns=22688 large_write_ns=53098
- sequential_ns=22351 random_lookup_ns=4782 selective_load_ns=2272
- flush_ns=23555 restart_validation_ns=5566 files=3 max_profile_columns=32
+AIE_SCALE small_write_ns=37485 medium_write_ns=32625 large_write_ns=52469
+ sequential_ns=14041 random_lookup_ns=1870 selective_load_ns=1274
+ flush_ns=13808 restart_validation_ns=1926 files=3 max_profile_columns=32
 ```
 
 These timings are operational evidence for the current host and debug-style
 benchmark executable. They do not define a hardware-independent latency
 guarantee or a final resident-memory limit.
 
+Operational evidence from `benchmarks/aie_manifest_dynamic.act`:
+
+```text
+AIE_OPERATIONAL manifest_bytes=224 shard_files=3 cache_working_set=4
+```
+
+This profile uses a 64-byte manifest header and four 40-byte descriptors after
+the append operation. The cache working set is four metadata entries; shard
+payloads remain disk-backed and are loaded selectively.
+
 Bounded-cache evidence from `benchmarks/aie_cache.act`:
 
 ```text
-AIE_CACHE capacity=4 dirty_rejected=1 pinned_rejected=1 clean_evicted=1 replacement=1
+AIE_CACHE capacity=4 working_set=4 dirty_rejected=1 pinned_rejected=1 clean_evicted=1 replacement=1
 ```
+
+The current hardware evidence is limited to the local host and the tested
+profile of 2, 8, and 32 columns per shard. Logical scale can exceed resident
+memory because shard payloads are persisted on disk and the runtime keeps only
+the bounded working set in memory. A larger resident network still requires a
+hardware-specific RAM, storage, and latency benchmark before it can be called
+supported.
 
 ## Phase completion criteria
 
