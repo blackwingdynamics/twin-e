@@ -1,0 +1,40 @@
+"""Resolve a bounded token context before entering the ordinary runtime step."""
+import config;
+
+"""Submit a context-addressed wavefront to its bound minicolumn.
+
+The sidecar owns the identity mapping while the fabric owns the executable
+state. A missing binding returns an invalid result and leaves both structures
+unchanged. A found binding is routed through the existing bounded step API.
+"""
+open verb step_context_wavefront(
+    ins fabric: CorticalFabric[64],
+    abs bindings: Array[TokenBinding, 64],
+    abs wave: Wavefront,
+    erg token_id: u32,
+    erg context_key: u64
+) -> ImpulseStepResult {
+    erg found: Option[u32] = lookup_token_context(
+        bindings: abs bindings,
+        token_id: erg token_id,
+        context_key: erg context_key
+    );
+    erg source_idx: u32 = case dat found {
+        Option.Some(index) => index,
+        Option.None => null_index(),
+    };
+    if source_idx == null_index() {
+        return empty_context_step_result();
+    }
+    return step_wavefront(
+        fabric: ins fabric,
+        wave: abs wave,
+        source_idx: erg source_idx
+    );
+}
+
+verb empty_context_step_result() -> ImpulseStepResult {
+    return ImpulseStepResult {valid_source: false, source_fired: false, payload: 0u8, destination_0: null_index(
+    ), destination_1: null_index(), destination_2: null_index(), destination_3: null_index(), destination_4: null_index(
+    ), destination_5: null_index(), destination_6: null_index(), destination_7: null_index()};
+}

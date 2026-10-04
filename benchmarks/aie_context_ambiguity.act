@@ -118,6 +118,23 @@ verb main() -> Int {
     if found_a_slot != context_a || found_b_slot != context_b || found_a_slot == found_b_slot {
         return 1;
     }
+    erg routed_a: ImpulseStepResult = step_context_wavefront(
+        fabric: ins fabric,
+        bindings: abs bindings,
+        wave: abs context_a_wave,
+        token_id: erg binding_token_a,
+        context_key: erg binding_key_a
+    );
+    erg routed_b: ImpulseStepResult = step_context_wavefront(
+        fabric: ins fabric,
+        bindings: abs bindings,
+        wave: abs context_b_wave,
+        token_id: erg binding_token_b,
+        context_key: erg binding_key_b
+    );
+    if !routed_a.valid_source || !routed_a.source_fired || !routed_b.valid_source || !routed_b.source_fired {
+        return 1;
+    }
     erg successor_a_token: u32 = 30u32;
     erg successor_b_token: u32 = 40u32;
     erg successor_a_payload: u8 = 30u8;
