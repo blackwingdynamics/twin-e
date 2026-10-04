@@ -250,3 +250,121 @@ open verb shard_file_checksum(abs path: Path) -> Result[u64, IoError] {
         Result.Ok(bytes) => shard_checksum_bytes(bytes: dat bytes),
     };
 }
+
+verb shard_dynamic_checksum(abs input: Buffer, erg length: u32) -> u64 {
+    erg checksum: u64 = 0u64;
+    erg index: u32 = BRAIN_SHARD_HEADER_BYTES as u32;
+    loop {
+        if index >= length {
+            break;
+        }
+        checksum += (input[index] as u64) * ((index - 47u32) as u64);
+        index += 1u32;
+    }
+    return checksum;
+}
+
+open verb write_dynamic_shard(
+    abs path: Path,
+    erg shard_id: u32,
+    erg first_column_index: u32,
+    erg column_count: u32,
+    abs payload: Buffer
+) -> Result[Int, IoError] {
+    erg payload_length_result = buffer_length(buffer: abs payload);
+    erg payload_length: Int = case dat payload_length_result {
+        Result.Ok(value) => value,
+        Result.Err(_) => -1,
+    };
+    erg expected_payload_bytes: u32 = column_count * BRAIN_SHARD_COLUMN_STRIDE_BYTES as u32;
+    if column_count == 0u32 || column_count > BRAIN_SHARD_DYNAMIC_MAX_COLUMNS || first_column_index > 4294967295u32 - column_count || payload_length != expected_payload_bytes as Int {
+        return Err(IoError.InvalidInput);
+    }
+    erg file_length: u32 = BRAIN_SHARD_HEADER_BYTES as u32 + expected_payload_bytes;
+    if file_length > BRAIN_SHARD_DYNAMIC_MAX_BYTES {
+        return Err(IoError.InvalidInput);
+    }
+    erg output: Buffer = Buffer[0];
+    erg capacity: Int = file_length as Int;
+    erg reserved = reserve(buffer: ins output, capacity: erg capacity);
+    erg magic: u32 = BRAIN_SHARD_MAGIC;
+    erg version: u16 = BRAIN_SHARD_VERSION;
+    erg header_bytes: u16 = BRAIN_SHARD_HEADER_BYTES;
+    erg column_stride: u16 = BRAIN_SHARD_COLUMN_STRIDE_BYTES;
+    erg binding_stride: u16 = BRAIN_SHARD_BINDING_STRIDE_BYTES;
+    erg binding_payload: u32 = 0u32;
+    erg tokenizer_version: u16 = TOKENIZER_VERSION;
+    erg context_version: u16 = CONTEXT_VERSION;
+    erg code_version: u16 = TOKEN_CODE_VERSION;
+    erg zero_u16: u16 = 0u16;
+    erg zero_u64: u64 = 0u64;
+    append_shard_u32(output: ins output, value: abs magic);
+    append_shard_u16(output: ins output, value: abs version);
+    append_shard_u16(output: ins output, value: abs header_bytes);
+    append_shard_u32(output: ins output, value: abs shard_id);
+    append_shard_u32(output: ins output, value: abs first_column_index);
+    append_shard_u32(output: ins output, value: abs column_count);
+    append_shard_u16(output: ins output, value: abs column_stride);
+    append_shard_u16(output: ins output, value: abs binding_stride);
+    append_shard_u32(output: ins output, value: abs expected_payload_bytes);
+    append_shard_u32(output: ins output, value: abs binding_payload);
+    append_shard_u16(output: ins output, value: abs tokenizer_version);
+    append_shard_u16(output: ins output, value: abs context_version);
+    append_shard_u16(output: ins output, value: abs code_version);
+    append_shard_u16(output: ins output, value: abs zero_u16);
+    append_shard_u64(output: ins output, value: abs zero_u64);
+    erg payload_index: u32 = 0u32;
+    loop {
+        if payload_index >= expected_payload_bytes {
+            break;
+        }
+        append(output, payload[payload_index]);
+        payload_index += 1u32;
+    }
+    erg checksum: u64 = shard_dynamic_checksum(input: abs output, length: erg file_length);
+    erg checksum_offset: u32 = 40u32;
+    write_shard_u64(output: ins output, value: abs checksum, offset: abs checksum_offset);
+    return write_file(path: abs path, contents: abs output);
+}
+
+open verb validate_dynamic_shard_bytes(
+    dat bytes: Buffer,
+    erg expected_shard_id: u32,
+    erg expected_first_column_index: u32,
+    erg expected_column_count: u32
+) -> Result[Int, IoError] {
+    erg length_result = buffer_length(buffer: abs bytes);
+    erg length: Int = case dat length_result {
+        Result.Ok(value) => value,
+        Result.Err(_) => -1,
+    };
+    erg expected_payload_bytes: u32 = expected_column_count * BRAIN_SHARD_COLUMN_STRIDE_BYTES as u32;
+    erg expected_file_length: u32 = BRAIN_SHARD_HEADER_BYTES as u32 + expected_payload_bytes;
+    if length != expected_file_length as Int {
+        drop(bytes);
+        return Err(IoError.InvalidData);
+    }
+    erg offset_magic: u32 = 0u32;
+    erg offset_version: u32 = 4u32;
+    erg offset_header: u32 = 6u32;
+    erg offset_shard: u32 = 8u32;
+    erg offset_first: u32 = 12u32;
+    erg offset_count: u32 = 16u32;
+    erg offset_column_stride: u32 = 20u32;
+    erg offset_binding_stride: u32 = 22u32;
+    erg offset_payload: u32 = 24u32;
+    erg offset_binding_payload: u32 = 28u32;
+    erg offset_tokenizer: u32 = 32u32;
+    erg offset_context: u32 = 34u32;
+    erg offset_code: u32 = 36u32;
+    erg offset_checksum: u32 = 40u32;
+    erg length_u32: u32 = length as u32;
+    erg actual_checksum: u64 = shard_dynamic_checksum(input: abs bytes, length: erg length_u32);
+    erg stored_checksum: u64 = read_shard_u64(input: abs bytes, offset: abs offset_checksum);
+    if read_shard_u32(input: abs bytes, offset: abs offset_magic) != BRAIN_SHARD_MAGIC || read_shard_u16(input: abs bytes, offset: abs offset_version) != BRAIN_SHARD_VERSION || read_shard_u16(input: abs bytes, offset: abs offset_header) != BRAIN_SHARD_HEADER_BYTES || read_shard_u32(input: abs bytes, offset: abs offset_shard) != expected_shard_id || read_shard_u32(input: abs bytes, offset: abs offset_first) != expected_first_column_index || read_shard_u32(input: abs bytes, offset: abs offset_count) != expected_column_count || read_shard_u16(input: abs bytes, offset: abs offset_column_stride) != BRAIN_SHARD_COLUMN_STRIDE_BYTES || read_shard_u16(input: abs bytes, offset: abs offset_binding_stride) != BRAIN_SHARD_BINDING_STRIDE_BYTES || read_shard_u32(input: abs bytes, offset: abs offset_payload) != expected_payload_bytes || read_shard_u32(input: abs bytes, offset: abs offset_binding_payload) != 0u32 || read_shard_u16(input: abs bytes, offset: abs offset_tokenizer) != TOKENIZER_VERSION || read_shard_u16(input: abs bytes, offset: abs offset_context) != CONTEXT_VERSION || read_shard_u16(input: abs bytes, offset: abs offset_code) != TOKEN_CODE_VERSION || stored_checksum != actual_checksum {
+        drop(bytes);
+        return Err(IoError.InvalidData);
+    }
+    drop(bytes);
+    return Ok(length);
+}

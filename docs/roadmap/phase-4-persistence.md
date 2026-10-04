@@ -76,7 +76,9 @@ selective_load=1
   lookup; the current bounded profile now scans descriptors by count.
 - [x] Add a runtime-sized descriptor Buffer writer and validator for a
   three-shard manifest.
-- [~] Replace the fixed two-shard shard-file implementation with the dynamic
+- [x] Add a runtime-sized shard payload writer and validate three real shard
+  files with independent headers and checksums.
+- [~] Replace the fixed two-shard fabric loader and allocator with the dynamic
   manifest-driven descriptor collection.
 - [ ] Move shard count, capacity, payload sizes, and file size into the global
   configuration profile.
