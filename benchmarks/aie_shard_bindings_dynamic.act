@@ -1,0 +1,162 @@
+"""Verify dynamic shard column and TokenBinding payload persistence."""
+import aie;
+import std::io;
+import std::path;
+
+meta limitless("verb")
+verb binding_path() -> Result[Path, PathError] {
+    erg raw = Buffer[0];
+    append(raw, 47u8);
+    append(raw, 116u8);
+    append(raw, 109u8);
+    append(raw, 112u8);
+    append(raw, 47u8);
+    append(raw, 116u8);
+    append(raw, 119u8);
+    append(raw, 105u8);
+    append(raw, 110u8);
+    append(raw, 45u8);
+    append(raw, 101u8);
+    append(raw, 45u8);
+    append(raw, 98u8);
+    append(raw, 105u8);
+    append(raw, 110u8);
+    append(raw, 100u8);
+    append(raw, 105u8);
+    append(raw, 110u8);
+    append(raw, 103u8);
+    append(raw, 45u8);
+    append(raw, 115u8);
+    append(raw, 104u8);
+    append(raw, 97u8);
+    append(raw, 114u8);
+    append(raw, 100u8);
+    append(raw, 46u8);
+    append(raw, 98u8);
+    append(raw, 114u8);
+    append(raw, 97u8);
+    append(raw, 105u8);
+    append(raw, 110u8);
+    append(raw, 0u8);
+    return path_from_ascii(storage: dat raw);
+}
+
+verb write_u32(ins output: Buffer, abs offset: u32, abs value: u32) {
+    output[offset] = (value & 255u32) as u8;
+    output[offset + 1u32] = ((value / 256u32) & 255u32) as u8;
+    output[offset + 2u32] = ((value / 65536u32) & 255u32) as u8;
+    output[offset + 3u32] = ((value / 16777216u32) & 255u32) as u8;
+}
+
+verb write_u64(ins output: Buffer, abs offset: u32, abs value: u64) {
+    erg low: u32 = (value & 4294967295u64) as u32;
+    erg high: u32 = (value / 4294967296u64) as u32;
+    erg high_offset: u32 = offset + 4u32;
+    write_u32(output: ins output, offset: abs offset, value: abs low);
+    write_u32(output: ins output, offset: abs high_offset, value: abs high);
+}
+
+verb make_payload() -> Buffer {
+    erg payload: Buffer = Buffer[0];
+    erg index: u32 = 0u32;
+    loop {
+        if index >= 128u32 {
+            break;
+        }
+        append(payload, 0u8);
+        index += 1u32;
+    }
+    return payload;
+}
+
+verb make_bindings() -> Buffer {
+    erg bindings: Buffer = Buffer[0];
+    erg index: u32 = 0u32;
+    loop {
+        if index >= 48u32 {
+            break;
+        }
+        append(bindings, 0u8);
+        index += 1u32;
+    }
+    erg token_id: u32 = 16909060u32;
+    erg context_key: u64 = 72623859790382856u64;
+    erg version: u16 = TOKENIZER_VERSION;
+    erg context_version: u16 = CONTEXT_VERSION;
+    erg code_version: u16 = TOKEN_CODE_VERSION;
+    erg flags: u8 = BINDING_ACTIVE_FLAG;
+    erg token_offset: u32 = 0u32;
+    erg context_offset: u32 = 4u32;
+    write_u32(output: ins bindings, offset: abs token_offset, value: abs token_id);
+    write_u64(output: ins bindings, offset: abs context_offset, value: abs context_key);
+    bindings[12u32] = version as u8;
+    bindings[14u32] = context_version as u8;
+    bindings[16u32] = code_version as u8;
+    bindings[18u32] = flags;
+    return bindings;
+}
+
+verb verify_bytes(abs bytes: Buffer) -> Int {
+    if bytes[176u32] != 4u8 || bytes[177u32] != 3u8 || bytes[178u32] != 2u8 || bytes[179u32] != 1u8 || bytes[188u32] != 1u8 {
+        return 4;
+    }
+    return 0;
+}
+
+meta limitless("verb")
+verb run(abs path: Path) -> Int {
+    erg payload: Buffer = make_payload();
+    erg bindings: Buffer = make_bindings();
+    erg shard_id: u32 = 4u32;
+    erg first_column: u32 = 8u32;
+    erg column_count: u32 = 2u32;
+    erg start_message: String = "AIE_BINDING_STAGE start";
+    println(text: abs start_message);
+    erg written = write_dynamic_shard_with_bindings(path: abs path, shard_id: erg shard_id, first_column_index: erg first_column, column_count: erg column_count, payload: abs payload, bindings: abs bindings);
+    erg write_status: Int = case dat written {
+        Result.Err(_) => 1,
+        Result.Ok(_) => 0,
+    };
+    if write_status != 0 {
+        return write_status;
+    }
+    erg write_message: String = "AIE_BINDING_STAGE write_ok";
+    println(text: abs write_message);
+    erg loaded = read_to_bytes(path: abs path);
+    return case dat loaded {
+        Result.Err(_) => 2,
+        Result.Ok(bytes) => {
+            erg validation = validate_dynamic_shard_with_bindings_bytes(bytes: dat bytes, expected_shard_id: erg shard_id, expected_first_column_index: erg first_column, expected_column_count: erg column_count);
+            return case dat validation {
+                Result.Err(_) => 3,
+                Result.Ok(_) => {
+                    erg validate_message: String = "AIE_BINDING_STAGE validate_ok";
+                    println(text: abs validate_message);
+                    erg reread = read_to_bytes(path: abs path);
+                    return case dat reread {
+                        Result.Err(_) => 5,
+                        Result.Ok(copy) => verify_bytes(bytes: abs copy),
+                    };
+                },
+            };
+        },
+    };
+}
+
+verb emit(abs path: Path) -> Int {
+    erg status: Int = run(path: abs path);
+    if status != 0 {
+        return status;
+    }
+    erg message: String = "AIE_SHARD_BINDINGS_DYNAMIC columns=2 bindings=2 stride=24 validated=1";
+    println(text: abs message);
+    return 0;
+}
+
+verb main() -> Int {
+    erg path_result = binding_path();
+    return case dat path_result {
+        Result.Err(_) => 6,
+        Result.Ok(path) => emit(path: abs path),
+    };
+}
