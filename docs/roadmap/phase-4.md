@@ -100,6 +100,14 @@ configuration and compiler-parity items that Phase 4 depends on are closed.
   motion events into the same context-bound sparse runtime.
 - [ ] Add action/event routing after observation encoding is stable.
 
+## P4.6 — Persistence track
+
+The detailed shard and manifest gates are tracked in
+[`phase-4-persistence.md`](phase-4-persistence.md). The current completed
+gates cover bounded shard files, manifest lookup, checksums, and selective
+loading. Generic shard profiles, binding persistence, allocator persistence,
+and crash recovery remain open there.
+
 ## Phase 4 completion criteria
 
 Phase 4 is complete when a persisted BPE tokenizer produces context-bound
