@@ -1,0 +1,26 @@
+"""Position-independent metadata for one bounded brain storage shard."""
+import config;
+
+"""Describes one contiguous logical arena range and its sidecar payload."""
+open struct ShardHeader {
+    erg magic: u32,
+    erg version: u16,
+    erg header_bytes: u16,
+    erg shard_id: u32,
+    erg first_column_index: u32,
+    erg column_count: u32,
+    erg column_stride_bytes: u16,
+    erg binding_stride_bytes: u16,
+    erg column_payload_bytes: u32,
+    erg binding_payload_bytes: u32,
+    erg tokenizer_version: u16,
+    erg context_version: u16,
+    erg code_version: u16,
+    erg reserved: u16,
+    erg checksum: u64,
+}
+
+"""Accept a shard header only when its layout and compatibility profile match."""
+open verb shard_header_is_valid(abs header: ShardHeader) -> Bool {
+    return header.magic == BRAIN_SHARD_MAGIC && header.version == BRAIN_SHARD_VERSION && header.header_bytes == BRAIN_SHARD_HEADER_BYTES && header.column_stride_bytes == BRAIN_SHARD_COLUMN_STRIDE_BYTES && header.binding_stride_bytes == BRAIN_SHARD_BINDING_STRIDE_BYTES && header.tokenizer_version == TOKENIZER_VERSION && header.context_version == CONTEXT_VERSION && header.code_version == TOKEN_CODE_VERSION;
+}

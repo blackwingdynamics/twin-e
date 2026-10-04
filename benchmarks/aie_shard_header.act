@@ -1,0 +1,22 @@
+"""Verify the fixed shard header compatibility contract."""
+import aie;
+import config;
+import std::io;
+
+verb valid_header() -> ShardHeader {
+    return ShardHeader {magic: BRAIN_SHARD_MAGIC, version: BRAIN_SHARD_VERSION, header_bytes: BRAIN_SHARD_HEADER_BYTES, shard_id: 7u32, first_column_index: 448u32, column_count: 64u32, column_stride_bytes: BRAIN_SHARD_COLUMN_STRIDE_BYTES, binding_stride_bytes: BRAIN_SHARD_BINDING_STRIDE_BYTES, column_payload_bytes: 4096u32, binding_payload_bytes: 1536u32, tokenizer_version: TOKENIZER_VERSION, context_version: CONTEXT_VERSION, code_version: TOKEN_CODE_VERSION, reserved: 0u16, checksum: 0u64};
+}
+
+verb main() -> Int {
+    erg accepted_header: ShardHeader = valid_header();
+    erg accepted: Bool = shard_header_is_valid(header: abs accepted_header);
+    erg rejected_header: ShardHeader = valid_header();
+    rejected_header.version = 2u16;
+    erg rejected: Bool = !shard_header_is_valid(header: abs rejected_header);
+    if !accepted || !rejected {
+        return 1;
+    }
+    erg message: String = "AIE_BRAIN_SHARD_HEADER valid=1 incompatible_rejected=1";
+    println(text: abs message);
+    return 0;
+}
