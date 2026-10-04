@@ -1,0 +1,18 @@
+"""Deterministic bounded context identity for sequence-aware AIE state."""
+import config;
+
+"""Combine one preceding token and one current token into a versioned key."""
+open verb context_key(erg previous_token_id: u32, erg token_id: u32) -> u64 {
+    erg state: u64 = CONTEXT_SEED;
+    state ^= previous_token_id as u64;
+    state *= CONTEXT_MULTIPLIER;
+    state ^= token_id as u64;
+    state *= CONTEXT_MULTIPLIER;
+    state ^= CONTEXT_VERSION as u64;
+    return state;
+}
+
+"""Return the configured bounded context window."""
+open verb context_window() -> u8 {
+    return CONTEXT_WINDOW;
+}

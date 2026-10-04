@@ -1,2 +1,4 @@
 """Public sparse token encoding facade."""
 open codebook;
+
+open context;

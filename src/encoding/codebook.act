@@ -20,8 +20,7 @@ verb mix_token_state(erg state: u64) -> u64 {
 This is the initial integer-only codebook profile. Its collision behavior must
 be measured before it is used as the final subword profile.
 """
-open verb encode_token_id(erg token_id: u32) -> TokenCode {
-    erg state: u64 = (token_id as u64) ^ 11400714819323198485u64;
+verb encode_state(erg state: u64) -> TokenCode {
     erg mask_low: u64 = 0u64;
     erg mask_high: u64 = 0u64;
     erg selected_bits: u8 = 0u8;
@@ -46,4 +45,16 @@ open verb encode_token_id(erg token_id: u32) -> TokenCode {
         }
     }
     return TokenCode {mask_low: mask_low, mask_high: mask_high, active_bits: TOKEN_CODE_ACTIVE_BITS, version: TOKEN_CODE_VERSION};
+}
+
+"""Encode one token ID into the versioned sparse codebook."""
+open verb encode_token_id(erg token_id: u32) -> TokenCode {
+    erg state: u64 = (token_id as u64) ^ 11400714819323198485u64;
+    return encode_state(erg state);
+}
+
+"""Encode a bounded context identity using the same sparse profile."""
+open verb encode_context_key(erg context_key: u64) -> TokenCode {
+    erg state: u64 = context_key ^ 11400714819323198485u64;
+    return encode_state(erg state);
 }

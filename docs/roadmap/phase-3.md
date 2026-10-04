@@ -115,6 +115,7 @@ profile, arena size, input masks, and elapsed nanosecond measurements.
 - [x] Add a versioned byte-token transition contract.
 - [x] Route a String input through tokenizer, codebook, Wavefront, and AIE
   recall.
+- [x] Add a deterministic bounded context-key contract and probe.
 - [x] Add a deterministic integer-only 128-bit token code encoder.
 - [x] Add a 5,000-code pairwise collision benchmark.
 - [x] Verify eight unique active bits per generated code.
@@ -122,7 +123,8 @@ profile, arena size, input masks, and elapsed nanosecond measurements.
 - [x] Record initial collision evidence and its limits.
 - [ ] Implement persisted subword vocabulary and merge rules.
 - [ ] Add overlap distribution, threshold sweep, and noisy recall evidence.
-- [ ] Add bounded context keys for sequence disambiguation.
+- [~] Add bounded context keys for sequence disambiguation; identity contract
+  exists, but context-aware routing is still pending.
 
 P3.6 evidence: the tokenizer and encoding probes pass strict checking. The
 collision executable reports `max_different_overlap=6`,
