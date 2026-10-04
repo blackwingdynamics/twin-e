@@ -89,12 +89,12 @@ selective_load=1
 - [x] Verify malformed descriptor rejection in the dynamic manifest benchmark.
 - [~] Replace the fixed two-shard fabric loader and allocator with the dynamic
   manifest-driven descriptor collection.
-- [ ] Move shard count, capacity, payload sizes, and file size into the global
+- [x] Keep shard count, capacity, payload sizes, and file size in the global
   configuration profile.
-- [ ] Support arbitrary valid global indexes without hardcoded shard branches.
-- [ ] Validate non-overlapping, ordered, contiguous descriptor ranges.
-- [ ] Reject duplicate shard IDs, gaps, overlaps, and arithmetic overflow.
-- [ ] Add a three-or-more-shard round-trip with cross-shard links.
+- [x] Support arbitrary valid global indexes without hardcoded shard branches.
+- [x] Validate non-overlapping, ordered, contiguous descriptor ranges.
+- [x] Reject duplicate shard IDs, gaps, overlaps, and arithmetic overflow.
+- [x] Add a three-or-more-shard round-trip with cross-shard links.
 
 ## P4S.5 — Descriptor and payload integrity
 
