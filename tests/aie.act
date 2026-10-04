@@ -273,6 +273,33 @@ verb test_snapshot_rejects_truncated_payload() -> Int {
 }
 
 meta test
+verb test_text_snapshot_rejects_incompatible_binding_without_partial_restore() -> Int {
+    erg fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](), free_list_head: 0u32, active_count: 0u32};
+    fabric_init(fabric: ins fabric);
+    allocate_column(fabric: ins fabric);
+    fabric.columns[0].payload = 91u8;
+    erg bindings: Array[TokenBinding,64] = Array[TokenBinding, 64]();
+    bindings[0].token_id = 77u32;
+    bindings[0].binding_flags = BINDING_ACTIVE_FLAG;
+    erg snapshot: TextSnapshot = serialize_text_snapshot(fabric: abs fabric, bindings: abs bindings);
+    snapshot.bindings.code_version = 2u16;
+    fabric.columns[0].payload = 13u8;
+    fabric.active_count = 0u32;
+    erg restored_fabric: Bool = deserialize_text_snapshot(
+        fabric: ins fabric,
+        bindings: ins bindings,
+        snapshot: abs snapshot
+    );
+    if restored_fabric {
+        return 1;
+    }
+    if fabric.columns[0].payload != 13u8 || fabric.active_count != 0u32 || bindings[0].token_id != 77u32 {
+        return 1;
+    }
+    return 0;
+}
+
+meta test
 verb test_public_wavefront_lifecycle() -> Int {
     erg fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](), free_list_head: 0u32, active_count: 0u32};
     fabric_init(fabric: ins fabric);

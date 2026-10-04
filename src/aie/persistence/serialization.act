@@ -21,6 +21,7 @@ open struct BindingSnapshot {
     erg payload_bytes: u32,
     erg tokenizer_version: u16,
     erg context_version: u16,
+    erg code_version: u16,
     erg entries: Array[u8, 1536],
 }
 
@@ -31,7 +32,7 @@ open struct TextSnapshot {
 }
 
 open verb binding_snapshot_is_valid(abs snapshot: BindingSnapshot) -> Bool {
-    return snapshot.magic == BRAIN_MAGIC && snapshot.version == BRAIN_BINDING_VERSION && snapshot.stride_bytes == BRAIN_BINDING_STRIDE_BYTES && snapshot.payload_bytes == BRAIN_BINDING_PAYLOAD_BYTES && snapshot.tokenizer_version == TOKENIZER_VERSION && snapshot.context_version == CONTEXT_VERSION;
+    return snapshot.magic == BRAIN_MAGIC && snapshot.version == BRAIN_BINDING_VERSION && snapshot.stride_bytes == BRAIN_BINDING_STRIDE_BYTES && snapshot.payload_bytes == BRAIN_BINDING_PAYLOAD_BYTES && snapshot.tokenizer_version == TOKENIZER_VERSION && snapshot.context_version == CONTEXT_VERSION && snapshot.code_version == TOKEN_CODE_VERSION;
 }
 
 open verb snapshot_is_valid(abs snapshot: FabricSnapshot) -> Bool {
@@ -115,7 +116,7 @@ open verb deserialize_fabric(
 }
 
 open verb serialize_bindings(abs bindings: Array[TokenBinding, 64]) -> BindingSnapshot {
-    erg snapshot: BindingSnapshot = BindingSnapshot {magic: BRAIN_MAGIC, version: BRAIN_BINDING_VERSION, stride_bytes: BRAIN_BINDING_STRIDE_BYTES, payload_bytes: BRAIN_BINDING_PAYLOAD_BYTES, tokenizer_version: TOKENIZER_VERSION, context_version: CONTEXT_VERSION, entries: Array[u8, 1536](
+    erg snapshot: BindingSnapshot = BindingSnapshot {magic: BRAIN_MAGIC, version: BRAIN_BINDING_VERSION, stride_bytes: BRAIN_BINDING_STRIDE_BYTES, payload_bytes: BRAIN_BINDING_PAYLOAD_BYTES, tokenizer_version: TOKENIZER_VERSION, context_version: CONTEXT_VERSION, code_version: TOKEN_CODE_VERSION, entries: Array[u8, 1536](
     )};
     erg index: u32 = 0u32;
     loop {
@@ -174,6 +175,12 @@ open verb deserialize_text_snapshot(
     ins bindings: Array[TokenBinding, 64],
     abs snapshot: TextSnapshot
 ) -> Bool {
+    if !snapshot_is_valid(snapshot: abs snapshot.fabric) {
+        return false;
+    }
+    if !binding_snapshot_is_valid(snapshot: abs snapshot.bindings) {
+        return false;
+    }
     if !deserialize_fabric(fabric: ins fabric, snapshot: abs snapshot.fabric) {
         return false;
     }
