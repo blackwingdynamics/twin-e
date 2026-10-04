@@ -34,9 +34,9 @@ configuration and compiler-parity items that Phase 4 depends on are closed.
 - [ ] Reject snapshots with incompatible tokenizer, codebook, or context
   profiles.
 - [ ] Bind context identity to minicolumn lookup and neurogenesis.
-- [ ] Add an ambiguity fixture where the same token has two context-specific
+- [x] Add an ambiguity fixture where the same token has two context-specific
   successors.
-- [ ] Verify that the two successor paths do not share one token-only state.
+- [x] Verify that the two successor paths do not share one token-only state.
 
 ## P4.2 — BPE tokenizer
 

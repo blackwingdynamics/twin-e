@@ -1,0 +1,147 @@
+"""Verify that bounded contexts route one token to distinct successors."""
+import aie;
+
+import config;
+
+import encoding;
+
+import std::io;
+
+verb wave_from_code(abs code: TokenCode) -> Wavefront {
+    erg low: u64 = code.mask_low;
+    erg high: u64 = code.mask_high;
+    return Wavefront {mask_low: low, mask_high: high, energy: 1u8};
+}
+
+verb configure_state(
+    ins fabric: CorticalFabric[64],
+    erg index: u32,
+    erg payload: u8
+) -> u32 {
+    fabric.columns[index].threshold = TOKEN_CODE_ACTIVE_BITS;
+    fabric.columns[index].payload = payload;
+    return index;
+}
+
+verb fired(abs result: Option[u8]) -> Bool {
+    return case abs result {
+        Option.Some(_) => true,
+        Option.None => false,
+    };
+}
+
+meta limitless("verb")
+verb main() -> Int {
+    erg fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](), free_list_head: 0u32, active_count: 0u32};
+    fabric_init(fabric: ins fabric);
+    erg root: u32 = allocate_column_index(fabric: ins fabric);
+    erg context_a_previous: u32 = 10u32;
+    erg context_b_previous: u32 = 11u32;
+    erg shared_token: u32 = 20u32;
+    erg shared_payload: u8 = 20u8;
+    erg context_a_key: u64 = context_key(previous_token_id: erg context_a_previous, token_id: erg shared_token);
+    erg context_b_key: u64 = context_key(previous_token_id: erg context_b_previous, token_id: erg shared_token);
+    erg context_a_code: TokenCode = encode_context_key(context_key: erg context_a_key);
+    erg context_b_code: TokenCode = encode_context_key(context_key: erg context_b_key);
+    erg context_a_wave: Wavefront = wave_from_code(code: abs context_a_code);
+    erg context_b_wave: Wavefront = wave_from_code(code: abs context_b_code);
+    erg context_a_created: Option[u32] = neurogenesis(
+        fabric: ins fabric,
+        wave: abs context_a_wave,
+        source_idx: erg root
+    );
+    erg context_a: u32 = case dat context_a_created {
+        Option.Some(index) => configure_state(
+            fabric: ins fabric,
+            index: erg index,
+            payload: erg shared_payload
+        ),
+        Option.None => NULL_INDEX,
+    };
+    erg context_b_created: Option[u32] = neurogenesis(
+        fabric: ins fabric,
+        wave: abs context_b_wave,
+        source_idx: erg root
+    );
+    erg context_b: u32 = case dat context_b_created {
+        Option.Some(index) => configure_state(
+            fabric: ins fabric,
+            index: erg index,
+            payload: erg shared_payload
+        ),
+        Option.None => NULL_INDEX,
+    };
+    if context_a == NULL_INDEX || context_b == NULL_INDEX || context_a == context_b {
+        return 1;
+    }
+    erg successor_a_token: u32 = 30u32;
+    erg successor_b_token: u32 = 40u32;
+    erg successor_a_payload: u8 = 30u8;
+    erg successor_b_payload: u8 = 40u8;
+    erg successor_a_code: TokenCode = encode_token_id(token_id: erg successor_a_token);
+    erg successor_b_code: TokenCode = encode_token_id(token_id: erg successor_b_token);
+    erg successor_a_wave: Wavefront = wave_from_code(code: abs successor_a_code);
+    erg successor_b_wave: Wavefront = wave_from_code(code: abs successor_b_code);
+    erg successor_a_created: Option[u32] = neurogenesis(
+        fabric: ins fabric,
+        wave: abs successor_a_wave,
+        source_idx: erg context_a
+    );
+    erg successor_a: u32 = case dat successor_a_created {
+        Option.Some(index) => configure_state(
+            fabric: ins fabric,
+            index: erg index,
+            payload: erg successor_a_payload
+        ),
+        Option.None => NULL_INDEX,
+    };
+    erg successor_b_created: Option[u32] = neurogenesis(
+        fabric: ins fabric,
+        wave: abs successor_b_wave,
+        source_idx: erg context_b
+    );
+    erg successor_b: u32 = case dat successor_b_created {
+        Option.Some(index) => configure_state(
+            fabric: ins fabric,
+            index: erg index,
+            payload: erg successor_b_payload
+        ),
+        Option.None => NULL_INDEX,
+    };
+    if successor_a == NULL_INDEX || successor_b == NULL_INDEX || successor_a == successor_b {
+        return 1;
+    }
+    erg context_a_destination: u32 = fabric.columns[context_a].axon_0;
+    erg context_b_destination: u32 = fabric.columns[context_b].axon_0;
+    if context_a_destination != successor_a || context_b_destination != successor_b || context_a_destination == context_b_destination {
+        return 1;
+    }
+    erg context_a_fired: Option[u8] = evaluate_minicolumn(
+        fabric: ins fabric,
+        wave: abs context_a_wave,
+        target_idx: erg context_a
+    );
+    erg context_b_fired: Option[u8] = evaluate_minicolumn(
+        fabric: ins fabric,
+        wave: abs context_b_wave,
+        target_idx: erg context_b
+    );
+    erg successor_a_fired: Option[u8] = evaluate_minicolumn(
+        fabric: ins fabric,
+        wave: abs successor_a_wave,
+        target_idx: erg successor_a
+    );
+    erg successor_b_fired: Option[u8] = evaluate_minicolumn(
+        fabric: ins fabric,
+        wave: abs successor_b_wave,
+        target_idx: erg successor_b
+    );
+    if !fired(result: abs context_a_fired) || !fired(result: abs context_b_fired) || !fired(
+        result: abs successor_a_fired
+    ) || !fired(result: abs successor_b_fired) {
+        return 1;
+    }
+    erg heading: String = "AIE_CONTEXT_AMBIGUITY contexts=2 successors=2 isolated=1";
+    println(text: abs heading);
+    return 0;
+}
