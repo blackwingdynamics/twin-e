@@ -198,15 +198,56 @@ verb load_pair(ins fabric: CorticalFabric[64], abs shard_path: Path, erg shard_i
     };
 }
 
-verb verify_dynamic_loader(abs path_zero: Path, abs path_one: Path) -> Int {
+verb verify_load_plan(abs value: DynamicLoadPlan) -> Int {
+    if value.shard_id != 1u32 || value.local_index != 0u32 {
+        return 19;
+    }
+    return 0;
+}
+
+verb load_planned_shard(ins fabric: CorticalFabric[64], abs shard_path: Path, abs plan: DynamicLoadPlan) -> Int {
+    erg loaded = read_to_bytes(path: abs shard_path);
+    return case dat loaded {
+        Result.Err(_) => 17,
+        Result.Ok(shard) => {
+            erg result = load_dynamic_from_plan(fabric: ins fabric, shard: dat shard, plan: abs plan);
+            return case dat result {
+                Result.Err(_) => 18,
+                Result.Ok(_) => 0,
+            };
+        },
+    };
+}
+
+verb load_verified_plan(ins fabric: CorticalFabric[64], abs shard_path: Path, abs plan: DynamicLoadPlan) -> Int {
+    if verify_load_plan(value: abs plan) != 0 {
+        return 19;
+    }
+    return load_planned_shard(fabric: ins fabric, shard_path: abs shard_path, plan: abs plan);
+}
+
+verb load_manifest_pair(ins fabric: CorticalFabric[64], abs manifest_path: Path, abs shard_path: Path, erg global_index: u32) -> Int {
+    erg manifest_result = read_to_bytes(path: abs manifest_path);
+    return case dat manifest_result {
+        Result.Err(_) => 16,
+        Result.Ok(manifest) => {
+            erg plan_result = plan_dynamic_load(manifest: abs manifest, global_index: erg global_index);
+            return case dat plan_result {
+                Result.Err(_) => 18,
+                Result.Ok(plan) => load_verified_plan(fabric: ins fabric, shard_path: abs shard_path, plan: abs plan),
+            };
+        },
+    };
+}
+
+verb verify_dynamic_loader(abs manifest_path: Path, abs path_zero: Path, abs path_one: Path) -> Int {
     erg fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](), free_list_head: 0u32, active_count: 0u32};
     fabric_init(fabric: ins fabric);
-    erg zero_id: u32 = 0u32;
-    erg zero_first: u32 = 0u32;
-    if load_pair(fabric: ins fabric, shard_path: abs path_zero, shard_id: erg zero_id, first_column: erg zero_first) != 0 || fabric.columns[0u32].storage[0u32] != 10u8 {
+    erg query: u32 = 2u32;
+    if load_manifest_pair(fabric: ins fabric, manifest_path: abs manifest_path, shard_path: abs path_one, global_index: erg query) != 0 || fabric.columns[0u32].storage[0u32] != 20u8 {
         return 14;
     }
-    if load_pair(fabric: ins fabric, shard_path: abs path_one, shard_id: erg zero_id, first_column: erg zero_first) == 0 || fabric.columns[0u32].storage[0u32] != 10u8 {
+    if load_manifest_pair(fabric: ins fabric, manifest_path: abs manifest_path, shard_path: abs path_zero, global_index: erg query) == 0 || fabric.columns[0u32].storage[0u32] != 20u8 {
         return 15;
     }
     return 0;
@@ -277,11 +318,11 @@ verb run_paths(abs path_zero: Path, abs path_one: Path, abs path_two: Path, abs 
     if manifest_status != 0 {
         return manifest_status;
     }
-    erg loader_status: Int = verify_dynamic_loader(path_zero: abs path_zero, path_one: abs path_one);
+    erg loader_status: Int = verify_dynamic_loader(manifest_path: abs manifest_path, path_zero: abs path_zero, path_one: abs path_one);
     if loader_status != 0 {
         return loader_status;
     }
-    erg message: String = "AIE_SHARDS_DYNAMIC files=3 generated=1 validated=3 manifest_bound=2 swapped_rejected=1 dynamic_loaded=1 dynamic_failed_unchanged=1 payload_bytes=128";
+    erg message: String = "AIE_SHARDS_DYNAMIC files=3 generated=1 validated=3 manifest_bound=2 swapped_rejected=1 dynamic_loaded=1 manifest_selected=1 dynamic_failed_unchanged=1 payload_bytes=128";
     println(text: abs message);
     return 0;
 }

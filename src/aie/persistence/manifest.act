@@ -51,6 +51,13 @@ open struct AllocationPlan {
     erg creates_shard: Bool,
 }
 
+open struct DynamicLoadPlan {
+    erg shard_id: u32,
+    erg first_column_index: u32,
+    erg column_count: u32,
+    erg local_index: u32,
+}
+
 verb append_manifest_u16(ins output: Buffer, abs value: u16) {
     append(output, value as u8);
     append(output, ((value as u32 / 256u32) & 255u32) as u8);
@@ -675,6 +682,36 @@ open verb plan_dynamic_allocation(abs bytes: Buffer, erg global_index: u32) -> R
     return case dat location_result {
         Result.Err(error) => Err(error),
         Result.Ok(location) => Ok(AllocationPlan {global_index: location.global_index, shard_id: location.shard_id, local_index: location.local_index, creates_shard: false}),
+    };
+}
+
+open verb plan_dynamic_load(abs manifest: Buffer, erg global_index: u32) -> Result[DynamicLoadPlan, IoError] {
+    erg location_result = manifest_locate_column_dynamic(bytes: abs manifest, global_index: erg global_index);
+    return case dat location_result {
+        Result.Err(error) => Err(error),
+        Result.Ok(location) => {
+            erg descriptor_offset: u32 = BRAIN_MANIFEST_HEADER_BYTES as u32 + (location.shard_id * BRAIN_MANIFEST_DESCRIPTOR_BYTES as u32);
+            erg first_offset: u32 = descriptor_offset + 4u32;
+            erg count_offset: u32 = descriptor_offset + 8u32;
+            erg expected_first: u32 = read_shard_u32(input: abs manifest, offset: abs first_offset);
+            erg expected_count: u32 = read_shard_u32(input: abs manifest, offset: abs count_offset);
+            return Ok(DynamicLoadPlan {shard_id: location.shard_id, first_column_index: expected_first, column_count: expected_count, local_index: location.local_index});
+        },
+    };
+}
+
+open verb load_dynamic_from_plan(
+    ins fabric: CorticalFabric[64],
+    dat shard: Buffer,
+    abs plan: DynamicLoadPlan
+) -> Result[Int, IoError] {
+    erg selected_shard_id: u32 = plan.shard_id + 0u32;
+    erg selected_first: u32 = plan.first_column_index + 0u32;
+    erg selected_count: u32 = plan.column_count + 0u32;
+    erg loaded = load_dynamic_shard_bytes(fabric: ins fabric, bytes: dat shard, expected_shard_id: erg selected_shard_id, expected_first_column_index: erg selected_first, expected_column_count: erg selected_count);
+    return case dat loaded {
+        Result.Err(error) => Err(error),
+        Result.Ok(bytes_loaded) => Ok(bytes_loaded),
     };
 }
 

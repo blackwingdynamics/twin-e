@@ -82,6 +82,8 @@ selective_load=1
   to an existing shard or plans the next shard range.
 - [x] Append a planned shard descriptor and publish the next manifest generation
   with updated total-column and active-count metadata.
+- [x] Resolve a global index through the dynamic manifest and load the selected
+  shard after descriptor validation.
 - [x] Reject zero-sized, oversized, and arithmetic-overflow descriptor ranges
   before a dynamic manifest can be used.
 - [x] Verify malformed descriptor rejection in the dynamic manifest benchmark.
