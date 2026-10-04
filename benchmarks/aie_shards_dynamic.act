@@ -291,11 +291,26 @@ verb load_manifest_pair(ins fabric: CorticalFabric[64], abs manifest_path: Path,
 verb verify_dynamic_loader(abs manifest_path: Path, abs path_zero: Path, abs path_one: Path) -> Int {
     erg fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](), free_list_head: 0u32, active_count: 0u32};
     fabric_init(fabric: ins fabric);
+    erg shard_paths: Array[Path, 8] = Array[Path, 8]();
+    shard_paths[0u32] = path_zero;
+    shard_paths[1u32] = path_one;
     erg query: u32 = 2u32;
-    if load_manifest_pair(fabric: ins fabric, manifest_path: abs manifest_path, shard_path: abs path_one, global_index: erg query) != 0 || fabric.columns[0u32].storage[0u32] != 20u8 {
+    erg dynamic_shard_count: u32 = 3u32;
+    erg loaded = load_column_from_dynamic_shards(fabric: ins fabric, manifest_path: abs manifest_path, shard_paths: abs shard_paths, shard_count: erg dynamic_shard_count, global_index: erg query);
+    erg load_status: Int = case dat loaded {
+        Result.Err(_) => 14,
+        Result.Ok(_) => 0,
+    };
+    if load_status != 0 || fabric.columns[0u32].storage[0u32] != 20u8 {
         return 14;
     }
-    if load_manifest_pair(fabric: ins fabric, manifest_path: abs manifest_path, shard_path: abs path_zero, global_index: erg query) == 0 || fabric.columns[0u32].storage[0u32] != 20u8 {
+    erg invalid_shard_count: u32 = 1u32;
+    erg invalid_loaded = load_column_from_dynamic_shards(fabric: ins fabric, manifest_path: abs manifest_path, shard_paths: abs shard_paths, shard_count: erg invalid_shard_count, global_index: erg query);
+    erg invalid_status: Int = case dat invalid_loaded {
+        Result.Err(_) => 1,
+        Result.Ok(_) => 0,
+    };
+    if invalid_status == 0 {
         return 15;
     }
     return 0;
@@ -408,16 +423,17 @@ verb expect_index(erg actual: u32, erg expected: u32) -> Int {
 verb verify_reallocation_cycle(abs manifest_path: Path, abs path_zero: Path, abs path_one: Path, abs path_two: Path) -> Int {
     erg fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](), free_list_head: 0u32, active_count: 0u32};
     fabric_init(fabric: ins fabric);
-    erg shard_zero: u32 = 0u32;
-    erg shard_one: u32 = 1u32;
-    erg shard_two: u32 = 2u32;
-    erg first_zero: u32 = 0u32;
-    erg first_one: u32 = 2u32;
-    erg first_two: u32 = 4u32;
-    erg destination_zero: u32 = 0u32;
-    erg destination_one: u32 = 2u32;
-    erg destination_two: u32 = 4u32;
-    if load_arena_shard(fabric: ins fabric, path: abs path_zero, shard_id: erg shard_zero, first_column: erg first_zero, destination_index: erg destination_zero) != 0 || load_arena_shard(fabric: ins fabric, path: abs path_one, shard_id: erg shard_one, first_column: erg first_one, destination_index: erg destination_one) != 0 || load_arena_shard(fabric: ins fabric, path: abs path_two, shard_id: erg shard_two, first_column: erg first_two, destination_index: erg destination_two) != 0 {
+    erg shard_paths: Array[Path, 8] = Array[Path, 8]();
+    shard_paths[0u32] = path_zero;
+    shard_paths[1u32] = path_one;
+    shard_paths[2u32] = path_two;
+    erg shard_count: u32 = 3u32;
+    erg loaded = load_all_dynamic_shards(fabric: ins fabric, manifest_path: abs manifest_path, shard_paths: abs shard_paths, shard_count: erg shard_count);
+    erg load_status: Int = case dat loaded {
+        Result.Err(_) => 30,
+        Result.Ok(_) => 0,
+    };
+    if load_status != 0 {
         return 30;
     }
     if restore_allocator(fabric: ins fabric, manifest_path: abs manifest_path) != 0 {
@@ -533,7 +549,7 @@ verb run_paths(abs path_zero: Path, abs path_one: Path, abs path_two: Path, abs 
     if cycle_status != 0 {
         return cycle_status;
     }
-    erg message: String = "AIE_SHARDS_DYNAMIC files=3 generated=1 staged_shard=1 validated=3 manifest_bound=2 swapped_rejected=1 dynamic_loaded=1 manifest_selected=1 dynamic_failed_unchanged=1 free_chain=5-2-0-null reallocated=2 payload_bytes=128";
+    erg message: String = "AIE_SHARDS_DYNAMIC files=3 generated=1 staged_shard=1 validated=3 manifest_bound=2 swapped_rejected=1 dynamic_loaded=1 dynamic_collection=3 manifest_selected=1 dynamic_failed_unchanged=1 free_chain=5-2-0-null reallocated=2 payload_bytes=128";
     println(text: abs message);
     return 0;
 }

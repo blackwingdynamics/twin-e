@@ -87,8 +87,11 @@ selective_load=1
 - [x] Reject zero-sized, oversized, and arithmetic-overflow descriptor ranges
   before a dynamic manifest can be used.
 - [x] Verify malformed descriptor rejection in the dynamic manifest benchmark.
-- [~] Replace the fixed two-shard fabric loader and allocator with the dynamic
-  manifest-driven descriptor collection.
+- [x] Replace the fixed two-shard fabric loader and allocator with the dynamic
+  manifest-driven descriptor collection. The public dynamic load path accepts
+  a bounded path collection, resolves every descriptor from the manifest, and
+  loads each shard at its global destination; legacy fixed helpers remain as
+  compatibility APIs.
 - [x] Keep shard count, capacity, payload sizes, and file size in the global
   configuration profile.
 - [x] Support arbitrary valid global indexes without hardcoded shard branches.
@@ -142,6 +145,7 @@ Evidence:
 ```text
 AIE_MANIFEST_DYNAMIC generation_publish=1 newest_generation=10 stale_rejected=1
 AIE_SHARDS_DYNAMIC staged_shard=1 validated=3 manifest_bound=2
+AIE_SHARDS_DYNAMIC dynamic_collection=3 reallocated=2
 ```
 
 ## P4S.8 — Scale and operational evidence
