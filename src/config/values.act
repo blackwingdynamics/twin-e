@@ -41,6 +41,18 @@ open const BRAIN_HEADER_BYTES: u16 = 12u16;
 open const BRAIN_PAYLOAD_BYTES: u32 = 4096u32;
 
 
+open const BRAIN_BINDING_VERSION: u16 = 1u16;
+
+
+open const BRAIN_BINDING_STRIDE_BYTES: u16 = 24u16;
+
+
+open const BRAIN_BINDING_COUNT: u32 = 64u32;
+
+
+open const BRAIN_BINDING_PAYLOAD_BYTES: u32 = 1536u32;
+
+
 open const TOKENIZER_VERSION: u16 = 1u16;
 
 

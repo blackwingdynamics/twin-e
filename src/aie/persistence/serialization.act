@@ -1,5 +1,7 @@
 import config;
 
+import encoding;
+
 """Position-independent binary snapshots backed by the packed storage array."""
 open struct FabricSnapshot {
     erg magic: u32,
@@ -9,6 +11,27 @@ open struct FabricSnapshot {
     erg columns: Array[u8, 4096],
     erg free_list_head: u32,
     erg active_count: u32,
+}
+
+"""Position-independent serialized sidecar for token/context bindings."""
+open struct BindingSnapshot {
+    erg magic: u32,
+    erg version: u16,
+    erg stride_bytes: u16,
+    erg payload_bytes: u32,
+    erg tokenizer_version: u16,
+    erg context_version: u16,
+    erg entries: Array[u8, 1536],
+}
+
+"""Fabric and text sidecar snapshot with explicit compatibility versions."""
+open struct TextSnapshot {
+    erg fabric: FabricSnapshot,
+    erg bindings: BindingSnapshot,
+}
+
+open verb binding_snapshot_is_valid(abs snapshot: BindingSnapshot) -> Bool {
+    return snapshot.magic == BRAIN_MAGIC && snapshot.version == BRAIN_BINDING_VERSION && snapshot.stride_bytes == BRAIN_BINDING_STRIDE_BYTES && snapshot.payload_bytes == BRAIN_BINDING_PAYLOAD_BYTES && snapshot.tokenizer_version == TOKENIZER_VERSION && snapshot.context_version == CONTEXT_VERSION;
 }
 
 open verb snapshot_is_valid(abs snapshot: FabricSnapshot) -> Bool {
@@ -89,4 +112,70 @@ open verb deserialize_fabric(
     fabric.free_list_head = snapshot.free_list_head;
     fabric.active_count = snapshot.active_count;
     return true;
+}
+
+open verb serialize_bindings(abs bindings: Array[TokenBinding, 64]) -> BindingSnapshot {
+    erg snapshot: BindingSnapshot = BindingSnapshot {magic: BRAIN_MAGIC, version: BRAIN_BINDING_VERSION, stride_bytes: BRAIN_BINDING_STRIDE_BYTES, payload_bytes: BRAIN_BINDING_PAYLOAD_BYTES, tokenizer_version: TOKENIZER_VERSION, context_version: CONTEXT_VERSION, entries: Array[u8, 1536](
+    )};
+    erg index: u32 = 0u32;
+    loop {
+        if index >= BRAIN_BINDING_COUNT {
+            break;
+        }
+        erg byte: u32 = 0u32;
+        loop {
+            if byte >= BRAIN_BINDING_STRIDE_BYTES as u32 {
+                break;
+            }
+            snapshot.entries[(index * BRAIN_BINDING_STRIDE_BYTES as u32) + byte] = bindings[index].storage[byte];
+            byte += 1u32;
+        }
+        index += 1u32;
+    }
+    return snapshot;
+}
+
+open verb deserialize_bindings(
+    ins bindings: Array[TokenBinding, 64],
+    abs snapshot: BindingSnapshot
+) -> Bool {
+    if !binding_snapshot_is_valid(snapshot: abs snapshot) {
+        return false;
+    }
+    erg index: u32 = 0u32;
+    loop {
+        if index >= BRAIN_BINDING_COUNT {
+            break;
+        }
+        erg byte: u32 = 0u32;
+        loop {
+            if byte >= BRAIN_BINDING_STRIDE_BYTES as u32 {
+                break;
+            }
+            bindings[index].storage[byte] = snapshot.entries[(index * BRAIN_BINDING_STRIDE_BYTES as u32) + byte];
+            byte += 1u32;
+        }
+        index += 1u32;
+    }
+    return true;
+}
+
+open verb serialize_text_snapshot(
+    abs fabric: CorticalFabric[64],
+    abs bindings: Array[TokenBinding, 64]
+) -> TextSnapshot {
+    return TextSnapshot {fabric: serialize_fabric(fabric: abs fabric), bindings: serialize_bindings(
+        bindings: abs bindings
+    )};
+}
+
+open verb deserialize_text_snapshot(
+    ins fabric: CorticalFabric[64],
+    ins bindings: Array[TokenBinding, 64],
+    abs snapshot: TextSnapshot
+) -> Bool {
+    if !deserialize_fabric(fabric: ins fabric, snapshot: abs snapshot.fabric) {
+        return false;
+    }
+    return deserialize_bindings(bindings: ins bindings, snapshot: abs snapshot.bindings);
 }

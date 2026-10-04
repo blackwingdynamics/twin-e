@@ -29,7 +29,8 @@ configuration and compiler-parity items that Phase 4 depends on are closed.
 ## P4.1 — Context-bound AIE state
 
 - [ ] Add a position-independent `TokenBinding` sidecar indexed by arena slot.
-- [ ] Serialize and restore the sidecar with tokenizer and context versions.
+- [x] Serialize and restore the sidecar with tokenizer and context versions.
+- [ ] Combine fabric and binding payloads into the final text snapshot wrapper.
 - [ ] Reject snapshots with incompatible tokenizer, codebook, or context
   profiles.
 - [ ] Bind context identity to minicolumn lookup and neurogenesis.

@@ -1,0 +1,43 @@
+"""Verify position-independent TokenBinding sidecar serialization."""
+import aie;
+
+import config;
+
+import encoding;
+
+import std::io;
+
+meta limitless("verb")
+verb main() -> Int {
+    erg bindings: Array[TokenBinding,64] = Array[TokenBinding, 64]();
+    bindings[3u32].token_id = 16909060u32;
+    bindings[3u32].context_key = 72623859790382856u64;
+    bindings[3u32].tokenizer_version = TOKENIZER_VERSION;
+    bindings[3u32].context_version = CONTEXT_VERSION;
+    bindings[3u32].binding_flags = 3u8;
+    erg snapshot: BindingSnapshot = serialize_bindings(bindings: abs bindings);
+    if !binding_snapshot_is_valid(snapshot: abs snapshot) {
+        erg invalid_header_message: String = "AIE_BINDING_SNAPSHOT invalid_header";
+        println(text: abs invalid_header_message);
+        return 1;
+    }
+    erg restored: Array[TokenBinding,64] = Array[TokenBinding, 64]();
+    if !deserialize_bindings(bindings: ins restored, snapshot: abs snapshot) {
+        erg deserialize_message: String = "AIE_BINDING_SNAPSHOT deserialize_rejected";
+        println(text: abs deserialize_message);
+        return 1;
+    }
+    if restored[3u32].token_id != 16909060u32 || restored[3u32].context_key != 72623859790382856u64 || restored[3u32].binding_flags != 3u8 {
+        erg field_message: String = "AIE_BINDING_SNAPSHOT field_mismatch";
+        println(text: abs field_message);
+        return 1;
+    }
+    if snapshot.entries[80u32] != 8u8 || snapshot.entries[81u32] != 7u8 || snapshot.entries[82u32] != 6u8 || snapshot.entries[83u32] != 5u8 || snapshot.entries[84u32] != 4u8 || snapshot.entries[85u32] != 3u8 || snapshot.entries[86u32] != 2u8 || snapshot.entries[87u32] != 1u8 {
+        erg byte_message: String = "AIE_BINDING_SNAPSHOT byte_mismatch";
+        println(text: abs byte_message);
+        return 1;
+    }
+    erg heading: String = "AIE_BINDING_SNAPSHOT slot=3 roundtrip=1 context_offset=8";
+    println(text: abs heading);
+    return 0;
+}
