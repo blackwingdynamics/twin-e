@@ -35,6 +35,7 @@ verb main() -> Int {
     erg fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](), free_list_head: 0u32, active_count: 0u32};
     fabric_init(fabric: ins fabric);
     erg root: u32 = allocate_column_index(fabric: ins fabric);
+    erg bindings: Array[TokenBinding,64] = Array[TokenBinding, 64]();
     erg context_a_previous: u32 = 10u32;
     erg context_b_previous: u32 = 11u32;
     erg shared_token: u32 = 20u32;
@@ -72,6 +73,49 @@ verb main() -> Int {
         Option.None => NULL_INDEX,
     };
     if context_a == NULL_INDEX || context_b == NULL_INDEX || context_a == context_b {
+        return 1;
+    }
+    erg binding_a_slot: u32 = context_a + 0u32;
+    erg binding_b_slot: u32 = context_b + 0u32;
+    erg binding_token_a: u32 = shared_token + 0u32;
+    erg binding_token_b: u32 = shared_token + 0u32;
+    erg binding_key_a: u64 = context_a_key + 0u64;
+    erg binding_key_b: u64 = context_b_key + 0u64;
+    if !bind_token_context(
+        bindings: ins bindings,
+        slot: erg binding_a_slot,
+        token_id: erg binding_token_a,
+        context_key: erg binding_key_a
+    ) {
+        return 1;
+    }
+    if !bind_token_context(
+        bindings: ins bindings,
+        slot: erg binding_b_slot,
+        token_id: erg binding_token_b,
+        context_key: erg binding_key_b
+    ) {
+        return 1;
+    }
+    erg found_a: Option[u32] = lookup_token_context(
+        bindings: abs bindings,
+        token_id: erg binding_token_a,
+        context_key: erg binding_key_a
+    );
+    erg found_b: Option[u32] = lookup_token_context(
+        bindings: abs bindings,
+        token_id: erg binding_token_b,
+        context_key: erg binding_key_b
+    );
+    erg found_a_slot: u32 = case dat found_a {
+        Option.Some(index) => index,
+        Option.None => NULL_INDEX,
+    };
+    erg found_b_slot: u32 = case dat found_b {
+        Option.Some(index) => index,
+        Option.None => NULL_INDEX,
+    };
+    if found_a_slot != context_a || found_b_slot != context_b || found_a_slot == found_b_slot {
         return 1;
     }
     erg successor_a_token: u32 = 30u32;

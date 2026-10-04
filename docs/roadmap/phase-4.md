@@ -33,7 +33,8 @@ configuration and compiler-parity items that Phase 4 depends on are closed.
 - [x] Combine fabric and binding payloads into the final text snapshot wrapper.
 - [ ] Reject snapshots with incompatible tokenizer, codebook, or context
   profiles.
-- [ ] Bind context identity to minicolumn lookup and neurogenesis.
+- [~] Bind context identity to minicolumn lookup and neurogenesis; sidecar bind
+  and lookup are implemented, while runtime-integrated state lookup remains.
 - [x] Add an ambiguity fixture where the same token has two context-specific
   successors.
 - [x] Verify that the two successor paths do not share one token-only state.

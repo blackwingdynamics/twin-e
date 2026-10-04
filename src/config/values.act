@@ -53,6 +53,9 @@ open const BRAIN_BINDING_COUNT: u32 = 64u32;
 open const BRAIN_BINDING_PAYLOAD_BYTES: u32 = 1536u32;
 
 
+open const BINDING_ACTIVE_FLAG: u8 = 1u8;
+
+
 open const TOKENIZER_VERSION: u16 = 1u16;
 
 

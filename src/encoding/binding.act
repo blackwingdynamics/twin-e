@@ -19,3 +19,40 @@ open pack TokenBinding {
 open verb token_binding_size_bytes() -> u32 {
     return 24u32;
 }
+
+"""Attach one token/context identity to an arena slot."""
+open verb bind_token_context(
+    ins bindings: Array[TokenBinding, 64],
+    erg slot: u32,
+    erg token_id: u32,
+    erg context_key: u64
+) -> Bool {
+    if slot >= BRAIN_BINDING_COUNT {
+        return false;
+    }
+    bindings[slot].token_id = token_id;
+    bindings[slot].context_key = context_key;
+    bindings[slot].tokenizer_version = TOKENIZER_VERSION;
+    bindings[slot].context_version = CONTEXT_VERSION;
+    bindings[slot].binding_flags = BINDING_ACTIVE_FLAG;
+    return true;
+}
+
+"""Find the arena slot for one active token/context identity."""
+open verb lookup_token_context(
+    abs bindings: Array[TokenBinding, 64],
+    erg token_id: u32,
+    erg context_key: u64
+) -> Option[u32] {
+    erg slot: u32 = 0u32;
+    loop {
+        if slot >= BRAIN_BINDING_COUNT {
+            break;
+        }
+        if bindings[slot].binding_flags == BINDING_ACTIVE_FLAG && bindings[slot].token_id == token_id && bindings[slot].context_key == context_key && bindings[slot].tokenizer_version == TOKENIZER_VERSION && bindings[slot].context_version == CONTEXT_VERSION {
+            return Option[u32].Some(slot);
+        }
+        slot += 1u32;
+    }
+    return Option[u32].None;
+}
