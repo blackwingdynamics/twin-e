@@ -1,0 +1,120 @@
+meta limitless("file")
+"""Hosted `.brain` file persistence for the fixed fabric snapshot contract."""
+import config;
+import std::fs;
+
+open verb brain_file_error(dat error: IoError) -> Result[Int, IoError] {
+    return case dat error {
+        IoError.EndOfStream => Err(IoError.EndOfStream),
+        IoError.Failed => Err(IoError.Failed),
+        IoError.InvalidInput => Err(IoError.InvalidInput),
+        IoError.InvalidData => Err(IoError.InvalidData),
+    };
+}
+
+verb read_u16(abs input: Buffer, erg offset: u32) -> u16 {
+    erg low: u16 = input[offset] as u16;
+    erg high: u16 = input[offset + 1u32] as u16;
+    return low + (high * 256u16);
+}
+
+verb read_u32(abs input: Buffer, erg offset: u32) -> u32 {
+    erg byte_0: u32 = input[offset] as u32;
+    erg byte_1: u32 = input[offset + 1u32] as u32;
+    erg byte_2: u32 = input[offset + 2u32] as u32;
+    erg byte_3: u32 = input[offset + 3u32] as u32;
+    return byte_0 + (byte_1 * 256u32) + (byte_2 * 65536u32) + (byte_3 * 16777216u32);
+}
+
+verb brain_buffer_length(dat result: Result[Int, IoError]) -> Int {
+    return case dat result {
+        Result.Ok(value) => value,
+        Result.Err(_) => -1,
+    };
+}
+
+verb append_u16(ins output: Buffer, abs value: u16) {
+    erg low: u8 = value as u8;
+    erg high: u8 = (value as u32 / 256u32) as u8;
+    append(output, low);
+    append(output, high);
+}
+
+verb append_u32(ins output: Buffer, abs value: u32) {
+    erg byte_0: u8 = value as u8;
+    erg byte_1: u8 = ((value / 256u32) as u8);
+    erg byte_2: u8 = ((value / 65536u32) as u8);
+    erg byte_3: u8 = ((value / 16777216u32) as u8);
+    append(output, byte_0);
+    append(output, byte_1);
+    append(output, byte_2);
+    append(output, byte_3);
+}
+
+verb fabric_snapshot_bytes(abs snapshot: FabricSnapshot) -> Buffer {
+    erg output: Buffer = Buffer[4116];
+    append_u32(output: ins output, value: abs snapshot.magic);
+    append_u16(output: ins output, value: abs snapshot.version);
+    append_u16(output: ins output, value: abs snapshot.header_bytes);
+    append_u32(output: ins output, value: abs snapshot.payload_bytes);
+    erg index: u32 = 0u32;
+    loop {
+        if index >= BRAIN_PAYLOAD_BYTES {
+            break;
+        }
+        append(output, snapshot.columns[index]);
+        index += 1u32;
+    }
+    append_u32(output: ins output, value: abs snapshot.free_list_head);
+    append_u32(output: ins output, value: abs snapshot.active_count);
+    return output;
+}
+
+open verb write_brain(abs path: Path, abs fabric: CorticalFabric[64]) -> Result[Int, IoError] {
+    erg snapshot: FabricSnapshot = serialize_fabric(fabric: abs fabric);
+    erg output: Buffer = fabric_snapshot_bytes(snapshot: abs snapshot);
+    return write_file(path: abs path, contents: abs output);
+}
+
+open verb read_brain(ins fabric: CorticalFabric[64], abs path: Path) -> Result[Int, IoError] {
+    erg loaded = read_to_bytes(path: abs path);
+    return case dat loaded {
+        Result.Err(error) => brain_file_error(error: dat error),
+        Result.Ok(bytes) => read_brain_bytes(fabric: ins fabric, bytes: dat bytes),
+    };
+}
+
+verb read_brain_bytes(
+    ins fabric: CorticalFabric[64],
+    dat bytes: Buffer
+) -> Result[Int, IoError] {
+    erg length_result = buffer_length(buffer: abs bytes);
+    erg length: Int = brain_buffer_length(result: dat length_result);
+    if length != 4116 {
+        drop(bytes);
+        return Err(IoError.InvalidData);
+    }
+    erg offset_zero: u32 = 0u32;
+    erg offset_magic_version: u32 = 4u32;
+    erg offset_header: u32 = 6u32;
+    erg offset_payload: u32 = 8u32;
+    erg valid_header: Bool = read_u32(input: abs bytes, offset: erg offset_zero) == BRAIN_MAGIC && read_u16(input: abs bytes, offset: erg offset_magic_version) == BRAIN_VERSION && read_u16(input: abs bytes, offset: erg offset_header) == BRAIN_HEADER_BYTES && read_u32(input: abs bytes, offset: erg offset_payload) == BRAIN_PAYLOAD_BYTES;
+    if !valid_header {
+        drop(bytes);
+        return Err(IoError.InvalidData);
+    }
+    erg index: u32 = 0u32;
+    loop {
+        if index >= BRAIN_PAYLOAD_BYTES {
+            break;
+        }
+        fabric.columns[index / 64u32].storage[index % 64u32] = bytes[index + 12u32];
+        index += 1u32;
+    }
+    erg free_list_offset: u32 = 4108u32;
+    erg active_count_offset: u32 = 4112u32;
+    fabric.free_list_head = read_u32(input: abs bytes, offset: erg free_list_offset);
+    fabric.active_count = read_u32(input: abs bytes, offset: erg active_count_offset);
+    drop(bytes);
+    return Ok(length);
+}
