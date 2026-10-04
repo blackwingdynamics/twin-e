@@ -101,7 +101,7 @@ selective_load=1
 - [x] Validate the shard file identity against the manifest descriptor before
   applying records.
 - [x] Add explicit tests for swapped shard files and wrong shard IDs.
-- [ ] Add explicit tests for truncated manifests, oversized lengths, and
+- [x] Add explicit tests for truncated manifests, oversized lengths, and
   malformed descriptor states.
 - [ ] Preserve the live fabric unchanged for every failed manifest or shard
   validation path.

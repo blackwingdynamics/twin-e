@@ -187,6 +187,56 @@ verb verify_invalid_descriptor(ins bytes: Buffer) -> Int {
     return 0;
 }
 
+verb verify_invalid_field(ins bytes: Buffer, erg offset: u32, erg value: u8) -> Int {
+    bytes[offset] = value;
+    erg valid: Bool = manifest_dynamic_bytes_are_valid(bytes: abs bytes);
+    if valid {
+        return 8;
+    }
+    return 0;
+}
+
+verb rejects_truncated_manifest() -> Int {
+    erg bytes: Buffer = Buffer[0];
+    erg index: u32 = 0u32;
+    loop {
+        if index >= 63u32 {
+            break;
+        }
+        append(bytes, 0u8);
+        index += 1u32;
+    }
+    erg valid: Bool = manifest_dynamic_bytes_are_valid(bytes: abs bytes);
+    if valid {
+        return 9;
+    }
+    return 0;
+}
+
+verb rejects_oversized_manifest(abs path: Path) -> Int {
+    erg loaded = read_to_bytes(path: abs path);
+    return case dat loaded {
+        Result.Err(_) => 10,
+        Result.Ok(bytes) => {
+            erg offset: u32 = 8u32;
+            erg value: u8 = 255u8;
+            return verify_invalid_field(bytes: ins bytes, offset: erg offset, value: erg value);
+        },
+    };
+}
+
+verb rejects_malformed_state(abs path: Path) -> Int {
+    erg loaded = read_to_bytes(path: abs path);
+    return case dat loaded {
+        Result.Err(_) => 11,
+        Result.Ok(bytes) => {
+            erg offset: u32 = 100u32;
+            erg value: u8 = 0u8;
+            return verify_invalid_field(bytes: ins bytes, offset: erg offset, value: erg value);
+        },
+    };
+}
+
 verb rejects_invalid_descriptor(abs path: Path) -> Int {
     erg loaded = read_to_bytes(path: abs path);
     return case dat loaded {
@@ -203,6 +253,18 @@ verb emit_dynamic(abs path: Path) -> Int {
     erg rejected_status: Int = rejects_invalid_descriptor(path: abs path);
     if rejected_status != 0 {
         return rejected_status;
+    }
+    erg truncated_status: Int = rejects_truncated_manifest();
+    if truncated_status != 0 {
+        return truncated_status;
+    }
+    erg oversized_status: Int = rejects_oversized_manifest(path: abs path);
+    if oversized_status != 0 {
+        return oversized_status;
+    }
+    erg state_status: Int = rejects_malformed_state(path: abs path);
+    if state_status != 0 {
+        return state_status;
     }
     erg message: String = "AIE_MANIFEST_DYNAMIC shards=3 appended_shard=3 allocation_shard=3 local_index=0 roundtrip=1";
     println(text: abs message);
