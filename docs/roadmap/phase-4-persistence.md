@@ -152,8 +152,8 @@ AIE_SHARDS_DYNAMIC staged_shard=1 validated=3 manifest_bound=2
 - [x] Measure sequential traversal, random lookup, selective load, and flush
   latency.
 - [ ] Measure manifest size, file count, cache working set, and restart time.
-- [ ] Add a bounded shard cache with dirty-state tracking and eviction rules.
-- [ ] Reject eviction of dirty or pinned shards without an explicit flush.
+- [x] Add a bounded shard cache with dirty-state tracking and eviction rules.
+- [x] Reject eviction of dirty or pinned shards without an explicit flush.
 - [ ] Document the tested hardware limits and the difference between logical
   scale and resident memory.
 
@@ -168,6 +168,12 @@ AIE_SCALE small_write_ns=39630 medium_write_ns=22688 large_write_ns=53098
 These timings are operational evidence for the current host and debug-style
 benchmark executable. They do not define a hardware-independent latency
 guarantee or a final resident-memory limit.
+
+Bounded-cache evidence from `benchmarks/aie_cache.act`:
+
+```text
+AIE_CACHE capacity=4 dirty_rejected=1 pinned_rejected=1 clean_evicted=1 replacement=1
+```
 
 ## Phase completion criteria
 

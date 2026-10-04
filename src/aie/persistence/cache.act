@@ -58,7 +58,57 @@ verb cache_next_clock(ins cache: ShardCache) -> u64 {
     return cache.clock;
 }
 
-open verb shard_cache_touch(ins cache: ShardCache, erg slot: u8) -> Result[Int, ShardCacheError] {
+verb select_cache_slot(erg free_slot: u8, erg victim: u8) -> u8 {
+    if free_slot < BRAIN_CACHE_CAPACITY {
+        return free_slot;
+    }
+    return victim;
+}
+
+verb find_free_cache_slot(abs cache: ShardCache) -> u8 {
+    erg index: u8 = 0u8;
+    loop {
+        if index >= BRAIN_CACHE_CAPACITY {
+            break;
+        }
+        if !cache.entries[index as Usize].loaded {
+            return index;
+        }
+        index += 1u8;
+    }
+    return BRAIN_CACHE_CAPACITY;
+}
+
+verb find_cache_victim(abs cache: ShardCache) -> u8 {
+    erg victim: u8 = BRAIN_CACHE_CAPACITY;
+    erg oldest: u64 = 0u64;
+    erg has_victim: Bool = false;
+    erg index: u8 = 0u8;
+    loop {
+        if index >= BRAIN_CACHE_CAPACITY {
+            break;
+        }
+        if !cache.entries[index as Usize].dirty && cache.entries[index as Usize].pin_count == 0u16 && (!has_victim || cache.entries[index as Usize].last_use < oldest) {
+            oldest = cache.entries[index as Usize].last_use;
+            victim = index;
+            has_victim = true;
+        }
+        index += 1u8;
+    }
+    return victim;
+}
+
+verb refresh_cache_entry(ins cache: ShardCache, abs slot: u8, erg generation: u64, erg checksum: u64) -> Result[u8, ShardCacheError] {
+    cache.entries[slot as Usize].generation = generation;
+    cache.entries[slot as Usize].checksum = checksum;
+    erg touched = shard_cache_touch(cache: ins cache, slot: abs slot);
+    return case dat touched {
+        Result.Err(error) => Err(error),
+        Result.Ok(_) => Ok(slot),
+    };
+}
+
+open verb shard_cache_touch(ins cache: ShardCache, abs slot: u8) -> Result[Int, ShardCacheError] {
     if slot >= BRAIN_CACHE_CAPACITY || !cache.entries[slot as Usize].loaded {
         return Result[Int, ShardCacheError].Err(ShardCacheError.Missing);
     }
@@ -104,7 +154,13 @@ open verb shard_cache_evict(ins cache: ShardCache, erg slot: u8) -> Result[Int, 
     if cache.entries[slot as Usize].pin_count > 0u16 {
         return Result[Int, ShardCacheError].Err(ShardCacheError.Pinned);
     }
-    cache.entries[slot as Usize] = empty_entry();
+    cache.entries[slot as Usize].shard_id = 0u32;
+    cache.entries[slot as Usize].generation = 0u64;
+    cache.entries[slot as Usize].last_use = 0u64;
+    cache.entries[slot as Usize].checksum = 0u64;
+    cache.entries[slot as Usize].pin_count = 0u16;
+    cache.entries[slot as Usize].loaded = false;
+    cache.entries[slot as Usize].dirty = false;
     return Result[Int, ShardCacheError].Ok(0);
 }
 
@@ -117,43 +173,23 @@ open verb shard_cache_insert(
     erg existing = shard_cache_find(cache: abs cache, shard_id: erg shard_id);
     case existing {
         Option.Some(slot) => {
-            cache.entries[slot as Usize].generation = generation;
-            cache.entries[slot as Usize].checksum = checksum;
-            erg existing_slot: u8 = slot + 0u8;
-            erg touched = shard_cache_touch(cache: ins cache, slot: erg existing_slot);
-            return case dat touched {
-                Result.Err(error) => Err(error),
-                Result.Ok(_) => Ok(existing_slot),
-            };
+            return refresh_cache_entry(cache: ins cache, slot: abs slot, generation: erg generation, checksum: erg checksum);
         },
         Option.None => {},
     };
-    erg free_slot: u8 = BRAIN_CACHE_CAPACITY;
-    erg victim: u8 = BRAIN_CACHE_CAPACITY;
-    erg oldest: u64 = 18446744073709551615u64;
-    erg index: u8 = 0u8;
-    loop {
-        if index >= BRAIN_CACHE_CAPACITY {
-            break;
-        }
-        if !cache.entries[index as Usize].loaded {
-            free_slot = index;
-            break;
-        }
-        if !cache.entries[index as Usize].dirty && cache.entries[index as Usize].pin_count == 0u16 && cache.entries[index as Usize].last_use < oldest {
-            oldest = cache.entries[index as Usize].last_use;
-            victim = index;
-        }
-        index += 1u8;
+    erg free_slot: u8 = find_free_cache_slot(cache: abs cache);
+    erg victim: u8 = find_cache_victim(cache: abs cache);
+    if free_slot >= BRAIN_CACHE_CAPACITY && victim >= BRAIN_CACHE_CAPACITY {
+        return Result[u8, ShardCacheError].Err(ShardCacheError.NoEvictable);
     }
-    erg slot: u8 = free_slot;
-    if slot >= BRAIN_CACHE_CAPACITY {
-        if victim >= BRAIN_CACHE_CAPACITY {
-            return Result[u8, ShardCacheError].Err(ShardCacheError.NoEvictable);
-        }
-        slot = victim;
-    }
+    erg slot: u8 = select_cache_slot(free_slot: erg free_slot, victim: erg victim);
     erg stamp: u64 = cache_next_clock(cache: ins cache);
-    cache.entries[slot as Usize] = ShardCacheEntry {shard_id: shard_id, generation: generation, last_use: stamp, checksum: checksum, pin_count: 0u16, loaded: true, dirty: false};
+    cache.entries[slot as Usize].shard_id = shard_id;
+    cache.entries[slot as Usize].generation = generation;
+    cache.entries[slot as Usize].last_use = stamp;
+    cache.entries[slot as Usize].checksum = checksum;
+    cache.entries[slot as Usize].pin_count = 0u16;
+    cache.entries[slot as Usize].loaded = true;
+    cache.entries[slot as Usize].dirty = false;
     return Result[u8, ShardCacheError].Ok(slot);
 }

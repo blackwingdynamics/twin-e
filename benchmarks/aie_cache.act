@@ -1,0 +1,94 @@
+"""Prove bounded cache insertion, clean eviction, dirty rejection, and pin protection."""
+import aie;
+import std::io;
+
+verb insert_slot(ins cache: ShardCache, erg shard_id: u32) -> Int {
+    erg generation: u64 = 1u64;
+    erg checksum: u64 = (shard_id as u64) + 100u64;
+    erg result = shard_cache_insert(cache: ins cache, shard_id: erg shard_id, generation: erg generation, checksum: erg checksum);
+    return case dat result {
+        Result.Ok(slot) => slot as Int,
+        Result.Err(_) => -1,
+    };
+}
+
+verb rejects_dirty(ins cache: ShardCache, erg slot: u8) -> Bool {
+    erg result = shard_cache_evict(cache: ins cache, slot: erg slot);
+    return case dat result {
+        Result.Err(error) => case dat error {
+            ShardCacheError.Dirty => true,
+            _ => false,
+        },
+        Result.Ok(_) => false,
+    };
+}
+
+verb rejects_pinned(ins cache: ShardCache, erg slot: u8) -> Bool {
+    erg result = shard_cache_evict(cache: ins cache, slot: erg slot);
+    return case dat result {
+        Result.Err(error) => case dat error {
+            ShardCacheError.Pinned => true,
+            _ => false,
+        },
+        Result.Ok(_) => false,
+    };
+}
+
+verb is_evicted(abs cache: ShardCache, erg shard_id: u32) -> Bool {
+    erg result = shard_cache_find(cache: abs cache, shard_id: erg shard_id);
+    return case result {
+        Option.None => true,
+        Option.Some(_) => false,
+    };
+}
+
+meta limitless("verb")
+verb main() -> Int {
+    erg cache: ShardCache = ShardCache {entries: Array[ShardCacheEntry, 4](), clock: 0u64};
+    shard_cache_init(cache: ins cache);
+    erg id_zero: u32 = 0u32;
+    erg id_one: u32 = 1u32;
+    erg id_two: u32 = 2u32;
+    erg id_three: u32 = 3u32;
+    erg slot_zero: Int = insert_slot(cache: ins cache, shard_id: erg id_zero);
+    erg slot_one: Int = insert_slot(cache: ins cache, shard_id: erg id_one);
+    erg slot_two: Int = insert_slot(cache: ins cache, shard_id: erg id_two);
+    erg slot_three: Int = insert_slot(cache: ins cache, shard_id: erg id_three);
+    if slot_zero < 0 || slot_one < 0 || slot_two < 0 || slot_three < 0 {
+        return 1;
+    } else {
+    }
+    erg slot_zero_u8: u8 = slot_zero as u8;
+    erg slot_one_u8: u8 = slot_one as u8;
+    erg dirty_result = shard_cache_mark_dirty(cache: ins cache, slot: erg slot_zero_u8);
+    erg dirty_ok: Bool = case dat dirty_result {
+        Result.Ok(_) => true,
+        Result.Err(_) => false,
+    };
+    erg pin_result = shard_cache_pin(cache: ins cache, slot: erg slot_one_u8);
+    erg pin_ok: Bool = case dat pin_result {
+        Result.Ok(_) => true,
+        Result.Err(_) => false,
+    };
+    if !dirty_ok || !pin_ok || !rejects_dirty(cache: ins cache, slot: erg slot_zero_u8) || !rejects_pinned(cache: ins cache, slot: erg slot_one_u8) {
+        return 2;
+    } else {
+    }
+    erg unpin_result = shard_cache_unpin(cache: ins cache, slot: erg slot_one_u8);
+    erg unpinned: Bool = case dat unpin_result {
+        Result.Ok(_) => true,
+        Result.Err(_) => false,
+    };
+    erg id_four: u32 = 4u32;
+    erg slot_four: Int = insert_slot(cache: ins cache, shard_id: erg id_four);
+    erg returned_slot: Int = slot_four;
+    erg query_old: u32 = 1u32;
+    erg evicted_old: Bool = is_evicted(cache: abs cache, shard_id: erg query_old);
+    if !unpinned || returned_slot < 0 || !evicted_old {
+        return 3;
+    } else {
+    }
+    erg message: String = "AIE_CACHE capacity=4 dirty_rejected=1 pinned_rejected=1 clean_evicted=1 replacement=1";
+    println(text: abs message);
+    return 0;
+}

@@ -29,6 +29,32 @@ open verb neurogenesis_with_binding[N: Usize](
     erg token_id: u32,
     erg context_key: u64
 ) -> Option[u32] {
+    erg allocated = allocate_binding_slot(
+        fabric: ins fabric,
+        wave: abs wave,
+        source_idx: source_idx
+    );
+    erg result: Option[u32] = Option[u32].None;
+    case dat allocated {
+        Option.None => {},
+        Option.Some(slot) => {
+            bind_token_context(
+                bindings: ins bindings,
+                slot: slot,
+                token_id: token_id,
+                context_key: context_key
+            );
+            result = Option[u32].Some(slot);
+        },
+    };
+    return result;
+}
+
+verb allocate_binding_slot[N: Usize](
+    ins fabric: CorticalFabric[N],
+    abs wave: Wavefront,
+    erg source_idx: u32
+) -> Option[u32] {
     erg slot: u32 = allocate_column_index(fabric: ins fabric);
     erg available: Bool = slot != null_index();
     if !available || slot >= BRAIN_BINDING_COUNT {
@@ -49,12 +75,6 @@ open verb neurogenesis_with_binding[N: Usize](
         free_column(fabric: ins fabric, slot: erg slot);
         return Option[u32].None;
     }
-    bind_token_context(
-        bindings: ins bindings,
-        slot: slot,
-        token_id: token_id,
-        context_key: context_key
-    );
     return Option[u32].Some(slot);
 }
 
@@ -115,7 +135,32 @@ verb link_allocated[N: Usize](
         source: source,
         available: available
     );
-    case true {
+    if link_choice < 4u32 {
+        return link_first_four(
+            fabric: ins fabric,
+            source: source,
+            slot: slot,
+            link_choice: link_choice
+        );
+    } else {
+        return link_last_four(
+            fabric: ins fabric,
+            source: source,
+            slot: slot,
+            link_choice: link_choice
+        );
+    }
+    return false;
+}
+
+meta limitless("verb")
+verb link_first_four[N: Usize](
+    ins fabric: CorticalFabric[N],
+    erg source: u32,
+    erg slot: u32,
+    erg link_choice: u32
+) -> Bool {
+    erg dispatched_low: u32 = case true {
         true if link_choice == 0u32 => link_axon_0(
             fabric: ins fabric,
             source: source,
@@ -136,6 +181,19 @@ verb link_allocated[N: Usize](
             source: source,
             target: slot
         ),
+        _ => 0u32,
+    };
+    return link_choice < 4u32;
+}
+
+meta limitless("verb")
+verb link_last_four[N: Usize](
+    ins fabric: CorticalFabric[N],
+    erg source: u32,
+    erg slot: u32,
+    erg link_choice: u32
+) -> Bool {
+    erg dispatched_high: u32 = case true {
         true if link_choice == 4u32 => link_axon_4(
             fabric: ins fabric,
             source: source,
