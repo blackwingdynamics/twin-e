@@ -1,0 +1,23 @@
+"""Verify deterministic bounded BPE encoding over the existing byte tokenizer."""
+import tokenizer;
+
+import std::io;
+
+verb main() -> Int {
+    erg rules: Array[BpeMergeRule, 128] = Array[BpeMergeRule, 128]();
+    rules[0u32] = BpeMergeRule {left_id: 65u32, right_id: 66u32, merged_id: 1000u32, rank: 0u32};
+    erg text: String = "AB";
+    erg rule_count: u32 = 1u32;
+    erg sequence: TokenSequence = bpe_tokenize_string(
+        text: abs text,
+        rules: abs rules,
+        rule_count: erg rule_count
+    );
+    erg first: Token = sequence.tokens[0u32];
+    if !sequence.valid || sequence.length != 1u32 || first.id != 1000u32 {
+        return 1;
+    }
+    erg heading: String = "AIE_BPE input_bytes=2 output_tokens=1 merged_id=1000";
+    println(text: abs heading);
+    return 0;
+}

@@ -62,6 +62,9 @@ open const TOKENIZER_VERSION: u16 = 1u16;
 open const TOKENIZER_MAX_BYTES: u32 = 256u32;
 
 
+open const BPE_MAX_RULES: u32 = 128u32;
+
+
 open const TOKEN_CODE_VERSION: u16 = 1u16;
 
 
@@ -78,4 +81,3 @@ open const CONTEXT_SEED: u64 = 1099511628211u64;
 
 
 open const CONTEXT_MULTIPLIER: u64 = 1099511628211u64;
-

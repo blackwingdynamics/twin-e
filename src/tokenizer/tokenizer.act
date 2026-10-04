@@ -7,3 +7,5 @@ the sparse codebook collision benchmark.
 open contract;
 
 open byte;
+
+open bpe;
