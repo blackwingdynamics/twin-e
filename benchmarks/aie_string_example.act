@@ -1,0 +1,203 @@
+"""String-driven AIE training and recall evidence for Hello Giorgi."""
+import aie;
+
+import config;
+
+import std::io;
+
+import std::string;
+
+import std::time;
+
+const ARENA_COLUMNS: u32 = 1000u32;
+
+
+const PHRASE_LENGTH: u32 = 12u32;
+
+
+verb encode_position(
+    abs low_masks: Array[u64, 8],
+    abs high_masks: Array[u64, 4],
+    erg position: u32
+) -> Wavefront {
+    erg mask_low: u64 = 0u64;
+    erg mask_high: u64 = 0u64;
+    if position < 8u32 {
+        mask_low = low_masks[position];
+    } else {
+        mask_high = high_masks[position - 8u32];
+    }
+    return Wavefront {mask_low: mask_low, mask_high: mask_high, energy: 1u8};
+}
+
+verb configure_character(
+    ins fabric: CorticalFabric[1000],
+    erg index: u32,
+    erg payload: u8
+) -> u32 {
+    fabric.columns[index].threshold = 1u8;
+    fabric.columns[index].payload = payload;
+    return index;
+}
+
+verb train_character(
+    ins fabric: CorticalFabric[1000],
+    abs wave: Wavefront,
+    erg source_idx: u32,
+    erg payload: u8
+) -> u32 {
+    erg created: Option[u32] = neurogenesis(
+        fabric: ins fabric,
+        wave: abs wave,
+        source_idx: erg source_idx
+    );
+    return case dat created {
+        Option.Some(index) => configure_character(
+            fabric: ins fabric,
+            index: erg index,
+            payload: erg payload
+        ),
+        Option.None => NULL_INDEX,
+    };
+}
+
+verb recall_character(
+    ins fabric: CorticalFabric[1000],
+    abs wave: Wavefront,
+    erg index: u32
+) -> u8 {
+    erg result: Option[u8] = evaluate_minicolumn(
+        fabric: ins fabric,
+        wave: abs wave,
+        target_idx: erg index
+    );
+    return case dat result {
+        Option.Some(payload) => payload,
+        Option.None => 255u8,
+    };
+}
+
+verb emit_utf8_value(dat text: Utf8Buffer) -> Int {
+    printlnb(text: abs text.storage);
+    return 0;
+}
+
+verb emit_recalled_text(dat storage: Buffer) -> Int {
+    erg result = utf8_from_buffer(storage: dat storage);
+    return case dat result {
+        Result.Ok(value) => emit_utf8_value(text: dat value),
+        Result.Err(_) => 1,
+    };
+}
+
+verb fill_arena(ins fabric: CorticalFabric[1000]) -> Void {
+    loop {
+        if fabric.active_count >= ARENA_COLUMNS {
+            break;
+        }
+        allocate_column_index(fabric: ins fabric);
+    }
+}
+
+meta limitless("verb")
+verb main() -> Int {
+    erg phrase: String = "Hello Giorgi";
+    erg length_result = string_length(text: abs phrase);
+    erg phrase_length: u32 = case dat length_result {
+        Result.Ok(value) => value as u32,
+        Result.Err(_) => 0u32,
+    };
+    if phrase_length != PHRASE_LENGTH {
+        return 1;
+    }
+    erg fabric: CorticalFabric[1000] = CorticalFabric[1000] {columns: Array[Minicolumn, 1000](
+    ), free_list_head: 0u32, active_count: 0u32};
+    fabric_init(fabric: ins fabric);
+    erg root_idx: u32 = allocate_column_index(fabric: ins fabric);
+    erg low_masks: Array[u64,8] = Array[u64, 8]();
+    low_masks[0u32] = 1u64;
+    low_masks[1u32] = 2u64;
+    low_masks[2u32] = 4u64;
+    low_masks[3u32] = 8u64;
+    low_masks[4u32] = 16u64;
+    low_masks[5u32] = 32u64;
+    low_masks[6u32] = 64u64;
+    low_masks[7u32] = 128u64;
+    erg high_masks: Array[u64,4] = Array[u64, 4]();
+    high_masks[0u32] = 1u64;
+    high_masks[1u32] = 2u64;
+    high_masks[2u32] = 4u64;
+    high_masks[3u32] = 8u64;
+    erg indices: Array[u32,12] = Array[u32, 12]();
+    erg bytes: Array[u8,12] = Array[u8, 12]();
+    erg started: u64 = monotonic_nanos();
+    erg position: u32 = 0u32;
+    loop {
+        if position >= phrase_length {
+            break;
+        }
+        erg byte_index: Int = position as Int;
+        erg byte_result = string_byte_at(text: abs phrase, index: erg byte_index);
+        erg token: u8 = case dat byte_result {
+            Result.Ok(value) => value as u8,
+            Result.Err(_) => 0u8,
+        };
+        erg source_idx: u32 = root_idx;
+        if position >= 8u32 {
+            source_idx = 1u32;
+        }
+        erg wave: Wavefront = encode_position(
+            low_masks: abs low_masks,
+            high_masks: abs high_masks,
+            position: erg position
+        );
+        indices[position] = train_character(
+            fabric: ins fabric,
+            wave: abs wave,
+            source_idx: erg source_idx,
+            payload: erg token
+        );
+        bytes[position] = token;
+        position += 1u32;
+    }
+    fill_arena(fabric: ins fabric);
+    erg trained_at: u64 = monotonic_nanos();
+    erg recalled: u32 = 0u32;
+    erg recalled_bytes: Buffer = Buffer[12];
+    position = 0u32;
+    loop {
+        if position >= phrase_length {
+            break;
+        }
+        erg wave: Wavefront = encode_position(
+            low_masks: abs low_masks,
+            high_masks: abs high_masks,
+            position: erg position
+        );
+        erg payload: u8 = recall_character(
+            fabric: ins fabric,
+            wave: abs wave,
+            index: erg indices[position]
+        );
+        if payload != 255u8 {
+            erg expected_byte: u8 = bytes[position];
+            if payload == expected_byte {
+                recalled_bytes[position] = payload;
+                recalled += 1u32;
+            }
+        }
+        position += 1u32;
+    }
+    erg finished: u64 = monotonic_nanos();
+    if recalled != phrase_length || fabric.active_count != ARENA_COLUMNS {
+        return 1;
+    }
+    erg training_message: String = "AIE_STRING_HELLO arena=1000 recalled=12/12";
+    println(text: abs training_message);
+    emit_recalled_text(storage: dat recalled_bytes);
+    erg training_nanos: Int = (trained_at - started) as Int;
+    erg recall_nanos: Int = (finished - trained_at) as Int;
+    print_int(value: erg training_nanos);
+    print_int(value: erg recall_nanos);
+    return 0;
+}

@@ -13,8 +13,8 @@ const ARENA_COLUMNS: u32 = 1000u32;
 const PHRASE_LENGTH: u32 = 12u32;
 
 
-verb configure_trained_column(
-    ins fabric: CorticalFabric[1000],
+verb configure_trained_column[N: Usize](
+    ins fabric: CorticalFabric[N],
     erg index: u32,
     erg payload: u8
 ) -> u32 {
@@ -23,8 +23,8 @@ verb configure_trained_column(
     return index;
 }
 
-verb train_character(
-    ins fabric: CorticalFabric[1000],
+verb train_character[N: Usize](
+    ins fabric: CorticalFabric[N],
     abs wave: Wavefront,
     erg source_idx: u32,
     erg payload: u8
@@ -51,8 +51,8 @@ verb payload_matches(erg payload: u8, erg expected: u8) -> Bool {
     return false;
 }
 
-verb recall_character(
-    ins fabric: CorticalFabric[1000],
+verb recall_character[N: Usize](
+    ins fabric: CorticalFabric[N],
     abs wave: Wavefront,
     erg index: u32,
     erg expected: u8
