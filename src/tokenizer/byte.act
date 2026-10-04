@@ -1,0 +1,12 @@
+"""Byte-token transition adapter used before subword vocabulary support."""
+import config;
+
+"""Map one validated byte to its deterministic transition token ID."""
+open verb byte_token_id(erg value: u8) -> u32 {
+    return value as u32;
+}
+
+"""Create one byte token with its source position and version metadata."""
+open verb byte_token(erg value: u8, erg offset: u32) -> Token {
+    return Token {id: byte_token_id(value: erg value), byte_offset: offset, byte_length: 1u16, tokenizer_version: TOKENIZER_VERSION};
+}

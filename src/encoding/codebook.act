@@ -1,0 +1,49 @@
+import config;
+
+"""Versioned 128-bit sparse code assigned to one tokenizer token."""
+open struct TokenCode {
+    erg mask_low: u64,
+    erg mask_high: u64,
+    erg active_bits: u8,
+    erg version: u16,
+}
+
+verb mix_token_state(erg state: u64) -> u64 {
+    state ^= state << 13u8;
+    state ^= state >> 7u8;
+    state ^= state << 17u8;
+    return state;
+}
+
+"""Encode one token ID into a deterministic 128-bit sparse code.
+
+This is the initial integer-only codebook profile. Its collision behavior must
+be measured before it is used as the final subword profile.
+"""
+open verb encode_token_id(erg token_id: u32) -> TokenCode {
+    erg state: u64 = (token_id as u64) ^ 11400714819323198485u64;
+    erg mask_low: u64 = 0u64;
+    erg mask_high: u64 = 0u64;
+    erg selected_bits: u8 = 0u8;
+    loop {
+        if selected_bits >= TOKEN_CODE_ACTIVE_BITS {
+            break;
+        }
+        state = mix_token_state(erg state);
+        erg slot: u8 = (state & 127u64) as u8;
+        if slot < 64u8 {
+            erg low_bit_mask: u64 = 1u64 << slot;
+            if (mask_low & low_bit_mask) == 0u64 {
+                mask_low |= low_bit_mask;
+                selected_bits += 1u8;
+            }
+        } else {
+            erg high_bit_mask: u64 = 1u64 << (slot - 64u8);
+            if (mask_high & high_bit_mask) == 0u64 {
+                mask_high |= high_bit_mask;
+                selected_bits += 1u8;
+            }
+        }
+    }
+    return TokenCode {mask_low: mask_low, mask_high: mask_high, active_bits: TOKEN_CODE_ACTIVE_BITS, version: TOKEN_CODE_VERSION};
+}

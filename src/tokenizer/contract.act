@@ -1,0 +1,14 @@
+import config;
+
+"""One bounded tokenizer output with source position metadata."""
+open struct Token {
+    erg id: u32,
+    erg byte_offset: u32,
+    erg byte_length: u16,
+    erg tokenizer_version: u16,
+}
+
+"""Return the tokenizer contract version used by this package."""
+open verb tokenizer_version() -> u16 {
+    return TOKENIZER_VERSION;
+}

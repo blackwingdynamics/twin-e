@@ -1,0 +1,9 @@
+"""Public tokenizer facade.
+
+The current package exposes only the byte-token transition contract. The
+versioned subword vocabulary and BPE merge implementation are scheduled after
+the sparse codebook collision benchmark.
+"""
+open contract;
+
+open byte;

@@ -169,6 +169,21 @@ decoder chooses whether to return a recalled token, the next linked token, a
 ranked bounded set, or a failure/unknown result. The low-level engine must not
 embed text formatting into minicolumn evaluation.
 
+## Initial collision evidence
+
+The first codebook benchmark now generates 5,000 deterministic token codes,
+checks that every code contains exactly eight unique active bits, and compares
+all pairs of different codes. The recorded run reported a maximum different
+code overlap of six, zero duplicate pairs, and zero invalid code cardinality.
+The strict executable build also passed the zero-floating-point IR check. The
+full command and limitations are recorded in
+`docs/benchmarks/codebook-collision.md`.
+
+This is a useful gate for the initial profile, not a final language-model
+validation. The next benchmark must use a persisted tokenizer vocabulary and
+add the overlap distribution, candidate threshold sweep, noisy recall, and
+context-sensitive sequence cases described above.
+
 ## Why this decision fits AIE
 
 Subwords provide a practical middle ground:

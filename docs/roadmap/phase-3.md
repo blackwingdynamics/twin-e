@@ -109,6 +109,23 @@ profile, arena size, input masks, and elapsed nanosecond measurements.
 - [ ] Document which settings are compile-time Actus constants and which belong
   in `Actus.toml`.
 
+## P3.6 — Tokenizer and sparse codebook foundation
+
+- [x] Add canonical tokenizer and encoding facades under `src/`.
+- [x] Add a versioned byte-token transition contract.
+- [x] Add a deterministic integer-only 128-bit token code encoder.
+- [x] Add a 5,000-code pairwise collision benchmark.
+- [x] Verify eight unique active bits per generated code.
+- [x] Record initial collision evidence and its limits.
+- [ ] Implement persisted subword vocabulary and merge rules.
+- [ ] Add overlap distribution, threshold sweep, and noisy recall evidence.
+- [ ] Add bounded context keys for sequence disambiguation.
+
+P3.6 evidence: the tokenizer and encoding probes pass strict checking. The
+collision executable reports `max_different_overlap=6`,
+`duplicate_pairs=0`, and `invalid_code_count=0` for token IDs `0..4999`; see
+`docs/benchmarks/codebook-collision.md`.
+
 ## Acceptance criteria
 
 Phase 3 is complete when:

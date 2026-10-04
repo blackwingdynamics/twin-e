@@ -1,0 +1,23 @@
+"""Native integration probe for the tokenizer and sparse encoding facades."""
+import encoding;
+
+import std::io;
+
+import tokenizer;
+
+verb main() -> Int {
+    erg byte: u8 = 72u8;
+    erg offset: u32 = 0u32;
+    erg token: Token = byte_token(value: erg byte, offset: erg offset);
+    erg token_id: u32 = token.id;
+    erg code: TokenCode = encode_token_id(token_id: erg token_id);
+    if code.version != TOKEN_CODE_VERSION || code.active_bits != TOKEN_CODE_ACTIVE_BITS {
+        return 1;
+    }
+    if code.mask_low == 0u64 && code.mask_high == 0u64 {
+        return 1;
+    }
+    erg message: String = "AIE_ENCODING probe=ok token_id=72";
+    println(text: abs message);
+    return 0;
+}
