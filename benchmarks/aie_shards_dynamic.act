@@ -1,4 +1,5 @@
-"""Prove that runtime shard payloads create and validate three files."""
+meta limitless("file")
+"""Prove that runtime shard payloads create, validate, and load three files."""
 import aie;
 import std::io;
 import std::path;
@@ -182,6 +183,35 @@ verb validate_pair(abs manifest_path: Path, abs shard_path: Path, erg descriptor
     };
 }
 
+verb load_pair(ins fabric: CorticalFabric[64], abs shard_path: Path, erg shard_id: u32, erg first_column: u32) -> Int {
+    erg loaded = read_to_bytes(path: abs shard_path);
+    return case dat loaded {
+        Result.Err(_) => 1,
+        Result.Ok(bytes) => {
+            erg column_count: u32 = 2u32;
+            erg result = load_dynamic_shard_bytes(fabric: ins fabric, bytes: dat bytes, expected_shard_id: erg shard_id, expected_first_column_index: erg first_column, expected_column_count: erg column_count);
+            return case dat result {
+                Result.Err(_) => 2,
+                Result.Ok(_) => 0,
+            };
+        },
+    };
+}
+
+verb verify_dynamic_loader(abs path_zero: Path, abs path_one: Path) -> Int {
+    erg fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](), free_list_head: 0u32, active_count: 0u32};
+    fabric_init(fabric: ins fabric);
+    erg zero_id: u32 = 0u32;
+    erg zero_first: u32 = 0u32;
+    if load_pair(fabric: ins fabric, shard_path: abs path_zero, shard_id: erg zero_id, first_column: erg zero_first) != 0 || fabric.columns[0u32].storage[0u32] != 10u8 {
+        return 14;
+    }
+    if load_pair(fabric: ins fabric, shard_path: abs path_one, shard_id: erg zero_id, first_column: erg zero_first) == 0 || fabric.columns[0u32].storage[0u32] != 10u8 {
+        return 15;
+    }
+    return 0;
+}
+
 verb verify_manifest_bindings(abs manifest_path: Path, abs path_zero: Path, abs path_one: Path, abs path_two: Path) -> Int {
     if write_manifest_status(path: abs manifest_path) != 0 {
         return 10;
@@ -247,7 +277,11 @@ verb run_paths(abs path_zero: Path, abs path_one: Path, abs path_two: Path, abs 
     if manifest_status != 0 {
         return manifest_status;
     }
-    erg message: String = "AIE_SHARDS_DYNAMIC files=3 generated=1 validated=3 manifest_bound=2 swapped_rejected=1 payload_bytes=128";
+    erg loader_status: Int = verify_dynamic_loader(path_zero: abs path_zero, path_one: abs path_one);
+    if loader_status != 0 {
+        return loader_status;
+    }
+    erg message: String = "AIE_SHARDS_DYNAMIC files=3 generated=1 validated=3 manifest_bound=2 swapped_rejected=1 dynamic_loaded=1 dynamic_failed_unchanged=1 payload_bytes=128";
     println(text: abs message);
     return 0;
 }

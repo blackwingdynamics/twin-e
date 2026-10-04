@@ -103,10 +103,8 @@ selective_load=1
 - [x] Add explicit tests for swapped shard files and wrong shard IDs.
 - [x] Add explicit tests for truncated manifests, oversized lengths, and
   malformed descriptor states.
-- [x] Preserve the live fabric unchanged for failed fixed-shard and brain-file
-  validation paths.
-- [~] Extend the same validation-before-mutation guarantee to the dynamic
-  manifest-driven fabric loader when that loader replaces the fixed loader.
+- [x] Preserve the live fabric unchanged for failed fixed-shard, brain-file,
+  and dynamic-shard validation paths.
 
 ## P4S.6 — Binding and allocator persistence
 
