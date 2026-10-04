@@ -1311,7 +1311,7 @@ The public I/O facade includes:
 - `flush()` for stdout;
 - `Cursor` and cursor read/write/seek/flush operations;
 - buffered reader and writer types and operations;
-- `copy` for reader-to-writer transfer.
+- `copy_stream` for reader-to-writer transfer.
 
 Use `print` for `String`, `printb` for binary `Buffer`, and typed result
 handling for failures. Do not pass a `String` to `printb` or a `Buffer` to

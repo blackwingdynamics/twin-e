@@ -1,3 +1,4 @@
+meta limitless("file")
 import config;
 import std::io;
 

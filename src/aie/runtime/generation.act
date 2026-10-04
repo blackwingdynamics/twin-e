@@ -1,0 +1,262 @@
+"""Bounded associative continuation over context-bound AIE transitions."""
+import config;
+import tokenizer;
+
+open tokenizer;
+
+open struct GenerationResult {
+    erg tokens: TokenSequence,
+    erg generated_count: u32,
+    erg termination_reason: u8,
+    erg valid: Bool,
+    erg last_token_id: u32,
+}
+
+struct SuccessorChoice {
+    erg index: u32,
+    erg found: Bool,
+    erg loop_guarded: Bool,
+}
+
+struct SuccessorSelection {
+    erg index: u32,
+    erg strength: u8,
+    erg found: Bool,
+    erg guarded: Bool,
+}
+
+verb empty_generation_result(erg reason: u8) -> GenerationResult {
+    return GenerationResult {
+        tokens: TokenSequence {tokens: Array[Token, 256](), length: 0u32, valid: false},
+        generated_count: 0u32,
+        termination_reason: reason,
+        valid: false,
+        last_token_id: 0u32,
+    };
+}
+
+verb history_contains(abs history: Array[u32, 8], abs history_count: u32, erg candidate: u32) -> Bool {
+    erg index: u32 = 0u32;
+    loop {
+        if index >= history_count {
+            break;
+        }
+        if history[index] == candidate {
+            return true;
+        }
+        index += 1u32;
+    }
+    return false;
+}
+
+verb push_history(ins history: Array[u32, 8], erg history_count: u32, erg candidate: u32) -> u32 {
+    if history_count < GENERATION_HISTORY_LIMIT {
+        history[history_count] = candidate;
+        return history_count + 1u32;
+    }
+    erg index: u32 = 1u32;
+    loop {
+        if index >= GENERATION_HISTORY_LIMIT {
+            break;
+        }
+        history[index - 1u32] = history[index];
+        index += 1u32;
+    }
+    history[GENERATION_HISTORY_LIMIT - 1u32] = candidate;
+    return GENERATION_HISTORY_LIMIT;
+}
+
+verb evaluate_successor(
+    abs fabric: CorticalFabric[64],
+    abs bindings: Array[TokenBinding, 64],
+    abs history: Array[u32, 8],
+    abs history_count: u32,
+    abs current_token_id: u32,
+    erg candidate: u32
+) -> SuccessorChoice {
+    if candidate == null_index() || candidate >= BRAIN_BINDING_COUNT {
+        return SuccessorChoice {index: null_index(), found: false, loop_guarded: false};
+    }
+    erg eligible: Bool = (fabric.columns[candidate].flags & FLAG_ACTIVE) != 0u8 && bindings[candidate].binding_flags == BINDING_ACTIVE_FLAG && bindings[candidate].tokenizer_version == TOKENIZER_VERSION && bindings[candidate].context_version == CONTEXT_VERSION;
+    if !eligible {
+        return SuccessorChoice {index: null_index(), found: false, loop_guarded: false};
+    }
+    erg next_token_id: u32 = bindings[candidate].token_id;
+    erg current_copy: u32 = 0u32;
+    erg next_copy: u32 = 0u32;
+    current_copy = current_token_id;
+    next_copy = next_token_id;
+    erg expected_context: u64 = context_key(previous_token_id: erg current_copy, token_id: erg next_copy);
+    if bindings[candidate].context_key != expected_context {
+        return SuccessorChoice {index: null_index(), found: false, loop_guarded: false};
+    }
+    if history_contains(history: abs history, history_count: abs history_count, candidate: erg candidate) {
+        return SuccessorChoice {index: null_index(), found: false, loop_guarded: true};
+    }
+    return SuccessorChoice {index: candidate, found: true, loop_guarded: false};
+}
+
+verb axon_at(abs fabric: CorticalFabric[64], abs source_idx: u32, abs slot: u32) -> u32 {
+    return case true {
+        true if slot == 0u32 => fabric.columns[source_idx].axon_0,
+        true if slot == 1u32 => fabric.columns[source_idx].axon_1,
+        true if slot == 2u32 => fabric.columns[source_idx].axon_2,
+        true if slot == 3u32 => fabric.columns[source_idx].axon_3,
+        true if slot == 4u32 => fabric.columns[source_idx].axon_4,
+        true if slot == 5u32 => fabric.columns[source_idx].axon_5,
+        true if slot == 6u32 => fabric.columns[source_idx].axon_6,
+        true if slot == 7u32 => fabric.columns[source_idx].axon_7,
+        _ => null_index(),
+    };
+}
+
+verb consider_successor(
+    ins selection: SuccessorSelection,
+    abs fabric: CorticalFabric[64],
+    abs choice: SuccessorChoice
+) {
+    if choice.loop_guarded {
+        selection.guarded = true;
+    }
+    if !choice.found {
+        return;
+    }
+    erg candidate_strength: u8 = fabric.columns[choice.index].myelination;
+    erg stronger: Bool = !selection.found || candidate_strength > selection.strength;
+    erg stable_tie: Bool = selection.found && candidate_strength == selection.strength && choice.index < selection.index;
+    if stronger || stable_tie {
+        selection.index = choice.index;
+        selection.strength = candidate_strength;
+        selection.found = true;
+    }
+}
+
+"""Select the strongest valid successor with deterministic index tie-breaking."""
+verb choose_successor(
+    abs fabric: CorticalFabric[64],
+    abs bindings: Array[TokenBinding, 64],
+    abs history: Array[u32, 8],
+    erg history_count: u32,
+    erg source_idx: u32,
+    erg current_token_id: u32
+) -> SuccessorChoice {
+    erg selection: SuccessorSelection = SuccessorSelection {index: null_index(), strength: 0u8, found: false, guarded: false};
+    erg slot: u32 = 0u32;
+    loop {
+        if slot >= 8u32 {
+            break;
+        }
+        erg candidate: u32 = axon_at(fabric: abs fabric, source_idx: abs source_idx, slot: abs slot);
+        erg choice: SuccessorChoice = evaluate_successor(
+            fabric: abs fabric,
+            bindings: abs bindings,
+            history: abs history,
+            history_count: abs history_count,
+            current_token_id: abs current_token_id,
+            candidate: erg candidate
+        );
+        consider_successor(selection: ins selection, fabric: abs fabric, choice: abs choice);
+        slot += 1u32;
+    }
+    erg loop_guarded: Bool = selection.guarded && !selection.found;
+    return SuccessorChoice {index: selection.index, found: selection.found, loop_guarded: loop_guarded};
+}
+
+"""Generate a bounded continuation from a tokenized prompt."""
+meta limitless("verb")
+verb generate_associative_core(
+    ins fabric: CorticalFabric[64],
+    abs bindings: Array[TokenBinding, 64],
+    abs prompt: TokenSequence,
+    abs vocabulary: BpeVocabulary,
+    erg max_tokens: u32
+) -> GenerationResult {
+    if !prompt.valid || prompt.length == 0u32 || max_tokens == 0u32 || max_tokens > TOKENIZER_MAX_BYTES {
+        erg invalid_reason: u8 = GENERATION_STOP_INVALID_PROMPT;
+        return empty_generation_result(reason: erg invalid_reason);
+    }
+    erg result: GenerationResult = GenerationResult {
+        tokens: TokenSequence {tokens: Array[Token, 256](), length: 0u32, valid: true},
+        generated_count: 0u32,
+        termination_reason: GENERATION_STOP_MAX_TOKENS,
+        valid: true,
+        last_token_id: prompt.tokens[prompt.length - 1u32].id,
+    };
+    erg current_token_id: u32 = prompt.tokens[prompt.length - 1u32].id;
+    erg previous_token_id: u32 = vocabulary.bos_token_id;
+    if prompt.length > 1u32 {
+        previous_token_id = prompt.tokens[prompt.length - 2u32].id;
+    }
+    erg history: Array[u32, 8] = Array[u32, 8]();
+    erg history_count: u32 = 0u32;
+    loop {
+        if result.generated_count >= max_tokens {
+            break;
+        }
+    erg context_previous_token_id: u32 = 0u32;
+    erg context_current_token_id: u32 = 0u32;
+    context_previous_token_id = previous_token_id;
+    context_current_token_id = current_token_id;
+        erg context: u64 = context_key(previous_token_id: erg context_previous_token_id, token_id: erg context_current_token_id);
+    erg lookup_token_id: u32 = 0u32;
+    erg lookup_context: u64 = 0u64;
+    lookup_token_id = current_token_id;
+    lookup_context = context;
+        erg source: Option[u32] = lookup_token_context(bindings: abs bindings, token_id: erg lookup_token_id, context_key: erg lookup_context);
+        erg source_idx: u32 = case dat source {
+            Option.Some(index) => index,
+            Option.None => null_index(),
+        };
+        if source_idx == null_index() {
+            result.termination_reason = GENERATION_STOP_MISSING_CONTEXT;
+            break;
+        }
+        erg choice: SuccessorChoice = choose_successor(
+            fabric: abs fabric,
+            bindings: abs bindings,
+            history: abs history,
+            history_count: erg history_count,
+            source_idx: erg source_idx,
+            current_token_id: erg current_token_id
+        );
+        if !choice.found {
+            if choice.loop_guarded {
+                result.termination_reason = GENERATION_STOP_LOOP_GUARD;
+            } else {
+                result.termination_reason = GENERATION_STOP_NO_SUCCESSOR;
+            }
+            break;
+        }
+        erg chosen_index: u32 = choice.index;
+        erg next_token_id: u32 = bindings[chosen_index].token_id;
+        result.tokens.tokens[result.generated_count] = Token {id: bindings[chosen_index].token_id, byte_offset: 0u32, byte_length: 0u16, tokenizer_version: TOKENIZER_VERSION};
+        result.tokens.length += 1u32;
+        result.generated_count += 1u32;
+        result.last_token_id = next_token_id;
+        history_count = push_history(history: ins history, history_count: erg history_count, candidate: erg chosen_index);
+        previous_token_id = current_token_id;
+        current_token_id = next_token_id;
+        if next_token_id == vocabulary.eos_token_id {
+            result.termination_reason = GENERATION_STOP_EOS;
+            break;
+        }
+    }
+    return result;
+}
+
+"""Expose the bounded generation contract through the public runtime facade."""
+open verb generate_associative(
+    ins fabric: CorticalFabric[64],
+    abs bindings: Array[TokenBinding, 64],
+    abs prompt: TokenSequence,
+    abs vocabulary: BpeVocabulary,
+    erg max_tokens: u32
+) -> GenerationResult {
+    return generate_associative_core(
+        fabric: ins fabric,
+        bindings: abs bindings,
+        prompt: abs prompt,
+        vocabulary: abs vocabulary,
+        max_tokens: erg max_tokens
+    );
+}

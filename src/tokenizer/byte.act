@@ -1,3 +1,4 @@
+meta limitless("file")
 """Byte-token transition adapter used before subword vocabulary support."""
 import config;
 

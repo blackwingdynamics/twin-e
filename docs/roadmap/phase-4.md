@@ -54,13 +54,13 @@ configuration and compiler-parity items that Phase 4 depends on are closed.
 
 ## P4.3 — Associative generation
 
-- [ ] Add a bounded generation API that accepts a tokenized prompt.
-- [ ] Select valid successors by highest myelination, then lowest arena index.
-- [ ] Add EOS and maximum-token termination.
-- [ ] Add a bounded recent-column history loop guard.
-- [ ] Verify a cyclic `A -> B -> C -> A` graph terminates safely.
-- [ ] Decode generated token IDs through the tokenizer facade.
-- [ ] Record generation latency, path length, and termination reason.
+- [x] Add a bounded generation API that accepts a tokenized prompt.
+- [x] Select valid successors by highest myelination, then lowest arena index.
+- [x] Add EOS and maximum-token termination.
+- [x] Add a bounded recent-column history loop guard.
+- [x] Verify a cyclic `A -> B -> C -> A` graph terminates safely.
+- [x] Decode generated token IDs through the tokenizer facade.
+- [x] Record generation latency, path length, and termination reason.
 
 ## P4.4 — Validation gates
 
@@ -72,7 +72,7 @@ configuration and compiler-parity items that Phase 4 depends on are closed.
 - [ ] Context ambiguity recall passes.
 - [x] BPE encode/decode round-trip passes for byte fallback and a bounded merged
   token record.
-- [ ] Cyclic generation terminates within the configured bound.
+- [x] Cyclic generation terminates within the configured bound.
 - [ ] Existing P3 String recall and codebook benchmarks remain green.
 
 ## Phase 4 completion criteria
