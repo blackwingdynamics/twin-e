@@ -146,14 +146,28 @@ AIE_SHARDS_DYNAMIC staged_shard=1 validated=3 manifest_bound=2
 
 ## P4S.8 — Scale and operational evidence
 
-- [ ] Benchmark candidate shard sizes and choose a supported production profile.
-- [ ] Measure sequential traversal, random lookup, selective load, and flush
+- [x] Benchmark candidate shard sizes and record the currently supported
+  evidence profile (2, 8, and 32 columns per shard; 32 is the largest profile
+  exercised by the current benchmark).
+- [x] Measure sequential traversal, random lookup, selective load, and flush
   latency.
 - [ ] Measure manifest size, file count, cache working set, and restart time.
 - [ ] Add a bounded shard cache with dirty-state tracking and eviction rules.
 - [ ] Reject eviction of dirty or pinned shards without an explicit flush.
 - [ ] Document the tested hardware limits and the difference between logical
   scale and resident memory.
+
+Evidence from `benchmarks/aie_persistence_scale.act` (one local run):
+
+```text
+AIE_SCALE small_write_ns=39630 medium_write_ns=22688 large_write_ns=53098
+ sequential_ns=22351 random_lookup_ns=4782 selective_load_ns=2272
+ flush_ns=23555 restart_validation_ns=5566 files=3 max_profile_columns=32
+```
+
+These timings are operational evidence for the current host and debug-style
+benchmark executable. They do not define a hardware-independent latency
+guarantee or a final resident-memory limit.
 
 ## Phase completion criteria
 
