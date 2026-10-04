@@ -3,6 +3,8 @@ import aie;
 
 import config;
 
+import encoding;
+
 import std::io;
 
 import std::time;
@@ -17,27 +19,12 @@ const ARENA_COLUMNS: u32 = 1000u32;
 const PHRASE_LENGTH: u32 = 12u32;
 
 
-verb encode_position(
-    abs low_masks: Array[u64, 8],
-    abs high_masks: Array[u64, 4],
-    erg position: u32
-) -> Wavefront {
-    erg mask_low: u64 = 0u64;
-    erg mask_high: u64 = 0u64;
-    if position < 8u32 {
-        mask_low = low_masks[position];
-    } else {
-        mask_high = high_masks[position - 8u32];
-    }
-    return Wavefront {mask_low: mask_low, mask_high: mask_high, energy: 1u8};
-}
-
 verb configure_character(
     ins fabric: CorticalFabric[1000],
     erg index: u32,
     erg payload: u8
 ) -> u32 {
-    fabric.columns[index].threshold = 1u8;
+    fabric.columns[index].threshold = TOKEN_CODE_ACTIVE_BITS;
     fabric.columns[index].payload = payload;
     return index;
 }
@@ -130,20 +117,6 @@ verb main() -> Int {
     ), free_list_head: 0u32, active_count: 0u32};
     fabric_init(fabric: ins fabric);
     erg root_idx: u32 = allocate_column_index(fabric: ins fabric);
-    erg low_masks: Array[u64,8] = Array[u64, 8]();
-    low_masks[0u32] = 1u64;
-    low_masks[1u32] = 2u64;
-    low_masks[2u32] = 4u64;
-    low_masks[3u32] = 8u64;
-    low_masks[4u32] = 16u64;
-    low_masks[5u32] = 32u64;
-    low_masks[6u32] = 64u64;
-    low_masks[7u32] = 128u64;
-    erg high_masks: Array[u64,4] = Array[u64, 4]();
-    high_masks[0u32] = 1u64;
-    high_masks[1u32] = 2u64;
-    high_masks[2u32] = 4u64;
-    high_masks[3u32] = 8u64;
     erg indices: Array[u32,12] = Array[u32, 12]();
     erg bytes: Array[u8,12] = Array[u8, 12]();
     erg started: u64 = monotonic_nanos();
@@ -152,16 +125,16 @@ verb main() -> Int {
         if position >= phrase_length {
             break;
         }
-        erg token: u8 = token_sequence.tokens[position].id as u8;
+        erg token_id: u32 = token_sequence.tokens[position].id;
+        erg token: u8 = token_id as u8;
+        erg code: TokenCode = encode_token_id(token_id: erg token_id);
+        erg code_low: u64 = code.mask_low;
+        erg code_high: u64 = code.mask_high;
         erg source_idx: u32 = root_idx;
         if position >= 8u32 {
             source_idx = 1u32;
         }
-        erg wave: Wavefront = encode_position(
-            low_masks: abs low_masks,
-            high_masks: abs high_masks,
-            position: erg position
-        );
+        erg wave: Wavefront = Wavefront {mask_low: code_low, mask_high: code_high, energy: 1u8};
         indices[position] = train_character(
             fabric: ins fabric,
             wave: abs wave,
@@ -180,11 +153,11 @@ verb main() -> Int {
         if position >= phrase_length {
             break;
         }
-        erg wave: Wavefront = encode_position(
-            low_masks: abs low_masks,
-            high_masks: abs high_masks,
-            position: erg position
-        );
+        erg token_id: u32 = token_sequence.tokens[position].id;
+        erg code: TokenCode = encode_token_id(token_id: erg token_id);
+        erg code_low: u64 = code.mask_low;
+        erg code_high: u64 = code.mask_high;
+        erg wave: Wavefront = Wavefront {mask_low: code_low, mask_high: code_high, energy: 1u8};
         erg payload: u8 = recall_character(
             fabric: ins fabric,
             wave: abs wave,

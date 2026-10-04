@@ -113,6 +113,8 @@ profile, arena size, input masks, and elapsed nanosecond measurements.
 
 - [x] Add canonical tokenizer and encoding facades under `src/`.
 - [x] Add a versioned byte-token transition contract.
+- [x] Route a String input through tokenizer, codebook, Wavefront, and AIE
+  recall.
 - [x] Add a deterministic integer-only 128-bit token code encoder.
 - [x] Add a 5,000-code pairwise collision benchmark.
 - [x] Verify eight unique active bits per generated code.

@@ -15,9 +15,10 @@ minicolumns for novel patterns, reinforces successful paths, and removes weak
 idle columns through homeostatic decay.
 
 The first `Hello Giorgi` evidence fixture proves that the current engine can
-store and recall a short character sequence. That fixture uses manually defined
-wavefronts and payloads so that every low-level operation remains visible. It
-is a useful engine proof, but it is not a maintainable text representation for
+store and recall a short character sequence. The current version now obtains
+the input through the String tokenizer facade and maps each returned token ID
+through the versioned sparse codebook before creating a `Wavefront`. It remains
+a small byte-token transition fixture, not a complete subword vocabulary for
 larger corpora or real language input.
 
 We need a text representation that provides:
@@ -311,11 +312,11 @@ The design depends on these language and compiler capabilities:
 - stable package configuration and persistence for tokenizer/codebook versions;
 - sidecar token bindings indexed by position-independent arena index.
 
-The current `Hello Giorgi` fixture proves the AIE path with explicit
-character-pattern data. It does not yet implement this subword tokenizer
-decision. The generic nested-facade linker limitation observed during the
-1000-column fixture must be fixed in the compiler before generic tokenizer and
-encoding helpers are treated as production-ready.
+The current `Hello Giorgi` fixture proves the String tokenizer and sparse
+codebook path end to end: it returns 12 tokens, encodes their token IDs into
+128-bit codes, trains and recalls 1,000 arena columns, and reconstructs the
+actual `Hello Giorgi` bytes. It remains a byte-token transition fixture; the
+persisted subword vocabulary and BPE merge implementation are still pending.
 
 ## Delivery plan
 
