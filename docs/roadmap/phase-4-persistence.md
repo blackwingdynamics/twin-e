@@ -128,8 +128,8 @@ AIE_SHARD_BINDINGS_DYNAMIC columns=2 bindings=2 stride=24 validated=1
 
 ## P4S.7 — Generation and crash recovery
 
-- [ ] Write changed shards to temporary generation files.
-- [ ] Validate every temporary shard before publication.
+- [x] Write changed shards to temporary generation files.
+- [x] Validate every temporary shard before publication.
 - [x] Write and validate a new manifest generation.
 - [x] Publish the new generation atomically through the supported filesystem
   API.
@@ -141,6 +141,7 @@ Evidence:
 
 ```text
 AIE_MANIFEST_DYNAMIC generation_publish=1 newest_generation=10 stale_rejected=1
+AIE_SHARDS_DYNAMIC staged_shard=1 validated=3 manifest_bound=2
 ```
 
 ## P4S.8 — Scale and operational evidence

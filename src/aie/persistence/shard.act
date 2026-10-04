@@ -357,6 +357,26 @@ open verb write_dynamic_shard(
     return write_file(path: abs path, contents: abs output);
 }
 
+open verb publish_dynamic_shard(
+    abs staged: Path,
+    abs active: Path,
+    erg expected_shard_id: u32,
+    erg expected_first_column_index: u32,
+    erg expected_column_count: u32
+) -> Result[Int, IoError] {
+    erg loaded = read_to_bytes(path: abs staged);
+    return case dat loaded {
+        Result.Err(error) => Err(error),
+        Result.Ok(bytes) => {
+            erg validated = validate_dynamic_shard_bytes(bytes: dat bytes, expected_shard_id: erg expected_shard_id, expected_first_column_index: erg expected_first_column_index, expected_column_count: erg expected_column_count);
+            return case dat validated {
+                Result.Err(error) => Err(error),
+                Result.Ok(_) => rename(from: abs staged, to: abs active),
+            };
+        },
+    };
+}
+
 open verb write_dynamic_shard_with_bindings(
     abs path: Path,
     erg shard_id: u32,

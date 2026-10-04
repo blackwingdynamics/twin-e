@@ -95,6 +95,45 @@ verb validate_status(abs path: Path, erg shard_id: u32, erg first_column: u32) -
     };
 }
 
+verb verify_staged_shard_publication(abs active_path: Path) -> Int {
+    erg staged_suffix: u8 = 51u8;
+    erg staged_result = make_path(suffix: erg staged_suffix);
+    return case dat staged_result {
+        Result.Err(_) => 20,
+        Result.Ok(staged_path) => {
+            erg marker: u8 = 10u8;
+            erg payload: Buffer = make_payload(marker: erg marker);
+            erg null_index_value: u32 = NULL_INDEX;
+            erg first_link_offset: u32 = 56u32;
+            erg second_link_offset: u32 = 120u32;
+            write_payload_u32(output: ins payload, offset: abs first_link_offset, value: abs null_index_value);
+            write_payload_u32(output: ins payload, offset: abs second_link_offset, value: abs null_index_value);
+            erg shard_id: u32 = 0u32;
+            erg first_column: u32 = 0u32;
+            erg column_count: u32 = 2u32;
+            erg written = write_dynamic_shard(path: abs staged_path, shard_id: erg shard_id, first_column_index: erg first_column, column_count: erg column_count, payload: abs payload);
+            erg write_status_value: Int = case dat written {
+                Result.Err(_) => 21,
+                Result.Ok(_) => 0,
+            };
+            if write_status_value != 0 {
+                return write_status_value;
+            } else {
+            }
+            erg published = publish_dynamic_shard(staged: abs staged_path, active: abs active_path, expected_shard_id: erg shard_id, expected_first_column_index: erg first_column, expected_column_count: erg column_count);
+            erg publish_status: Int = case dat published {
+                Result.Err(_) => 22,
+                Result.Ok(_) => 0,
+            };
+            if publish_status != 0 {
+                return publish_status;
+            } else {
+            }
+            return validate_status(path: abs active_path, shard_id: erg shard_id, first_column: erg first_column);
+        },
+    };
+}
+
 verb validate_all(abs path_zero: Path, abs path_one: Path, abs path_two: Path, erg zero_id: u32, erg one_id: u32, erg two_id: u32) -> Int {
     erg first_zero: u32 = 0u32;
     erg first_one: u32 = 2u32;
@@ -467,6 +506,10 @@ verb run_paths(abs path_zero: Path, abs path_one: Path, abs path_two: Path, abs 
     if write_status_all != 0 {
         return write_status_all;
     }
+    erg staged_status: Int = verify_staged_shard_publication(active_path: abs path_zero);
+    if staged_status != 0 {
+        return staged_status;
+    }
     erg zero_id: u32 = 0u32;
     erg one_id: u32 = 1u32;
     erg two_id: u32 = 2u32;
@@ -490,7 +533,7 @@ verb run_paths(abs path_zero: Path, abs path_one: Path, abs path_two: Path, abs 
     if cycle_status != 0 {
         return cycle_status;
     }
-    erg message: String = "AIE_SHARDS_DYNAMIC files=3 generated=1 validated=3 manifest_bound=2 swapped_rejected=1 dynamic_loaded=1 manifest_selected=1 dynamic_failed_unchanged=1 free_chain=5-2-0-null reallocated=2 payload_bytes=128";
+    erg message: String = "AIE_SHARDS_DYNAMIC files=3 generated=1 staged_shard=1 validated=3 manifest_bound=2 swapped_rejected=1 dynamic_loaded=1 manifest_selected=1 dynamic_failed_unchanged=1 free_chain=5-2-0-null reallocated=2 payload_bytes=128";
     println(text: abs message);
     return 0;
 }
