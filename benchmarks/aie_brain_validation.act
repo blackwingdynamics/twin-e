@@ -1,0 +1,101 @@
+"""Verify that truncated brain files are rejected before mutating live state."""
+import aie;
+import std::io;
+import std::path;
+import std::fs;
+
+verb append_validation_prefix(ins raw: Buffer) {
+    append(raw, 47u8);
+    append(raw, 116u8);
+    append(raw, 109u8);
+    append(raw, 112u8);
+    append(raw, 47u8);
+    append(raw, 116u8);
+    append(raw, 119u8);
+    append(raw, 105u8);
+    append(raw, 110u8);
+    append(raw, 45u8);
+    append(raw, 101u8);
+    append(raw, 45u8);
+    append(raw, 98u8);
+    append(raw, 114u8);
+    append(raw, 97u8);
+    append(raw, 105u8);
+    append(raw, 110u8);
+}
+
+verb append_validation_suffix(ins raw: Buffer) {
+    append(raw, 45u8);
+    append(raw, 118u8);
+    append(raw, 97u8);
+    append(raw, 108u8);
+    append(raw, 105u8);
+    append(raw, 100u8);
+    append(raw, 97u8);
+    append(raw, 116u8);
+    append(raw, 105u8);
+    append(raw, 111u8);
+    append(raw, 110u8);
+    append(raw, 46u8);
+    append(raw, 98u8);
+    append(raw, 114u8);
+    append(raw, 97u8);
+    append(raw, 105u8);
+    append(raw, 110u8);
+    append(raw, 0u8);
+}
+
+verb validation_path() -> Result[Path, PathError] {
+    erg raw = Buffer[0];
+    append_validation_prefix(raw: ins raw);
+    append_validation_suffix(raw: ins raw);
+    return path_from_ascii(storage: dat raw);
+}
+
+verb make_fabric() -> CorticalFabric[64] {
+    erg fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](), free_list_head: 0u32, active_count: 0u32};
+    fabric_init(fabric: ins fabric);
+    erg slot: u32 = allocate_column_index(fabric: ins fabric);
+    fabric.columns[slot].payload = 91u8;
+    return fabric;
+}
+
+verb write_truncated(abs path: Path) -> Int {
+    erg bytes = Buffer[0];
+    append(bytes, 65u8);
+    append(bytes, 66u8);
+    append(bytes, 67u8);
+    erg written = write_file(path: abs path, contents: abs bytes);
+    return case dat written {
+        Result.Ok(_) => 0,
+        Result.Err(_) => 1,
+    };
+}
+
+verb run_validation(dat path: Path) -> Int {
+    erg fabric: CorticalFabric[64] = make_fabric();
+    erg before: u8 = fabric.columns[0u32].payload;
+    erg truncated_status: Int = write_truncated(path: abs path);
+    if truncated_status != 0 {
+        return 2;
+    }
+    erg loaded = read_brain(fabric: ins fabric, path: abs path);
+    erg rejected: Bool = case dat loaded {
+        Result.Err(_) => true,
+        Result.Ok(_) => false,
+    };
+    if !rejected || fabric.columns[0u32].payload != before || fabric.active_count != 1u32 {
+        return 3;
+    }
+    erg message: String = "AIE_BRAIN_VALIDATION truncated_rejected=1 fabric_unchanged=1";
+    println(text: abs message);
+    return 0;
+}
+
+verb main() -> Int {
+    erg path_result = validation_path();
+    return case dat path_result {
+        Result.Err(_) => 1,
+        Result.Ok(path) => run_validation(path: dat path),
+    };
+}
