@@ -1,3 +1,4 @@
+meta limitless("file")
 """Prove that manifest descriptors are generated and located dynamically."""
 import aie;
 import std::io;
@@ -111,10 +112,29 @@ verb verify_allocator_head(abs bytes: Buffer) -> Int {
     return 0;
 }
 
+verb verify_free_plan_value(abs value: AllocationPlan) -> Int {
+    if value.global_index != 5u32 || value.shard_id != 0u32 || value.local_index != 5u32 || value.creates_shard {
+        return 4;
+    }
+    return 0;
+}
+
+verb verify_free_list_plan(abs bytes: Buffer) -> Int {
+    erg planned = plan_dynamic_free_list(bytes: abs bytes);
+    return case dat planned {
+        Result.Err(_) => 5,
+        Result.Ok(value) => verify_free_plan_value(value: abs value),
+    };
+}
+
 verb validate_dynamic(dat bytes: Buffer) -> Int {
     erg allocator_status: Int = verify_allocator_head(bytes: abs bytes);
     if allocator_status != 0 {
         return allocator_status;
+    }
+    erg free_plan_status: Int = verify_free_list_plan(bytes: abs bytes);
+    if free_plan_status != 0 {
+        return free_plan_status;
     }
     erg query: u32 = 96u32;
     erg plan = plan_dynamic_allocation(bytes: abs bytes, global_index: erg query);
@@ -135,6 +155,10 @@ verb validate_appended_bytes(abs bytes: Buffer) -> Int {
     erg allocator_status: Int = verify_allocator_head(bytes: abs bytes);
     if allocator_status != 0 {
         return allocator_status;
+    }
+    erg free_plan_status: Int = verify_free_list_plan(bytes: abs bytes);
+    if free_plan_status != 0 {
+        return free_plan_status;
     }
     erg query: u32 = 96u32;
     erg plan = plan_dynamic_allocation(bytes: abs bytes, global_index: erg query);
@@ -286,7 +310,7 @@ verb emit_dynamic(abs path: Path) -> Int {
     if state_status != 0 {
         return state_status;
     }
-    erg message: String = "AIE_MANIFEST_DYNAMIC shards=3 appended_shard=3 allocation_shard=3 local_index=0 allocator_head=5 roundtrip=1";
+    erg message: String = "AIE_MANIFEST_DYNAMIC shards=3 appended_shard=3 allocation_shard=3 local_index=0 allocator_head=5 allocator_shard=0 allocator_local=5 roundtrip=1";
     println(text: abs message);
     return 0;
 }

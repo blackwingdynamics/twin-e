@@ -696,6 +696,24 @@ open verb plan_dynamic_allocation(abs bytes: Buffer, erg global_index: u32) -> R
     };
 }
 
+open verb plan_dynamic_free_list(abs bytes: Buffer) -> Result[AllocationPlan, IoError] {
+    if !manifest_dynamic_bytes_are_valid(bytes: abs bytes) {
+        return Err(IoError.InvalidData);
+    }
+    erg free_list_offset: u32 = 52u32;
+    erg total_offset: u32 = 20u32;
+    erg free_list_head: u32 = read_shard_u32(input: abs bytes, offset: abs free_list_offset);
+    erg total_columns: u32 = read_shard_u32(input: abs bytes, offset: abs total_offset);
+    if free_list_head == NULL_INDEX {
+        return plan_dynamic_allocation(bytes: abs bytes, global_index: erg total_columns);
+    }
+    erg location_result = manifest_locate_column_dynamic(bytes: abs bytes, global_index: erg free_list_head);
+    return case dat location_result {
+        Result.Err(error) => Err(error),
+        Result.Ok(location) => Ok(AllocationPlan {global_index: location.global_index, shard_id: location.shard_id, local_index: location.local_index, creates_shard: false}),
+    };
+}
+
 open verb plan_dynamic_load(abs manifest: Buffer, erg global_index: u32) -> Result[DynamicLoadPlan, IoError] {
     erg location_result = manifest_locate_column_dynamic(bytes: abs manifest, global_index: erg global_index);
     return case dat location_result {

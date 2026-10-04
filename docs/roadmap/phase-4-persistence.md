@@ -114,7 +114,8 @@ selective_load=1
 - [ ] Restore tokenizer, context, and codebook binding versions per shard.
 - [x] Persist global `free_list_head` and `active_count` through the manifest
   allocator header fields.
-- [ ] Define deterministic global-index allocation across shard boundaries.
+- [x] Resolve the persisted free-list head into a deterministic shard and local
+  allocation plan.
 - [ ] Verify allocation, free, restore, and reallocation across multiple shards.
 
 ## P4S.7 — Generation and crash recovery
