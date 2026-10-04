@@ -96,11 +96,11 @@ selective_load=1
 
 ## P4S.5 — Descriptor and payload integrity
 
-- [ ] Compare each manifest descriptor checksum with the checksum stored in its
+- [x] Compare each manifest descriptor checksum with the checksum stored in its
   referenced shard header during load.
-- [ ] Validate the shard file identity against the manifest descriptor before
+- [x] Validate the shard file identity against the manifest descriptor before
   applying records.
-- [ ] Add explicit tests for swapped shard files and wrong shard IDs.
+- [x] Add explicit tests for swapped shard files and wrong shard IDs.
 - [ ] Add explicit tests for truncated manifests, oversized lengths, and
   malformed descriptor states.
 - [ ] Preserve the live fabric unchanged for every failed manifest or shard

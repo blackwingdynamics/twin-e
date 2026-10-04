@@ -621,6 +621,39 @@ open verb read_manifest_dynamic_bytes(dat bytes: Buffer) -> Result[Int, IoError]
     return Ok(length);
 }
 
+open verb validate_dynamic_manifest_shard(
+    abs manifest: Buffer,
+    dat shard: Buffer,
+    erg descriptor_index: u32
+) -> Result[Int, IoError] {
+    if !manifest_dynamic_bytes_are_valid(bytes: abs manifest) {
+        drop(shard);
+        return Err(IoError.InvalidData);
+    }
+    erg shard_count_offset: u32 = 28u32;
+    erg shard_count: u32 = read_shard_u32(input: abs manifest, offset: abs shard_count_offset);
+    if descriptor_index >= shard_count {
+        drop(shard);
+        return Err(IoError.InvalidInput);
+    }
+    erg descriptor_offset: u32 = BRAIN_MANIFEST_HEADER_BYTES as u32 + (descriptor_index * BRAIN_MANIFEST_DESCRIPTOR_BYTES as u32);
+    erg descriptor_offset_copy: u32 = descriptor_offset + 0u32;
+    erg expected_id: u32 = read_shard_u32(input: abs manifest, offset: abs descriptor_offset_copy);
+    erg first_offset: u32 = descriptor_offset + 4u32;
+    erg count_offset: u32 = descriptor_offset + 8u32;
+    erg checksum_offset: u32 = descriptor_offset + 28u32;
+    erg expected_first: u32 = read_shard_u32(input: abs manifest, offset: abs first_offset);
+    erg expected_count: u32 = read_shard_u32(input: abs manifest, offset: abs count_offset);
+    erg expected_checksum: u64 = read_shard_u64(input: abs manifest, offset: abs checksum_offset);
+    erg shard_checksum_offset: u32 = 40u32;
+    erg stored_checksum: u64 = read_shard_u64(input: abs shard, offset: abs shard_checksum_offset);
+    if stored_checksum != expected_checksum {
+        drop(shard);
+        return Err(IoError.InvalidData);
+    }
+    return validate_dynamic_shard_bytes(bytes: dat shard, expected_shard_id: erg expected_id, expected_first_column_index: erg expected_first, expected_column_count: erg expected_count);
+}
+
 open verb plan_dynamic_allocation(abs bytes: Buffer, erg global_index: u32) -> Result[AllocationPlan, IoError] {
     if !manifest_dynamic_bytes_are_valid(bytes: abs bytes) {
         return Err(IoError.InvalidData);

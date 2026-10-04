@@ -103,6 +103,106 @@ verb validate_all(abs path_zero: Path, abs path_one: Path, abs path_two: Path, e
     return 0;
 }
 
+verb append_manifest_u32_local(ins output: Buffer, abs value: u32) {
+    append(output, (value & 255u32) as u8);
+    append(output, ((value / 256u32) & 255u32) as u8);
+    append(output, ((value / 65536u32) & 255u32) as u8);
+    append(output, ((value / 16777216u32) & 255u32) as u8);
+}
+
+verb append_manifest_u64_local(ins output: Buffer, abs value: u64) {
+    erg low: u32 = (value & 4294967295u64) as u32;
+    erg high: u32 = (value / 4294967296u64) as u32;
+    append_manifest_u32_local(output: ins output, value: abs low);
+    append_manifest_u32_local(output: ins output, value: abs high);
+}
+
+verb append_manifest_descriptor(ins output: Buffer, erg shard_id: u32, erg checksum: u64) {
+    erg first_column: u32 = shard_id * 2u32;
+    erg column_count: u32 = 2u32;
+    erg payload_offset: u32 = 48u32;
+    erg payload_bytes: u32 = 128u32;
+    erg zero: u32 = 0u32;
+    erg state: u32 = 1u32;
+    append_manifest_u32_local(output: ins output, value: abs shard_id);
+    append_manifest_u32_local(output: ins output, value: abs first_column);
+    append_manifest_u32_local(output: ins output, value: abs column_count);
+    append_manifest_u32_local(output: ins output, value: abs payload_offset);
+    append_manifest_u32_local(output: ins output, value: abs payload_bytes);
+    append_manifest_u32_local(output: ins output, value: abs zero);
+    append_manifest_u32_local(output: ins output, value: abs zero);
+    append_manifest_u64_local(output: ins output, value: abs checksum);
+    append_manifest_u32_local(output: ins output, value: abs state);
+}
+
+verb build_manifest_descriptors() -> Buffer {
+    erg descriptors: Buffer = Buffer[0];
+    erg id_zero: u32 = 0u32;
+    erg id_one: u32 = 1u32;
+    erg id_two: u32 = 2u32;
+    erg checksum_zero: u64 = 10u64;
+    erg checksum_one: u64 = 20u64;
+    erg checksum_two: u64 = 30u64;
+    append_manifest_descriptor(output: ins descriptors, shard_id: erg id_zero, checksum: erg checksum_zero);
+    append_manifest_descriptor(output: ins descriptors, shard_id: erg id_one, checksum: erg checksum_one);
+    append_manifest_descriptor(output: ins descriptors, shard_id: erg id_two, checksum: erg checksum_two);
+    return descriptors;
+}
+
+verb write_manifest_status(abs path: Path) -> Int {
+    erg descriptors: Buffer = build_manifest_descriptors();
+    erg generation: u64 = 1u64;
+    erg active_count: u32 = 3u32;
+    erg total_columns: u32 = 6u32;
+    erg shard_count: u32 = 3u32;
+    erg result = write_manifest_dynamic(path: abs path, generation: erg generation, active_count: erg active_count, total_column_count: erg total_columns, shard_count: erg shard_count, descriptors: abs descriptors);
+    return case dat result {
+        Result.Err(_) => 7,
+        Result.Ok(_) => 0,
+    };
+}
+
+verb validate_pair(abs manifest_path: Path, abs shard_path: Path, erg descriptor_index: u32) -> Int {
+    erg manifest_result = read_to_bytes(path: abs manifest_path);
+    return case dat manifest_result {
+        Result.Err(_) => 8,
+        Result.Ok(manifest) => {
+            erg shard_result = read_to_bytes(path: abs shard_path);
+            return case dat shard_result {
+                Result.Err(_) => 9,
+                Result.Ok(shard) => {
+                    erg result = validate_dynamic_manifest_shard(manifest: abs manifest, shard: dat shard, descriptor_index: erg descriptor_index);
+                    return case dat result {
+                        Result.Err(_) => 1,
+                        Result.Ok(_) => 0,
+                    };
+                },
+            };
+        },
+    };
+}
+
+verb verify_manifest_bindings(abs manifest_path: Path, abs path_zero: Path, abs path_one: Path, abs path_two: Path) -> Int {
+    if write_manifest_status(path: abs manifest_path) != 0 {
+        return 10;
+    }
+    erg index_zero: u32 = 0u32;
+    erg index_one: u32 = 1u32;
+    erg valid_zero: Int = validate_pair(manifest_path: abs manifest_path, shard_path: abs path_zero, descriptor_index: erg index_zero);
+    if valid_zero != 0 {
+        return 11;
+    }
+    erg swapped: Int = validate_pair(manifest_path: abs manifest_path, shard_path: abs path_one, descriptor_index: erg index_zero);
+    if swapped == 0 {
+        return 12;
+    }
+    erg valid_one: Int = validate_pair(manifest_path: abs manifest_path, shard_path: abs path_one, descriptor_index: erg index_one);
+    if valid_one != 0 {
+        return 13;
+    }
+    return 0;
+}
+
 verb write_all(abs path_zero: Path, abs path_one: Path, abs path_two: Path) -> Int {
     erg marker_zero: u8 = 10u8;
     erg marker_one: u8 = 20u8;
@@ -131,7 +231,7 @@ verb write_all(abs path_zero: Path, abs path_one: Path, abs path_two: Path) -> I
     return 0;
 }
 
-verb run_paths(abs path_zero: Path, abs path_one: Path, abs path_two: Path) -> Int {
+verb run_paths(abs path_zero: Path, abs path_one: Path, abs path_two: Path, abs manifest_path: Path) -> Int {
     erg write_status_all: Int = write_all(path_zero: abs path_zero, path_one: abs path_one, path_two: abs path_two);
     if write_status_all != 0 {
         return write_status_all;
@@ -143,7 +243,11 @@ verb run_paths(abs path_zero: Path, abs path_one: Path, abs path_two: Path) -> I
     if validation_status != 0 {
         return validation_status;
     }
-    erg message: String = "AIE_SHARDS_DYNAMIC files=3 generated=1 validated=3 payload_bytes=128";
+    erg manifest_status: Int = verify_manifest_bindings(manifest_path: abs manifest_path, path_zero: abs path_zero, path_one: abs path_one, path_two: abs path_two);
+    if manifest_status != 0 {
+        return manifest_status;
+    }
+    erg message: String = "AIE_SHARDS_DYNAMIC files=3 generated=1 validated=3 manifest_bound=2 swapped_rejected=1 payload_bytes=128";
     println(text: abs message);
     return 0;
 }
@@ -158,7 +262,14 @@ verb run_with_zero(abs path_zero: Path) -> Int {
             erg path_two_result = make_path(suffix: erg suffix_two);
             return case dat path_two_result {
                 Result.Err(_) => 3,
-                Result.Ok(path_two) => run_paths(path_zero: abs path_zero, path_one: abs path_one, path_two: abs path_two),
+                Result.Ok(path_two) => {
+                    erg suffix_manifest: u8 = 57u8;
+                    erg manifest_result = make_path(suffix: erg suffix_manifest);
+                    return case dat manifest_result {
+                        Result.Err(_) => 4,
+                        Result.Ok(manifest_path) => run_paths(path_zero: abs path_zero, path_one: abs path_one, path_two: abs path_two, manifest_path: abs manifest_path),
+                    };
+                },
             };
         },
     };
