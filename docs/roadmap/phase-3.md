@@ -64,16 +64,21 @@ inhibition, novel-column linking, and decay reclamation.
 
 ## P3.3 — Performance baseline
 
-- [ ] Define a reproducible benchmark fixture for 128-bit coincidence scoring.
-- [ ] Measure software population count throughput for representative masks.
-- [ ] Measure eight-axon forwarding throughput.
-- [ ] Measure O(1) allocation and deallocation through the free list.
-- [ ] Measure a complete wavefront step over a fixed arena size.
-- [ ] Record compiler version, target, optimization profile, arena size, and
+- [x] Define a reproducible benchmark fixture for 128-bit coincidence scoring.
+- [x] Measure software population count throughput for representative masks.
+- [x] Measure eight-axon forwarding throughput.
+- [x] Measure O(1) allocation and deallocation through the free list.
+- [x] Measure a complete wavefront step over a fixed arena size.
+- [x] Record compiler version, target, optimization profile, arena size, and
   benchmark input data with every result.
 - [ ] Add a regression threshold for accidental floating point or allocation
   regressions where the compiler exposes stable evidence.
-- [ ] Keep benchmark results separate from correctness tests.
+- [x] Keep benchmark results separate from correctness tests.
+
+P3.3 evidence: `benchmarks/aie_p3_3.act` builds with strict checking and the
+zero-float IR audit, then exits with status `0`. A 10,000-iteration debug-host
+run is recorded in `docs/benchmarks/p3-3.md` with the compiler digest, target,
+profile, arena size, input masks, and elapsed nanosecond measurements.
 
 ## P3.4 — Compiler and LSP parity
 
