@@ -392,11 +392,12 @@ verb dynamic_shard_bytes_are_valid(
 open verb load_dynamic_shard_bytes[N: Usize](
     ins fabric: CorticalFabric[N],
     dat bytes: Buffer,
+    erg destination_index: u32,
     erg expected_shard_id: u32,
     erg expected_first_column_index: u32,
     erg expected_column_count: u32
 ) -> Result[Int, IoError] {
-    if expected_column_count > (N as u32) || !dynamic_shard_bytes_are_valid(bytes: abs bytes, expected_shard_id: erg expected_shard_id, expected_first_column_index: erg expected_first_column_index, expected_column_count: erg expected_column_count) {
+    if destination_index > (N as u32) || expected_column_count > (N as u32) - destination_index || !dynamic_shard_bytes_are_valid(bytes: abs bytes, expected_shard_id: erg expected_shard_id, expected_first_column_index: erg expected_first_column_index, expected_column_count: erg expected_column_count) {
         drop(bytes);
         return Err(IoError.InvalidData);
     }
@@ -410,7 +411,7 @@ open verb load_dynamic_shard_bytes[N: Usize](
             if byte >= 64u32 {
                 break;
             }
-            fabric.columns[column].storage[byte] = bytes[48u32 + (column * 64u32) + byte];
+            fabric.columns[destination_index + column].storage[byte] = bytes[48u32 + (column * 64u32) + byte];
             byte += 1u32;
         }
         column += 1u32;

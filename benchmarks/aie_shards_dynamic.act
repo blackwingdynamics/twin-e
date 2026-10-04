@@ -197,7 +197,8 @@ verb load_pair(ins fabric: CorticalFabric[64], abs shard_path: Path, erg shard_i
         Result.Err(_) => 1,
         Result.Ok(bytes) => {
             erg column_count: u32 = 2u32;
-            erg result = load_dynamic_shard_bytes(fabric: ins fabric, bytes: dat bytes, expected_shard_id: erg shard_id, expected_first_column_index: erg first_column, expected_column_count: erg column_count);
+            erg destination_index: u32 = 0u32;
+            erg result = load_dynamic_shard_bytes(fabric: ins fabric, bytes: dat bytes, destination_index: erg destination_index, expected_shard_id: erg shard_id, expected_first_column_index: erg first_column, expected_column_count: erg column_count);
             return case dat result {
                 Result.Err(_) => 2,
                 Result.Ok(_) => 0,
@@ -331,6 +332,76 @@ verb verify_free_chain(abs manifest_path: Path, abs path_zero: Path, abs path_on
     };
 }
 
+verb load_arena_shard(ins fabric: CorticalFabric[64], abs path: Path, erg shard_id: u32, erg first_column: u32, erg destination_index: u32) -> Int {
+    erg loaded = read_to_bytes(path: abs path);
+    return case dat loaded {
+        Result.Err(_) => 26,
+        Result.Ok(bytes) => {
+            erg count: u32 = 2u32;
+            erg result = load_dynamic_shard_bytes(fabric: ins fabric, bytes: dat bytes, destination_index: erg destination_index, expected_shard_id: erg shard_id, expected_first_column_index: erg first_column, expected_column_count: erg count);
+            return case dat result {
+                Result.Err(_) => 27,
+                Result.Ok(_) => 0,
+            };
+        },
+    };
+}
+
+verb restore_allocator(ins fabric: CorticalFabric[64], abs manifest_path: Path) -> Int {
+    erg loaded = read_to_bytes(path: abs manifest_path);
+    return case dat loaded {
+        Result.Err(_) => 28,
+        Result.Ok(bytes) => {
+            fabric.free_list_head = dynamic_manifest_free_list_head(bytes: abs bytes);
+            fabric.active_count = dynamic_manifest_active_count(bytes: abs bytes);
+            return 0;
+        },
+    };
+}
+
+verb expect_index(erg actual: u32, erg expected: u32) -> Int {
+    if actual != expected {
+        return 29;
+    }
+    return 0;
+}
+
+verb verify_reallocation_cycle(abs manifest_path: Path, abs path_zero: Path, abs path_one: Path, abs path_two: Path) -> Int {
+    erg fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](), free_list_head: 0u32, active_count: 0u32};
+    fabric_init(fabric: ins fabric);
+    erg shard_zero: u32 = 0u32;
+    erg shard_one: u32 = 1u32;
+    erg shard_two: u32 = 2u32;
+    erg first_zero: u32 = 0u32;
+    erg first_one: u32 = 2u32;
+    erg first_two: u32 = 4u32;
+    erg destination_zero: u32 = 0u32;
+    erg destination_one: u32 = 2u32;
+    erg destination_two: u32 = 4u32;
+    if load_arena_shard(fabric: ins fabric, path: abs path_zero, shard_id: erg shard_zero, first_column: erg first_zero, destination_index: erg destination_zero) != 0 || load_arena_shard(fabric: ins fabric, path: abs path_one, shard_id: erg shard_one, first_column: erg first_one, destination_index: erg destination_one) != 0 || load_arena_shard(fabric: ins fabric, path: abs path_two, shard_id: erg shard_two, first_column: erg first_two, destination_index: erg destination_two) != 0 {
+        return 30;
+    }
+    if restore_allocator(fabric: ins fabric, manifest_path: abs manifest_path) != 0 {
+        return 31;
+    }
+    erg first_allocated: u32 = allocate_column_index(fabric: ins fabric);
+    erg second_allocated: u32 = allocate_column_index(fabric: ins fabric);
+    erg third_allocated: u32 = allocate_column_index(fabric: ins fabric);
+    erg expected_first: u32 = 5u32;
+    erg expected_second: u32 = 2u32;
+    erg expected_third: u32 = 0u32;
+    if expect_index(actual: erg first_allocated, expected: erg expected_first) != 0 || expect_index(actual: erg second_allocated, expected: erg expected_second) != 0 || expect_index(actual: erg third_allocated, expected: erg expected_third) != 0 {
+        return 32;
+    }
+    free_column(fabric: ins fabric, slot: erg second_allocated);
+    erg reallocated: u32 = allocate_column_index(fabric: ins fabric);
+    erg expected_reallocated: u32 = 2u32;
+    if expect_index(actual: erg reallocated, expected: erg expected_reallocated) != 0 || fabric.active_count != 6u32 {
+        return 33;
+    }
+    return 0;
+}
+
 verb verify_manifest_bindings(abs manifest_path: Path, abs path_zero: Path, abs path_one: Path, abs path_two: Path) -> Int {
     if write_manifest_status(path: abs manifest_path) != 0 {
         return 10;
@@ -415,7 +486,11 @@ verb run_paths(abs path_zero: Path, abs path_one: Path, abs path_two: Path, abs 
     if chain_status != 0 {
         return chain_status;
     }
-    erg message: String = "AIE_SHARDS_DYNAMIC files=3 generated=1 validated=3 manifest_bound=2 swapped_rejected=1 dynamic_loaded=1 manifest_selected=1 dynamic_failed_unchanged=1 free_chain=5-2-0-null payload_bytes=128";
+    erg cycle_status: Int = verify_reallocation_cycle(manifest_path: abs manifest_path, path_zero: abs path_zero, path_one: abs path_one, path_two: abs path_two);
+    if cycle_status != 0 {
+        return cycle_status;
+    }
+    erg message: String = "AIE_SHARDS_DYNAMIC files=3 generated=1 validated=3 manifest_bound=2 swapped_rejected=1 dynamic_loaded=1 manifest_selected=1 dynamic_failed_unchanged=1 free_chain=5-2-0-null reallocated=2 payload_bytes=128";
     println(text: abs message);
     return 0;
 }

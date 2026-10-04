@@ -118,7 +118,7 @@ selective_load=1
   allocation plan.
 - [x] Traverse a persisted free-list chain across three shard payloads and
   terminate at the null index.
-- [ ] Verify allocation, free, restore, and reallocation across multiple shards.
+- [x] Verify allocation, free, restore, and reallocation across multiple shards.
 
 ## P4S.7 — Generation and crash recovery
 

@@ -529,6 +529,11 @@ open verb dynamic_manifest_free_list_head(abs bytes: Buffer) -> u32 {
     return read_shard_u32(input: abs bytes, offset: abs offset);
 }
 
+open verb dynamic_manifest_active_count(abs bytes: Buffer) -> u32 {
+    erg offset: u32 = 24u32;
+    return read_shard_u32(input: abs bytes, offset: abs offset);
+}
+
 open verb manifest_locate_column_dynamic(abs bytes: Buffer, erg global_index: u32) -> Result[ColumnLocation, IoError] {
     if !manifest_dynamic_bytes_are_valid(bytes: abs bytes) {
         return Err(IoError.InvalidData);
@@ -737,7 +742,8 @@ open verb load_dynamic_from_plan(
     erg selected_shard_id: u32 = plan.shard_id + 0u32;
     erg selected_first: u32 = plan.first_column_index + 0u32;
     erg selected_count: u32 = plan.column_count + 0u32;
-    erg loaded = load_dynamic_shard_bytes(fabric: ins fabric, bytes: dat shard, expected_shard_id: erg selected_shard_id, expected_first_column_index: erg selected_first, expected_column_count: erg selected_count);
+    erg destination_index: u32 = 0u32;
+    erg loaded = load_dynamic_shard_bytes(fabric: ins fabric, bytes: dat shard, destination_index: erg destination_index, expected_shard_id: erg selected_shard_id, expected_first_column_index: erg selected_first, expected_column_count: erg selected_count);
     return case dat loaded {
         Result.Err(error) => Err(error),
         Result.Ok(bytes_loaded) => Ok(bytes_loaded),
