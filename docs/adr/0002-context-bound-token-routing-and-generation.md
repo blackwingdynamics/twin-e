@@ -99,6 +99,27 @@ The context identity must satisfy these properties:
 - the identity is reproducible after process restart and snapshot reload;
 - the operation uses integer-only native instructions.
 
+### 1.1 Accepted implementation refinement: two-stage context encoding
+
+The implementation will use a two-stage deterministic encoding profile as the
+default:
+
+```text
+context_key = Hash64(token_t, token_t-1, context_version)
+context_code = Codebook(context_key)
+```
+
+The codebook is responsible for producing exactly eight unique active bits in
+the final 128-bit code. Directly XORing two sparse eight-bit codes is retained
+as an experiment, not as the default production path, because XOR can cancel
+bits and produce fewer than eight active bits. Any rotational XOR profile must
+pass the same cardinality and collision gates before it can be selected.
+
+The two-stage profile makes the invariant explicit: context hashing creates a
+stable identity, and the codebook creates the stable sparse representation.
+The context hash seed, hash version, codebook version, active-bit count, and
+collision policy are one compatibility profile.
+
 ### 2. Context-bound token bindings
 
 The minicolumn layout remains 64 bytes. Token identity and context identity are
@@ -113,6 +134,23 @@ TokenBinding {
     binding_flags:   u8,
 }
 ```
+
+The binary layout is explicitly aligned and occupies 24 bytes:
+
+| Offset | Size | Field |
+|---:|---:|---|
+| 0 | 4 | `token_id: u32` |
+| 4 | 4 | alignment reservation |
+| 8 | 8 | `context_key: u64` |
+| 16 | 2 | `tokenizer_version: u16` |
+| 18 | 2 | `context_version: u16` |
+| 20 | 1 | `binding_flags: u8` |
+| 21 | 3 | trailing reservation |
+
+The four-byte internal reservation aligns `context_key` to an eight-byte
+boundary. The three-byte trailing reservation makes the complete sidecar entry
+24 bytes. The implementation must verify the serialized byte offsets and
+stride; it must not rely on an implicit host ABI layout.
 
 The sidecar is part of the serialized network state. A minicolumn's small
 `payload: u8` field must not be used as a truncated token ID. The readout layer
@@ -175,6 +213,27 @@ The selection policy must define deterministic tie-breaking. The first profile
 uses highest myelination followed by the lowest arena index. Later profiles may
 add bounded exploration or top-k selection, but these are separate policies
 and must remain integer-only and measurable.
+
+### 4.1 Accepted generation loop guard
+
+Generation must include a loop guard in addition to the maximum token limit.
+The first implementation will track a bounded recent-column history and reject
+or deprioritize a candidate that would repeat the same column three times in a
+row. A refractory or temporary fatigue state may implement this policy, but it
+must be scoped to the generation call and must not permanently mutate learned
+myelination.
+
+The guard exists for learned cycles such as:
+
+```text
+A -> B -> C -> A -> B -> C
+```
+
+The generation contract therefore stops or selects an alternative when the
+repetition guard fires, and always stops at EOS, the caller's maximum token
+count, no valid successor, or an explicit energy/deadline limit. The exact
+recent-history bound and fallback selection rule must be benchmarked with a
+cycle fixture.
 
 Generation is associative continuation over learned transitions. It is not
 Transformer probability estimation and does not claim semantic generalization
@@ -268,10 +327,16 @@ attached to the same token-only state.
 - identical token text in two bounded contexts selects different context
   bindings and does not merge their successor lists;
 - context binding is deterministic across runs and snapshot reloads;
+- the default context profile uses two-stage `Hash64` plus codebook encoding
+  and produces exactly eight active bits;
+- any rotational XOR experiment records its active-bit cardinality and is
+  rejected if the declared profile is not preserved;
+- `TokenBinding` serializes to 24 bytes with `context_key` at offset 8;
 - the BPE facade encodes and decodes a persisted vocabulary fixture;
 - the BPE path reduces token count for the declared benchmark corpus;
 - generation returns a deterministic learned continuation and stops at EOS or
   the configured bound;
+- a cyclic transition fixture terminates through the recent-history loop guard;
 - all new paths pass strict checking, native executable build, executable run,
   and zero-floating-point IR verification;
 - no raw operating-system pointers or floating-point operations are introduced.
