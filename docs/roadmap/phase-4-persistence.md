@@ -110,8 +110,8 @@ selective_load=1
 
 ## P4S.6 — Binding and allocator persistence
 
-- [ ] Store the `TokenBinding` sidecar in shard-owned payload records.
-- [ ] Restore tokenizer, context, and codebook binding versions per shard.
+- [x] Store the `TokenBinding` sidecar in shard-owned payload records.
+- [x] Restore tokenizer, context, and codebook binding versions per shard.
 - [x] Persist global `free_list_head` and `active_count` through the manifest
   allocator header fields.
 - [x] Resolve the persisted free-list head into a deterministic shard and local
@@ -119,6 +119,12 @@ selective_load=1
 - [x] Traverse a persisted free-list chain across three shard payloads and
   terminate at the null index.
 - [x] Verify allocation, free, restore, and reallocation across multiple shards.
+
+Evidence:
+
+```text
+AIE_SHARD_BINDINGS_DYNAMIC columns=2 bindings=2 stride=24 validated=1
+```
 
 ## P4S.7 — Generation and crash recovery
 

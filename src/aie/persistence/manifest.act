@@ -448,14 +448,20 @@ verb manifest_dynamic_descriptor_is_safe(
     abs first_column: u32,
     abs column_count: u32,
     abs column_payload: u32,
+    abs binding_offset: u32,
     abs binding_payload: u32,
     abs state: u32,
     abs expected_first: u32
 ) -> Bool {
-    if first_column != expected_first || column_count == 0u32 || column_count > BRAIN_SHARD_DYNAMIC_MAX_COLUMNS || first_column > BRAIN_MANIFEST_DYNAMIC_MAX_COLUMNS - column_count || column_payload != column_count * BRAIN_SHARD_COLUMN_STRIDE_BYTES as u32 || binding_payload != 0u32 || state != 1u32 {
+    erg expected_column_payload: u32 = column_count * BRAIN_SHARD_COLUMN_STRIDE_BYTES as u32;
+    erg expected_binding_payload: u32 = column_count * BRAIN_SHARD_BINDING_STRIDE_BYTES as u32;
+    if first_column != expected_first || column_count == 0u32 || column_count > BRAIN_SHARD_DYNAMIC_MAX_COLUMNS || first_column > BRAIN_MANIFEST_DYNAMIC_MAX_COLUMNS - column_count || column_payload != expected_column_payload || state != 1u32 {
         return false;
     }
-    return true;
+    if binding_payload == 0u32 {
+        return binding_offset == 0u32;
+    }
+    return binding_offset == BRAIN_SHARD_HEADER_BYTES as u32 + expected_column_payload && binding_payload == expected_binding_payload;
 }
 
 open verb manifest_dynamic_bytes_are_valid(abs bytes: Buffer) -> Bool {
@@ -512,10 +518,12 @@ open verb manifest_dynamic_bytes_are_valid(abs bytes: Buffer) -> Bool {
         erg descriptor_id: u32 = read_manifest_u32(input: abs bytes, offset: abs id_offset);
         erg first_column: u32 = read_manifest_u32(input: abs bytes, offset: abs first_offset);
         erg column_count: u32 = read_manifest_u32(input: abs bytes, offset: abs count_offset);
+        erg binding_data_field: u32 = BRAIN_MANIFEST_HEADER_BYTES as u32 + (descriptor_index * BRAIN_MANIFEST_DESCRIPTOR_BYTES as u32) + 20u32;
+        erg binding_data_offset: u32 = read_manifest_u32(input: abs bytes, offset: abs binding_data_field);
         erg column_payload: u32 = read_manifest_u32(input: abs bytes, offset: abs payload_offset);
         erg binding_payload: u32 = read_manifest_u32(input: abs bytes, offset: abs binding_offset);
         erg state: u32 = read_manifest_u32(input: abs bytes, offset: abs state_offset);
-        if descriptor_id != descriptor_index || first_column > total_columns || column_count > total_columns - first_column || !manifest_dynamic_descriptor_is_safe(first_column: abs first_column, column_count: abs column_count, column_payload: abs column_payload, binding_payload: abs binding_payload, state: abs state, expected_first: abs expected_first) {
+        if descriptor_id != descriptor_index || first_column > total_columns || column_count > total_columns - first_column || !manifest_dynamic_descriptor_is_safe(first_column: abs first_column, column_count: abs column_count, column_payload: abs column_payload, binding_offset: abs binding_data_offset, binding_payload: abs binding_payload, state: abs state, expected_first: abs expected_first) {
             return false;
         }
         expected_first = first_column + column_count;
@@ -675,6 +683,50 @@ open verb validate_dynamic_manifest_shard(
         return Err(IoError.InvalidData);
     }
     return validate_dynamic_shard_bytes(bytes: dat shard, expected_shard_id: erg expected_id, expected_first_column_index: erg expected_first, expected_column_count: erg expected_count);
+}
+
+open verb validate_dynamic_manifest_binding_shard(
+    abs manifest: Buffer,
+    abs shard: Buffer,
+    erg descriptor_index: u32
+) -> Result[Int, IoError] {
+    if !manifest_dynamic_bytes_are_valid(bytes: abs manifest) {
+        return Err(IoError.InvalidData);
+    }
+    erg shard_count_offset: u32 = 28u32;
+    erg shard_count: u32 = read_shard_u32(input: abs manifest, offset: abs shard_count_offset);
+    if descriptor_index >= shard_count {
+        return Err(IoError.InvalidInput);
+    }
+    erg descriptor_offset: u32 = BRAIN_MANIFEST_HEADER_BYTES as u32 + (descriptor_index * BRAIN_MANIFEST_DESCRIPTOR_BYTES as u32);
+    erg id_offset: u32 = descriptor_offset + 0u32;
+    erg first_offset: u32 = descriptor_offset + 4u32;
+    erg count_offset: u32 = descriptor_offset + 8u32;
+    erg binding_offset_field: u32 = descriptor_offset + 20u32;
+    erg binding_bytes_field: u32 = descriptor_offset + 24u32;
+    erg checksum_offset: u32 = descriptor_offset + 28u32;
+    erg expected_id: u32 = read_shard_u32(input: abs manifest, offset: abs id_offset);
+    erg expected_first: u32 = read_shard_u32(input: abs manifest, offset: abs first_offset);
+    erg expected_count: u32 = read_shard_u32(input: abs manifest, offset: abs count_offset);
+    erg expected_binding_offset: u32 = read_shard_u32(input: abs manifest, offset: abs binding_offset_field);
+    erg expected_binding_bytes: u32 = read_shard_u32(input: abs manifest, offset: abs binding_bytes_field);
+    erg expected_checksum: u64 = read_shard_u64(input: abs manifest, offset: abs checksum_offset);
+    if expected_binding_offset != BRAIN_SHARD_HEADER_BYTES as u32 + (expected_count * BRAIN_SHARD_COLUMN_STRIDE_BYTES as u32) || expected_binding_bytes != expected_count * BRAIN_SHARD_BINDING_STRIDE_BYTES as u32 {
+        return Err(IoError.InvalidData);
+    }
+    erg shard_checksum_offset: u32 = 40u32;
+    erg stored_checksum: u64 = read_shard_u64(input: abs shard, offset: abs shard_checksum_offset);
+    if stored_checksum != expected_checksum {
+        return Err(IoError.InvalidData);
+    }
+    if !dynamic_shard_with_bindings_is_valid(bytes: abs shard, expected_shard_id: erg expected_id, expected_first_column_index: erg expected_first, expected_column_count: erg expected_count) {
+        return Err(IoError.InvalidData);
+    }
+    erg length_result = buffer_length(buffer: abs shard);
+    return case dat length_result {
+        Result.Err(_) => Err(IoError.Failed),
+        Result.Ok(length) => Ok(length),
+    };
 }
 
 open verb plan_dynamic_allocation(abs bytes: Buffer, erg global_index: u32) -> Result[AllocationPlan, IoError] {

@@ -264,6 +264,36 @@ verb shard_dynamic_checksum(abs input: Buffer, erg length: u32) -> u64 {
     return checksum;
 }
 
+open verb dynamic_shard_file_checksum(abs path: Path) -> Result[u64, IoError] {
+    erg loaded = read_to_bytes(path: abs path);
+    return case dat loaded {
+        Result.Err(error) => Err(error),
+        Result.Ok(bytes) => {
+            erg length_result = buffer_length(buffer: abs bytes);
+            return case dat length_result {
+                Result.Err(_) => Err(IoError.InvalidData),
+                Result.Ok(length) => {
+                    if length < BRAIN_SHARD_HEADER_BYTES as Int {
+                        drop(bytes);
+                        return Err(IoError.InvalidData);
+                    } else {
+                    }
+                    erg length_u32: u32 = length as u32;
+                    erg checksum_offset: u32 = 40u32;
+                    erg stored_checksum: u64 = read_shard_u64(input: abs bytes, offset: abs checksum_offset);
+                    erg actual_checksum: u64 = shard_dynamic_checksum(input: abs bytes, length: erg length_u32);
+                    drop(bytes);
+                    if stored_checksum != actual_checksum {
+                        return Err(IoError.InvalidData);
+                    } else {
+                    }
+                    return Ok(stored_checksum);
+                },
+            };
+        },
+    };
+}
+
 open verb write_dynamic_shard(
     abs path: Path,
     erg shard_id: u32,
