@@ -3,21 +3,42 @@ import tokenizer;
 
 import std::io;
 
+meta limitless("verb")
 verb main() -> Int {
     erg rules: Array[BpeMergeRule, 128] = Array[BpeMergeRule, 128]();
     rules[0u32] = BpeMergeRule {left_id: 65u32, right_id: 66u32, merged_id: 1000u32, rank: 0u32};
+    erg vocabulary: BpeVocabulary = BpeVocabulary {magic: BPE_VOCAB_MAGIC, version: BPE_VOCAB_VERSION, tokenizer_version: TOKENIZER_VERSION, rule_count: 1u32, rules: rules};
     erg text: String = "AB";
-    erg rule_count: u32 = 1u32;
-    erg sequence: TokenSequence = bpe_tokenize_string(
+    erg sequence: TokenSequence = bpe_tokenize_vocabulary(
         text: abs text,
-        rules: abs rules,
-        rule_count: erg rule_count
+        vocabulary: abs vocabulary
     );
     erg first: Token = sequence.tokens[0u32];
-    if !sequence.valid || sequence.length != 1u32 || first.id != 1000u32 {
+    if !sequence.valid {
+        erg invalid_message: String = "AIE_BPE_ERROR invalid_vocabulary";
+        println(text: abs invalid_message);
         return 1;
     }
-    erg heading: String = "AIE_BPE input_bytes=2 output_tokens=1 merged_id=1000";
+    if sequence.length != 1u32 {
+        erg count_message: String = "AIE_BPE_ERROR unexpected_token_count";
+        println(text: abs count_message);
+        return 1;
+    }
+    if first.id != 1000u32 {
+        erg id_message: String = "AIE_BPE_ERROR unexpected_merged_id";
+        println(text: abs id_message);
+        return 1;
+    }
+    erg incompatible: BpeVocabulary = vocabulary;
+    incompatible.version = 2u16;
+    erg rejected: TokenSequence = bpe_tokenize_vocabulary(
+        text: abs text,
+        vocabulary: abs incompatible
+    );
+    if rejected.valid {
+        return 1;
+    }
+    erg heading: String = "AIE_BPE input_bytes=2 output_tokens=1 merged_id=1000 artifact=valid rejected=1";
     println(text: abs heading);
     return 0;
 }

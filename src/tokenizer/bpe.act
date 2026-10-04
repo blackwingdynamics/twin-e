@@ -8,6 +8,23 @@ open struct BpeMergeRule {
     erg rank: u32,
 }
 
+"""Versioned bounded vocabulary artifact consumed by the BPE encoder."""
+open struct BpeVocabulary {
+    erg magic: u32,
+    erg version: u16,
+    erg tokenizer_version: u16,
+    erg rule_count: u32,
+    erg rules: Array[BpeMergeRule, 128],
+}
+
+open verb bpe_vocabulary_is_valid(abs vocabulary: BpeVocabulary) -> Bool {
+    return vocabulary.magic == BPE_VOCAB_MAGIC && vocabulary.version == BPE_VOCAB_VERSION && vocabulary.tokenizer_version == TOKENIZER_VERSION && vocabulary.rule_count <= BPE_MAX_RULES;
+}
+
+verb invalid_sequence() -> TokenSequence {
+    return TokenSequence {tokens: Array[Token, 256](), length: 0u32, valid: false};
+}
+
 struct BpeMatch {
     erg pair_index: u32,
     erg rule_index: u32,
@@ -136,4 +153,27 @@ open verb bpe_tokenize_string(
 ) -> TokenSequence {
     erg bytes: TokenSequence = tokenize_string(text: abs text);
     return bpe_encode(input: abs bytes, rules: abs rules, rule_count: erg rule_count);
+}
+
+open verb bpe_encode_vocabulary(
+    abs input: TokenSequence,
+    abs vocabulary: BpeVocabulary
+) -> TokenSequence {
+    if !bpe_vocabulary_is_valid(vocabulary: abs vocabulary) {
+        return invalid_sequence();
+    }
+    erg rule_count: u32 = vocabulary.rule_count + 0u32;
+    return bpe_encode(
+        input: abs input,
+        rules: abs vocabulary.rules,
+        rule_count: erg rule_count
+    );
+}
+
+open verb bpe_tokenize_vocabulary(
+    abs text: String,
+    abs vocabulary: BpeVocabulary
+) -> TokenSequence {
+    erg bytes: TokenSequence = tokenize_string(text: abs text);
+    return bpe_encode_vocabulary(input: abs bytes, vocabulary: abs vocabulary);
 }
