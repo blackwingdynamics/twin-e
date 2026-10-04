@@ -178,10 +178,31 @@ verb validate_dynamic_path(abs path: Path) -> Int {
     };
 }
 
+verb verify_invalid_descriptor(ins bytes: Buffer) -> Int {
+    bytes[72u32] = 0u8;
+    erg valid: Bool = manifest_dynamic_bytes_are_valid(bytes: abs bytes);
+    if valid {
+        return 8;
+    }
+    return 0;
+}
+
+verb rejects_invalid_descriptor(abs path: Path) -> Int {
+    erg loaded = read_to_bytes(path: abs path);
+    return case dat loaded {
+        Result.Err(_) => 7,
+        Result.Ok(bytes) => verify_invalid_descriptor(bytes: ins bytes),
+    };
+}
+
 verb emit_dynamic(abs path: Path) -> Int {
     erg status: Int = run_dynamic(path: abs path);
     if status != 0 {
         return status;
+    }
+    erg rejected_status: Int = rejects_invalid_descriptor(path: abs path);
+    if rejected_status != 0 {
+        return rejected_status;
     }
     erg message: String = "AIE_MANIFEST_DYNAMIC shards=3 appended_shard=3 allocation_shard=3 local_index=0 roundtrip=1";
     println(text: abs message);

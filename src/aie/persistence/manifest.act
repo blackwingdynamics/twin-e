@@ -437,6 +437,20 @@ verb write_manifest_u32_at(ins output: Buffer, abs value: u32, abs offset: u32) 
     output[offset + 3u32] = ((value / 16777216u32) & 255u32) as u8;
 }
 
+verb manifest_dynamic_descriptor_is_safe(
+    abs first_column: u32,
+    abs column_count: u32,
+    abs column_payload: u32,
+    abs binding_payload: u32,
+    abs state: u32,
+    abs expected_first: u32
+) -> Bool {
+    if first_column != expected_first || column_count == 0u32 || column_count > BRAIN_SHARD_DYNAMIC_MAX_COLUMNS || first_column > BRAIN_MANIFEST_DYNAMIC_MAX_COLUMNS - column_count || column_payload != column_count * BRAIN_SHARD_COLUMN_STRIDE_BYTES as u32 || binding_payload != 0u32 || state != 1u32 {
+        return false;
+    }
+    return true;
+}
+
 open verb manifest_dynamic_bytes_are_valid(abs bytes: Buffer) -> Bool {
     erg length_result = buffer_length(buffer: abs bytes);
     erg length: Int = case dat length_result {
@@ -463,7 +477,7 @@ open verb manifest_dynamic_bytes_are_valid(abs bytes: Buffer) -> Bool {
     erg shard_count: u32 = read_manifest_u32(input: abs bytes, offset: abs offset_28);
     erg stored_checksum: u64 = read_manifest_u64(input: abs bytes, offset: abs offset_44);
     erg actual_checksum: u64 = manifest_dynamic_checksum(input: abs bytes, length: erg length_u32);
-    if stored_length != length_u32 || stored_length < BRAIN_MANIFEST_HEADER_BYTES as u32 || stored_checksum != actual_checksum || read_manifest_u32(input: abs bytes, offset: abs offset_0) != BRAIN_MANIFEST_MAGIC || read_manifest_u16(input: abs bytes, offset: abs offset_4) != BRAIN_MANIFEST_VERSION || read_manifest_u16(input: abs bytes, offset: abs offset_6) != BRAIN_MANIFEST_HEADER_BYTES || shard_count == 0u32 || shard_count > BRAIN_MANIFEST_DYNAMIC_MAX_SHARDS || read_manifest_u16(input: abs bytes, offset: abs offset_32) != BRAIN_SHARD_COLUMN_STRIDE_BYTES || read_manifest_u16(input: abs bytes, offset: abs offset_34) != BRAIN_SHARD_BINDING_STRIDE_BYTES || read_manifest_u16(input: abs bytes, offset: abs offset_36) != TOKENIZER_VERSION || read_manifest_u16(input: abs bytes, offset: abs offset_38) != CONTEXT_VERSION || read_manifest_u16(input: abs bytes, offset: abs offset_40) != TOKEN_CODE_VERSION {
+    if stored_length != length_u32 || stored_length < BRAIN_MANIFEST_HEADER_BYTES as u32 || stored_checksum != actual_checksum || read_manifest_u32(input: abs bytes, offset: abs offset_0) != BRAIN_MANIFEST_MAGIC || read_manifest_u16(input: abs bytes, offset: abs offset_4) != BRAIN_MANIFEST_VERSION || read_manifest_u16(input: abs bytes, offset: abs offset_6) != BRAIN_MANIFEST_HEADER_BYTES || shard_count == 0u32 || shard_count > BRAIN_MANIFEST_DYNAMIC_MAX_SHARDS || read_manifest_u32(input: abs bytes, offset: abs offset_20) > BRAIN_MANIFEST_DYNAMIC_MAX_COLUMNS || read_manifest_u16(input: abs bytes, offset: abs offset_32) != BRAIN_SHARD_COLUMN_STRIDE_BYTES || read_manifest_u16(input: abs bytes, offset: abs offset_34) != BRAIN_SHARD_BINDING_STRIDE_BYTES || read_manifest_u16(input: abs bytes, offset: abs offset_36) != TOKENIZER_VERSION || read_manifest_u16(input: abs bytes, offset: abs offset_38) != CONTEXT_VERSION || read_manifest_u16(input: abs bytes, offset: abs offset_40) != TOKEN_CODE_VERSION {
         return false;
     }
     erg descriptor_bytes: u32 = shard_count * BRAIN_MANIFEST_DESCRIPTOR_BYTES as u32;
@@ -489,7 +503,7 @@ open verb manifest_dynamic_bytes_are_valid(abs bytes: Buffer) -> Bool {
         erg column_payload: u32 = read_manifest_u32(input: abs bytes, offset: abs payload_offset);
         erg binding_payload: u32 = read_manifest_u32(input: abs bytes, offset: abs binding_offset);
         erg state: u32 = read_manifest_u32(input: abs bytes, offset: abs state_offset);
-        if descriptor_id != descriptor_index || first_column != expected_first || column_count == 0u32 || first_column > total_columns || column_count > total_columns - first_column || column_payload != column_count * BRAIN_SHARD_COLUMN_STRIDE_BYTES as u32 || binding_payload != 0u32 || state != 1u32 {
+        if descriptor_id != descriptor_index || first_column > total_columns || column_count > total_columns - first_column || !manifest_dynamic_descriptor_is_safe(first_column: abs first_column, column_count: abs column_count, column_payload: abs column_payload, binding_payload: abs binding_payload, state: abs state, expected_first: abs expected_first) {
             return false;
         }
         expected_first = first_column + column_count;
