@@ -44,9 +44,10 @@ configuration and compiler-parity items that Phase 4 depends on are closed.
 
 - [x] Define a bounded merge-rule format and deterministic ranked merge pass.
 - [x] Define a versioned bounded vocabulary artifact and merge-rule format.
-- [ ] Add BOS, EOS, unknown, and byte-fallback entries.
+- [x] Add BOS, EOS, unknown, and byte-fallback entries.
 - [x] Implement bounded deterministic BPE encoding behind `src/tokenizer/`.
-- [ ] Implement decode from token IDs to bounded UTF-8 output.
+- [~] Implement bounded byte decode with special-token handling; merged-token
+  byte-span decode remains.
 - [ ] Compare byte-token and BPE token counts on a fixed text fixture.
 - [~] Verify artifact version compatibility at tokenizer load; snapshot-level
   vocabulary persistence remains.

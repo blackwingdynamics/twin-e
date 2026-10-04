@@ -13,12 +13,21 @@ open struct BpeVocabulary {
     erg magic: u32,
     erg version: u16,
     erg tokenizer_version: u16,
+    erg bos_token_id: u32,
+    erg eos_token_id: u32,
+    erg unknown_token_id: u32,
     erg rule_count: u32,
     erg rules: Array[BpeMergeRule, 128],
 }
 
+open enum BpeDecodeError {
+    InvalidVocabulary,
+    InvalidSequence,
+    InvalidToken,
+}
+
 open verb bpe_vocabulary_is_valid(abs vocabulary: BpeVocabulary) -> Bool {
-    return vocabulary.magic == BPE_VOCAB_MAGIC && vocabulary.version == BPE_VOCAB_VERSION && vocabulary.tokenizer_version == TOKENIZER_VERSION && vocabulary.rule_count <= BPE_MAX_RULES;
+    return vocabulary.magic == BPE_VOCAB_MAGIC && vocabulary.version == BPE_VOCAB_VERSION && vocabulary.tokenizer_version == TOKENIZER_VERSION && vocabulary.bos_token_id == BPE_BOS_TOKEN_ID && vocabulary.eos_token_id == BPE_EOS_TOKEN_ID && vocabulary.unknown_token_id == BPE_UNKNOWN_TOKEN_ID && vocabulary.rule_count <= BPE_MAX_RULES;
 }
 
 verb invalid_sequence() -> TokenSequence {
@@ -176,4 +185,70 @@ open verb bpe_tokenize_vocabulary(
 ) -> TokenSequence {
     erg bytes: TokenSequence = tokenize_string(text: abs text);
     return bpe_encode_vocabulary(input: abs bytes, vocabulary: abs vocabulary);
+}
+
+open verb bpe_add_special_tokens(
+    abs sequence: TokenSequence,
+    abs vocabulary: BpeVocabulary
+) -> TokenSequence {
+    if !sequence.valid || sequence.length + 2u32 > TOKENIZER_MAX_BYTES {
+        return invalid_sequence();
+    }
+    erg result: TokenSequence = TokenSequence {tokens: Array[Token, 256](), length: sequence.length + 2u32, valid: true};
+    result.tokens[0u32] = Token {id: vocabulary.bos_token_id, byte_offset: 0u32, byte_length: 0u16, tokenizer_version: TOKENIZER_VERSION};
+    erg index: u32 = 0u32;
+    loop {
+        if index >= sequence.length {
+            break;
+        }
+        result.tokens[index + 1u32] = sequence.tokens[index];
+        index += 1u32;
+    }
+    result.tokens[sequence.length + 1u32] = Token {id: vocabulary.eos_token_id, byte_offset: sequence.length, byte_length: 0u16, tokenizer_version: TOKENIZER_VERSION};
+    return result;
+}
+
+open verb bpe_tokenize_with_special_tokens(
+    abs text: String,
+    abs vocabulary: BpeVocabulary
+) -> TokenSequence {
+    erg sequence: TokenSequence = bpe_tokenize_vocabulary(text: abs text, vocabulary: abs vocabulary);
+    return bpe_add_special_tokens(sequence: abs sequence, vocabulary: abs vocabulary);
+}
+
+open verb bpe_decode_bytes(
+    abs sequence: TokenSequence,
+    abs vocabulary: BpeVocabulary,
+    ins storage: Buffer
+) -> Result[Int, BpeDecodeError] {
+    if !bpe_vocabulary_is_valid(vocabulary: abs vocabulary) || !sequence.valid {
+        return Err(BpeDecodeError.InvalidVocabulary);
+    }
+    erg index: u32 = 0u32;
+    loop {
+        if index >= sequence.length {
+            break;
+        }
+        erg token_id: u32 = sequence.tokens[index].id;
+        if token_id != vocabulary.bos_token_id && token_id != vocabulary.eos_token_id {
+            if token_id > 255u32 {
+                return Err(BpeDecodeError.InvalidToken);
+            }
+        }
+        index += 1u32;
+    }
+    index = 0u32;
+    erg decoded_length: Int = 0;
+    loop {
+        if index >= sequence.length {
+            break;
+        }
+        erg token_id: u32 = sequence.tokens[index].id;
+        if token_id != vocabulary.bos_token_id && token_id != vocabulary.eos_token_id {
+            append(storage, token_id as u8);
+            decoded_length += 1;
+        }
+        index += 1u32;
+    }
+    return Ok(decoded_length);
 }

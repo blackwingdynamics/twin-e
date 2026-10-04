@@ -7,9 +7,9 @@ meta limitless("verb")
 verb main() -> Int {
     erg rules: Array[BpeMergeRule, 128] = Array[BpeMergeRule, 128]();
     rules[0u32] = BpeMergeRule {left_id: 65u32, right_id: 66u32, merged_id: 1000u32, rank: 0u32};
-    erg vocabulary: BpeVocabulary = BpeVocabulary {magic: BPE_VOCAB_MAGIC, version: BPE_VOCAB_VERSION, tokenizer_version: TOKENIZER_VERSION, rule_count: 1u32, rules: rules};
+    erg vocabulary: BpeVocabulary = BpeVocabulary {magic: BPE_VOCAB_MAGIC, version: BPE_VOCAB_VERSION, tokenizer_version: TOKENIZER_VERSION, bos_token_id: BPE_BOS_TOKEN_ID, eos_token_id: BPE_EOS_TOKEN_ID, unknown_token_id: BPE_UNKNOWN_TOKEN_ID, rule_count: 1u32, rules: rules};
     erg text: String = "AB";
-    erg sequence: TokenSequence = bpe_tokenize_vocabulary(
+    erg sequence: TokenSequence = bpe_tokenize_with_special_tokens(
         text: abs text,
         vocabulary: abs vocabulary
     );
@@ -19,17 +19,18 @@ verb main() -> Int {
         println(text: abs invalid_message);
         return 1;
     }
-    if sequence.length != 1u32 {
+    if sequence.length != 3u32 {
         erg count_message: String = "AIE_BPE_ERROR unexpected_token_count";
         println(text: abs count_message);
         return 1;
     }
-    if first.id != 1000u32 {
+    if first.id != BPE_BOS_TOKEN_ID {
         erg id_message: String = "AIE_BPE_ERROR unexpected_merged_id";
         println(text: abs id_message);
         return 1;
     }
-    erg incompatible: BpeVocabulary = vocabulary;
+    erg incompatible_rules: Array[BpeMergeRule, 128] = Array[BpeMergeRule, 128]();
+    erg incompatible: BpeVocabulary = BpeVocabulary {magic: BPE_VOCAB_MAGIC, version: BPE_VOCAB_VERSION, tokenizer_version: TOKENIZER_VERSION, bos_token_id: BPE_BOS_TOKEN_ID, eos_token_id: BPE_EOS_TOKEN_ID, unknown_token_id: BPE_UNKNOWN_TOKEN_ID, rule_count: 0u32, rules: incompatible_rules};
     incompatible.version = 2u16;
     erg rejected: TokenSequence = bpe_tokenize_vocabulary(
         text: abs text,
@@ -38,7 +39,26 @@ verb main() -> Int {
     if rejected.valid {
         return 1;
     }
-    erg heading: String = "AIE_BPE input_bytes=2 output_tokens=1 merged_id=1000 artifact=valid rejected=1";
+    erg byte_rules: Array[BpeMergeRule, 128] = Array[BpeMergeRule, 128]();
+    erg byte_vocabulary: BpeVocabulary = BpeVocabulary {magic: BPE_VOCAB_MAGIC, version: BPE_VOCAB_VERSION, tokenizer_version: TOKENIZER_VERSION, bos_token_id: BPE_BOS_TOKEN_ID, eos_token_id: BPE_EOS_TOKEN_ID, unknown_token_id: BPE_UNKNOWN_TOKEN_ID, rule_count: 0u32, rules: byte_rules};
+    erg byte_sequence: TokenSequence = bpe_tokenize_with_special_tokens(
+        text: abs text,
+        vocabulary: abs byte_vocabulary
+    );
+    erg storage: Buffer = Buffer[8];
+    erg decoded = bpe_decode_bytes(
+        sequence: abs byte_sequence,
+        vocabulary: abs byte_vocabulary,
+        storage: ins storage
+    );
+    erg decoded_length: Int = case dat decoded {
+        Result.Ok(value) => value,
+        Result.Err(_) => -1,
+    };
+    if decoded_length != 2 {
+        return 1;
+    }
+    erg heading: String = "AIE_BPE input_bytes=2 output_tokens=4 special_tokens=2 decoded_bytes=2 artifact=valid rejected=1";
     println(text: abs heading);
     return 0;
 }
