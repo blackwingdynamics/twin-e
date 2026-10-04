@@ -130,32 +130,30 @@ open verb manifest_locate_column(abs bytes: Buffer, erg global_index: u32) -> Re
     erg offset_version: u32 = 4u32;
     erg offset_shard_count: u32 = 28u32;
     erg offset_checksum: u32 = 44u32;
-    erg offset_zero_first: u32 = 68u32;
-    erg offset_zero_count: u32 = 72u32;
-    erg offset_one_first: u32 = 108u32;
-    erg offset_one_count: u32 = 112u32;
     erg stored_checksum: u64 = read_manifest_u64(input: abs bytes, offset: abs offset_checksum);
     erg actual_checksum: u64 = manifest_checksum(input: abs bytes);
-    if stored_checksum != actual_checksum || read_manifest_u32(input: abs bytes, offset: abs offset_magic) != BRAIN_MANIFEST_MAGIC || read_manifest_u16(input: abs bytes, offset: abs offset_version) != BRAIN_MANIFEST_VERSION || read_manifest_u32(input: abs bytes, offset: abs offset_shard_count) != BRAIN_MANIFEST_SHARD_COUNT {
+    erg shard_count: u32 = read_manifest_u32(input: abs bytes, offset: abs offset_shard_count);
+    if stored_checksum != actual_checksum || read_manifest_u32(input: abs bytes, offset: abs offset_magic) != BRAIN_MANIFEST_MAGIC || read_manifest_u16(input: abs bytes, offset: abs offset_version) != BRAIN_MANIFEST_VERSION || shard_count == 0u32 || shard_count > BRAIN_MANIFEST_MAX_SHARDS {
         return Err(IoError.InvalidData);
     }
-    erg first_zero: u32 = read_manifest_u32(input: abs bytes, offset: abs offset_zero_first);
-    erg count_zero: u32 = read_manifest_u32(input: abs bytes, offset: abs offset_zero_count);
-    erg first_one: u32 = read_manifest_u32(input: abs bytes, offset: abs offset_one_first);
-    erg count_one: u32 = read_manifest_u32(input: abs bytes, offset: abs offset_one_count);
-    erg query_zero_a: u32 = global_index + 0u32;
-    erg query_zero_b: u32 = global_index + 0u32;
-    erg query_zero_field: u32 = global_index + 0u32;
-    erg query_one_a: u32 = global_index + 0u32;
-    erg query_one_b: u32 = global_index + 0u32;
-    erg query_one_field: u32 = global_index + 0u32;
-    if query_zero_a >= first_zero && query_zero_b < first_zero + count_zero {
-        erg local_zero: u32 = query_zero_field - first_zero;
-        return Ok(ColumnLocation {global_index: query_zero_field, shard_id: 0u32, local_index: local_zero});
-    }
-    if query_one_a >= first_one && query_one_b < first_one + count_one {
-        erg local_one: u32 = query_one_field - first_one;
-        return Ok(ColumnLocation {global_index: query_one_field, shard_id: 1u32, local_index: local_one});
+    erg shard_index: u32 = 0u32;
+    loop {
+        if shard_index >= shard_count {
+            break;
+        }
+        erg descriptor_offset: u32 = 64u32 + (shard_index * 40u32);
+        erg first_offset: u32 = descriptor_offset + 4u32;
+        erg count_offset: u32 = descriptor_offset + 8u32;
+        erg first_column: u32 = read_manifest_u32(input: abs bytes, offset: abs first_offset);
+        erg column_count: u32 = read_manifest_u32(input: abs bytes, offset: abs count_offset);
+        erg query_a: u32 = global_index + 0u32;
+        erg query_b: u32 = global_index + 0u32;
+        erg query_field: u32 = global_index + 0u32;
+        if query_a >= first_column && query_b < first_column + column_count {
+            erg local_index: u32 = query_field - first_column;
+            return Ok(ColumnLocation {global_index: query_field, shard_id: shard_index, local_index: local_index});
+        }
+        shard_index += 1u32;
     }
     return Err(IoError.InvalidInput);
 }

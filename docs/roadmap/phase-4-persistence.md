@@ -72,6 +72,8 @@ selective_load=1
 
 ## P4S.4 — Generic shard profiles
 
+- [x] Remove the separate shard `0` and shard `1` branches from global-index
+  lookup; the current bounded profile now scans descriptors by count.
 - [ ] Replace the fixed two-shard implementation with a manifest-driven shard
   descriptor collection.
 - [ ] Move shard count, capacity, payload sizes, and file size into the global
