@@ -20,6 +20,44 @@ open verb neurogenesis[N: Usize](
     );
 }
 
+"""Allocate a novel column and bind its token/context identity atomically."""
+open verb neurogenesis_with_binding[N: Usize](
+    ins fabric: CorticalFabric[N],
+    ins bindings: Array[TokenBinding, 64],
+    abs wave: Wavefront,
+    erg source_idx: u32,
+    erg token_id: u32,
+    erg context_key: u64
+) -> Option[u32] {
+    erg slot: u32 = allocate_column_index(fabric: ins fabric);
+    erg available: Bool = slot != null_index();
+    if !available || slot >= BRAIN_BINDING_COUNT {
+        if available {
+            free_column(fabric: ins fabric, slot: erg slot);
+        }
+        return Option[u32].None;
+    }
+    seed_column(fabric: ins fabric, slot: erg slot, wave: abs wave);
+    erg link_available: Bool = true;
+    erg linked: Bool = link_allocated(
+        fabric: ins fabric,
+        source: source_idx,
+        slot: slot,
+        available: erg link_available
+    );
+    if !linked {
+        free_column(fabric: ins fabric, slot: erg slot);
+        return Option[u32].None;
+    }
+    bind_token_context(
+        bindings: ins bindings,
+        slot: slot,
+        token_id: token_id,
+        context_key: context_key
+    );
+    return Option[u32].Some(slot);
+}
+
 """Allocate, seed, link, or reclaim one novel minicolumn."""
 open verb neurogenesis_core[N: Usize](
     ins fabric: CorticalFabric[N],

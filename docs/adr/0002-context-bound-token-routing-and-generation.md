@@ -187,6 +187,16 @@ The AIE package consumes token IDs and encoded wavefronts. It does not inspect
 token strings or implement merge rules. The tokenizer and codebook versions
 must be stored with snapshots and rejected when incompatible.
 
+### 3.1 `.brain` persistence boundary
+
+The `.brain` name identifies the position-independent binary snapshot format.
+The current implementation provides in-memory `FabricSnapshot`,
+`BindingSnapshot`, and `TextSnapshot` values plus serialization and restore
+verbs. A host file is not created by those verbs. A later persistence gate must
+add explicit `.brain` file save/load operations through the standard I/O
+provider, preserve the compatibility headers, and reject truncated or
+incompatible files before mutating the live fabric or binding sidecar.
+
 The first BPE delivery must include a small persisted vocabulary fixture and a
 benchmark comparing byte-token and subword sequence length. It must not claim
 that every phrase becomes two or three tokens; token count depends on the

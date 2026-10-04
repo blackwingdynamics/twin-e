@@ -28,14 +28,13 @@ configuration and compiler-parity items that Phase 4 depends on are closed.
 
 ## P4.1 — Context-bound AIE state
 
-- [ ] Add a position-independent `TokenBinding` sidecar indexed by arena slot.
+- [x] Add a position-independent `TokenBinding` sidecar indexed by arena slot.
 - [x] Serialize and restore the sidecar with tokenizer and context versions.
 - [x] Combine fabric and binding payloads into the final text snapshot wrapper.
-- [ ] Reject snapshots with incompatible tokenizer, codebook, or context
-  profiles.
-- [~] Bind context identity to minicolumn lookup and neurogenesis; sidecar bind,
-  lookup, and runtime-integrated source routing are verified, while automatic
-  binding during neurogenesis remains.
+- [x] Reject snapshots with incompatible tokenizer, codebook, or context
+  profiles through versioned binding validation and rejection coverage.
+- [x] Bind context identity to minicolumn lookup and neurogenesis through one
+  bounded allocation-and-binding API.
 - [x] Add an ambiguity fixture where the same token has two context-specific
   successors.
 - [x] Verify that the two successor paths do not share one token-only state.
@@ -48,9 +47,12 @@ configuration and compiler-parity items that Phase 4 depends on are closed.
 - [x] Implement bounded deterministic BPE encoding behind `src/tokenizer/`.
 - [x] Implement bounded byte decode with special-token handling and merged-token
   byte-span records.
-- [ ] Compare byte-token and BPE token counts on a fixed text fixture.
-- [~] Verify artifact version compatibility at tokenizer load; snapshot-level
-  vocabulary persistence remains.
+- [x] Compare byte-token and BPE token counts on a fixed text fixture.
+- [~] Verify artifact version compatibility at tokenizer load; the bounded BPE
+  vocabulary rejects incompatible versions, while snapshot-level vocabulary
+  persistence remains.
+- [ ] Validate a multi-merge BPE chain across repeated merge passes.
+- [ ] Persist the bounded BPE vocabulary artifact in the text snapshot.
 
 ## P4.3 — Associative generation
 
@@ -64,16 +66,39 @@ configuration and compiler-parity items that Phase 4 depends on are closed.
 
 ## P4.4 — Validation gates
 
-- [ ] Strict check passes for all new modules.
-- [ ] Native object and executable builds pass.
-- [ ] Generated native IR contains no floating-point instructions.
-- [ ] Context collision and active-bit cardinality evidence is recorded.
-- [ ] TokenBinding serialization round-trip passes.
-- [ ] Context ambiguity recall passes.
+- [x] Strict check passes for all new modules.
+- [x] Native object and executable builds pass.
+- [x] Generated native IR contains no floating-point instructions.
+- [x] Context collision and active-bit cardinality evidence is recorded in
+  `docs/benchmarks/codebook-collision.md` and `docs/benchmarks/context-codebook.md`.
+- [x] TokenBinding serialization round-trip passes in the binding and text
+  snapshot coverage.
+- [x] Context ambiguity recall passes in
+  `docs/benchmarks/context-ambiguity.md`.
 - [x] BPE encode/decode round-trip passes for byte fallback and a bounded merged
   token record.
 - [x] Cyclic generation terminates within the configured bound.
-- [ ] Existing P3 String recall and codebook benchmarks remain green.
+- [x] Existing P3 String recall and codebook benchmarks remain green in the
+  tracked benchmark fixtures.
+
+## P4.5 — Explicit follow-up work
+
+- [x] Define the position-independent `.brain` snapshot format and in-memory
+  serialization/restore boundary.
+- [ ] Add host file save/load operations for `.brain` snapshots through the
+  standard I/O provider.
+- [ ] Reject truncated or incompatible `.brain` files before mutating live
+  fabric or binding state.
+- [x] Add one bounded allocation-and-binding API for automatic context-sidecar
+  registration during neurogenesis.
+- [x] Record the current fixed-text token-count evidence: 12 byte tokens to 11
+  BPE tokens for `Hello Giorgi`.
+- [ ] Replace the one-merge benchmark with a larger vocabulary fixture after
+  repeated merge passes are validated.
+- [ ] Define a modality-neutral event adapter for sensor and camera states.
+- [ ] Encode bounded observations such as obstacle, distance, person, and
+  motion events into the same context-bound sparse runtime.
+- [ ] Add action/event routing after observation encoding is stable.
 
 ## Phase 4 completion criteria
 

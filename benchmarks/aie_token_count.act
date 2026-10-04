@@ -1,0 +1,38 @@
+"""Compare byte-token and bounded BPE sequence lengths on fixed text."""
+import tokenizer;
+import std::io;
+
+meta limitless("verb")
+verb main() -> Int {
+    erg rules: Array[BpeMergeRule, 128] = Array[BpeMergeRule, 128]();
+    rules[0u32] = BpeMergeRule {left_id: 72u32, right_id: 101u32, merged_id: 1000u32, rank: 0u32};
+    erg text: String = "Hello Giorgi";
+    erg byte_sequence: TokenSequence = tokenize_string(text: abs text);
+    erg rule_count: u32 = 1u32;
+    erg bpe_sequence: TokenSequence = bpe_tokenize_string(
+        text: abs text,
+        rules: abs rules,
+        rule_count: erg rule_count
+    );
+    if !byte_sequence.valid || !bpe_sequence.valid {
+        return 1;
+    }
+    erg prefix: String = "AIE_TOKEN_COUNTS text=Hello Giorgi byte_tokens=";
+    erg bpe_label: String = " bpe_tokens=";
+    erg reduction_label: String = " reduction=";
+    erg newline: String = "";
+    erg byte_count: Int = byte_sequence.length as Int;
+    erg bpe_count: Int = bpe_sequence.length as Int;
+    erg reduction: Int = (byte_sequence.length - bpe_sequence.length) as Int;
+    print(text: abs prefix);
+    print_int(value: erg byte_count);
+    print(text: abs bpe_label);
+    print_int(value: erg bpe_count);
+    print(text: abs reduction_label);
+    print_int(value: erg reduction);
+    println(text: abs newline);
+    if byte_sequence.length != 12u32 || bpe_sequence.length != 11u32 {
+        return 1;
+    }
+    return 0;
+}
