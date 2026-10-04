@@ -10,6 +10,9 @@ import std::time;
 const CODEBOOK_SIZE: u32 = 5000u32;
 
 
+const HISTOGRAM_SIZE: u32 = 9u32;
+
+
 meta limitless("verb")
 verb popcount_u64(erg value: u64) -> u32 {
     erg count: u32 = 0u32;
@@ -56,6 +59,7 @@ verb main() -> Int {
     }
     erg maximum_overlap: u32 = 0u32;
     erg duplicate_pairs: u32 = 0u32;
+    erg overlap_histogram: Array[u32,9] = Array[u32, 9]();
     erg left_index: u32 = 0u32;
     loop {
         if left_index >= CODEBOOK_SIZE {
@@ -79,6 +83,7 @@ verb main() -> Int {
             if pair_overlap > maximum_overlap {
                 maximum_overlap = pair_overlap;
             }
+            overlap_histogram[pair_overlap as Usize] += 1u32;
             if pair_overlap >= TOKEN_CODE_ACTIVE_BITS as u32 {
                 duplicate_pairs += 1u32;
             }
@@ -101,6 +106,47 @@ verb main() -> Int {
     print(text: abs invalid_label);
     erg invalid_value: Int = invalid_code_count as Int;
     print_int(value: erg invalid_value);
+    erg histogram_index: u32 = 0u32;
+    loop {
+        if histogram_index >= HISTOGRAM_SIZE {
+            break;
+        }
+        erg histogram_label: String = "AIE_CODEBOOK overlap_bucket=";
+        print(text: abs histogram_label);
+        erg histogram_key: Int = histogram_index as Int;
+        print_int(value: erg histogram_key);
+        erg histogram_separator: String = " count=";
+        print(text: abs histogram_separator);
+        erg histogram_value: Int = overlap_histogram[histogram_index as Usize] as Int;
+        print_int(value: erg histogram_value);
+        histogram_index += 1u32;
+    }
+    erg threshold: u32 = 1u32;
+    loop {
+        if threshold > TOKEN_CODE_ACTIVE_BITS as u32 {
+            break;
+        }
+        erg false_pair_count: u32 = 0u32;
+        erg bucket: u32 = 0u32;
+        loop {
+            if bucket >= HISTOGRAM_SIZE {
+                break;
+            }
+            if bucket >= threshold {
+                false_pair_count += overlap_histogram[bucket as Usize];
+            }
+            bucket += 1u32;
+        }
+        erg threshold_label: String = "AIE_CODEBOOK false_pairs_theta=";
+        print(text: abs threshold_label);
+        erg threshold_value: Int = threshold as Int;
+        print_int(value: erg threshold_value);
+        erg threshold_separator: String = " count=";
+        print(text: abs threshold_separator);
+        erg false_pair_value: Int = false_pair_count as Int;
+        print_int(value: erg false_pair_value);
+        threshold += 1u32;
+    }
     erg elapsed_label: String = "AIE_CODEBOOK elapsed_ns=";
     print(text: abs elapsed_label);
     erg elapsed_value: Int = (finished - started) as Int;

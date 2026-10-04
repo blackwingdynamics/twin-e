@@ -22,7 +22,8 @@ AIE_CODEBOOK tokens=5000 active_bits=8
 AIE_CODEBOOK max_different_overlap=6
 AIE_CODEBOOK duplicate_pairs=0
 AIE_CODEBOOK invalid_code_count=0
-AIE_CODEBOOK elapsed_ns=95331169
+AIE_CODEBOOK false_pairs_theta=8 count=0
+AIE_CODEBOOK elapsed_ns=94388616
 ```
 
 The executable was built with strict checking and the compiler verified that
@@ -32,6 +33,21 @@ For this sample, the largest overlap between two different token codes was
 six bits. No pair had overlap eight or greater, and every generated code had
 exactly eight set bits. This supports using exact eight-bit matching for this
 initial sample, subject to the limitations below.
+
+The threshold sweep counted different-code pairs that would fire at each
+candidate threshold:
+
+| Threshold | False pairs |
+|---:|---:|
+| 4 | 8,154 |
+| 5 | 353 |
+| 6 | 9 |
+| 7 | 0 |
+| 8 | 0 |
+
+The initial exact-match profile therefore uses `k = 8` and `theta = 8` for
+this sample. Lower thresholds may be useful for noisy input, but they require
+an identity check or a separate noise benchmark before adoption.
 
 ## Limits of this evidence
 

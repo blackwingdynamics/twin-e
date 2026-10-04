@@ -116,6 +116,7 @@ profile, arena size, input masks, and elapsed nanosecond measurements.
 - [x] Add a deterministic integer-only 128-bit token code encoder.
 - [x] Add a 5,000-code pairwise collision benchmark.
 - [x] Verify eight unique active bits per generated code.
+- [x] Add overlap histogram and candidate threshold false-fire counts.
 - [x] Record initial collision evidence and its limits.
 - [ ] Implement persisted subword vocabulary and merge rules.
 - [ ] Add overlap distribution, threshold sweep, and noisy recall evidence.

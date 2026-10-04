@@ -172,11 +172,12 @@ embed text formatting into minicolumn evaluation.
 ## Initial collision evidence
 
 The first codebook benchmark now generates 5,000 deterministic token codes,
-checks that every code contains exactly eight unique active bits, and compares
-all pairs of different codes. The recorded run reported a maximum different
-code overlap of six, zero duplicate pairs, and zero invalid code cardinality.
-The strict executable build also passed the zero-floating-point IR check. The
-full command and limitations are recorded in
+checks that every code contains exactly eight unique active bits, compares all
+pairs of different codes, and counts false pairs for each candidate threshold.
+The recorded run reported a maximum different code overlap of six, zero
+duplicate pairs, zero invalid code cardinality, and zero false pairs at
+`theta=8`. The strict executable build also passed the zero-floating-point IR
+check. The full command and limitations are recorded in
 `docs/benchmarks/codebook-collision.md`.
 
 This is a useful gate for the initial profile, not a final language-model
