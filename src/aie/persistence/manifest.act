@@ -364,3 +364,48 @@ open verb read_manifest(abs path: Path) -> Result[Int, IoError] {
         Result.Ok(bytes) => read_manifest_bytes(bytes: dat bytes),
     };
 }
+
+verb load_selected_shard(
+    ins fabric: CorticalFabric[64],
+    abs location: ColumnLocation,
+    abs shard_zero_path: Path,
+    abs shard_one_path: Path
+) -> Result[Int, IoError] {
+    erg zero_id: u32 = 0u32;
+    erg one_id: u32 = 1u32;
+    if location.shard_id == zero_id {
+        return read_shard(fabric: ins fabric, path: abs shard_zero_path, shard_id: erg zero_id);
+    }
+    if location.shard_id == one_id {
+        return read_shard(fabric: ins fabric, path: abs shard_one_path, shard_id: erg one_id);
+    }
+    return Err(IoError.InvalidInput);
+}
+
+verb load_selected_shard_from_manifest(
+    ins fabric: CorticalFabric[64],
+    abs manifest_bytes: Buffer,
+    abs shard_zero_path: Path,
+    abs shard_one_path: Path,
+    erg global_index: u32
+) -> Result[Int, IoError] {
+    erg location_result = manifest_locate_column(bytes: abs manifest_bytes, global_index: erg global_index);
+    return case dat location_result {
+        Result.Err(error) => Err(error),
+        Result.Ok(location) => load_selected_shard(fabric: ins fabric, location: abs location, shard_zero_path: abs shard_zero_path, shard_one_path: abs shard_one_path),
+    };
+}
+
+open verb load_column_from_shards(
+    ins fabric: CorticalFabric[64],
+    abs manifest_path: Path,
+    abs shard_zero_path: Path,
+    abs shard_one_path: Path,
+    erg global_index: u32
+) -> Result[Int, IoError] {
+    erg loaded = read_to_bytes(path: abs manifest_path);
+    return case dat loaded {
+        Result.Err(error) => Err(error),
+        Result.Ok(bytes) => load_selected_shard_from_manifest(fabric: ins fabric, manifest_bytes: abs bytes, shard_zero_path: abs shard_zero_path, shard_one_path: abs shard_one_path, global_index: erg global_index),
+    };
+}
