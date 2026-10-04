@@ -1,6 +1,28 @@
 """Byte-token transition adapter used before subword vocabulary support."""
 import config;
 
+import std::string;
+
+"""One bounded tokenizer output with source position metadata."""
+open struct Token {
+    erg id: u32,
+    erg byte_offset: u32,
+    erg byte_length: u16,
+    erg tokenizer_version: u16,
+}
+
+"""Bounded tokenizer output for one String input.
+
+The sequence owns its fixed token storage. `length` contains the number of
+valid entries, and `valid` is false when the input exceeds the configured
+bound or contains an invalid byte access.
+"""
+open struct TokenSequence {
+    erg tokens: Array[Token, 256],
+    erg length: u32,
+    erg valid: Bool,
+}
+
 """Map one validated byte to its deterministic transition token ID."""
 open verb byte_token_id(erg value: u8) -> u32 {
     return value as u32;
@@ -9,4 +31,42 @@ open verb byte_token_id(erg value: u8) -> u32 {
 """Create one byte token with its source position and version metadata."""
 open verb byte_token(erg value: u8, erg offset: u32) -> Token {
     return Token {id: byte_token_id(value: erg value), byte_offset: offset, byte_length: 1u16, tokenizer_version: TOKENIZER_VERSION};
+}
+
+"""Tokenize a bounded String through the current byte-token adapter."""
+open verb tokenize_string(abs text: String) -> TokenSequence {
+    erg sequence: TokenSequence = TokenSequence {tokens: Array[Token, 256](), length: 0u32, valid: true};
+    erg length_result = string_length(text: abs text);
+    erg text_length: u32 = case dat length_result {
+        Result.Ok(value) => value as u32,
+        Result.Err(_) => 0u32,
+    };
+    if text_length > TOKENIZER_MAX_BYTES {
+        sequence.valid = false;
+        return sequence;
+    }
+    erg position: u32 = 0u32;
+    loop {
+        if position >= text_length {
+            break;
+        }
+        erg byte_index: Int = position as Int;
+        erg byte_result = string_byte_at(text: abs text, index: erg byte_index);
+        erg token: Token = Token {id: 0u32, byte_offset: 0u32, byte_length: 0u16, tokenizer_version: TOKENIZER_VERSION};
+        case dat byte_result {
+            Result.Ok(value) => {
+                erg byte_id: u32 = value as u32;
+                token = Token {id: byte_id, byte_offset: position + 0u32, byte_length: 1u16, tokenizer_version: TOKENIZER_VERSION};
+            },
+            Result.Err(_) => {},
+        };
+        if token.byte_length == 0u16 {
+            sequence.valid = false;
+            return sequence;
+        }
+        sequence.tokens[position as Usize] = token;
+        sequence.length = position + 1u32;
+        position += 1u32;
+    }
+    return sequence;
 }

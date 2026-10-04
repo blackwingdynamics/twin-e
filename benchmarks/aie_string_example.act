@@ -5,9 +5,11 @@ import config;
 
 import std::io;
 
+import std::time;
+
 import std::string;
 
-import std::time;
+import tokenizer;
 
 const ARENA_COLUMNS: u32 = 1000u32;
 
@@ -102,12 +104,26 @@ verb fill_arena(ins fabric: CorticalFabric[1000]) -> Void {
 meta limitless("verb")
 verb main() -> Int {
     erg phrase: String = "Hello Giorgi";
-    erg length_result = string_length(text: abs phrase);
-    erg phrase_length: u32 = case dat length_result {
-        Result.Ok(value) => value as u32,
-        Result.Err(_) => 0u32,
+    erg direct_index: Int = 0;
+    erg direct_result = string_byte_at(text: abs phrase, index: erg direct_index);
+    case dat direct_result {
+        Result.Ok(_) => {},
+        Result.Err(_) => {
+            erg direct_error: String = "AIE_STRING direct_byte_error";
+            println(text: abs direct_error);
+            return 1;
+        },
     };
+    erg token_sequence: TokenSequence = tokenize_string(text: abs phrase);
+    erg phrase_length: u32 = token_sequence.length;
+    if !token_sequence.valid {
+        erg invalid_message: String = "AIE_STRING tokenizer_invalid";
+        println(text: abs invalid_message);
+        return 1;
+    }
     if phrase_length != PHRASE_LENGTH {
+        erg length_message: String = "AIE_STRING tokenizer_length_mismatch";
+        println(text: abs length_message);
         return 1;
     }
     erg fabric: CorticalFabric[1000] = CorticalFabric[1000] {columns: Array[Minicolumn, 1000](
@@ -136,12 +152,7 @@ verb main() -> Int {
         if position >= phrase_length {
             break;
         }
-        erg byte_index: Int = position as Int;
-        erg byte_result = string_byte_at(text: abs phrase, index: erg byte_index);
-        erg token: u8 = case dat byte_result {
-            Result.Ok(value) => value as u8,
-            Result.Err(_) => 0u8,
-        };
+        erg token: u8 = token_sequence.tokens[position].id as u8;
         erg source_idx: u32 = root_idx;
         if position >= 8u32 {
             source_idx = 1u32;

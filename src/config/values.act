@@ -44,6 +44,9 @@ open const BRAIN_PAYLOAD_BYTES: u32 = 4096u32;
 open const TOKENIZER_VERSION: u16 = 1u16;
 
 
+open const TOKENIZER_MAX_BYTES: u32 = 256u32;
+
+
 open const TOKEN_CODE_VERSION: u16 = 1u16;
 
 
