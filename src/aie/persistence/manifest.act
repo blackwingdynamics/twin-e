@@ -38,6 +38,12 @@ open struct ManifestDescriptor {
     erg state: u32,
 }
 
+open struct ColumnLocation {
+    erg global_index: u32,
+    erg shard_id: u32,
+    erg local_index: u32,
+}
+
 verb append_manifest_u16(ins output: Buffer, abs value: u16) {
     append(output, value as u8);
     append(output, ((value as u32 / 256u32) & 255u32) as u8);
@@ -109,6 +115,49 @@ open verb manifest_descriptor_is_valid(
     erg expected_id: u32
 ) -> Bool {
     return descriptor.shard_id == expected_id && descriptor.first_column_index == (expected_id * BRAIN_SHARD_COLUMN_COUNT) && descriptor.column_count == BRAIN_SHARD_COLUMN_COUNT && descriptor.payload_offset == BRAIN_SHARD_HEADER_BYTES && descriptor.payload_bytes == BRAIN_SHARD_COLUMN_PAYLOAD_BYTES && descriptor.binding_offset == 0u32 && descriptor.binding_bytes == BRAIN_SHARD_BINDING_PAYLOAD_BYTES && descriptor.state == 1u32;
+}
+
+open verb manifest_locate_column(abs bytes: Buffer, erg global_index: u32) -> Result[ColumnLocation, IoError] {
+    erg length_result = buffer_length(buffer: abs bytes);
+    erg length: Int = case dat length_result {
+        Result.Ok(value) => value,
+        Result.Err(_) => -1,
+    };
+    if length != BRAIN_MANIFEST_FILE_BYTES as Int {
+        return Err(IoError.InvalidData);
+    }
+    erg offset_magic: u32 = 0u32;
+    erg offset_version: u32 = 4u32;
+    erg offset_shard_count: u32 = 28u32;
+    erg offset_checksum: u32 = 44u32;
+    erg offset_zero_first: u32 = 68u32;
+    erg offset_zero_count: u32 = 72u32;
+    erg offset_one_first: u32 = 108u32;
+    erg offset_one_count: u32 = 112u32;
+    erg stored_checksum: u64 = read_manifest_u64(input: abs bytes, offset: abs offset_checksum);
+    erg actual_checksum: u64 = manifest_checksum(input: abs bytes);
+    if stored_checksum != actual_checksum || read_manifest_u32(input: abs bytes, offset: abs offset_magic) != BRAIN_MANIFEST_MAGIC || read_manifest_u16(input: abs bytes, offset: abs offset_version) != BRAIN_MANIFEST_VERSION || read_manifest_u32(input: abs bytes, offset: abs offset_shard_count) != BRAIN_MANIFEST_SHARD_COUNT {
+        return Err(IoError.InvalidData);
+    }
+    erg first_zero: u32 = read_manifest_u32(input: abs bytes, offset: abs offset_zero_first);
+    erg count_zero: u32 = read_manifest_u32(input: abs bytes, offset: abs offset_zero_count);
+    erg first_one: u32 = read_manifest_u32(input: abs bytes, offset: abs offset_one_first);
+    erg count_one: u32 = read_manifest_u32(input: abs bytes, offset: abs offset_one_count);
+    erg query_zero_a: u32 = global_index + 0u32;
+    erg query_zero_b: u32 = global_index + 0u32;
+    erg query_zero_field: u32 = global_index + 0u32;
+    erg query_one_a: u32 = global_index + 0u32;
+    erg query_one_b: u32 = global_index + 0u32;
+    erg query_one_field: u32 = global_index + 0u32;
+    if query_zero_a >= first_zero && query_zero_b < first_zero + count_zero {
+        erg local_zero: u32 = query_zero_field - first_zero;
+        return Ok(ColumnLocation {global_index: query_zero_field, shard_id: 0u32, local_index: local_zero});
+    }
+    if query_one_a >= first_one && query_one_b < first_one + count_one {
+        erg local_one: u32 = query_one_field - first_one;
+        return Ok(ColumnLocation {global_index: query_one_field, shard_id: 1u32, local_index: local_one});
+    }
+    return Err(IoError.InvalidInput);
 }
 
 verb manifest_io_error(dat error: IoError) -> Result[Int, IoError] {
