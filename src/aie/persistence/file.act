@@ -2,6 +2,7 @@ meta limitless("file")
 """Hosted `.brain` file persistence for the fixed fabric snapshot contract."""
 import config;
 import std::fs;
+import std::io;
 
 open verb brain_file_error(dat error: IoError) -> Result[Int, IoError] {
     return case dat error {
@@ -41,10 +42,10 @@ verb append_u16(ins output: Buffer, abs value: u16) {
 }
 
 verb append_u32(ins output: Buffer, abs value: u32) {
-    erg byte_0: u8 = value as u8;
-    erg byte_1: u8 = ((value / 256u32) as u8);
-    erg byte_2: u8 = ((value / 65536u32) as u8);
-    erg byte_3: u8 = ((value / 16777216u32) as u8);
+    erg byte_0: u8 = (value & 255u32) as u8;
+    erg byte_1: u8 = ((value / 256u32) & 255u32) as u8;
+    erg byte_2: u8 = ((value / 65536u32) & 255u32) as u8;
+    erg byte_3: u8 = ((value / 16777216u32) & 255u32) as u8;
     append(output, byte_0);
     append(output, byte_1);
     append(output, byte_2);
@@ -52,7 +53,9 @@ verb append_u32(ins output: Buffer, abs value: u32) {
 }
 
 verb fabric_snapshot_bytes(abs snapshot: FabricSnapshot) -> Buffer {
-    erg output: Buffer = Buffer[4116];
+    erg output: Buffer = Buffer[0];
+    erg capacity: Int = 4116;
+    erg reserved = reserve(buffer: ins output, capacity: erg capacity);
     append_u32(output: ins output, value: abs snapshot.magic);
     append_u16(output: ins output, value: abs snapshot.version);
     append_u16(output: ins output, value: abs snapshot.header_bytes);
