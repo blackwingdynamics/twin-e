@@ -64,6 +64,13 @@ verb make_payload(erg marker: u8) -> Buffer {
     return payload;
 }
 
+verb write_payload_u32(ins output: Buffer, abs offset: u32, abs value: u32) {
+    output[offset] = (value & 255u32) as u8;
+    output[offset + 1u32] = ((value / 256u32) & 255u32) as u8;
+    output[offset + 2u32] = ((value / 65536u32) & 255u32) as u8;
+    output[offset + 3u32] = ((value / 16777216u32) & 255u32) as u8;
+}
+
 verb write_status(abs path: Path, erg shard_id: u32, erg first_column: u32, abs payload: Buffer) -> Int {
     erg column_count: u32 = 2u32;
     erg result = write_dynamic_shard(path: abs path, shard_id: erg shard_id, first_column_index: erg first_column, column_count: erg column_count, payload: abs payload);
@@ -141,9 +148,9 @@ verb build_manifest_descriptors() -> Buffer {
     erg id_zero: u32 = 0u32;
     erg id_one: u32 = 1u32;
     erg id_two: u32 = 2u32;
-    erg checksum_zero: u64 = 10u64;
-    erg checksum_one: u64 = 20u64;
-    erg checksum_two: u64 = 30u64;
+    erg checksum_zero: u64 = 184630u64;
+    erg checksum_one: u64 = 124970u64;
+    erg checksum_two: u64 = 59942u64;
     append_manifest_descriptor(output: ins descriptors, shard_id: erg id_zero, checksum: erg checksum_zero);
     append_manifest_descriptor(output: ins descriptors, shard_id: erg id_one, checksum: erg checksum_one);
     append_manifest_descriptor(output: ins descriptors, shard_id: erg id_two, checksum: erg checksum_two);
@@ -254,6 +261,76 @@ verb verify_dynamic_loader(abs manifest_path: Path, abs path_zero: Path, abs pat
     return 0;
 }
 
+verb verify_free_head_plan(abs value: AllocationPlan) -> Int {
+    if value.global_index != 5u32 || value.shard_id != 2u32 || value.local_index != 1u32 || value.creates_shard {
+        return 20;
+    }
+    return 0;
+}
+
+verb read_free_link_path(abs path: Path, erg local_index: u32) -> Result[u32, IoError] {
+    erg loaded = read_to_bytes(path: abs path);
+    return case dat loaded {
+        Result.Err(_) => Err(IoError.Failed),
+        Result.Ok(bytes) => {
+            erg count: u32 = 2u32;
+            return dynamic_shard_free_link(bytes: abs bytes, local_index: erg local_index, expected_column_count: erg count);
+        },
+    };
+}
+
+verb verify_free_links(abs path_zero: Path, abs path_one: Path, abs path_two: Path) -> Int {
+    erg local_one: u32 = 1u32;
+    erg local_zero: u32 = 0u32;
+    erg link_two = read_free_link_path(path: abs path_two, local_index: erg local_one);
+    erg link_two_value: u32 = case dat link_two {
+        Result.Err(_) => NULL_INDEX,
+        Result.Ok(value) => value,
+    };
+    if link_two_value != 2u32 {
+        return 21;
+    }
+    erg link_one = read_free_link_path(path: abs path_one, local_index: erg local_zero);
+    erg link_one_value: u32 = case dat link_one {
+        Result.Err(_) => NULL_INDEX,
+        Result.Ok(value) => value,
+    };
+    if link_one_value != 0u32 {
+        return 22;
+    }
+    erg link_zero = read_free_link_path(path: abs path_zero, local_index: erg local_zero);
+    erg link_zero_value: u32 = case dat link_zero {
+        Result.Err(_) => 0u32,
+        Result.Ok(value) => value,
+    };
+    if link_zero_value != NULL_INDEX {
+        return 23;
+    }
+    return 0;
+}
+
+verb verify_planned_free_chain(abs value: AllocationPlan, abs path_zero: Path, abs path_one: Path, abs path_two: Path) -> Int {
+    erg plan_status: Int = verify_free_head_plan(value: abs value);
+    if plan_status != 0 {
+        return plan_status;
+    }
+    return verify_free_links(path_zero: abs path_zero, path_one: abs path_one, path_two: abs path_two);
+}
+
+verb verify_free_chain(abs manifest_path: Path, abs path_zero: Path, abs path_one: Path, abs path_two: Path) -> Int {
+    erg loaded = read_to_bytes(path: abs manifest_path);
+    return case dat loaded {
+        Result.Err(_) => 24,
+        Result.Ok(manifest) => {
+            erg planned = plan_dynamic_free_list(bytes: abs manifest);
+            return case dat planned {
+                Result.Err(_) => 25,
+                Result.Ok(value) => verify_planned_free_chain(value: abs value, path_zero: abs path_zero, path_one: abs path_one, path_two: abs path_two),
+            };
+        },
+    };
+}
+
 verb verify_manifest_bindings(abs manifest_path: Path, abs path_zero: Path, abs path_one: Path, abs path_two: Path) -> Int {
     if write_manifest_status(path: abs manifest_path) != 0 {
         return 10;
@@ -282,6 +359,17 @@ verb write_all(abs path_zero: Path, abs path_one: Path, abs path_two: Path) -> I
     erg payload_zero: Buffer = make_payload(marker: erg marker_zero);
     erg payload_one: Buffer = make_payload(marker: erg marker_one);
     erg payload_two: Buffer = make_payload(marker: erg marker_two);
+    erg null_index_value: u32 = NULL_INDEX;
+    erg first_free_global: u32 = 0u32;
+    erg second_free_global: u32 = 2u32;
+    erg first_link_offset: u32 = 56u32;
+    erg second_link_offset: u32 = 120u32;
+    write_payload_u32(output: ins payload_zero, offset: abs first_link_offset, value: abs null_index_value);
+    write_payload_u32(output: ins payload_zero, offset: abs second_link_offset, value: abs null_index_value);
+    write_payload_u32(output: ins payload_one, offset: abs first_link_offset, value: abs first_free_global);
+    write_payload_u32(output: ins payload_one, offset: abs second_link_offset, value: abs null_index_value);
+    write_payload_u32(output: ins payload_two, offset: abs first_link_offset, value: abs null_index_value);
+    write_payload_u32(output: ins payload_two, offset: abs second_link_offset, value: abs second_free_global);
     erg zero_id: u32 = 0u32;
     erg one_id: u32 = 1u32;
     erg two_id: u32 = 2u32;
@@ -323,7 +411,11 @@ verb run_paths(abs path_zero: Path, abs path_one: Path, abs path_two: Path, abs 
     if loader_status != 0 {
         return loader_status;
     }
-    erg message: String = "AIE_SHARDS_DYNAMIC files=3 generated=1 validated=3 manifest_bound=2 swapped_rejected=1 dynamic_loaded=1 manifest_selected=1 dynamic_failed_unchanged=1 payload_bytes=128";
+    erg chain_status: Int = verify_free_chain(manifest_path: abs manifest_path, path_zero: abs path_zero, path_one: abs path_one, path_two: abs path_two);
+    if chain_status != 0 {
+        return chain_status;
+    }
+    erg message: String = "AIE_SHARDS_DYNAMIC files=3 generated=1 validated=3 manifest_bound=2 swapped_rejected=1 dynamic_loaded=1 manifest_selected=1 dynamic_failed_unchanged=1 free_chain=5-2-0-null payload_bytes=128";
     println(text: abs message);
     return 0;
 }

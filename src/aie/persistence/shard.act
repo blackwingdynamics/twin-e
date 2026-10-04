@@ -423,3 +423,25 @@ open verb load_dynamic_shard_bytes[N: Usize](
     drop(bytes);
     return Ok(length);
 }
+
+open verb dynamic_shard_free_link(
+    abs bytes: Buffer,
+    erg local_index: u32,
+    erg expected_column_count: u32
+) -> Result[u32, IoError] {
+    if expected_column_count == 0u32 || local_index >= expected_column_count || expected_column_count > BRAIN_SHARD_DYNAMIC_MAX_COLUMNS {
+        return Err(IoError.InvalidInput);
+    }
+    erg payload_bytes: u32 = expected_column_count * BRAIN_SHARD_COLUMN_STRIDE_BYTES as u32;
+    erg expected_length: u32 = BRAIN_SHARD_HEADER_BYTES as u32 + payload_bytes;
+    erg length_result = buffer_length(buffer: abs bytes);
+    erg length: Int = case dat length_result {
+        Result.Ok(value) => value,
+        Result.Err(_) => -1,
+    };
+    if length != expected_length as Int {
+        return Err(IoError.InvalidData);
+    }
+    erg link_offset: u32 = BRAIN_SHARD_HEADER_BYTES as u32 + (local_index * BRAIN_SHARD_COLUMN_STRIDE_BYTES as u32) + 56u32;
+    return Ok(read_shard_u32(input: abs bytes, offset: abs link_offset));
+}

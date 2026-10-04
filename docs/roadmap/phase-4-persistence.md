@@ -116,6 +116,8 @@ selective_load=1
   allocator header fields.
 - [x] Resolve the persisted free-list head into a deterministic shard and local
   allocation plan.
+- [x] Traverse a persisted free-list chain across three shard payloads and
+  terminate at the null index.
 - [ ] Verify allocation, free, restore, and reallocation across multiple shards.
 
 ## P4S.7 — Generation and crash recovery
