@@ -1,0 +1,159 @@
+"""Bounded metadata cache for disk-backed shard working sets."""
+import config;
+
+open enum ShardCacheError {
+    Missing,
+    Dirty,
+    Pinned,
+    NoEvictable,
+}
+
+open struct ShardCacheEntry {
+    erg shard_id: u32,
+    erg generation: u64,
+    erg last_use: u64,
+    erg checksum: u64,
+    erg pin_count: u16,
+    erg loaded: Bool,
+    erg dirty: Bool,
+}
+
+open struct ShardCache {
+    erg entries: Array[ShardCacheEntry, 4],
+    erg clock: u64,
+}
+
+verb empty_entry() -> ShardCacheEntry {
+    return ShardCacheEntry {shard_id: 0u32, generation: 0u64, last_use: 0u64, checksum: 0u64, pin_count: 0u16, loaded: false, dirty: false};
+}
+
+open verb shard_cache_init(ins cache: ShardCache) -> Void {
+    erg index: u8 = 0u8;
+    loop {
+        if index >= BRAIN_CACHE_CAPACITY {
+            break;
+        }
+        cache.entries[index as Usize] = empty_entry();
+        index += 1u8;
+    }
+    cache.clock = 0u64;
+}
+
+open verb shard_cache_find(abs cache: ShardCache, erg shard_id: u32) -> Option[u8] {
+    erg index: u8 = 0u8;
+    loop {
+        if index >= BRAIN_CACHE_CAPACITY {
+            break;
+        }
+        if cache.entries[index as Usize].loaded && cache.entries[index as Usize].shard_id == shard_id {
+            return Option[u8].Some(index);
+        }
+        index += 1u8;
+    }
+    return Option[u8].None;
+}
+
+verb cache_next_clock(ins cache: ShardCache) -> u64 {
+    cache.clock += 1u64;
+    return cache.clock;
+}
+
+open verb shard_cache_touch(ins cache: ShardCache, erg slot: u8) -> Result[Int, ShardCacheError] {
+    if slot >= BRAIN_CACHE_CAPACITY || !cache.entries[slot as Usize].loaded {
+        return Result[Int, ShardCacheError].Err(ShardCacheError.Missing);
+    }
+    erg stamp: u64 = cache_next_clock(cache: ins cache);
+    cache.entries[slot as Usize].last_use = stamp;
+    return Result[Int, ShardCacheError].Ok(0);
+}
+
+open verb shard_cache_pin(ins cache: ShardCache, erg slot: u8) -> Result[Int, ShardCacheError] {
+    if slot >= BRAIN_CACHE_CAPACITY || !cache.entries[slot as Usize].loaded {
+        return Result[Int, ShardCacheError].Err(ShardCacheError.Missing);
+    }
+    cache.entries[slot as Usize].pin_count += 1u16;
+    return Result[Int, ShardCacheError].Ok(0);
+}
+
+open verb shard_cache_unpin(ins cache: ShardCache, erg slot: u8) -> Result[Int, ShardCacheError] {
+    if slot >= BRAIN_CACHE_CAPACITY || !cache.entries[slot as Usize].loaded {
+        return Result[Int, ShardCacheError].Err(ShardCacheError.Missing);
+    }
+    if cache.entries[slot as Usize].pin_count == 0u16 {
+        return Result[Int, ShardCacheError].Err(ShardCacheError.Pinned);
+    }
+    cache.entries[slot as Usize].pin_count -= 1u16;
+    return Result[Int, ShardCacheError].Ok(0);
+}
+
+open verb shard_cache_mark_dirty(ins cache: ShardCache, erg slot: u8) -> Result[Int, ShardCacheError] {
+    if slot >= BRAIN_CACHE_CAPACITY || !cache.entries[slot as Usize].loaded {
+        return Result[Int, ShardCacheError].Err(ShardCacheError.Missing);
+    }
+    cache.entries[slot as Usize].dirty = true;
+    return Result[Int, ShardCacheError].Ok(0);
+}
+
+open verb shard_cache_evict(ins cache: ShardCache, erg slot: u8) -> Result[Int, ShardCacheError] {
+    if slot >= BRAIN_CACHE_CAPACITY || !cache.entries[slot as Usize].loaded {
+        return Result[Int, ShardCacheError].Err(ShardCacheError.Missing);
+    }
+    if cache.entries[slot as Usize].dirty {
+        return Result[Int, ShardCacheError].Err(ShardCacheError.Dirty);
+    }
+    if cache.entries[slot as Usize].pin_count > 0u16 {
+        return Result[Int, ShardCacheError].Err(ShardCacheError.Pinned);
+    }
+    cache.entries[slot as Usize] = empty_entry();
+    return Result[Int, ShardCacheError].Ok(0);
+}
+
+open verb shard_cache_insert(
+    ins cache: ShardCache,
+    erg shard_id: u32,
+    erg generation: u64,
+    erg checksum: u64
+) -> Result[u8, ShardCacheError] {
+    erg existing = shard_cache_find(cache: abs cache, shard_id: erg shard_id);
+    case existing {
+        Option.Some(slot) => {
+            cache.entries[slot as Usize].generation = generation;
+            cache.entries[slot as Usize].checksum = checksum;
+            erg existing_slot: u8 = slot + 0u8;
+            erg touched = shard_cache_touch(cache: ins cache, slot: erg existing_slot);
+            return case dat touched {
+                Result.Err(error) => Err(error),
+                Result.Ok(_) => Ok(existing_slot),
+            };
+        },
+        Option.None => {},
+    };
+    erg free_slot: u8 = BRAIN_CACHE_CAPACITY;
+    erg victim: u8 = BRAIN_CACHE_CAPACITY;
+    erg oldest: u64 = 18446744073709551615u64;
+    erg index: u8 = 0u8;
+    loop {
+        if index >= BRAIN_CACHE_CAPACITY {
+            break;
+        }
+        if !cache.entries[index as Usize].loaded {
+            free_slot = index;
+            break;
+        }
+        if !cache.entries[index as Usize].dirty && cache.entries[index as Usize].pin_count == 0u16 && cache.entries[index as Usize].last_use < oldest {
+            oldest = cache.entries[index as Usize].last_use;
+            victim = index;
+        }
+        index += 1u8;
+    }
+    erg slot: u8 = free_slot;
+    if slot >= BRAIN_CACHE_CAPACITY {
+        if victim >= BRAIN_CACHE_CAPACITY {
+            return Result[u8, ShardCacheError].Err(ShardCacheError.NoEvictable);
+        }
+        slot = victim;
+    }
+    erg stamp: u64 = cache_next_clock(cache: ins cache);
+    cache.entries[slot as Usize] = ShardCacheEntry {shard_id: shard_id, generation: generation, last_use: stamp, checksum: checksum, pin_count: 0u16, loaded: true, dirty: false};
+    return Result[u8, ShardCacheError].Ok(slot);
+}

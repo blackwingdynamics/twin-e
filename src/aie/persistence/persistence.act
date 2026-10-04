@@ -8,3 +8,5 @@ open file;
 open shard;
 
 open manifest;
+
+open cache;
