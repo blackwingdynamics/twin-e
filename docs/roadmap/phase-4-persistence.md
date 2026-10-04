@@ -130,12 +130,18 @@ AIE_SHARD_BINDINGS_DYNAMIC columns=2 bindings=2 stride=24 validated=1
 
 - [ ] Write changed shards to temporary generation files.
 - [ ] Validate every temporary shard before publication.
-- [ ] Write and validate a new manifest generation.
-- [ ] Publish the new generation atomically through the supported filesystem
+- [x] Write and validate a new manifest generation.
+- [x] Publish the new generation atomically through the supported filesystem
   API.
-- [ ] Keep the previous complete generation recoverable during interruption.
-- [ ] Select the newest complete valid generation at startup.
-- [ ] Add interruption and stale-generation recovery fixtures.
+- [x] Keep the previous complete generation recoverable during interruption.
+- [x] Select the newest complete valid generation at startup.
+- [x] Add interruption and stale-generation recovery fixtures.
+
+Evidence:
+
+```text
+AIE_MANIFEST_DYNAMIC generation_publish=1 newest_generation=10 stale_rejected=1
+```
 
 ## P4S.8 — Scale and operational evidence
 

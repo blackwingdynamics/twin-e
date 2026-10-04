@@ -1,6 +1,7 @@
 meta limitless("file")
 """Prove that manifest descriptors are generated and located dynamically."""
 import aie;
+import std::fs;
 import std::io;
 import std::path;
 
@@ -41,6 +42,25 @@ verb manifest_path() -> Result[Path, PathError] {
     append_dynamic_path_prefix(raw: ins raw);
     append(raw, 45u8);
     append(raw, 50u8);
+    append(raw, 46u8);
+    append(raw, 98u8);
+    append(raw, 114u8);
+    append(raw, 97u8);
+    append(raw, 105u8);
+    append(raw, 110u8);
+    append(raw, 0u8);
+    return path_from_ascii(storage: dat raw);
+}
+
+verb generation_path(abs marker: u8) -> Result[Path, PathError] {
+    erg raw = Buffer[0];
+    append_dynamic_path_prefix(raw: ins raw);
+    append(raw, 45u8);
+    append(raw, 103u8);
+    append(raw, 101u8);
+    append(raw, 110u8);
+    append(raw, 45u8);
+    append(raw, marker + 48u8);
     append(raw, 46u8);
     append(raw, 98u8);
     append(raw, 114u8);
@@ -289,6 +309,114 @@ verb rejects_invalid_descriptor(abs path: Path) -> Int {
     };
 }
 
+verb write_generation(abs path: Path, erg generation: u64, abs descriptors: Buffer) -> Result[Int, IoError] {
+    erg active_count: u32 = 3u32;
+    erg free_list_head: u32 = 5u32;
+    erg total_columns: u32 = 96u32;
+    erg shard_count: u32 = 3u32;
+    return write_manifest_dynamic(path: abs path, generation: erg generation, active_count: erg active_count, free_list_head: erg free_list_head, total_column_count: erg total_columns, shard_count: erg shard_count, descriptors: abs descriptors);
+}
+
+verb complete_generation_recovery(abs primary: Path, abs fallback: Path, abs staged: Path) -> Int {
+    erg descriptors: Buffer = build_descriptors();
+    erg old_generation: u64 = 8u64;
+    erg new_generation: u64 = 10u64;
+    erg old_saved = write_generation(path: abs fallback, generation: erg old_generation, descriptors: abs descriptors);
+    erg old_status: Int = case dat old_saved {
+        Result.Err(_) => 15,
+        Result.Ok(_) => 0,
+    };
+    if old_status != 0 {
+        return old_status;
+    } else {
+    }
+    erg staged_saved = write_generation(path: abs staged, generation: erg new_generation, descriptors: abs descriptors);
+    erg staged_status: Int = case dat staged_saved {
+        Result.Err(_) => 16,
+        Result.Ok(_) => 0,
+    };
+    if staged_status != 0 {
+        return staged_status;
+    } else {
+    }
+    erg published = publish_dynamic_manifest(staged: abs staged, active: abs primary);
+    erg published_status: Int = case dat published {
+        Result.Err(_) => 17,
+        Result.Ok(_) => 0,
+    };
+    if published_status != 0 {
+        return published_status;
+    } else {
+    }
+    erg selected = select_dynamic_manifest_generation(primary: abs primary, fallback: abs fallback);
+    erg selected_status: Int = case dat selected {
+        Result.Err(_) => 18,
+        Result.Ok(choice) => case choice.slot {
+            0 => if choice.generation == new_generation { 0 } else { 19 },
+            _ => 19,
+        },
+    };
+    if selected_status != 0 {
+        return selected_status;
+    } else {
+    }
+    erg invalid: Buffer = Buffer[1];
+    invalid[0u32] = 0u8;
+    erg invalid_saved = write_file(path: abs staged, contents: abs invalid);
+    erg invalid_status: Int = case dat invalid_saved {
+        Result.Err(_) => 20,
+        Result.Ok(_) => 0,
+    };
+    if invalid_status != 0 {
+        return invalid_status;
+    } else {
+    }
+    erg rejected = publish_dynamic_manifest(staged: abs staged, active: abs primary);
+    erg rejected_status: Int = case dat rejected {
+        Result.Ok(_) => 21,
+        Result.Err(_) => 0,
+    };
+    if rejected_status != 0 {
+        return rejected_status;
+    } else {
+    }
+    erg after_rejected = select_dynamic_manifest_generation(primary: abs primary, fallback: abs fallback);
+    return case dat after_rejected {
+        Result.Err(_) => 22,
+        Result.Ok(choice) => case choice.slot {
+            0 => if choice.generation == new_generation { 0 } else { 22 },
+            _ => 22,
+        },
+    };
+}
+
+verb resolve_staged_generation(abs primary: Path, abs fallback: Path) -> Int {
+    erg staged_marker: u8 = 2u8;
+    erg staged_result = generation_path(marker: abs staged_marker);
+    return case dat staged_result {
+        Result.Err(_) => 14,
+        Result.Ok(resolved_staged) => complete_generation_recovery(primary: abs primary, fallback: abs fallback, staged: abs resolved_staged),
+    };
+}
+
+verb resolve_fallback_generation(abs primary: Path) -> Int {
+    erg fallback_marker: u8 = 1u8;
+    erg fallback_result = generation_path(marker: abs fallback_marker);
+    return case dat fallback_result {
+        Result.Err(_) => 13,
+        Result.Ok(fallback) => resolve_staged_generation(primary: abs primary, fallback: abs fallback),
+    };
+}
+
+verb run_generation_recovery() -> Int {
+    erg primary_marker: u8 = 0u8;
+    erg primary_result = generation_path(marker: abs primary_marker);
+    return case dat primary_result {
+        Result.Err(_) => 12,
+        Result.Ok(primary) => resolve_fallback_generation(primary: abs primary),
+    };
+}
+
 verb emit_dynamic(abs path: Path) -> Int {
     erg status: Int = run_dynamic(path: abs path);
     if status != 0 {
@@ -310,7 +438,11 @@ verb emit_dynamic(abs path: Path) -> Int {
     if state_status != 0 {
         return state_status;
     }
-    erg message: String = "AIE_MANIFEST_DYNAMIC shards=3 appended_shard=3 allocation_shard=3 local_index=0 allocator_head=5 allocator_shard=0 allocator_local=5 roundtrip=1";
+    erg recovery_status: Int = run_generation_recovery();
+    if recovery_status != 0 {
+        return recovery_status;
+    }
+    erg message: String = "AIE_MANIFEST_DYNAMIC shards=3 appended_shard=3 allocation_shard=3 local_index=0 allocator_head=5 allocator_shard=0 allocator_local=5 roundtrip=1 generation_publish=1 newest_generation=10 stale_rejected=1";
     println(text: abs message);
     return 0;
 }
