@@ -17,32 +17,50 @@ facade.
 
 ## P3.1 — Real engine API
 
-- [ ] Define the public input API for submitting one `Wavefront` to an active
+- [x] Define the public input API for submitting one `Wavefront` to an active
   frontier.
-- [ ] Define the public result type for fired columns, emitted payloads, and
+- [x] Define the public result type for fired columns, emitted payloads, and
   propagated destinations.
-- [ ] Add one bounded step function that evaluates, forwards, and applies local
+- [x] Add one bounded step function that evaluates, forwards, and applies local
   plasticity for a single wavefront.
-- [ ] Add a bounded clock-step API for homeostatic decay and inhibition reset.
-- [ ] Expose neurogenesis through the public facade with explicit allocation
+- [x] Add a bounded clock-step API for homeostatic decay and inhibition reset.
+- [x] Expose neurogenesis through the public facade with explicit allocation
   failure behavior.
-- [ ] Document ownership roles, mutation boundaries, index validity, and side
+- [x] Document ownership roles, mutation boundaries, index validity, and side
   effects for every public verb.
-- [ ] Add tests for one complete wavefront lifecycle from input to emitted
+- [x] Add tests for one complete wavefront lifecycle from input to emitted
   payload.
-- [ ] Add tests for no-free-slot and invalid-index behavior.
+- [x] Add tests for no-free-slot and invalid-index behavior.
+
+P3.1 evidence: `step_wavefront`, `engine_clock_step`, and `neurogenesis` are
+exported through the AIE facade. The strict suite contains 15 passing tests,
+including public lifecycle, no-free-slot, and invalid-index coverage.
 
 ## P3.2 — Observable executable demo
 
-- [ ] Add a small integer-only demo scenario in the package entry workflow.
-- [ ] Demonstrate a column firing from a matching 128-bit wavefront.
-- [ ] Demonstrate lateral inhibition on a configured neighbor.
-- [ ] Demonstrate neurogenesis and axon attachment for a novel wavefront.
-- [ ] Demonstrate decay and free-list reclamation after idle ticks.
-- [ ] Expose deterministic exit status for success and failure cases.
-- [ ] Document the exact command and expected observable result.
-- [ ] Keep demo output independent of raw pointers, floating point, and host
+- [x] Add a small integer-only demo scenario in the package entry workflow.
+- [x] Demonstrate a column firing from a matching 128-bit wavefront.
+- [x] Demonstrate lateral inhibition on a configured neighbor.
+- [x] Demonstrate neurogenesis and axon attachment for a novel wavefront.
+- [x] Demonstrate decay and free-list reclamation after idle ticks.
+- [x] Expose deterministic exit status for success and failure cases.
+- [x] Document the exact command and expected observable result.
+- [x] Keep demo output independent of raw pointers, floating point, and host
   specific memory addresses.
+
+P3.2 evidence: build and run the package entry with `actus build --strict
+--emit exe -o /tmp/twin-e-p3-2-final.aie` produced the following output and
+exit code `0`:
+
+```text
+AIE_DEMO firing payload=41 destination=2 inhibition=1
+AIE_DEMO neurogenesis linked=1
+AIE_DEMO decay reclaimed=1
+AIE_DEMO complete
+```
+
+The output directly reports firing and payload propagation, lateral
+inhibition, novel-column linking, and decay reclamation.
 
 ## P3.3 — Performance baseline
 

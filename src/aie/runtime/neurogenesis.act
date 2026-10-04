@@ -1,6 +1,13 @@
 import config;
 
-"""Allocate and connect a minicolumn for a novel wavefront."""
+"""Allocate and connect a minicolumn for a novel wavefront.
+
+The caller retains ownership of `fabric` through the exclusive `ins` loan and
+provides the wavefront through `abs`. On success, `Some(index)` identifies the
+seeded and linked column. `None` is returned when the free list is exhausted,
+the source index is invalid or inactive, or all eight source axon slots are
+occupied; an unsuccessful allocation is reclaimed before returning.
+"""
 open verb neurogenesis[N: Usize](
     ins fabric: CorticalFabric[N],
     abs wave: Wavefront,
@@ -14,8 +21,7 @@ open verb neurogenesis[N: Usize](
 }
 
 """Allocate, seed, link, or reclaim one novel minicolumn."""
-meta limitless("verb")
-verb neurogenesis_core[N: Usize](
+open verb neurogenesis_core[N: Usize](
     ins fabric: CorticalFabric[N],
     abs wave: Wavefront,
     erg source_idx: u32

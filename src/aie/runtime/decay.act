@@ -1,6 +1,11 @@
 import config;
 
-"""Advance homeostasis and reclaim idle, weak minicolumns."""
+"""Advance homeostasis and reclaim idle, weak minicolumns.
+
+The caller retains ownership of `fabric` through the exclusive `ins` loan.
+Transient inhibition and refractory state are cleared, idle counters advance,
+and weak columns crossing the configured decay limits return to the free list.
+"""
 open verb global_homeostatic_sweep[N: Usize](ins fabric: CorticalFabric[N]) -> Void {
     erg active_flag: u8 = FLAG_ACTIVE;
     erg refractory_flag: u8 = FLAG_REFRACTORY;
@@ -25,4 +30,14 @@ open verb global_homeostatic_sweep[N: Usize](ins fabric: CorticalFabric[N]) -> V
         }
         i += 1u32;
     }
+}
+
+"""Advance one bounded homeostatic clock step.
+
+The caller retains ownership of `fabric` through the exclusive `ins` loan.
+The step resets transient inhibition and refractory state, advances idle
+counters, and reclaims weak stale columns according to configured policy.
+"""
+open verb engine_clock_step[N: Usize](ins fabric: CorticalFabric[N]) -> Void {
+    global_homeostatic_sweep(fabric: ins fabric);
 }

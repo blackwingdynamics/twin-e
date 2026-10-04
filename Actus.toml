@@ -8,6 +8,7 @@ source_root = "src"
 [build]
 target = "host"
 profile = "debug"
+runtime = "std"
 native_module = "actus"
 position_independent = true
 verify_no_float_ir = true

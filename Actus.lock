@@ -1,3 +1,5 @@
 lockfile_version = 3
-runtime = "core"
+runtime = "std"
+runtime_version = "0.1.0"
+runtime_checksum = "e43501b9bec8c435"
 package = []

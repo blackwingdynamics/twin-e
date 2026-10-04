@@ -1,3 +1,7 @@
+meta limitless("file")
+
+
+"""Coincidence keeps the public wrapper and native lowering core together."""
 import config;
 
 """Evaluate binary coincidence and maintain local firing state."""
@@ -47,8 +51,7 @@ open verb evaluate_minicolumn[N: Usize](
 }
 
 """Evaluate one packed column, update plastic state, and apply inhibition."""
-meta limitless("verb")
-verb evaluate_minicolumn_core[N: Usize](
+open verb evaluate_minicolumn_core[N: Usize](
     ins fabric: CorticalFabric[N],
     abs wave: Wavefront,
     erg target_idx: u32
