@@ -24,7 +24,7 @@ configuration and compiler-parity items that Phase 4 depends on are closed.
 - [x] Define generation EOS, maximum length, deterministic tie-break, and
   loop-guard requirements.
 - [x] Add and verify the 24-byte serialized layout fixture for `TokenBinding`.
-- [ ] Add a context-code cardinality and collision benchmark for context pairs.
+- [x] Add a context-code cardinality and collision benchmark for context pairs.
 
 ## P4.1 — Context-bound AIE state
 
