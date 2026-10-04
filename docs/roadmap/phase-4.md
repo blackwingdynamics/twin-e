@@ -5,6 +5,9 @@ measurable Actus implementations. The phase starts with contracts and
 evidence gates so that context routing, BPE, and generation remain compatible
 with the existing 64-byte AIE core.
 
+**Current status:** Active. Phase 3 remains partially complete while the
+configuration and compiler-parity items that Phase 4 depends on are closed.
+
 ## Status legend
 
 - `[x]` Completed and verified.

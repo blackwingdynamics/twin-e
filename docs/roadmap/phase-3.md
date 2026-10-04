@@ -3,6 +3,10 @@
 Phase 3 turns the verified AIE core into an observable, callable, and
 measurable runtime package.
 
+**Current status:** `[~] Partially complete` — P3.1, P3.2, P3.3, and the
+initial P3.6 tokenizer/codebook foundation are implemented. P3.4, P3.5, and
+the remaining language-input evidence continue alongside Phase 4.
+
 ## Status legend
 
 - `[x]` Completed and verified.
