@@ -1,0 +1,40 @@
+"""Verify a combined fabric and TokenBinding text snapshot round trip."""
+import aie;
+
+import config;
+
+import encoding;
+
+import std::io;
+
+meta limitless("verb")
+verb main() -> Int {
+    erg fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](), free_list_head: 0u32, active_count: 0u32};
+    fabric_init(fabric: ins fabric);
+    erg slot: u32 = allocate_column_index(fabric: ins fabric);
+    fabric.columns[slot].payload = 41u8;
+    fabric.columns[slot].myelination = 7u8;
+    erg bindings: Array[TokenBinding,64] = Array[TokenBinding, 64]();
+    bindings[slot].token_id = 9001u32;
+    bindings[slot].context_key = 72623859790382856u64;
+    bindings[slot].tokenizer_version = TOKENIZER_VERSION;
+    bindings[slot].context_version = CONTEXT_VERSION;
+    bindings[slot].binding_flags = 1u8;
+    erg snapshot: TextSnapshot = serialize_text_snapshot(fabric: abs fabric, bindings: abs bindings);
+    erg restored_fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](
+    ), free_list_head: 0u32, active_count: 0u32};
+    erg restored_bindings: Array[TokenBinding,64] = Array[TokenBinding, 64]();
+    if !deserialize_text_snapshot(
+        fabric: ins restored_fabric,
+        bindings: ins restored_bindings,
+        snapshot: abs snapshot
+    ) {
+        return 1;
+    }
+    if restored_fabric.active_count != 1u32 || restored_fabric.columns[slot].payload != 41u8 || restored_fabric.columns[slot].myelination != 7u8 || restored_bindings[slot].token_id != 9001u32 || restored_bindings[slot].context_key != 72623859790382856u64 || restored_bindings[slot].binding_flags != 1u8 {
+        return 1;
+    }
+    erg heading: String = "AIE_TEXT_SNAPSHOT fabric=1 bindings=1 roundtrip=1";
+    println(text: abs heading);
+    return 0;
+}
