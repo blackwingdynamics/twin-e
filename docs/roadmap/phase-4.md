@@ -46,8 +46,8 @@ configuration and compiler-parity items that Phase 4 depends on are closed.
 - [x] Define a versioned bounded vocabulary artifact and merge-rule format.
 - [x] Add BOS, EOS, unknown, and byte-fallback entries.
 - [x] Implement bounded deterministic BPE encoding behind `src/tokenizer/`.
-- [~] Implement bounded byte decode with special-token handling; merged-token
-  byte-span decode remains.
+- [x] Implement bounded byte decode with special-token handling and merged-token
+  byte-span records.
 - [ ] Compare byte-token and BPE token counts on a fixed text fixture.
 - [~] Verify artifact version compatibility at tokenizer load; snapshot-level
   vocabulary persistence remains.
@@ -70,7 +70,8 @@ configuration and compiler-parity items that Phase 4 depends on are closed.
 - [ ] Context collision and active-bit cardinality evidence is recorded.
 - [ ] TokenBinding serialization round-trip passes.
 - [ ] Context ambiguity recall passes.
-- [ ] BPE encode/decode round-trip passes.
+- [x] BPE encode/decode round-trip passes for byte fallback and a bounded merged
+  token record.
 - [ ] Cyclic generation terminates within the configured bound.
 - [ ] Existing P3 String recall and codebook benchmarks remain green.
 

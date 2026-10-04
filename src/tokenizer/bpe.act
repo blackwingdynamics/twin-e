@@ -1,4 +1,7 @@
 import config;
+import std::io;
+
+open io;
 
 """One deterministic pair merge in a bounded subword vocabulary."""
 open struct BpeMergeRule {
@@ -6,6 +9,12 @@ open struct BpeMergeRule {
     erg right_id: u32,
     erg merged_id: u32,
     erg rank: u32,
+}
+
+open struct BpeTokenRecord {
+    erg token_id: u32,
+    erg byte_length: u8,
+    erg bytes: Array[u8, 8],
 }
 
 """Versioned bounded vocabulary artifact consumed by the BPE encoder."""
@@ -18,6 +27,8 @@ open struct BpeVocabulary {
     erg unknown_token_id: u32,
     erg rule_count: u32,
     erg rules: Array[BpeMergeRule, 128],
+    erg token_count: u32,
+    erg tokens: Array[BpeTokenRecord, 256],
 }
 
 open enum BpeDecodeError {
@@ -27,7 +38,7 @@ open enum BpeDecodeError {
 }
 
 open verb bpe_vocabulary_is_valid(abs vocabulary: BpeVocabulary) -> Bool {
-    return vocabulary.magic == BPE_VOCAB_MAGIC && vocabulary.version == BPE_VOCAB_VERSION && vocabulary.tokenizer_version == TOKENIZER_VERSION && vocabulary.bos_token_id == BPE_BOS_TOKEN_ID && vocabulary.eos_token_id == BPE_EOS_TOKEN_ID && vocabulary.unknown_token_id == BPE_UNKNOWN_TOKEN_ID && vocabulary.rule_count <= BPE_MAX_RULES;
+    return vocabulary.magic == BPE_VOCAB_MAGIC && vocabulary.version == BPE_VOCAB_VERSION && vocabulary.tokenizer_version == TOKENIZER_VERSION && vocabulary.bos_token_id == BPE_BOS_TOKEN_ID && vocabulary.eos_token_id == BPE_EOS_TOKEN_ID && vocabulary.unknown_token_id == BPE_UNKNOWN_TOKEN_ID && vocabulary.rule_count <= BPE_MAX_RULES && vocabulary.token_count <= BPE_MAX_TOKENS;
 }
 
 verb invalid_sequence() -> TokenSequence {
@@ -39,6 +50,28 @@ struct BpeMatch {
     erg rule_index: u32,
     erg rank: u32,
     erg found: Bool,
+}
+
+struct BpeTokenMatch {
+    erg index: u32,
+    erg found: Bool,
+}
+
+verb find_token_record(
+    abs vocabulary: BpeVocabulary,
+    erg token_id: u32
+) -> BpeTokenMatch {
+    erg index: u32 = 0u32;
+    loop {
+        if index >= vocabulary.token_count {
+            break;
+        }
+        if vocabulary.tokens[index].token_id == token_id {
+            return BpeTokenMatch {index: index + 0u32, found: true};
+        }
+        index += 1u32;
+    }
+    return BpeTokenMatch {index: 0u32, found: false};
 }
 
 verb pair_matches(
@@ -232,23 +265,40 @@ open verb bpe_decode_bytes(
         erg token_id: u32 = sequence.tokens[index].id;
         if token_id != vocabulary.bos_token_id && token_id != vocabulary.eos_token_id {
             if token_id > 255u32 {
-                return Err(BpeDecodeError.InvalidToken);
+                erg record: BpeTokenMatch = find_token_record(vocabulary: abs vocabulary, token_id: erg token_id);
+                if !record.found || vocabulary.tokens[record.index].byte_length as u32 > BPE_MAX_TOKEN_BYTES {
+                    return Err(BpeDecodeError.InvalidToken);
+                }
             }
         }
         index += 1u32;
     }
     index = 0u32;
-    erg decoded_length: Int = 0;
     loop {
         if index >= sequence.length {
             break;
         }
         erg token_id: u32 = sequence.tokens[index].id;
         if token_id != vocabulary.bos_token_id && token_id != vocabulary.eos_token_id {
-            append(storage, token_id as u8);
-            decoded_length += 1;
+            if token_id <= 255u32 {
+                append(storage, token_id as u8);
+            } else {
+                erg record: BpeTokenMatch = find_token_record(vocabulary: abs vocabulary, token_id: erg token_id);
+                erg byte: u32 = 0u32;
+                loop {
+                    if byte >= vocabulary.tokens[record.index].byte_length as u32 {
+                        break;
+                    }
+                    append(storage, vocabulary.tokens[record.index].bytes[byte]);
+                    byte += 1u32;
+                }
+            }
         }
         index += 1u32;
     }
-    return Ok(decoded_length);
+    erg stored_length = buffer_length(buffer: abs storage);
+    return case dat stored_length {
+        Result.Ok(value) => Result[Int, BpeDecodeError].Ok(value),
+        Result.Err(_) => Result[Int, BpeDecodeError].Err(BpeDecodeError.InvalidToken),
+    };
 }

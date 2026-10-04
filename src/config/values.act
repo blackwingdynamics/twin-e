@@ -65,6 +65,12 @@ open const TOKENIZER_MAX_BYTES: u32 = 256u32;
 open const BPE_MAX_RULES: u32 = 128u32;
 
 
+open const BPE_MAX_TOKENS: u32 = 256u32;
+
+
+open const BPE_MAX_TOKEN_BYTES: u32 = 8u32;
+
+
 open const BPE_VOCAB_MAGIC: u32 = 1111577410u32;
 
 
