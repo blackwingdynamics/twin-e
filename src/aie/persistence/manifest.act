@@ -44,6 +44,13 @@ open struct ColumnLocation {
     erg local_index: u32,
 }
 
+open struct AllocationPlan {
+    erg global_index: u32,
+    erg shard_id: u32,
+    erg local_index: u32,
+    erg creates_shard: Bool,
+}
+
 verb append_manifest_u16(ins output: Buffer, abs value: u16) {
     append(output, value as u8);
     append(output, ((value as u32 / 256u32) & 255u32) as u8);
@@ -591,4 +598,28 @@ open verb read_manifest_dynamic_bytes(dat bytes: Buffer) -> Result[Int, IoError]
     };
     drop(bytes);
     return Ok(length);
+}
+
+open verb plan_dynamic_allocation(abs bytes: Buffer, erg global_index: u32) -> Result[AllocationPlan, IoError] {
+    if !manifest_dynamic_bytes_are_valid(bytes: abs bytes) {
+        return Err(IoError.InvalidData);
+    }
+    erg total_offset: u32 = 20u32;
+    erg count_offset: u32 = 28u32;
+    erg total_columns: u32 = read_manifest_u32(input: abs bytes, offset: abs total_offset);
+    erg shard_count: u32 = read_manifest_u32(input: abs bytes, offset: abs count_offset);
+    if global_index > total_columns {
+        return Err(IoError.InvalidInput);
+    }
+    if global_index == total_columns {
+        if shard_count >= BRAIN_MANIFEST_DYNAMIC_MAX_SHARDS {
+            return Err(IoError.InvalidInput);
+        }
+        return Ok(AllocationPlan {global_index: global_index, shard_id: shard_count, local_index: 0u32, creates_shard: true});
+    }
+    erg location_result = manifest_locate_column_dynamic(bytes: abs bytes, global_index: erg global_index);
+    return case dat location_result {
+        Result.Err(error) => Err(error),
+        Result.Ok(location) => Ok(AllocationPlan {global_index: location.global_index, shard_id: location.shard_id, local_index: location.local_index, creates_shard: false}),
+    };
 }

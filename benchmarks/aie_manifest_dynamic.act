@@ -96,27 +96,19 @@ verb build_descriptors() -> Buffer {
     return descriptors;
 }
 
-verb verify_dynamic_location(abs value: ColumnLocation) -> Int {
-    if value.shard_id != 2u32 || value.local_index != 1u32 {
+verb verify_dynamic_plan(abs value: AllocationPlan) -> Int {
+    if value.global_index != 96u32 || value.shard_id != 3u32 || value.local_index != 0u32 || !value.creates_shard {
         return 2;
     }
     return 0;
 }
 
-verb validate_dynamic_pair(abs value: ColumnLocation) -> Int {
-    erg location_status: Int = verify_dynamic_location(value: abs value);
-    if location_status != 0 {
-        return location_status;
-    }
-    return 0;
-}
-
 verb validate_dynamic(dat bytes: Buffer) -> Int {
-    erg query: u32 = 65u32;
-    erg location = manifest_locate_column_dynamic(bytes: abs bytes, global_index: erg query);
-    return case dat location {
+    erg query: u32 = 96u32;
+    erg plan = plan_dynamic_allocation(bytes: abs bytes, global_index: erg query);
+    return case dat plan {
         Result.Err(_) => 1,
-        Result.Ok(value) => validate_dynamic_pair(value: abs value),
+        Result.Ok(value) => verify_dynamic_plan(value: abs value),
     };
 }
 
@@ -146,7 +138,7 @@ verb emit_dynamic(abs path: Path) -> Int {
     if status != 0 {
         return status;
     }
-    erg message: String = "AIE_MANIFEST_DYNAMIC shards=3 generated=1 lookup_shard=2 local_index=1 roundtrip=1";
+    erg message: String = "AIE_MANIFEST_DYNAMIC shards=3 allocation_shard=3 local_index=0 creates_shard=1 roundtrip=1";
     println(text: abs message);
     return 0;
 }

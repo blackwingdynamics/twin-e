@@ -78,6 +78,8 @@ selective_load=1
   three-shard manifest.
 - [x] Add a runtime-sized shard payload writer and validate three real shard
   files with independent headers and checksums.
+- [x] Add a manifest-driven allocation planner that maps the next global index
+  to an existing shard or plans the next shard range.
 - [~] Replace the fixed two-shard fabric loader and allocator with the dynamic
   manifest-driven descriptor collection.
 - [ ] Move shard count, capacity, payload sizes, and file size into the global
