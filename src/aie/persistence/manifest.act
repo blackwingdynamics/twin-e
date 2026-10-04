@@ -407,3 +407,188 @@ open verb load_column_from_shards(
         Result.Ok(bytes) => load_selected_shard_from_manifest(fabric: ins fabric, manifest_bytes: abs bytes, shard_zero_path: abs shard_zero_path, shard_one_path: abs shard_one_path, global_index: erg global_index),
     };
 }
+
+verb manifest_dynamic_checksum(abs input: Buffer, erg length: u32) -> u64 {
+    erg checksum: u64 = 0u64;
+    erg index: u32 = 0u32;
+    loop {
+        if index >= length {
+            break;
+        }
+        if index < 44u32 || index >= 52u32 {
+            checksum += (input[index] as u64) * ((index + 1u32) as u64);
+        }
+        index += 1u32;
+    }
+    return checksum;
+}
+
+open verb manifest_dynamic_bytes_are_valid(abs bytes: Buffer) -> Bool {
+    erg length_result = buffer_length(buffer: abs bytes);
+    erg length: Int = case dat length_result {
+        Result.Ok(value) => value,
+        Result.Err(_) => -1,
+    };
+    if length < BRAIN_MANIFEST_HEADER_BYTES as Int || length > BRAIN_MANIFEST_DYNAMIC_MAX_BYTES as Int {
+        return false;
+    }
+    erg length_u32: u32 = length as u32;
+    erg offset_0: u32 = 0u32;
+    erg offset_4: u32 = 4u32;
+    erg offset_6: u32 = 6u32;
+    erg offset_8: u32 = 8u32;
+    erg offset_20: u32 = 20u32;
+    erg offset_28: u32 = 28u32;
+    erg offset_32: u32 = 32u32;
+    erg offset_34: u32 = 34u32;
+    erg offset_36: u32 = 36u32;
+    erg offset_38: u32 = 38u32;
+    erg offset_40: u32 = 40u32;
+    erg offset_44: u32 = 44u32;
+    erg stored_length: u32 = read_manifest_u32(input: abs bytes, offset: abs offset_8);
+    erg shard_count: u32 = read_manifest_u32(input: abs bytes, offset: abs offset_28);
+    erg stored_checksum: u64 = read_manifest_u64(input: abs bytes, offset: abs offset_44);
+    erg actual_checksum: u64 = manifest_dynamic_checksum(input: abs bytes, length: erg length_u32);
+    if stored_length != length_u32 || stored_length < BRAIN_MANIFEST_HEADER_BYTES as u32 || stored_checksum != actual_checksum || read_manifest_u32(input: abs bytes, offset: abs offset_0) != BRAIN_MANIFEST_MAGIC || read_manifest_u16(input: abs bytes, offset: abs offset_4) != BRAIN_MANIFEST_VERSION || read_manifest_u16(input: abs bytes, offset: abs offset_6) != BRAIN_MANIFEST_HEADER_BYTES || shard_count == 0u32 || shard_count > BRAIN_MANIFEST_DYNAMIC_MAX_SHARDS || read_manifest_u16(input: abs bytes, offset: abs offset_32) != BRAIN_SHARD_COLUMN_STRIDE_BYTES || read_manifest_u16(input: abs bytes, offset: abs offset_34) != BRAIN_SHARD_BINDING_STRIDE_BYTES || read_manifest_u16(input: abs bytes, offset: abs offset_36) != TOKENIZER_VERSION || read_manifest_u16(input: abs bytes, offset: abs offset_38) != CONTEXT_VERSION || read_manifest_u16(input: abs bytes, offset: abs offset_40) != TOKEN_CODE_VERSION {
+        return false;
+    }
+    erg descriptor_bytes: u32 = shard_count * BRAIN_MANIFEST_DESCRIPTOR_BYTES as u32;
+    if stored_length != BRAIN_MANIFEST_HEADER_BYTES as u32 + descriptor_bytes {
+        return false;
+    }
+    erg total_columns: u32 = read_manifest_u32(input: abs bytes, offset: abs offset_20);
+    erg descriptor_index: u32 = 0u32;
+    erg expected_first: u32 = 0u32;
+    loop {
+        if descriptor_index >= shard_count {
+            break;
+        }
+        erg id_offset: u32 = BRAIN_MANIFEST_HEADER_BYTES as u32 + (descriptor_index * BRAIN_MANIFEST_DESCRIPTOR_BYTES as u32);
+        erg first_offset: u32 = BRAIN_MANIFEST_HEADER_BYTES as u32 + (descriptor_index * BRAIN_MANIFEST_DESCRIPTOR_BYTES as u32) + 4u32;
+        erg count_offset: u32 = BRAIN_MANIFEST_HEADER_BYTES as u32 + (descriptor_index * BRAIN_MANIFEST_DESCRIPTOR_BYTES as u32) + 8u32;
+        erg payload_offset: u32 = BRAIN_MANIFEST_HEADER_BYTES as u32 + (descriptor_index * BRAIN_MANIFEST_DESCRIPTOR_BYTES as u32) + 16u32;
+        erg binding_offset: u32 = BRAIN_MANIFEST_HEADER_BYTES as u32 + (descriptor_index * BRAIN_MANIFEST_DESCRIPTOR_BYTES as u32) + 24u32;
+        erg state_offset: u32 = BRAIN_MANIFEST_HEADER_BYTES as u32 + (descriptor_index * BRAIN_MANIFEST_DESCRIPTOR_BYTES as u32) + 36u32;
+        erg descriptor_id: u32 = read_manifest_u32(input: abs bytes, offset: abs id_offset);
+        erg first_column: u32 = read_manifest_u32(input: abs bytes, offset: abs first_offset);
+        erg column_count: u32 = read_manifest_u32(input: abs bytes, offset: abs count_offset);
+        erg column_payload: u32 = read_manifest_u32(input: abs bytes, offset: abs payload_offset);
+        erg binding_payload: u32 = read_manifest_u32(input: abs bytes, offset: abs binding_offset);
+        erg state: u32 = read_manifest_u32(input: abs bytes, offset: abs state_offset);
+        if descriptor_id != descriptor_index || first_column != expected_first || column_count == 0u32 || first_column > total_columns || column_count > total_columns - first_column || column_payload != column_count * BRAIN_SHARD_COLUMN_STRIDE_BYTES as u32 || binding_payload != 0u32 || state != 1u32 {
+            return false;
+        }
+        expected_first = first_column + column_count;
+        descriptor_index += 1u32;
+    }
+    return expected_first == total_columns;
+}
+
+open verb manifest_locate_column_dynamic(abs bytes: Buffer, erg global_index: u32) -> Result[ColumnLocation, IoError] {
+    if !manifest_dynamic_bytes_are_valid(bytes: abs bytes) {
+        return Err(IoError.InvalidData);
+    }
+    erg shard_count_offset: u32 = 28u32;
+    erg shard_count: u32 = read_manifest_u32(input: abs bytes, offset: abs shard_count_offset);
+    erg descriptor_index: u32 = 0u32;
+    loop {
+        if descriptor_index >= shard_count {
+            break;
+        }
+        erg first_offset: u32 = BRAIN_MANIFEST_HEADER_BYTES as u32 + (descriptor_index * BRAIN_MANIFEST_DESCRIPTOR_BYTES as u32) + 4u32;
+        erg count_offset: u32 = BRAIN_MANIFEST_HEADER_BYTES as u32 + (descriptor_index * BRAIN_MANIFEST_DESCRIPTOR_BYTES as u32) + 8u32;
+        erg first_column: u32 = read_manifest_u32(input: abs bytes, offset: abs first_offset);
+        erg column_count: u32 = read_manifest_u32(input: abs bytes, offset: abs count_offset);
+        erg query_a: u32 = global_index + 0u32;
+        erg query_b: u32 = global_index + 0u32;
+        erg query_field: u32 = global_index + 0u32;
+        if query_a >= first_column && query_b < first_column + column_count {
+            erg local_index: u32 = query_field - first_column;
+            return Ok(ColumnLocation {global_index: query_field, shard_id: descriptor_index, local_index: local_index});
+        }
+        descriptor_index += 1u32;
+    }
+    return Err(IoError.InvalidInput);
+}
+
+open verb write_manifest_dynamic(
+    abs path: Path,
+    erg generation: u64,
+    erg active_count: u32,
+    erg total_column_count: u32,
+    erg shard_count: u32,
+    abs descriptors: Buffer
+) -> Result[Int, IoError] {
+    erg descriptor_length_result = buffer_length(buffer: abs descriptors);
+    erg descriptor_length: Int = case dat descriptor_length_result {
+        Result.Ok(value) => value,
+        Result.Err(_) => -1,
+    };
+    erg expected_descriptor_length: u32 = shard_count * BRAIN_MANIFEST_DESCRIPTOR_BYTES as u32;
+    if shard_count == 0u32 || shard_count > BRAIN_MANIFEST_DYNAMIC_MAX_SHARDS || descriptor_length != expected_descriptor_length as Int {
+        return Err(IoError.InvalidInput);
+    }
+    erg manifest_length: u32 = BRAIN_MANIFEST_HEADER_BYTES as u32 + expected_descriptor_length;
+    if manifest_length > BRAIN_MANIFEST_DYNAMIC_MAX_BYTES {
+        return Err(IoError.InvalidInput);
+    }
+    erg output: Buffer = Buffer[0];
+    erg capacity: Int = manifest_length as Int;
+    erg reserved = reserve(buffer: ins output, capacity: erg capacity);
+    erg magic: u32 = BRAIN_MANIFEST_MAGIC;
+    erg version: u16 = BRAIN_MANIFEST_VERSION;
+    erg header_bytes: u16 = BRAIN_MANIFEST_HEADER_BYTES;
+    erg column_stride: u16 = BRAIN_SHARD_COLUMN_STRIDE_BYTES;
+    erg binding_stride: u16 = BRAIN_SHARD_BINDING_STRIDE_BYTES;
+    erg tokenizer_version: u16 = TOKENIZER_VERSION;
+    erg context_version: u16 = CONTEXT_VERSION;
+    erg code_version: u16 = TOKEN_CODE_VERSION;
+    erg zero_u16: u16 = 0u16;
+    erg zero_u32: u32 = 0u32;
+    erg zero_u64: u64 = 0u64;
+    append_manifest_u32(output: ins output, value: abs magic);
+    append_manifest_u16(output: ins output, value: abs version);
+    append_manifest_u16(output: ins output, value: abs header_bytes);
+    append_manifest_u32(output: ins output, value: abs manifest_length);
+    append_manifest_u64(output: ins output, value: abs generation);
+    append_manifest_u32(output: ins output, value: abs total_column_count);
+    append_manifest_u32(output: ins output, value: abs active_count);
+    append_manifest_u32(output: ins output, value: abs shard_count);
+    append_manifest_u16(output: ins output, value: abs column_stride);
+    append_manifest_u16(output: ins output, value: abs binding_stride);
+    append_manifest_u16(output: ins output, value: abs tokenizer_version);
+    append_manifest_u16(output: ins output, value: abs context_version);
+    append_manifest_u16(output: ins output, value: abs code_version);
+    append_manifest_u16(output: ins output, value: abs zero_u16);
+    append_manifest_u64(output: ins output, value: abs zero_u64);
+    append_manifest_u32(output: ins output, value: abs zero_u32);
+    append_manifest_u32(output: ins output, value: abs zero_u32);
+    append_manifest_u32(output: ins output, value: abs zero_u32);
+    erg descriptor_index: u32 = 0u32;
+    loop {
+        if descriptor_index >= expected_descriptor_length {
+            break;
+        }
+        append(output, descriptors[descriptor_index]);
+        descriptor_index += 1u32;
+    }
+    erg checksum: u64 = manifest_dynamic_checksum(input: abs output, length: erg manifest_length);
+    erg checksum_offset: u32 = 44u32;
+    write_manifest_u64(output: ins output, value: abs checksum, offset: abs checksum_offset);
+    return write_file(path: abs path, contents: abs output);
+}
+
+open verb read_manifest_dynamic_bytes(dat bytes: Buffer) -> Result[Int, IoError] {
+    erg valid: Bool = manifest_dynamic_bytes_are_valid(bytes: abs bytes);
+    if !valid {
+        drop(bytes);
+        return Err(IoError.InvalidData);
+    }
+    erg length_result = buffer_length(buffer: abs bytes);
+    erg length: Int = case dat length_result {
+        Result.Ok(value) => value,
+        Result.Err(_) => -1,
+    };
+    drop(bytes);
+    return Ok(length);
+}

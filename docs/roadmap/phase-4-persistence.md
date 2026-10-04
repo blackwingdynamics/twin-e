@@ -74,8 +74,10 @@ selective_load=1
 
 - [x] Remove the separate shard `0` and shard `1` branches from global-index
   lookup; the current bounded profile now scans descriptors by count.
-- [ ] Replace the fixed two-shard implementation with a manifest-driven shard
-  descriptor collection.
+- [x] Add a runtime-sized descriptor Buffer writer and validator for a
+  three-shard manifest.
+- [~] Replace the fixed two-shard shard-file implementation with the dynamic
+  manifest-driven descriptor collection.
 - [ ] Move shard count, capacity, payload sizes, and file size into the global
   configuration profile.
 - [ ] Support arbitrary valid global indexes without hardcoded shard branches.

@@ -1,0 +1,160 @@
+"""Prove that manifest descriptors are generated and located dynamically."""
+import aie;
+import std::io;
+import std::path;
+
+meta limitless("verb")
+verb append_dynamic_path_prefix(ins raw: Buffer) {
+    append(raw, 47u8);
+    append(raw, 116u8);
+    append(raw, 109u8);
+    append(raw, 112u8);
+    append(raw, 47u8);
+    append(raw, 116u8);
+    append(raw, 119u8);
+    append(raw, 105u8);
+    append(raw, 110u8);
+    append(raw, 45u8);
+    append(raw, 101u8);
+    append(raw, 45u8);
+    append(raw, 100u8);
+    append(raw, 121u8);
+    append(raw, 110u8);
+    append(raw, 97u8);
+    append(raw, 109u8);
+    append(raw, 105u8);
+    append(raw, 99u8);
+    append(raw, 45u8);
+    append(raw, 109u8);
+    append(raw, 97u8);
+    append(raw, 110u8);
+    append(raw, 105u8);
+    append(raw, 102u8);
+    append(raw, 101u8);
+    append(raw, 115u8);
+    append(raw, 116u8);
+}
+
+verb manifest_path() -> Result[Path, PathError] {
+    erg raw = Buffer[0];
+    append_dynamic_path_prefix(raw: ins raw);
+    append(raw, 45u8);
+    append(raw, 50u8);
+    append(raw, 46u8);
+    append(raw, 98u8);
+    append(raw, 114u8);
+    append(raw, 97u8);
+    append(raw, 105u8);
+    append(raw, 110u8);
+    append(raw, 0u8);
+    return path_from_ascii(storage: dat raw);
+}
+
+verb append_dynamic_u32_local(ins output: Buffer, abs value: u32) {
+    append(output, (value & 255u32) as u8);
+    append(output, ((value / 256u32) & 255u32) as u8);
+    append(output, ((value / 65536u32) & 255u32) as u8);
+    append(output, ((value / 16777216u32) & 255u32) as u8);
+}
+
+verb append_dynamic_u64_local(ins output: Buffer, abs value: u64) {
+    erg low: u32 = (value & 4294967295u64) as u32;
+    erg high: u32 = (value / 4294967296u64) as u32;
+    append_dynamic_u32_local(output: ins output, value: abs low);
+    append_dynamic_u32_local(output: ins output, value: abs high);
+}
+
+verb append_descriptor(ins output: Buffer, erg shard_id: u32) {
+    erg first: u32 = shard_id * 32u32;
+    erg count: u32 = 32u32;
+    erg payload_offset: u32 = 48u32;
+    erg payload_bytes: u32 = 2048u32;
+    erg zero: u32 = 0u32;
+    erg checksum: u64 = (shard_id as u64) + 1u64;
+    erg state: u32 = 1u32;
+    append_dynamic_u32_local(output: ins output, value: abs shard_id);
+    append_dynamic_u32_local(output: ins output, value: abs first);
+    append_dynamic_u32_local(output: ins output, value: abs count);
+    append_dynamic_u32_local(output: ins output, value: abs payload_offset);
+    append_dynamic_u32_local(output: ins output, value: abs payload_bytes);
+    append_dynamic_u32_local(output: ins output, value: abs zero);
+    append_dynamic_u32_local(output: ins output, value: abs zero);
+    append_dynamic_u64_local(output: ins output, value: abs checksum);
+    append_dynamic_u32_local(output: ins output, value: abs state);
+}
+
+verb build_descriptors() -> Buffer {
+    erg descriptors: Buffer = Buffer[0];
+    erg shard_id: u32 = 0u32;
+    loop {
+        if shard_id >= 3u32 {
+            break;
+        }
+        append_descriptor(output: ins descriptors, shard_id: erg shard_id);
+        shard_id += 1u32;
+    }
+    return descriptors;
+}
+
+verb verify_dynamic_location(abs value: ColumnLocation) -> Int {
+    if value.shard_id != 2u32 || value.local_index != 1u32 {
+        return 2;
+    }
+    return 0;
+}
+
+verb validate_dynamic_pair(abs value: ColumnLocation) -> Int {
+    erg location_status: Int = verify_dynamic_location(value: abs value);
+    if location_status != 0 {
+        return location_status;
+    }
+    return 0;
+}
+
+verb validate_dynamic(dat bytes: Buffer) -> Int {
+    erg query: u32 = 65u32;
+    erg location = manifest_locate_column_dynamic(bytes: abs bytes, global_index: erg query);
+    return case dat location {
+        Result.Err(_) => 1,
+        Result.Ok(value) => validate_dynamic_pair(value: abs value),
+    };
+}
+
+verb run_dynamic(abs path: Path) -> Int {
+    erg descriptors: Buffer = build_descriptors();
+    erg generation: u64 = 9u64;
+    erg active_count: u32 = 3u32;
+    erg total_columns: u32 = 96u32;
+    erg shard_count: u32 = 3u32;
+    erg saved = write_manifest_dynamic(path: abs path, generation: erg generation, active_count: erg active_count, total_column_count: erg total_columns, shard_count: erg shard_count, descriptors: abs descriptors);
+    erg save_status: Int = case dat saved {
+        Result.Err(_) => 1,
+        Result.Ok(_) => 0,
+    };
+    if save_status != 0 {
+        return save_status;
+    }
+    erg loaded = read_to_bytes(path: abs path);
+    return case dat loaded {
+        Result.Err(_) => 2,
+        Result.Ok(bytes) => validate_dynamic(bytes: dat bytes),
+    };
+}
+
+verb emit_dynamic(abs path: Path) -> Int {
+    erg status: Int = run_dynamic(path: abs path);
+    if status != 0 {
+        return status;
+    }
+    erg message: String = "AIE_MANIFEST_DYNAMIC shards=3 generated=1 lookup_shard=2 local_index=1 roundtrip=1";
+    println(text: abs message);
+    return 0;
+}
+
+verb main() -> Int {
+    erg path_result = manifest_path();
+    return case dat path_result {
+        Result.Err(_) => 1,
+        Result.Ok(path) => emit_dynamic(path: abs path),
+    };
+}
