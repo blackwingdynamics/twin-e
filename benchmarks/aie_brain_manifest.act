@@ -1,0 +1,167 @@
+"""Prove that a manifest records and validates the bounded shard set."""
+import aie;
+import std::io;
+import std::path;
+
+verb append_manifest_path_prefix(ins raw: Buffer) {
+    append(raw, 47u8);
+    append(raw, 116u8);
+    append(raw, 109u8);
+    append(raw, 112u8);
+    append(raw, 47u8);
+    append(raw, 116u8);
+    append(raw, 119u8);
+    append(raw, 105u8);
+    append(raw, 110u8);
+    append(raw, 45u8);
+    append(raw, 101u8);
+    append(raw, 45u8);
+    append(raw, 109u8);
+    append(raw, 97u8);
+    append(raw, 110u8);
+    append(raw, 105u8);
+    append(raw, 102u8);
+    append(raw, 101u8);
+    append(raw, 115u8);
+    append(raw, 116u8);
+    append(raw, 45u8);
+}
+
+verb make_path(erg suffix: u8) -> Result[Path, PathError] {
+    erg raw = Buffer[0];
+    append_manifest_path_prefix(raw: ins raw);
+    append(raw, suffix);
+    append(raw, 46u8);
+    append(raw, 98u8);
+    append(raw, 114u8);
+    append(raw, 97u8);
+    append(raw, 105u8);
+    append(raw, 110u8);
+    append(raw, 0u8);
+    return path_from_ascii(storage: dat raw);
+}
+
+verb make_fabric() -> CorticalFabric[64] {
+    erg fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](), free_list_head: 0u32, active_count: 0u32};
+    fabric_init(fabric: ins fabric);
+    fabric.columns[0u32].payload = 11u8;
+    fabric.columns[32u32].payload = 22u8;
+    return fabric;
+}
+
+verb write_status(abs path: Path, abs fabric: CorticalFabric[64], erg shard_id: u32) -> Int {
+    erg result = write_shard(path: abs path, fabric: abs fabric, shard_id: erg shard_id);
+    return case dat result {
+        Result.Err(_) => 1,
+        Result.Ok(_) => 0,
+    };
+}
+
+verb checksum_or_zero(abs path: Path) -> u64 {
+    erg result = shard_file_checksum(path: abs path);
+    return case dat result {
+        Result.Err(_) => 0u64,
+        Result.Ok(value) => value,
+    };
+}
+
+verb corruption_status(dat bytes: Buffer) -> Int {
+    bytes[64u32] = 2u8;
+    erg result = read_manifest_bytes(bytes: dat bytes);
+    return case dat result {
+        Result.Err(_) => 0,
+        Result.Ok(_) => 1,
+    };
+}
+
+verb manifest_rejects_corruption(abs path: Path) -> Bool {
+    erg loaded = read_to_bytes(path: abs path);
+    return case dat loaded {
+        Result.Err(_) => false,
+        Result.Ok(bytes) => corruption_status(bytes: dat bytes) == 0,
+    };
+}
+
+verb validate_manifest(abs path: Path) -> Int {
+    erg loaded = read_manifest(path: abs path);
+    erg load_status: Int = case dat loaded {
+        Result.Err(_) => 5,
+        Result.Ok(_) => 0,
+    };
+    if load_status != 0 {
+        return load_status;
+    }
+    if !manifest_rejects_corruption(path: abs path) {
+        return 6;
+    }
+    return 0;
+}
+
+verb prepare_manifest(abs shard_zero: Path, abs shard_one: Path, abs manifest: Path) -> Int {
+    erg fabric: CorticalFabric[64] = make_fabric();
+    erg shard_zero_id: u32 = 0u32;
+    erg shard_one_id: u32 = 1u32;
+    erg first_status: Int = write_status(path: abs shard_zero, fabric: abs fabric, shard_id: erg shard_zero_id);
+    if first_status != 0 {
+        return 1;
+    }
+    erg second_status: Int = write_status(path: abs shard_one, fabric: abs fabric, shard_id: erg shard_one_id);
+    if second_status != 0 {
+        return 2;
+    }
+    erg checksum_zero: u64 = checksum_or_zero(path: abs shard_zero);
+    erg checksum_one: u64 = checksum_or_zero(path: abs shard_one);
+    if checksum_zero == 0u64 || checksum_one == 0u64 {
+        return 3;
+    }
+    erg generation: u64 = 7u64;
+    erg active_count: u32 = 2u32;
+    erg saved = write_manifest(path: abs manifest, generation: erg generation, active_count: erg active_count, shard_zero_checksum: abs checksum_zero, shard_one_checksum: abs checksum_one);
+    erg save_status: Int = case dat saved {
+        Result.Err(_) => 4,
+        Result.Ok(_) => 0,
+    };
+    if save_status != 0 {
+        return save_status;
+    }
+    return 0;
+}
+
+verb run_manifest(abs shard_zero: Path, abs shard_one: Path, abs manifest: Path) -> Int {
+    erg prepare_status: Int = prepare_manifest(shard_zero: abs shard_zero, shard_one: abs shard_one, manifest: abs manifest);
+    if prepare_status != 0 {
+        return prepare_status;
+    }
+    erg validation_status: Int = validate_manifest(path: abs manifest);
+    if validation_status != 0 {
+        return validation_status;
+    }
+    erg message: String = "AIE_BRAIN_MANIFEST roundtrip=1 generation=7 shards=2 checksums=2 corrupted_rejected=1";
+    println(text: abs message);
+    return 0;
+}
+
+verb run_with_shard_zero(abs shard_zero: Path) -> Int {
+    erg shard_suffix_one: u8 = 49u8;
+    erg manifest_suffix: u8 = 109u8;
+    erg shard_one_result = make_path(suffix: erg shard_suffix_one);
+    return case dat shard_one_result {
+        Result.Err(_) => 11,
+        Result.Ok(shard_one) => {
+            erg manifest_result = make_path(suffix: erg manifest_suffix);
+            return case dat manifest_result {
+                Result.Err(_) => 12,
+                Result.Ok(manifest) => run_manifest(shard_zero: abs shard_zero, shard_one: abs shard_one, manifest: abs manifest),
+            };
+        },
+    };
+}
+
+verb main() -> Int {
+    erg shard_suffix_zero: u8 = 48u8;
+    erg shard_zero_result = make_path(suffix: erg shard_suffix_zero);
+    return case dat shard_zero_result {
+        Result.Err(_) => 10,
+        Result.Ok(shard_zero) => run_with_shard_zero(shard_zero: abs shard_zero),
+    };
+}

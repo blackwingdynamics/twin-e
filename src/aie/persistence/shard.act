@@ -220,3 +220,33 @@ open verb read_shard(ins fabric: CorticalFabric[64], abs path: Path, erg shard_i
         Result.Ok(bytes) => read_shard_bytes(fabric: ins fabric, bytes: dat bytes, shard_id: erg shard_id),
     };
 }
+
+verb shard_checksum_bytes(dat bytes: Buffer) -> Result[u64, IoError] {
+    erg length_result = buffer_length(buffer: abs bytes);
+    erg length: Int = case dat length_result {
+        Result.Ok(value) => value,
+        Result.Err(_) => -1,
+    };
+    if length != BRAIN_SHARD_FILE_BYTES as Int {
+        drop(bytes);
+        return Err(IoError.InvalidData);
+    }
+    erg checksum_offset: u32 = 40u32;
+    erg checksum: u64 = read_shard_u64(input: abs bytes, offset: abs checksum_offset);
+    drop(bytes);
+    return Ok(checksum);
+}
+
+open verb shard_file_checksum(abs path: Path) -> Result[u64, IoError] {
+    erg loaded = read_to_bytes(path: abs path);
+    return case dat loaded {
+        Result.Err(error) => {
+            erg mapped_result = shard_io_error(error: dat error);
+            return case dat mapped_result {
+                Result.Err(mapped) => Err(mapped),
+                Result.Ok(_) => Err(IoError.InvalidData),
+            };
+        },
+        Result.Ok(bytes) => shard_checksum_bytes(bytes: dat bytes),
+    };
+}

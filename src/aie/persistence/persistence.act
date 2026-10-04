@@ -6,3 +6,5 @@ open serialization;
 open file;
 
 open shard;
+
+open manifest;
