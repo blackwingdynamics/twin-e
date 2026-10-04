@@ -40,6 +40,56 @@ validation.
   learned path.
 - [ ] Record the final `.brain` header, payload, binding, and artifact sizes.
 
+## P5.1A — Hot-path storage isolation
+
+This gate prevents disk I/O from becoming part of inference, forwarding, or
+neurogenesis latency. A newly required shard must become available in memory
+first; persistence is a later operation with an explicit lifecycle.
+
+- [ ] Create an ADR that defines the hot path, persistence path, and allowed
+  synchronization boundaries.
+- [ ] Define the in-memory shard lifecycle: `Absent`, `Loading`, `Resident`,
+  `Dirty`, `Flushing`, `Persisted`, and `Failed`.
+- [ ] Define the behavior when neurogenesis needs a slot and the current
+  resident working set is full.
+- [ ] Allocate or activate a new shard in memory before linking the new
+  minicolumn into the active fabric.
+- [ ] Mark the new or modified shard `Dirty` without writing to disk from the
+  inference, forwarding, or neurogenesis call path.
+- [ ] Make shard growth bounded by configured resident capacity and return an
+  explicit resource error when no safe expansion or eviction is possible.
+- [ ] Reject eviction of dirty or pinned shards unless an explicit flush policy
+  has made them safe to evict.
+- [ ] Add a background or caller-driven flush operation that writes dirty
+  shards to a temporary generation file, validates them, and publishes them
+  atomically.
+- [ ] Add an explicit `save` or commit-boundary API for mission completion,
+  text completion, and caller-requested persistence.
+- [ ] Define flush ordering for shard data, binding data, and manifest metadata
+  so a committed generation is internally consistent.
+- [ ] Preserve the previous valid generation if a flush, rename, or process
+  interruption fails.
+- [ ] Verify that a failed flush leaves the resident dirty shard and live fabric
+  usable for continued inference.
+- [ ] Verify that a restart loads the newest complete generation and does not
+  expose a partially written shard.
+- [ ] Add a benchmark that compares inference and neurogenesis latency with
+  clean resident shards versus dirty resident shards.
+- [ ] Add a negative benchmark proving that no filesystem write occurs during
+  the hot-path operation.
+- [ ] Measure flush latency separately from inference latency and report both
+  values in the evidence document.
+- [ ] Document the configured resident shard capacity, dirty-shard limit,
+  flush queue limit, and behavior under storage exhaustion.
+
+Acceptance evidence:
+
+```text
+AIE_HOT_PATH inference_ns=<value> neurogenesis_ns=<value>
+ disk_writes_hot_path=0 dirty_shards=<value> flush_ns=<value>
+ committed_generation=<value> recovery=1
+```
+
 ## P5.2 — Production BPE vocabulary
 
 - [ ] Replace the one-merge fixture with a bounded multi-merge vocabulary.
