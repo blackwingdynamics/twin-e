@@ -23,7 +23,7 @@ configuration and compiler-parity items that Phase 4 depends on are closed.
 - [x] Define the 24-byte `TokenBinding` layout with `context_key` at offset 8.
 - [x] Define generation EOS, maximum length, deterministic tie-break, and
   loop-guard requirements.
-- [ ] Add a serialized layout fixture for `TokenBinding`.
+- [x] Add and verify the 24-byte serialized layout fixture for `TokenBinding`.
 - [ ] Add a context-code cardinality and collision benchmark for context pairs.
 
 ## P4.1 — Context-bound AIE state

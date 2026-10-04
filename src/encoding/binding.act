@@ -1,0 +1,21 @@
+"""Position-independent token and context identity stored beside an arena slot."""
+open pack TokenBinding {
+    erg storage: Array[u8, 24];
+    layout little;
+    fields {
+        erg token_id: u32 at 0;
+        erg alignment_reserved: u32 at 32;
+        erg context_key: u64 at 64;
+        erg tokenizer_version: u16 at 128;
+        erg context_version: u16 at 144;
+        erg binding_flags: u8 at 160;
+        erg trailing_reserved_0: u8 at 168;
+        erg trailing_reserved_1: u8 at 176;
+        erg trailing_reserved_2: u8 at 184;
+    }
+}
+
+"""Return the serialized TokenBinding stride in bytes."""
+open verb token_binding_size_bytes() -> u32 {
+    return 24u32;
+}
