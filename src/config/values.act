@@ -1,145 +1,255 @@
 """Package-wide typed constants for AIE policy and binary formats."""
+"""Arena index sentinel used for an unconnected axon, link, or free-list entry."""
 open const NULL_INDEX: u32 = 4294967295u32;
 
 
+"""Bit flag marking a minicolumn as allocated and active in the arena."""
 open const FLAG_ACTIVE: u8 = 1u8;
 
 
+"""Bit flag marking a minicolumn as temporarily inhibited by lateral competition."""
 open const FLAG_INHIBITED: u8 = 2u8;
 
 
+"""Bit flag marking a minicolumn as temporarily unavailable after firing."""
 open const FLAG_REFRACTORY: u8 = 4u8;
 
 
+"""Bit flag protecting a minicolumn from homeostatic decay."""
 open const FLAG_CONSOLIDATED: u8 = 8u8;
 
 
+"""Initial coincidence threshold assigned to a newly initialized minicolumn."""
 open const DEFAULT_THRESHOLD: u8 = 30u8;
 
 
+"""Coincidence threshold assigned to a minicolumn created by neurogenesis."""
 open const NEUROGENESIS_THRESHOLD: u8 = 20u8;
 
 
+"""Maximum idle tick count before an eligible weak minicolumn is reclaimed."""
 open const DECAY_IDLE_LIMIT: u8 = 240u8;
 
 
+"""Myelination ceiling below which an idle minicolumn may be reclaimed."""
 open const DECAY_MYELINATION_LIMIT: u8 = 100u8;
 
 
+"""Maximum representable value used for saturating u8 state updates."""
 open const MAX_U8: u8 = 255u8;
 
 
+"""Magic value identifying the fixed `.brain` snapshot format."""
 open const BRAIN_MAGIC: u32 = 1095322161u32;
 
 
+"""Version of the fixed `.brain` snapshot format."""
 open const BRAIN_VERSION: u16 = 1u16;
 
 
+"""Serialized byte length of the fixed `.brain` header."""
 open const BRAIN_HEADER_BYTES: u16 = 12u16;
 
 
+"""Serialized byte length reserved for the fixed fabric payload."""
 open const BRAIN_PAYLOAD_BYTES: u32 = 4096u32;
 
 
+"""Version of the fixed token-binding snapshot section."""
 open const BRAIN_BINDING_VERSION: u16 = 1u16;
 
 
+"""Serialized byte stride of one fixed token binding."""
 open const BRAIN_BINDING_STRIDE_BYTES: u16 = 24u16;
 
 
+"""Number of token-binding slots in the fixed snapshot."""
 open const BRAIN_BINDING_COUNT: u32 = 64u32;
 
 
+"""Serialized byte length of the fixed token-binding section."""
 open const BRAIN_BINDING_PAYLOAD_BYTES: u32 = 1536u32;
 
 
+"""Binding flag indicating that a token-binding slot contains live metadata."""
 open const BINDING_ACTIVE_FLAG: u8 = 1u8;
 
 
+"""Version marker required for compatible tokenizer metadata."""
 open const TOKENIZER_VERSION: u16 = 1u16;
 
 
+"""Maximum input byte capacity for bounded tokenization."""
 open const TOKENIZER_MAX_BYTES: u32 = 256u32;
 
 
+"""Maximum number of merge rules in a bounded BPE vocabulary."""
 open const BPE_MAX_RULES: u32 = 128u32;
 
 
+"""Maximum number of tokens in a bounded token sequence."""
 open const BPE_MAX_TOKENS: u32 = 256u32;
 
 
+"""Maximum byte width of one vocabulary token."""
 open const BPE_MAX_TOKEN_BYTES: u32 = 8u32;
 
 
+"""Magic value identifying the serialized BPE vocabulary format."""
 open const BPE_VOCAB_MAGIC: u32 = 1111577410u32;
 
 
+"""Version of the serialized BPE vocabulary format."""
 open const BPE_VOCAB_VERSION: u16 = 1u16;
 
 
+"""Reserved token identifier for beginning-of-sequence output."""
 open const BPE_BOS_TOKEN_ID: u32 = 4294967280u32;
 
 
+"""Reserved token identifier for end-of-sequence output."""
 open const BPE_EOS_TOKEN_ID: u32 = 4294967281u32;
 
 
+"""Reserved token identifier for unknown vocabulary entries."""
 open const BPE_UNKNOWN_TOKEN_ID: u32 = 4294967282u32;
 
 
+"""Version marker for sparse token-code generation."""
 open const TOKEN_CODE_VERSION: u16 = 1u16;
 
 
+"""Required number of active bits in each sparse token code."""
 open const TOKEN_CODE_ACTIVE_BITS: u8 = 8u8;
 
 
+"""Version marker for previous-token context binding."""
 open const CONTEXT_VERSION: u16 = 1u16;
 
 
+"""Number of token positions retained by the bounded context encoder."""
 open const CONTEXT_WINDOW: u8 = 2u8;
 
 
+"""Initial integer seed for deterministic context hashing."""
 open const CONTEXT_SEED: u64 = 1099511628211u64;
 
 
+"""Integer multiplier used by deterministic context hashing."""
 open const CONTEXT_MULTIPLIER: u64 = 1099511628211u64;
 
+
+"""Maximum number of generated token ids retained for loop guards."""
 open const GENERATION_HISTORY_LIMIT: u32 = 8u32;
+
+
+"""Generation stop reason code for an end-of-sequence token."""
 open const GENERATION_STOP_EOS: u8 = 1u8;
+
+
+"""Generation stop reason code for reaching the output limit."""
 open const GENERATION_STOP_MAX_TOKENS: u8 = 2u8;
+
+
+"""Generation stop reason code for an unavailable successor."""
 open const GENERATION_STOP_NO_SUCCESSOR: u8 = 3u8;
+
+
+"""Generation stop reason code for repetition protection."""
 open const GENERATION_STOP_LOOP_GUARD: u8 = 4u8;
+
+
+"""Generation stop reason code for an invalid prompt."""
 open const GENERATION_STOP_INVALID_PROMPT: u8 = 5u8;
+
+
+"""Generation stop reason code for missing context binding."""
 open const GENERATION_STOP_MISSING_CONTEXT: u8 = 6u8;
 
+
+"""Magic value identifying a serialized `.brain` shard."""
 open const BRAIN_SHARD_MAGIC: u32 = 1146247763u32;
 
+
+"""Version of the serialized `.brain` shard format."""
 open const BRAIN_SHARD_VERSION: u16 = 1u16;
 
+
+"""Serialized byte length of a shard header."""
 open const BRAIN_SHARD_HEADER_BYTES: u16 = 48u16;
 
+
+"""Serialized byte stride of one shard minicolumn."""
 open const BRAIN_SHARD_COLUMN_STRIDE_BYTES: u16 = 64u16;
 
+
+"""Serialized byte stride of one shard-local token binding."""
 open const BRAIN_SHARD_BINDING_STRIDE_BYTES: u16 = 24u16;
 
+
+"""Fixed number of minicolumns in a regular shard."""
 open const BRAIN_SHARD_COLUMN_COUNT: u32 = 32u32;
 
+
+"""Serialized byte length of regular shard minicolumn storage."""
 open const BRAIN_SHARD_COLUMN_PAYLOAD_BYTES: u32 = 2048u32;
 
+
+"""Serialized byte length reserved for regular shard bindings."""
 open const BRAIN_SHARD_BINDING_PAYLOAD_BYTES: u32 = 0u32;
 
+
+"""Total serialized byte length of a regular shard file."""
 open const BRAIN_SHARD_FILE_BYTES: u32 = 2096u32;
+
+
+"""Maximum minicolumn count accepted in one dynamic shard."""
 open const BRAIN_SHARD_DYNAMIC_MAX_COLUMNS: u32 = 1024u32;
+
+
+"""Maximum serialized byte length accepted for a dynamic shard."""
 open const BRAIN_SHARD_DYNAMIC_MAX_BYTES: u32 = 65584u32;
 
+
+"""Magic value identifying a serialized shard manifest."""
 open const BRAIN_MANIFEST_MAGIC: u32 = 1296645709u32;
+
+
+"""Version of the serialized shard manifest format."""
 open const BRAIN_MANIFEST_VERSION: u16 = 1u16;
+
+
+"""Serialized byte length of a manifest header."""
 open const BRAIN_MANIFEST_HEADER_BYTES: u16 = 64u16;
+
+
+"""Serialized byte length of one manifest shard descriptor."""
 open const BRAIN_MANIFEST_DESCRIPTOR_BYTES: u16 = 40u16;
+
+
+"""Number of descriptors in the fixed two-shard manifest."""
 open const BRAIN_MANIFEST_SHARD_COUNT: u32 = 2u32;
+
+
+"""Maximum shard count supported by the fixed manifest contract."""
 open const BRAIN_MANIFEST_MAX_SHARDS: u32 = 2u32;
+
+
+"""Total serialized byte length of the fixed manifest."""
 open const BRAIN_MANIFEST_FILE_BYTES: u32 = 144u32;
+
+
+"""Maximum descriptor count accepted by a dynamic manifest."""
 open const BRAIN_MANIFEST_DYNAMIC_MAX_SHARDS: u32 = 8u32;
+
+
+"""Maximum total column count accepted by a dynamic manifest."""
 open const BRAIN_MANIFEST_DYNAMIC_MAX_COLUMNS: u32 = 8192u32;
+
+
+"""Maximum serialized byte length accepted by a dynamic manifest."""
 open const BRAIN_MANIFEST_DYNAMIC_MAX_BYTES: u32 = 384u32;
 
+
+"""Number of inline shard metadata entries in the bounded cache."""
 open const BRAIN_CACHE_CAPACITY: u8 = 4u8;

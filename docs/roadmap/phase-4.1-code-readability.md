@@ -256,18 +256,19 @@ to `case` and bounded iteration must be completed and reviewed independently.
 
 ### Gate 5 — Production documentation and comments
 
-- [ ] Add an Actus documentation block (`""" ... """`) to every public facade,
+- [x] Add an Actus documentation block (`""" ... """`) to every public facade,
       public struct, public enum, and public verb.
-- [ ] Each public verb documentation block states its purpose, inputs, outputs,
+- [x] Each public verb documentation block states its purpose, inputs, outputs,
       ownership behavior, invariants, and failure behavior where applicable.
-- [ ] Use `#` for short implementation comments; do not use Rust-style `//` or
+- [x] Use `#` for short implementation comments; do not use Rust-style `//` or
       `///` comments in Actus source.
-- [ ] Explain why a non-obvious branch, bound, offset, checksum step, or
+- [x] Explain why a non-obvious branch, bound, offset, checksum step, or
       ownership transfer exists.
-- [ ] Keep comments synchronized with the implementation and avoid comments
+- [x] Keep comments synchronized with the implementation and avoid comments
       that merely restate the next line of code.
-- [ ] Ensure comments and documentation are excluded from source-limit counts
-      according to the compiler contract.
+- [x] Confirm the compiler source-limit contract: ordinary `#` comments are
+      excluded, while Actus `""" ... """` documentation remains measured and
+      is never used as a source-limit bypass.
 
 #### Gate 5 progress
 
@@ -301,6 +302,10 @@ to `case` and bounded iteration must be completed and reviewed independently.
       persistence facade or its exported operation names.
 - [x] Rechecked Actus source comments: no Rust-style `//` or `///` comments
       remain in `src/`, `tests/`, or `benchmarks/` Actus sources.
+- [x] Added individual documentation blocks for all package-wide public
+      configuration constants in `src/config/values.act`.
+- [x] Final declaration audit found 189 public `verb`, `struct`, `pack`,
+      `enum`, and `const` declarations with no missing leading documentation.
 
 ### Gate 6 — Readability review
 
