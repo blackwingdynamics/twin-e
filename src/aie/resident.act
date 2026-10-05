@@ -1,0 +1,106 @@
+"""Resident shard preparation for bounded neurogenesis."""
+import config;
+
+open runtime;
+
+open persistence;
+
+verb source_can_link[N: Usize](abs fabric: CorticalFabric[N], erg source: u32) -> Bool {
+    if source >= (N as u32) || fabric.free_list_head == null_index() {
+        return false;
+    }
+    if (fabric.columns[source].flags & FLAG_ACTIVE) == 0u8 {
+        return false;
+    }
+    erg slot: u32 = 0u32;
+    loop {
+        if slot >= 8u32 {
+            break;
+        }
+        if fabric.columns[source].axons[slot] == null_index() {
+            return true;
+        }
+        slot += 1u32;
+    }
+    return false;
+}
+
+verb finish_resident_neurogenesis[N: Usize](
+    ins fabric: CorticalFabric[N],
+    ins cache: ShardCache,
+    abs wave: Wavefront,
+    erg source_idx: u32,
+    erg slot: u8
+) -> Option[u32] {
+    erg created = neurogenesis(
+        fabric: ins fabric,
+        wave: abs wave,
+        source_idx: erg source_idx
+    );
+    erg result: Option[u32] = Option[u32].None;
+    case dat created {
+        Option.None => {},
+        Option.Some(index) => {
+            shard_cache_mark_dirty(cache: ins cache, slot: erg slot);
+            result = Option[u32].Some(index);
+        },
+    };
+    return result;
+}
+
+verb complete_resident_neurogenesis[N: Usize](
+    ins fabric: CorticalFabric[N],
+    ins cache: ShardCache,
+    abs wave: Wavefront,
+    erg source_idx: u32,
+    erg shard_id: u32,
+    erg generation: u64,
+    erg checksum: u64
+) -> Option[u32] {
+    erg prepared = shard_cache_insert(
+        cache: ins cache,
+        shard_id: erg shard_id,
+        generation: erg generation,
+        checksum: erg checksum
+    );
+    return case dat prepared {
+        Result.Err(_) => Option[u32].None,
+        Result.Ok(slot) => finish_resident_neurogenesis(
+            fabric: ins fabric,
+            cache: ins cache,
+            wave: abs wave,
+            source_idx: erg source_idx,
+            slot: erg slot
+        ),
+    };
+}
+
+"""Prepare a resident shard before linking a newly generated column.
+
+The cache reservation is completed before the new column is linked into the
+fabric. A successful neurogenesis marks that resident entry `Dirty`. The
+caller keeps exclusive ownership of the fabric and cache for the transaction;
+no filesystem operation is performed.
+"""
+open verb neurogenesis_with_resident_cache[N: Usize](
+    ins fabric: CorticalFabric[N],
+    ins cache: ShardCache,
+    abs wave: Wavefront,
+    erg source_idx: u32,
+    erg shard_id: u32,
+    erg generation: u64,
+    erg checksum: u64
+) -> Option[u32] {
+    if !source_can_link(fabric: abs fabric, source: erg source_idx) {
+        return Option[u32].None;
+    }
+    return complete_resident_neurogenesis(
+        fabric: ins fabric,
+        cache: ins cache,
+        wave: abs wave,
+        source_idx: erg source_idx,
+        shard_id: erg shard_id,
+        generation: erg generation,
+        checksum: erg checksum
+    );
+}

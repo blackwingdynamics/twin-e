@@ -36,7 +36,21 @@ AIE_CACHE capacity=4 working_set=4 dirty_rejected=1 pinned_rejected=1 clean_evic
   `loaded` and `dirty` booleans. The lifecycle enum includes the states needed
   by the later load, flush, publish, and failure gates.
 
-This evidence closes the lifecycle-definition and full-capacity behavior gates.
-It does not claim that background flushing, atomic publication, or direct
-neurogenesis-to-shard activation is implemented; those remain later P5.1A
-gates.
+This evidence closes the lifecycle-definition, full-capacity behavior, and
+resident neurogenesis ordering gates. It does not claim that background
+flushing or atomic publication is implemented; those remain later P5.1A gates.
+
+## Resident neurogenesis API evidence
+
+The public `neurogenesis_with_resident_cache` API is covered by
+`tests/aie_api.act::test_resident_shard_precedes_neurogenesis_link`. The test
+verifies that a column is linked, the shard is present in the cache, and its
+lifecycle is `Dirty` after the operation. It also runs without any filesystem
+call in the test path.
+
+The strict test command produced:
+
+```text
+test result: ok
+17 passed; 0 failed
+```

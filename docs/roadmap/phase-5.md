@@ -99,9 +99,9 @@ first; persistence is a later operation with an explicit lifecycle.
   `Dirty`, `Flushing`, `Persisted`, and `Failed`.
 - [x] Define the behavior when neurogenesis needs a slot and the current
   resident working set is full.
-- [ ] Allocate or activate a new shard in memory before linking the new
+- [x] Allocate or activate a new shard in memory before linking the new
   minicolumn into the active fabric.
-- [ ] Mark the new or modified shard `Dirty` without writing to disk from the
+- [x] Mark the new or modified shard `Dirty` without writing to disk from the
   inference, forwarding, or neurogenesis call path.
 - [ ] Make shard growth bounded by configured resident capacity and return an
   explicit resource error when no safe expansion or eviction is possible.

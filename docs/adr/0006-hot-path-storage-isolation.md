@@ -63,6 +63,11 @@ Neurogenesis allocates or activates a resident slot before it links the new
 minicolumn into the active fabric. The new shard or modified shard is marked
 `Dirty` in memory. The link operation does not wait for disk persistence.
 
+Twin-e exposes this ordering through `neurogenesis_with_resident_cache`. The
+API prepares or refreshes the shard cache entry first, performs bounded
+neurogenesis and linking, and marks the successful resident entry `Dirty`.
+The operation has no filesystem side effect.
+
 When resident capacity is full, the runtime may evict only a clean,
 unpinned `Resident` shard. Dirty or pinned shards are not evictable. If no
 safe slot exists, neurogenesis returns an explicit bounded resource error and

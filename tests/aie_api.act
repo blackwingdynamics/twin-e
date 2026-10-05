@@ -53,3 +53,41 @@ verb test_public_api_rejects_invalid_and_exhausted_inputs() -> Int {
     }
     return 1;
 }
+
+verb cache_entry_is_dirty_for_test(abs cache: ShardCache) -> Bool {
+    return case cache.entries[0u32].lifecycle {
+        ShardLifecycle.Dirty => true,
+        _ => false,
+    };
+}
+
+verb cache_ready_for_test(abs cache: ShardCache) -> Bool {
+    return cache.entries[0u32].shard_id == 7u32 && cache_entry_is_dirty_for_test(cache: abs cache);
+}
+
+meta test
+verb test_resident_shard_precedes_neurogenesis_link() -> Int {
+    erg fabric: CorticalFabric[4] = CorticalFabric[4] {columns: Array[Minicolumn, 4](), free_list_head: 0u32, active_count: 0u32};
+    erg cache: ShardCache = ShardCache {entries: Array[ShardCacheEntry, 4](), clock: 0u64};
+    fabric_init(fabric: ins fabric);
+    shard_cache_init(cache: ins cache);
+    erg source_idx: u32 = allocate_column_index(fabric: ins fabric);
+    erg wave: Wavefront = Wavefront {mask_low: 9u64, mask_high: 0u64, energy: 1u8};
+    erg shard_id: u32 = 7u32;
+    erg generation: u64 = 1u64;
+    erg checksum: u64 = 77u64;
+    neurogenesis_with_resident_cache(
+        fabric: ins fabric,
+        cache: ins cache,
+        wave: abs wave,
+        source_idx: erg source_idx,
+        shard_id: erg shard_id,
+        generation: erg generation,
+        checksum: erg checksum
+    );
+    erg linked: Bool = fabric.columns[source_idx].axons[0u32] != NULL_INDEX;
+    if linked && cache_ready_for_test(cache: abs cache) {
+        return 0;
+    }
+    return 1;
+}
