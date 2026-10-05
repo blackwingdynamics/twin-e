@@ -1,0 +1,169 @@
+"""
+Purpose: Validate a dynamic shard against its manifest descriptor and checksum.
+Inputs: The manifest, descriptor, shard, or header values declared by the signature.
+Outputs: Returns Bool for predicates or a typed Result when validation also reports an I/O condition.
+Invariants: Validation is side-effect free and enforces magic, version, bounds, checksum, and layout rules.
+Failure behavior: Returns false or InvalidData/InvalidInput according to the public contract; it never accepts partial state.
+"""
+open verb validate_dynamic_manifest_shard(
+    abs manifest: Buffer,
+    dat shard: Buffer,
+    erg descriptor_index: u32
+) -> Result[Int, IoError] {
+    if !manifest_dynamic_bytes_are_valid(bytes: abs manifest) { drop(shard); return Err(IoError.InvalidData); }
+    erg shard_count_offset: u32 = 28u32;
+    erg shard_count: u32 = read_shard_u32(input: abs manifest, offset: abs shard_count_offset);
+    if descriptor_index >= shard_count { drop(shard); return Err(IoError.InvalidInput); }
+    erg descriptor_offset: u32 = BRAIN_MANIFEST_HEADER_BYTES as u32 + (descriptor_index * BRAIN_MANIFEST_DESCRIPTOR_BYTES as u32);
+    erg descriptor_offset_copy: u32 = descriptor_offset + 0u32;
+    erg expected_id: u32 = read_shard_u32(input: abs manifest, offset: abs descriptor_offset_copy);
+    erg first_offset: u32 = descriptor_offset + 4u32;
+    erg count_offset: u32 = descriptor_offset + 8u32;
+    erg checksum_offset: u32 = descriptor_offset + 28u32;
+    erg expected_first: u32 = read_shard_u32(input: abs manifest, offset: abs first_offset);
+    erg expected_count: u32 = read_shard_u32(input: abs manifest, offset: abs count_offset);
+    erg expected_checksum: u64 = read_shard_u64(input: abs manifest, offset: abs checksum_offset);
+    erg shard_checksum_offset: u32 = 40u32;
+    erg stored_checksum: u64 = read_shard_u64(input: abs shard, offset: abs shard_checksum_offset);
+    if stored_checksum != expected_checksum { drop(shard); return Err(IoError.InvalidData); }
+    return validate_dynamic_shard_bytes(bytes: dat shard, expected_shard_id: erg expected_id, expected_first_column_index: erg expected_first, expected_column_count: erg expected_count);
+}
+
+"""
+Purpose: Validate a dynamic shard containing the shard-local binding section.
+Inputs: The manifest, descriptor, shard, or header values declared by the signature.
+Outputs: Returns Bool for predicates or a typed Result when validation also reports an I/O condition.
+Invariants: Validation is side-effect free and enforces magic, version, bounds, checksum, and layout rules.
+Failure behavior: Returns false or InvalidData/InvalidInput according to the public contract; it never accepts partial state.
+"""
+open verb validate_dynamic_manifest_binding_shard(abs manifest: Buffer, abs shard: Buffer, erg descriptor_index: u32) -> Result[Int, IoError] {
+    if !manifest_dynamic_bytes_are_valid(bytes: abs manifest) { return Err(IoError.InvalidData); }
+    erg shard_count_offset: u32 = 28u32;
+    erg shard_count: u32 = read_shard_u32(input: abs manifest, offset: abs shard_count_offset);
+    if descriptor_index >= shard_count { return Err(IoError.InvalidInput); }
+    erg descriptor_offset: u32 = BRAIN_MANIFEST_HEADER_BYTES as u32 + (descriptor_index * BRAIN_MANIFEST_DESCRIPTOR_BYTES as u32);
+    erg id_offset: u32 = descriptor_offset + 0u32;
+    erg first_offset: u32 = descriptor_offset + 4u32;
+    erg count_offset: u32 = descriptor_offset + 8u32;
+    erg binding_offset_field: u32 = descriptor_offset + 20u32;
+    erg binding_bytes_field: u32 = descriptor_offset + 24u32;
+    erg checksum_offset: u32 = descriptor_offset + 28u32;
+    erg expected_id: u32 = read_shard_u32(input: abs manifest, offset: abs id_offset);
+    erg expected_first: u32 = read_shard_u32(input: abs manifest, offset: abs first_offset);
+    erg expected_count: u32 = read_shard_u32(input: abs manifest, offset: abs count_offset);
+    erg expected_binding_offset: u32 = read_shard_u32(input: abs manifest, offset: abs binding_offset_field);
+    erg expected_binding_bytes: u32 = read_shard_u32(input: abs manifest, offset: abs binding_bytes_field);
+    erg expected_checksum: u64 = read_shard_u64(input: abs manifest, offset: abs checksum_offset);
+    if expected_binding_offset != BRAIN_SHARD_HEADER_BYTES as u32 + (expected_count * BRAIN_SHARD_COLUMN_STRIDE_BYTES as u32) || expected_binding_bytes != expected_count * BRAIN_SHARD_BINDING_STRIDE_BYTES as u32 { return Err(IoError.InvalidData); }
+    erg shard_checksum_offset: u32 = 40u32;
+    erg stored_checksum: u64 = read_shard_u64(input: abs shard, offset: abs shard_checksum_offset);
+    if stored_checksum != expected_checksum { return Err(IoError.InvalidData); }
+    if !dynamic_shard_with_bindings_is_valid(bytes: abs shard, expected_shard_id: erg expected_id, expected_first_column_index: erg expected_first, expected_column_count: erg expected_count) { return Err(IoError.InvalidData); }
+    erg length_result = buffer_length(buffer: abs shard);
+    return case dat length_result {
+        Result.Err(_) => Err(IoError.Failed),
+        Result.Ok(length) => Ok(length),
+    };
+}
+
+"""
+Purpose: Build an allocation plan for an existing column or a new dynamic shard.
+Inputs: The validated manifest buffer and global index or allocation selector declared by the signature.
+Outputs: Returns a bounded plan describing the shard, local index, and required operation.
+Invariants: Planning is side-effect free and never allocates, writes files, or mutates the fabric.
+Failure behavior: Returns InvalidData for malformed manifests and InvalidInput for impossible indexes or capacity.
+"""
+open verb plan_dynamic_allocation(abs bytes: Buffer, erg global_index: u32) -> Result[AllocationPlan, IoError] {
+    if !manifest_dynamic_bytes_are_valid(bytes: abs bytes) {
+        return Err(IoError.InvalidData);
+    }
+    erg total_offset: u32 = 20u32;
+    erg count_offset: u32 = 28u32;
+    erg total_columns: u32 = read_manifest_u32(input: abs bytes, offset: abs total_offset);
+    erg shard_count: u32 = read_manifest_u32(input: abs bytes, offset: abs count_offset);
+    if global_index > total_columns {
+        return Err(IoError.InvalidInput);
+    }
+    if global_index == total_columns {
+        if shard_count >= BRAIN_MANIFEST_DYNAMIC_MAX_SHARDS {
+            return Err(IoError.InvalidInput);
+        }
+        return Ok(AllocationPlan {global_index: global_index, shard_id: shard_count, local_index: 0u32, creates_shard: true});
+    }
+    erg location_result = manifest_locate_column_dynamic(bytes: abs bytes, global_index: erg global_index);
+    return case dat location_result {
+        Result.Err(error) => Err(error),
+        Result.Ok(location) => Ok(AllocationPlan {global_index: location.global_index, shard_id: location.shard_id, local_index: location.local_index, creates_shard: false}),
+    };
+}
+
+"""
+Purpose: Build a plan for allocating the next entry from the dynamic free list.
+Inputs: The validated manifest buffer and global index or allocation selector declared by the signature.
+Outputs: Returns a bounded plan describing the shard, local index, and required operation.
+Invariants: Planning is side-effect free and never allocates, writes files, or mutates the fabric.
+Failure behavior: Returns InvalidData for malformed manifests and InvalidInput for impossible indexes or capacity.
+"""
+open verb plan_dynamic_free_list(abs bytes: Buffer) -> Result[AllocationPlan, IoError] {
+    if !manifest_dynamic_bytes_are_valid(bytes: abs bytes) {
+        return Err(IoError.InvalidData);
+    }
+    erg free_list_offset: u32 = 52u32;
+    erg total_offset: u32 = 20u32;
+    erg free_list_head: u32 = read_shard_u32(input: abs bytes, offset: abs free_list_offset);
+    erg total_columns: u32 = read_shard_u32(input: abs bytes, offset: abs total_offset);
+    if free_list_head == NULL_INDEX {
+        return plan_dynamic_allocation(bytes: abs bytes, global_index: erg total_columns);
+    }
+    erg location_result = manifest_locate_column_dynamic(bytes: abs bytes, global_index: erg free_list_head);
+    return case dat location_result {
+        Result.Err(error) => Err(error),
+        Result.Ok(location) => Ok(AllocationPlan {global_index: location.global_index, shard_id: location.shard_id, local_index: location.local_index, creates_shard: false}),
+    };
+}
+
+"""
+Purpose: Build a validated load plan for a global dynamic column index.
+Inputs: The validated manifest buffer and global index or allocation selector declared by the signature.
+Outputs: Returns a bounded plan describing the shard, local index, and required operation.
+Invariants: Planning is side-effect free and never allocates, writes files, or mutates the fabric.
+Failure behavior: Returns InvalidData for malformed manifests and InvalidInput for impossible indexes or capacity.
+"""
+open verb plan_dynamic_load(abs manifest: Buffer, erg global_index: u32) -> Result[DynamicLoadPlan, IoError] {
+    erg location_result = manifest_locate_column_dynamic(bytes: abs manifest, global_index: erg global_index);
+    return case dat location_result {
+        Result.Err(error) => Err(error),
+        Result.Ok(location) => {
+            erg descriptor_offset: u32 = BRAIN_MANIFEST_HEADER_BYTES as u32 + (location.shard_id * BRAIN_MANIFEST_DESCRIPTOR_BYTES as u32);
+            erg first_offset: u32 = descriptor_offset + 4u32;
+            erg count_offset: u32 = descriptor_offset + 8u32;
+            erg expected_first: u32 = read_shard_u32(input: abs manifest, offset: abs first_offset);
+            erg expected_count: u32 = read_shard_u32(input: abs manifest, offset: abs count_offset);
+            return Ok(DynamicLoadPlan {shard_id: location.shard_id, first_column_index: expected_first, column_count: expected_count, local_index: location.local_index});
+        },
+    };
+}
+
+"""
+Purpose: Execute a validated dynamic load plan without re-resolving its location.
+Inputs: The fabric destination plus manifest, shard paths, indexes, and load plan declared by the signature.
+Outputs: Loads validated bytes into the fabric and returns the declared count or I/O result.
+Invariants: Only validated descriptors and checksums may reach the mutable fabric.
+Failure behavior: Rejects malformed, missing, mismatched, or out-of-range data without publishing a partial load.
+"""
+open verb load_dynamic_from_plan(
+    ins fabric: CorticalFabric[64],
+    dat shard: Buffer,
+    abs plan: DynamicLoadPlan
+) -> Result[Int, IoError] {
+    erg selected_shard_id: u32 = plan.shard_id + 0u32;
+    erg selected_first: u32 = plan.first_column_index + 0u32;
+    erg selected_count: u32 = plan.column_count + 0u32;
+    erg destination_index: u32 = 0u32;
+    erg loaded = load_dynamic_shard_bytes(fabric: ins fabric, bytes: dat shard, destination_index: erg destination_index, expected_shard_id: erg selected_shard_id, expected_first_column_index: erg selected_first, expected_column_count: erg selected_count);
+    return case dat loaded {
+        Result.Err(error) => Err(error),
+        Result.Ok(bytes_loaded) => Ok(bytes_loaded),
+    };
+}
+

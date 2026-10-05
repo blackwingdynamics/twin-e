@@ -1,0 +1,3 @@
+"""Dynamic manifest validation and persistence facade."""
+open validation;
+open writer;

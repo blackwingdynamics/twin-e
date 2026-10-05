@@ -1,0 +1,12 @@
+"""Canonical facade for fixed and dynamic manifest persistence."""
+import config;
+import std::fs;
+import std::io;
+
+open types;
+open codec;
+open fixed;
+open loading;
+open dynamic_manifest;
+open planning;
+open generation;

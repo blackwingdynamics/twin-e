@@ -1,0 +1,118 @@
+"""
+Purpose: Append the dynamic manifest identity fields using the canonical on-disk schema.
+Inputs: The typed value arguments declared by the signature and the destination Buffer.
+Outputs: Extends the destination Buffer in canonical little-endian order.
+Invariants: The destination remains the only mutable owner and field ordering is preserved.
+Failure behavior: This low-level encoder has no error result; callers must provide valid typed values and capacity.
+"""
+verb append_dynamic_manifest_identity(ins output: Buffer, abs manifest_length: u32, erg generation: u64, erg active_count: u32, erg free_list_head: u32, erg total_column_count: u32, erg shard_count: u32) {
+    erg magic: u32 = BRAIN_MANIFEST_MAGIC;
+    erg version: u16 = BRAIN_MANIFEST_VERSION;
+    erg header_bytes: u16 = BRAIN_MANIFEST_HEADER_BYTES;
+    erg column_stride: u16 = BRAIN_SHARD_COLUMN_STRIDE_BYTES;
+    erg binding_stride: u16 = BRAIN_SHARD_BINDING_STRIDE_BYTES;
+    erg tokenizer_version: u16 = TOKENIZER_VERSION;
+    erg context_version: u16 = CONTEXT_VERSION;
+    erg code_version: u16 = TOKEN_CODE_VERSION;
+    append_manifest_u32(output: ins output, value: abs magic);
+    append_manifest_u16(output: ins output, value: abs version);
+    append_manifest_u16(output: ins output, value: abs header_bytes);
+    append_manifest_u32(output: ins output, value: abs manifest_length);
+    append_manifest_u64(output: ins output, value: abs generation);
+    append_manifest_u32(output: ins output, value: abs total_column_count);
+    append_manifest_u32(output: ins output, value: abs active_count);
+    append_manifest_u32(output: ins output, value: abs shard_count);
+    append_manifest_u16(output: ins output, value: abs column_stride);
+    append_manifest_u16(output: ins output, value: abs binding_stride);
+    append_manifest_u16(output: ins output, value: abs tokenizer_version);
+    append_manifest_u16(output: ins output, value: abs context_version);
+    append_manifest_u16(output: ins output, value: abs code_version);
+}
+
+"""
+Purpose: Append dynamic manifest state fields, including the free-list head and reserved values.
+Inputs: The typed value arguments declared by the signature and the destination Buffer.
+Outputs: Extends the destination Buffer in canonical little-endian order.
+Invariants: The destination remains the only mutable owner and field ordering is preserved.
+Failure behavior: This low-level encoder has no error result; callers must provide valid typed values and capacity.
+"""
+verb append_dynamic_manifest_state(ins output: Buffer, erg free_list_head: u32) {
+    erg zero_u16: u16 = 0u16;
+    erg zero_u32: u32 = 0u32;
+    erg zero_u64: u64 = 0u64;
+    append_manifest_u16(output: ins output, value: abs zero_u16);
+    append_manifest_u64(output: ins output, value: abs zero_u64);
+    append_manifest_u32(output: ins output, value: abs free_list_head);
+    append_manifest_u32(output: ins output, value: abs zero_u32);
+    append_manifest_u32(output: ins output, value: abs zero_u32);
+}
+
+"""
+Purpose: Append the serialized dynamic shard descriptors without changing their byte order.
+Inputs: The typed value arguments declared by the signature and the destination Buffer.
+Outputs: Extends the destination Buffer in canonical little-endian order.
+Invariants: The destination remains the only mutable owner and field ordering is preserved.
+Failure behavior: This low-level encoder has no error result; callers must provide valid typed values and capacity.
+"""
+verb append_dynamic_manifest_descriptors(
+    ins output: Buffer,
+    abs descriptors: Buffer,
+    erg descriptor_length: u32
+) {
+    erg descriptor_index: u32 = 0u32;
+    loop {
+        if descriptor_index >= descriptor_length {
+            break;
+        }
+        append(output, descriptors[descriptor_index]);
+        descriptor_index += 1u32;
+    }
+}
+
+"""
+Purpose: Serialize and write a complete dynamic manifest after validating its descriptor bounds.
+Inputs: The target Path and typed persistence state declared by the signature.
+Outputs: Writes or publishes the canonical position-independent representation and returns its I/O result.
+Invariants: The serialized layout, checksum, version, and generation contract remain consistent.
+Failure behavior: Rejects invalid state or failed I/O through the declared IoError result.
+"""
+open verb write_manifest_dynamic(abs path: Path, erg generation: u64, erg active_count: u32, erg free_list_head: u32, erg total_column_count: u32, erg shard_count: u32, abs descriptors: Buffer) -> Result[Int, IoError] {
+    erg descriptor_length_result = buffer_length(buffer: abs descriptors);
+    erg descriptor_length: Int = case dat descriptor_length_result { Result.Ok(value) => value, Result.Err(_) => -1, };
+    erg expected_descriptor_length: u32 = shard_count * BRAIN_MANIFEST_DESCRIPTOR_BYTES as u32;
+    if shard_count == 0u32 || shard_count > BRAIN_MANIFEST_DYNAMIC_MAX_SHARDS || descriptor_length != expected_descriptor_length as Int { return Err(IoError.InvalidInput); }
+    erg manifest_length: u32 = BRAIN_MANIFEST_HEADER_BYTES as u32 + expected_descriptor_length;
+    if manifest_length > BRAIN_MANIFEST_DYNAMIC_MAX_BYTES { return Err(IoError.InvalidInput); }
+    erg output: Buffer = Buffer[0];
+    erg capacity: Int = manifest_length as Int;
+    erg reserved = reserve(buffer: ins output, capacity: erg capacity);
+    append_dynamic_manifest_identity(output: ins output, manifest_length: abs manifest_length, generation: erg generation, active_count: erg active_count, free_list_head: erg free_list_head, total_column_count: erg total_column_count, shard_count: erg shard_count);
+    append_dynamic_manifest_state(output: ins output, free_list_head: erg free_list_head);
+    append_dynamic_manifest_descriptors(output: ins output, descriptors: abs descriptors, descriptor_length: erg expected_descriptor_length);
+    erg checksum: u64 = manifest_dynamic_checksum(input: abs output, length: erg manifest_length);
+    erg checksum_offset: u32 = 44u32;
+    write_manifest_u64(output: ins output, value: abs checksum, offset: abs checksum_offset);
+    return write_file(path: abs path, contents: abs output);
+}
+
+"""
+Purpose: Validate an in-memory dynamic manifest and return its byte length without retaining the buffer.
+Inputs: The source Buffer or Path and the typed offset or selector declared by the signature.
+Outputs: Returns the decoded value, validated length, or typed I/O result declared by the signature.
+Invariants: Reads are position-independent and do not mutate the source buffer.
+Failure behavior: Malformed data and filesystem failures are returned through the declared Result contract.
+"""
+open verb read_manifest_dynamic_bytes(dat bytes: Buffer) -> Result[Int, IoError] {
+    erg valid: Bool = manifest_dynamic_bytes_are_valid(bytes: abs bytes);
+    if !valid {
+        drop(bytes);
+        return Err(IoError.InvalidData);
+    }
+    erg length_result = buffer_length(buffer: abs bytes);
+    erg length: Int = case dat length_result {
+        Result.Ok(value) => value,
+        Result.Err(_) => -1,
+    };
+    drop(bytes);
+    return Ok(length);
+}

@@ -1,0 +1,118 @@
+"""
+Purpose: Append a little-endian u16 value to a manifest buffer.
+Inputs: The typed value arguments declared by the signature and the destination Buffer.
+Outputs: Extends the destination Buffer in canonical little-endian order.
+Invariants: The destination remains the only mutable owner and field ordering is preserved.
+Failure behavior: This low-level encoder has no error result; callers must provide valid typed values and capacity.
+"""
+verb append_manifest_u16(ins output: Buffer, abs value: u16) {
+    append(output, value as u8);
+    append(output, ((value as u32 / 256u32) & 255u32) as u8);
+}
+
+"""
+Purpose: Append a little-endian u32 value to a manifest buffer.
+Inputs: The typed value arguments declared by the signature and the destination Buffer.
+Outputs: Extends the destination Buffer in canonical little-endian order.
+Invariants: The destination remains the only mutable owner and field ordering is preserved.
+Failure behavior: This low-level encoder has no error result; callers must provide valid typed values and capacity.
+"""
+verb append_manifest_u32(ins output: Buffer, abs value: u32) {
+    append(output, (value & 255u32) as u8);
+    append(output, ((value / 256u32) & 255u32) as u8);
+    append(output, ((value / 65536u32) & 255u32) as u8);
+    append(output, ((value / 16777216u32) & 255u32) as u8);
+}
+
+"""
+Purpose: Append a little-endian u64 value to a manifest buffer.
+Inputs: The typed value arguments declared by the signature and the destination Buffer.
+Outputs: Extends the destination Buffer in canonical little-endian order.
+Invariants: The destination remains the only mutable owner and field ordering is preserved.
+Failure behavior: This low-level encoder has no error result; callers must provide valid typed values and capacity.
+"""
+verb append_manifest_u64(ins output: Buffer, abs value: u64) {
+    erg low: u32 = (value & 4294967295u64) as u32;
+    erg high: u32 = (value / 4294967296u64) as u32;
+    append_manifest_u32(output: ins output, value: abs low);
+    append_manifest_u32(output: ins output, value: abs high);
+}
+
+"""
+Purpose: Read a little-endian u16 value from a manifest buffer.
+Inputs: The source Buffer or Path and the typed offset or selector declared by the signature.
+Outputs: Returns the decoded value, validated length, or typed I/O result declared by the signature.
+Invariants: Reads are position-independent and do not mutate the source buffer.
+Failure behavior: Malformed data and filesystem failures are returned through the declared Result contract.
+"""
+verb read_manifest_u16(abs input: Buffer, abs offset: u32) -> u16 {
+    return (input[offset] as u16) + ((input[offset + 1u32] as u16) * 256u16);
+}
+
+"""
+Purpose: Read a little-endian u32 value from a manifest buffer.
+Inputs: The source Buffer or Path and the typed offset or selector declared by the signature.
+Outputs: Returns the decoded value, validated length, or typed I/O result declared by the signature.
+Invariants: Reads are position-independent and do not mutate the source buffer.
+Failure behavior: Malformed data and filesystem failures are returned through the declared Result contract.
+"""
+verb read_manifest_u32(abs input: Buffer, abs offset: u32) -> u32 {
+    return (input[offset] as u32) + ((input[offset + 1u32] as u32) * 256u32) + ((input[offset + 2u32] as u32) * 65536u32) + ((input[offset + 3u32] as u32) * 16777216u32);
+}
+
+"""
+Purpose: Read a little-endian u64 value from a manifest buffer.
+Inputs: The source Buffer or Path and the typed offset or selector declared by the signature.
+Outputs: Returns the decoded value, validated length, or typed I/O result declared by the signature.
+Invariants: Reads are position-independent and do not mutate the source buffer.
+Failure behavior: Malformed data and filesystem failures are returned through the declared Result contract.
+"""
+verb read_manifest_u64(abs input: Buffer, abs offset: u32) -> u64 {
+    erg low: u64 = read_manifest_u32(input: abs input, offset: abs offset) as u64;
+    erg high_offset: u32 = offset + 4u32;
+    erg high: u64 = read_manifest_u32(input: abs input, offset: abs high_offset) as u64;
+    return low + (high * 4294967296u64);
+}
+
+"""
+Purpose: Compute the checksum for the fixed manifest byte representation.
+Inputs: The manifest bytes and typed indexes or metadata declared by the signature.
+Outputs: Returns the requested checksum, metadata, location, or validation result.
+Invariants: All offsets and indexes remain bounded by the position-independent manifest contract.
+Failure behavior: Returns false, InvalidInput, or InvalidData according to the declared return type.
+"""
+verb manifest_checksum(abs input: Buffer) -> u64 {
+    erg checksum: u64 = 0u64;
+    erg index: u32 = 0u32;
+    loop {
+        if index >= BRAIN_MANIFEST_FILE_BYTES {
+            break;
+        }
+        if index < 44u32 || index >= 52u32 {
+            checksum += (input[index] as u64) * ((index + 1u32) as u64);
+        }
+        index += 1u32;
+    }
+    return checksum;
+}
+
+"""
+Purpose: Overwrite a little-endian u64 value at a manifest byte offset.
+Inputs: The target Path and typed persistence state declared by the signature.
+Outputs: Writes or publishes the canonical position-independent representation and returns its I/O result.
+Invariants: The serialized layout, checksum, version, and generation contract remain consistent.
+Failure behavior: Rejects invalid state or failed I/O through the declared IoError result.
+"""
+verb write_manifest_u64(ins output: Buffer, abs value: u64, abs offset: u32) {
+    erg low: u32 = (value & 4294967295u64) as u32;
+    erg high: u32 = (value / 4294967296u64) as u32;
+    output[offset] = (low & 255u32) as u8;
+    output[offset + 1u32] = ((low / 256u32) & 255u32) as u8;
+    output[offset + 2u32] = ((low / 65536u32) & 255u32) as u8;
+    output[offset + 3u32] = ((low / 16777216u32) & 255u32) as u8;
+    output[offset + 4u32] = (high & 255u32) as u8;
+    output[offset + 5u32] = ((high / 256u32) & 255u32) as u8;
+    output[offset + 6u32] = ((high / 65536u32) & 255u32) as u8;
+    output[offset + 7u32] = ((high / 16777216u32) & 255u32) as u8;
+}
+

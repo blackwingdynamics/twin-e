@@ -1,0 +1,231 @@
+"""
+Purpose: Compute the position-independent checksum while excluding the stored checksum field.
+Inputs: The manifest bytes and typed indexes or metadata declared by the signature.
+Outputs: Returns the requested checksum, metadata, location, or validation result.
+Invariants: All offsets and indexes remain bounded by the position-independent manifest contract.
+Failure behavior: Returns false, InvalidInput, or InvalidData according to the declared return type.
+"""
+verb manifest_dynamic_checksum(abs input: Buffer, erg length: u32) -> u64 {
+    erg checksum: u64 = 0u64;
+    erg index: u32 = 0u32;
+    loop {
+        if index >= length {
+            break;
+        }
+        if index < 44u32 || index >= 52u32 {
+            checksum += (input[index] as u64) * ((index + 1u32) as u64);
+        }
+        index += 1u32;
+    }
+    return checksum;
+}
+
+"""
+Purpose: Overwrite a little-endian u32 value at a validated manifest byte offset.
+Inputs: The target Path and typed persistence state declared by the signature.
+Outputs: Writes or publishes the canonical position-independent representation and returns its I/O result.
+Invariants: The serialized layout, checksum, version, and generation contract remain consistent.
+Failure behavior: Rejects invalid state or failed I/O through the declared IoError result.
+"""
+verb write_manifest_u32_at(ins output: Buffer, abs value: u32, abs offset: u32) {
+    output[offset] = (value & 255u32) as u8;
+    output[offset + 1u32] = ((value / 256u32) & 255u32) as u8;
+    output[offset + 2u32] = ((value / 65536u32) & 255u32) as u8;
+    output[offset + 3u32] = ((value / 16777216u32) & 255u32) as u8;
+}
+
+"""
+Purpose: Validate one dynamic descriptor against its expected range, payload sizes, and active state.
+Inputs: The manifest bytes and typed indexes or metadata declared by the signature.
+Outputs: Returns the requested checksum, metadata, location, or validation result.
+Invariants: All offsets and indexes remain bounded by the position-independent manifest contract.
+Failure behavior: Returns false, InvalidInput, or InvalidData according to the declared return type.
+"""
+verb manifest_dynamic_descriptor_is_safe(
+    abs first_column: u32,
+    abs column_count: u32,
+    abs column_payload: u32,
+    abs binding_offset: u32,
+    abs binding_payload: u32,
+    abs state: u32,
+    abs expected_first: u32
+) -> Bool {
+    erg expected_column_payload: u32 = column_count * BRAIN_SHARD_COLUMN_STRIDE_BYTES as u32;
+    erg expected_binding_payload: u32 = column_count * BRAIN_SHARD_BINDING_STRIDE_BYTES as u32;
+    if first_column != expected_first || column_count == 0u32 || column_count > BRAIN_SHARD_DYNAMIC_MAX_COLUMNS || first_column > BRAIN_MANIFEST_DYNAMIC_MAX_COLUMNS - column_count || column_payload != expected_column_payload || state != 1u32 {
+        return false;
+    }
+    if binding_payload == 0u32 {
+        return binding_offset == 0u32;
+    }
+    return binding_offset == BRAIN_SHARD_HEADER_BYTES as u32 + expected_column_payload && binding_payload == expected_binding_payload;
+}
+
+"""
+Purpose: Read and validate one dynamic descriptor at its indexed manifest location.
+Inputs: The manifest bytes and typed indexes or metadata declared by the signature.
+Outputs: Returns the requested checksum, metadata, location, or validation result.
+Invariants: All offsets and indexes remain bounded by the position-independent manifest contract.
+Failure behavior: Returns false, InvalidInput, or InvalidData according to the declared return type.
+"""
+verb manifest_dynamic_descriptor_is_valid_at(abs bytes: Buffer, erg descriptor_index: u32, erg total_columns: u32, erg expected_first: u32) -> Bool {
+    erg descriptor_offset: u32 = BRAIN_MANIFEST_HEADER_BYTES as u32 + (descriptor_index * BRAIN_MANIFEST_DESCRIPTOR_BYTES as u32);
+    erg descriptor_id: u32 = read_manifest_u32(input: abs bytes, offset: abs descriptor_offset);
+    erg first_offset: u32 = descriptor_offset + 4u32;
+    erg count_offset: u32 = descriptor_offset + 8u32;
+    erg payload_offset: u32 = descriptor_offset + 16u32;
+    erg binding_offset_field: u32 = descriptor_offset + 20u32;
+    erg binding_payload_offset: u32 = descriptor_offset + 24u32;
+    erg state_offset: u32 = descriptor_offset + 36u32;
+    erg first_column: u32 = read_manifest_u32(input: abs bytes, offset: abs first_offset);
+    erg column_count: u32 = read_manifest_u32(input: abs bytes, offset: abs count_offset);
+    erg column_payload: u32 = read_manifest_u32(input: abs bytes, offset: abs payload_offset);
+    erg binding_offset: u32 = read_manifest_u32(input: abs bytes, offset: abs binding_offset_field);
+    erg binding_payload: u32 = read_manifest_u32(input: abs bytes, offset: abs binding_payload_offset);
+    erg state: u32 = read_manifest_u32(input: abs bytes, offset: abs state_offset);
+    return descriptor_id == descriptor_index && first_column <= total_columns && column_count <= total_columns - first_column && manifest_dynamic_descriptor_is_safe(first_column: abs first_column, column_count: abs column_count, column_payload: abs column_payload, binding_offset: abs binding_offset, binding_payload: abs binding_payload, state: abs state, expected_first: abs expected_first);
+}
+
+"""
+Purpose: Validate descriptor ordering, contiguous coverage, and total column coverage.
+Inputs: The manifest, descriptor, shard, or header values declared by the signature.
+Outputs: Returns Bool for predicates or a typed Result when validation also reports an I/O condition.
+Invariants: Validation is side-effect free and enforces magic, version, bounds, checksum, and layout rules.
+Failure behavior: Returns false or InvalidData/InvalidInput according to the public contract; it never accepts partial state.
+"""
+verb manifest_dynamic_descriptors_are_valid(abs bytes: Buffer, erg shard_count: u32, erg total_columns: u32) -> Bool {
+    erg descriptor_index: u32 = 0u32;
+    erg expected_first: u32 = 0u32;
+    loop {
+        if descriptor_index >= shard_count { break; }
+        if !manifest_dynamic_descriptor_is_valid_at(bytes: abs bytes, descriptor_index: erg descriptor_index, total_columns: erg total_columns, expected_first: erg expected_first) { return false; }
+        erg first_offset: u32 = BRAIN_MANIFEST_HEADER_BYTES as u32 + (descriptor_index * BRAIN_MANIFEST_DESCRIPTOR_BYTES as u32) + 4u32;
+        erg count_offset: u32 = first_offset + 4u32;
+        expected_first = read_manifest_u32(input: abs bytes, offset: abs first_offset) + read_manifest_u32(input: abs bytes, offset: abs count_offset);
+        descriptor_index += 1u32;
+    }
+    return expected_first == total_columns;
+}
+
+"""
+Purpose: Validate dynamic manifest identity, version, size, stride, and checksum metadata.
+Inputs: The manifest, descriptor, shard, or header values declared by the signature.
+Outputs: Returns Bool for predicates or a typed Result when validation also reports an I/O condition.
+Invariants: Validation is side-effect free and enforces magic, version, bounds, checksum, and layout rules.
+Failure behavior: Returns false or InvalidData/InvalidInput according to the public contract; it never accepts partial state.
+"""
+verb manifest_dynamic_header_is_valid(
+    abs bytes: Buffer,
+    abs length_u32: u32,
+    erg stored_length: u32,
+    erg shard_count: u32,
+    erg stored_checksum: u64,
+    erg actual_checksum: u64,
+    erg total_columns: u32
+) -> Bool {
+    erg o0: u32 = 0u32; erg o4: u32 = 4u32; erg o6: u32 = 6u32; erg o32: u32 = 32u32; erg o34: u32 = 34u32; erg o36: u32 = 36u32; erg o38: u32 = 38u32; erg o40: u32 = 40u32;
+    return stored_length == length_u32 && stored_length >= BRAIN_MANIFEST_HEADER_BYTES as u32 && stored_checksum == actual_checksum && read_manifest_u32(
+        input: abs bytes,
+        offset: abs o0
+    ) == BRAIN_MANIFEST_MAGIC && read_manifest_u16(input: abs bytes, offset: abs o4) == BRAIN_MANIFEST_VERSION && read_manifest_u16(
+        input: abs bytes,
+        offset: abs o6
+    ) == BRAIN_MANIFEST_HEADER_BYTES && shard_count != 0u32 && shard_count <= BRAIN_MANIFEST_DYNAMIC_MAX_SHARDS && total_columns <= BRAIN_MANIFEST_DYNAMIC_MAX_COLUMNS && read_manifest_u16(
+        input: abs bytes,
+        offset: abs o32
+    ) == BRAIN_SHARD_COLUMN_STRIDE_BYTES && read_manifest_u16(input: abs bytes, offset: abs o34) == BRAIN_SHARD_BINDING_STRIDE_BYTES && read_manifest_u16(
+        input: abs bytes,
+        offset: abs o36
+    ) == TOKENIZER_VERSION && read_manifest_u16(input: abs bytes, offset: abs o38) == CONTEXT_VERSION && read_manifest_u16(
+        input: abs bytes,
+        offset: abs o40
+    ) == TOKEN_CODE_VERSION;
+}
+
+"""
+Purpose: Validate the complete dynamic manifest buffer before it is used for loading or allocation.
+Inputs: The manifest, descriptor, shard, or header values declared by the signature.
+Outputs: Returns Bool for predicates or a typed Result when validation also reports an I/O condition.
+Invariants: Validation is side-effect free and enforces magic, version, bounds, checksum, and layout rules.
+Failure behavior: Returns false or InvalidData/InvalidInput according to the public contract; it never accepts partial state.
+"""
+open verb manifest_dynamic_bytes_are_valid(abs bytes: Buffer) -> Bool {
+    erg length_result = buffer_length(buffer: abs bytes);
+    erg length: Int = case dat length_result { Result.Ok(value) => value, Result.Err(_) => -1, };
+    if length < BRAIN_MANIFEST_HEADER_BYTES as Int || length > BRAIN_MANIFEST_DYNAMIC_MAX_BYTES as Int { return false; }
+    erg length_u32: u32 = length as u32;
+    erg offset_8: u32 = 8u32;
+    erg offset_20: u32 = 20u32;
+    erg offset_28: u32 = 28u32;
+    erg offset_44: u32 = 44u32;
+    erg offset_52: u32 = 52u32;
+    erg stored_length: u32 = read_manifest_u32(input: abs bytes, offset: abs offset_8);
+    erg shard_count: u32 = read_manifest_u32(input: abs bytes, offset: abs offset_28);
+    erg stored_checksum: u64 = read_manifest_u64(input: abs bytes, offset: abs offset_44);
+    erg actual_checksum: u64 = manifest_dynamic_checksum(input: abs bytes, length: erg length_u32);
+    erg total_columns: u32 = read_manifest_u32(input: abs bytes, offset: abs offset_20);
+    if !manifest_dynamic_header_is_valid(bytes: abs bytes, length_u32: abs length_u32, stored_length: erg stored_length, shard_count: erg shard_count, stored_checksum: erg stored_checksum, actual_checksum: erg actual_checksum, total_columns: erg total_columns) { return false; }
+    erg descriptor_bytes: u32 = shard_count * BRAIN_MANIFEST_DESCRIPTOR_BYTES as u32;
+    if stored_length != BRAIN_MANIFEST_HEADER_BYTES as u32 + descriptor_bytes { return false; }
+    erg free_list_head: u32 = read_manifest_u32(input: abs bytes, offset: abs offset_52);
+    if free_list_head != NULL_INDEX && free_list_head >= total_columns { return false; }
+    return manifest_dynamic_descriptors_are_valid(bytes: abs bytes, shard_count: erg shard_count, total_columns: erg total_columns);
+}
+
+"""
+Purpose: Read the dynamic manifest free-list head from its canonical header offset.
+Inputs: The manifest bytes and typed indexes or metadata declared by the signature.
+Outputs: Returns the requested checksum, metadata, location, or validation result.
+Invariants: All offsets and indexes remain bounded by the position-independent manifest contract.
+Failure behavior: Returns false, InvalidInput, or InvalidData according to the declared return type.
+"""
+open verb dynamic_manifest_free_list_head(abs bytes: Buffer) -> u32 {
+    erg offset: u32 = 52u32;
+    return read_shard_u32(input: abs bytes, offset: abs offset);
+}
+
+"""
+Purpose: Read the active column count from the dynamic manifest header.
+Inputs: The manifest bytes and typed indexes or metadata declared by the signature.
+Outputs: Returns the requested checksum, metadata, location, or validation result.
+Invariants: All offsets and indexes remain bounded by the position-independent manifest contract.
+Failure behavior: Returns false, InvalidInput, or InvalidData according to the declared return type.
+"""
+open verb dynamic_manifest_active_count(abs bytes: Buffer) -> u32 {
+    erg offset: u32 = 24u32;
+    return read_shard_u32(input: abs bytes, offset: abs offset);
+}
+
+"""
+Purpose: Resolve a global column index to its dynamic shard and local index.
+Inputs: The manifest bytes and typed indexes or metadata declared by the signature.
+Outputs: Returns the requested checksum, metadata, location, or validation result.
+Invariants: All offsets and indexes remain bounded by the position-independent manifest contract.
+Failure behavior: Returns false, InvalidInput, or InvalidData according to the declared return type.
+"""
+open verb manifest_locate_column_dynamic(abs bytes: Buffer, erg global_index: u32) -> Result[ColumnLocation, IoError] {
+    if !manifest_dynamic_bytes_are_valid(bytes: abs bytes) {
+        return Err(IoError.InvalidData);
+    }
+    erg shard_count_offset: u32 = 28u32;
+    erg shard_count: u32 = read_manifest_u32(input: abs bytes, offset: abs shard_count_offset);
+    erg descriptor_index: u32 = 0u32;
+    loop {
+        if descriptor_index >= shard_count {
+            break;
+        }
+        erg first_offset: u32 = BRAIN_MANIFEST_HEADER_BYTES as u32 + (descriptor_index * BRAIN_MANIFEST_DESCRIPTOR_BYTES as u32) + 4u32;
+        erg count_offset: u32 = BRAIN_MANIFEST_HEADER_BYTES as u32 + (descriptor_index * BRAIN_MANIFEST_DESCRIPTOR_BYTES as u32) + 8u32;
+        erg first_column: u32 = read_manifest_u32(input: abs bytes, offset: abs first_offset);
+        erg column_count: u32 = read_manifest_u32(input: abs bytes, offset: abs count_offset);
+        erg query_a: u32 = global_index + 0u32;
+        erg query_b: u32 = global_index + 0u32;
+        erg query_field: u32 = global_index + 0u32;
+        if query_a >= first_column && query_b < first_column + column_count {
+            erg local_index: u32 = query_field - first_column;
+            return Ok(ColumnLocation {global_index: query_field, shard_id: descriptor_index, local_index: local_index});
+        }
+        descriptor_index += 1u32;
+    }
+    return Err(IoError.InvalidInput);
+}

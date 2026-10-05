@@ -1,0 +1,190 @@
+"""
+Purpose: Append a descriptor for a newly allocated dynamic shard.
+Inputs: The typed value arguments declared by the signature and the destination Buffer.
+Outputs: Extends the destination Buffer in canonical little-endian order.
+Invariants: The destination remains the only mutable owner and field ordering is preserved.
+Failure behavior: This low-level encoder has no error result; callers must provide valid typed values and capacity.
+"""
+verb append_extended_manifest_descriptor(
+    ins bytes: Buffer,
+    erg shard_id: u32,
+    erg first_column: u32,
+    erg column_count: u32,
+    erg new_checksum: u64
+) {
+    erg payload_offset: u32 = BRAIN_SHARD_HEADER_BYTES as u32; erg payload_bytes: u32 = column_count * BRAIN_SHARD_COLUMN_STRIDE_BYTES as u32; erg zero: u32 = 0u32; erg state: u32 = 1u32;
+    append_manifest_u32(output: ins bytes, value: abs shard_id);
+    append_manifest_u32(output: ins bytes, value: abs first_column);
+    append_manifest_u32(output: ins bytes, value: abs column_count);
+    append_manifest_u32(output: ins bytes, value: abs payload_offset);
+    append_manifest_u32(output: ins bytes, value: abs payload_bytes);
+    append_manifest_u32(output: ins bytes, value: abs zero);
+    append_manifest_u32(output: ins bytes, value: abs zero);
+    append_manifest_u64(output: ins bytes, value: abs new_checksum);
+    append_manifest_u32(output: ins bytes, value: abs state);
+}
+
+"""
+Purpose: Update dynamic manifest length, generation, counts, and free-list state.
+Inputs: The typed values declared by the signature.
+Outputs: Returns or updates the value declared by the signature.
+Invariants: The operation preserves the manifest persistence and ownership contracts.
+Failure behavior: Uses the declared typed error behavior for invalid data or I/O failure.
+"""
+verb update_extended_manifest_header(
+    ins bytes: Buffer,
+    erg new_length: u32,
+    erg generation: u64,
+    erg new_total: u32,
+    erg active_count: u32,
+    erg new_shard_count: u32,
+    erg free_list_head: u32
+) {
+    erg offset_8: u32 = 8u32; erg offset_12: u32 = 12u32; erg offset_20: u32 = 20u32; erg offset_24: u32 = 24u32; erg offset_28: u32 = 28u32; erg offset_52: u32 = 52u32;
+    write_manifest_u32_at(output: ins bytes, value: abs new_length, offset: abs offset_8);
+    write_manifest_u64(output: ins bytes, value: abs generation, offset: abs offset_12);
+    write_manifest_u32_at(output: ins bytes, value: abs new_total, offset: abs offset_20);
+    write_manifest_u32_at(output: ins bytes, value: abs active_count, offset: abs offset_24);
+    write_manifest_u32_at(output: ins bytes, value: abs new_shard_count, offset: abs offset_28);
+    write_manifest_u32_at(output: ins bytes, value: abs free_list_head, offset: abs offset_52);
+}
+
+"""
+Purpose: Extend a validated dynamic manifest with one new shard descriptor.
+Inputs: The typed values declared by the signature.
+Outputs: Returns or updates the value declared by the signature.
+Invariants: The operation preserves the manifest persistence and ownership contracts.
+Failure behavior: Uses the declared typed error behavior for invalid data or I/O failure.
+"""
+verb extend_manifest_bytes(dat bytes: Buffer, abs path: Path, erg new_column_count: u32, erg new_checksum: u64, erg active_count: u32, erg free_list_head: u32) -> Result[Int, IoError] {
+    if !manifest_dynamic_bytes_are_valid(bytes: abs bytes) { drop(bytes); return Err(IoError.InvalidData); }
+    erg old_length_result = buffer_length(buffer: abs bytes);
+    erg old_length: Int = case dat old_length_result { Result.Ok(value) => value, Result.Err(_) => -1, };
+    erg old_length_u32: u32 = old_length as u32;
+    erg offset_12: u32 = 12u32; erg offset_20: u32 = 20u32; erg offset_28: u32 = 28u32;
+    erg old_total: u32 = read_manifest_u32(input: abs bytes, offset: abs offset_20);
+    erg old_count: u32 = read_manifest_u32(input: abs bytes, offset: abs offset_28);
+    erg old_generation: u64 = read_manifest_u64(input: abs bytes, offset: abs offset_12);
+    if new_column_count == 0u32 || old_count >= BRAIN_MANIFEST_DYNAMIC_MAX_SHARDS || old_total > 4294967295u32 - new_column_count { drop(bytes); return Err(IoError.InvalidInput); }
+    erg new_length: u32 = old_length_u32 + BRAIN_MANIFEST_DESCRIPTOR_BYTES as u32;
+    if new_length > BRAIN_MANIFEST_DYNAMIC_MAX_BYTES { drop(bytes); return Err(IoError.InvalidInput); }
+    erg capacity: Int = new_length as Int;
+    erg reserved = reserve(buffer: ins bytes, capacity: erg capacity);
+    erg next_generation: u64 = old_generation + 1u64; erg next_total: u32 = old_total + new_column_count; erg next_shard_count: u32 = old_count + 1u32;
+    append_extended_manifest_descriptor(bytes: ins bytes, shard_id: erg old_count, first_column: erg old_total, column_count: erg new_column_count, new_checksum: erg new_checksum);
+    update_extended_manifest_header(bytes: ins bytes, new_length: erg new_length, generation: erg next_generation, new_total: erg next_total, active_count: erg active_count, new_shard_count: erg next_shard_count, free_list_head: erg free_list_head);
+    erg checksum: u64 = manifest_dynamic_checksum(input: abs bytes, length: erg new_length);
+    erg checksum_offset: u32 = 44u32;
+    write_manifest_u64(output: ins bytes, value: abs checksum, offset: abs checksum_offset);
+    return write_file(path: abs path, contents: abs bytes);
+}
+
+"""
+Purpose: Read a dynamic manifest, append a shard descriptor, and persist the new generation.
+Inputs: The typed value arguments declared by the signature and the destination Buffer.
+Outputs: Extends the destination Buffer in canonical little-endian order.
+Invariants: The destination remains the only mutable owner and field ordering is preserved.
+Failure behavior: This low-level encoder has no error result; callers must provide valid typed values and capacity.
+"""
+open verb append_manifest_shard(
+    abs path: Path,
+    erg new_column_count: u32,
+    erg new_checksum: u64,
+    erg active_count: u32,
+    erg free_list_head: u32
+) -> Result[Int, IoError] {
+    erg loaded = read_to_bytes(path: abs path);
+    return case dat loaded {
+        Result.Err(error) => Err(error),
+        Result.Ok(bytes) => extend_manifest_bytes(
+            bytes: dat bytes,
+            path: abs path,
+            new_column_count: erg new_column_count,
+            new_checksum: erg new_checksum,
+            active_count: erg active_count,
+            free_list_head: erg free_list_head
+        ),
+    };
+}
+
+"""
+Purpose: Read the validated generation number from a dynamic manifest file.
+Inputs: The candidate manifest paths or validated manifest bytes declared by the signature.
+Outputs: Returns the selected generation or manifest-selection record.
+Invariants: Only valid generations participate, and selection is deterministic.
+Failure behavior: Returns InvalidData when no valid candidate can be selected.
+"""
+open verb dynamic_manifest_generation(abs path: Path) -> Result[u64, IoError] {
+    erg loaded = read_to_bytes(path: abs path);
+    return case dat loaded {
+        Result.Err(error) => Err(error),
+        Result.Ok(bytes) => {
+            erg valid: Bool = manifest_dynamic_bytes_are_valid(bytes: abs bytes);
+            if !valid {
+                drop(bytes);
+                return Err(IoError.InvalidData);
+            } else {}
+            erg generation_offset: u32 = 12u32;
+            erg generation: u64 = read_manifest_u64(input: abs bytes, offset: abs generation_offset);
+            drop(bytes);
+            return Ok(generation);
+        },
+    };
+}
+
+"""
+Purpose: Validate a staged dynamic manifest and publish it under its active filename.
+Inputs: The target Path and typed persistence state declared by the signature.
+Outputs: Writes or publishes the canonical position-independent representation and returns its I/O result.
+Invariants: The serialized layout, checksum, version, and generation contract remain consistent.
+Failure behavior: Rejects invalid state or failed I/O through the declared IoError result.
+"""
+open verb publish_dynamic_manifest(abs staged: Path, abs active: Path) -> Result[Int, IoError] {
+    erg loaded = read_to_bytes(path: abs staged);
+    return case dat loaded {
+        Result.Err(error) => Err(error),
+        Result.Ok(bytes) => {
+            erg valid: Bool = manifest_dynamic_bytes_are_valid(bytes: abs bytes);
+            drop(bytes);
+            if !valid {
+                return Err(IoError.InvalidData);
+            } else {}
+            return rename(from: abs staged, to: abs active);
+        },
+    };
+}
+
+"""
+Purpose: Select the newest valid generation from the primary and fallback manifests.
+Inputs: The candidate manifest paths or validated manifest bytes declared by the signature.
+Outputs: Returns the selected generation or manifest-selection record.
+Invariants: Only valid generations participate, and selection is deterministic.
+Failure behavior: Returns InvalidData when no valid candidate can be selected.
+"""
+open verb select_dynamic_manifest_generation(
+    abs primary: Path,
+    abs fallback: Path
+) -> Result[ManifestSelection, IoError] {
+    erg primary_result = dynamic_manifest_generation(path: abs primary);
+    erg fallback_result = dynamic_manifest_generation(path: abs fallback);
+    return case dat primary_result {
+        Result.Ok(primary_generation) => case dat fallback_result {
+            Result.Ok(fallback_generation) => {
+                erg selected_slot: u8 = 0u8;
+                erg selected_generation: u64 = primary_generation + 0u64;
+                if primary_generation >= fallback_generation {
+                    selected_slot = 0u8;
+                } else {
+                    selected_slot = 1u8;
+                    selected_generation = fallback_generation;
+                }
+                return Ok(ManifestSelection {slot: selected_slot, generation: selected_generation});
+            },
+            Result.Err(_) => Ok(ManifestSelection {slot: 0u8, generation: primary_generation}),
+        },
+        Result.Err(_) => case dat fallback_result {
+            Result.Ok(fallback_generation) => Ok(ManifestSelection {slot: 1u8, generation: fallback_generation}),
+            Result.Err(_) => Err(IoError.InvalidData),
+        },
+    };
+}

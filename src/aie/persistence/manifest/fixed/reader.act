@@ -1,0 +1,105 @@
+"""
+Purpose: Decode the fixed manifest header from its position-independent byte representation.
+Inputs: The source Buffer or Path and the typed offset or selector declared by the signature.
+Outputs: Returns the decoded value, validated length, or typed I/O result declared by the signature.
+Invariants: Reads are position-independent and do not mutate the source buffer.
+Failure behavior: Malformed data and filesystem failures are returned through the declared Result contract.
+"""
+verb read_fixed_manifest_header(abs bytes: Buffer) -> ManifestHeader {
+    erg o0: u32 = 0u32; erg o4: u32 = 4u32; erg o6: u32 = 6u32; erg o8: u32 = 8u32; erg o12: u32 = 12u32; erg o20: u32 = 20u32; erg o24: u32 = 24u32; erg o28: u32 = 28u32; erg o32: u32 = 32u32; erg o34: u32 = 34u32; erg o36: u32 = 36u32; erg o38: u32 = 38u32; erg o40: u32 = 40u32; erg o42: u32 = 42u32; erg o44: u32 = 44u32;
+    return ManifestHeader {
+        magic: read_manifest_u32(input: abs bytes, offset: abs o0),
+        version: read_manifest_u16(input: abs bytes, offset: abs o4),
+        header_bytes: read_manifest_u16(input: abs bytes, offset: abs o6),
+        manifest_bytes: read_manifest_u32(input: abs bytes, offset: abs o8),
+        generation: read_manifest_u64(input: abs bytes, offset: abs o12),
+        total_column_count: read_manifest_u32(input: abs bytes, offset: abs o20),
+        active_column_count: read_manifest_u32(input: abs bytes, offset: abs o24),
+        shard_count: read_manifest_u32(input: abs bytes, offset: abs o28),
+        column_stride_bytes: read_manifest_u16(input: abs bytes, offset: abs o32),
+        binding_stride_bytes: read_manifest_u16(input: abs bytes, offset: abs o34),
+        tokenizer_version: read_manifest_u16(input: abs bytes, offset: abs o36),
+        context_version: read_manifest_u16(input: abs bytes, offset: abs o38),
+        code_version: read_manifest_u16(input: abs bytes, offset: abs o40),
+        reserved: read_manifest_u16(input: abs bytes, offset: abs o42),
+        checksum: read_manifest_u64(input: abs bytes, offset: abs o44)
+    };
+}
+
+"""
+Purpose: Decode one fixed shard descriptor at the supplied byte offset.
+Inputs: The source Buffer or Path and the typed offset or selector declared by the signature.
+Outputs: Returns the decoded value, validated length, or typed I/O result declared by the signature.
+Invariants: Reads are position-independent and do not mutate the source buffer.
+Failure behavior: Malformed data and filesystem failures are returned through the declared Result contract.
+"""
+verb read_fixed_manifest_descriptor(abs bytes: Buffer, erg offset: u32) -> ManifestDescriptor {
+    erg offset_4: u32 = offset + 4u32;
+    erg offset_8: u32 = offset + 8u32;
+    erg offset_12: u32 = offset + 12u32;
+    erg offset_16: u32 = offset + 16u32;
+    erg offset_20: u32 = offset + 20u32;
+    erg offset_24: u32 = offset + 24u32;
+    erg offset_28: u32 = offset + 28u32;
+    erg offset_36: u32 = offset + 36u32;
+    return ManifestDescriptor {shard_id: read_manifest_u32(input: abs bytes, offset: abs offset), first_column_index: read_manifest_u32(input: abs bytes, offset: abs offset_4), column_count: read_manifest_u32(input: abs bytes, offset: abs offset_8), payload_offset: read_manifest_u32(input: abs bytes, offset: abs offset_12), payload_bytes: read_manifest_u32(input: abs bytes, offset: abs offset_16), binding_offset: read_manifest_u32(input: abs bytes, offset: abs offset_20), binding_bytes: read_manifest_u32(input: abs bytes, offset: abs offset_24), checksum: read_manifest_u64(input: abs bytes, offset: abs offset_28), state: read_manifest_u32(input: abs bytes, offset: abs offset_36)};
+}
+
+"""
+Purpose: Validate both fixed shard descriptors against the fixed layout contract.
+Inputs: The manifest, descriptor, shard, or header values declared by the signature.
+Outputs: Returns Bool for predicates or a typed Result when validation also reports an I/O condition.
+Invariants: Validation is side-effect free and enforces magic, version, bounds, checksum, and layout rules.
+Failure behavior: Returns false or InvalidData/InvalidInput according to the public contract; it never accepts partial state.
+"""
+verb fixed_manifest_descriptors_are_valid(abs bytes: Buffer) -> Bool {
+    erg descriptor_zero_offset: u32 = 64u32;
+    erg descriptor_one_offset: u32 = 104u32;
+    erg expected_zero: u32 = 0u32;
+    erg expected_one: u32 = 1u32;
+    erg zero: ManifestDescriptor = read_fixed_manifest_descriptor(bytes: abs bytes, offset: erg descriptor_zero_offset);
+    erg one: ManifestDescriptor = read_fixed_manifest_descriptor(bytes: abs bytes, offset: erg descriptor_one_offset);
+    return manifest_descriptor_is_valid(descriptor: abs zero, expected_id: erg expected_zero) && manifest_descriptor_is_valid(descriptor: abs one, expected_id: erg expected_one);
+}
+
+"""
+Purpose: Validate a fixed manifest buffer and return its encoded byte length.
+Inputs: The source Buffer or Path and the typed offset or selector declared by the signature.
+Outputs: Returns the decoded value, validated length, or typed I/O result declared by the signature.
+Invariants: Reads are position-independent and do not mutate the source buffer.
+Failure behavior: Malformed data and filesystem failures are returned through the declared Result contract.
+"""
+open verb read_manifest_bytes(dat bytes: Buffer) -> Result[Int, IoError] {
+    erg length_result = buffer_length(buffer: abs bytes);
+    erg length: Int = case dat length_result {
+        Result.Ok(value) => value,
+        Result.Err(_) => -1,
+    };
+    if length != BRAIN_MANIFEST_FILE_BYTES as Int {
+        drop(bytes);
+        return Err(IoError.InvalidData);
+    }
+    erg header: ManifestHeader = read_fixed_manifest_header(bytes: abs bytes);
+    erg actual_checksum: u64 = manifest_checksum(input: abs bytes);
+    if !manifest_header_is_valid(header: abs header) || header.total_column_count != 64u32 || header.checksum != actual_checksum || !fixed_manifest_descriptors_are_valid(bytes: abs bytes) {
+        drop(bytes);
+        return Err(IoError.InvalidData);
+    }
+    drop(bytes);
+    return Ok(length);
+}
+
+"""
+Purpose: Load and validate a fixed manifest file from disk.
+Inputs: The source Buffer or Path and the typed offset or selector declared by the signature.
+Outputs: Returns the decoded value, validated length, or typed I/O result declared by the signature.
+Invariants: Reads are position-independent and do not mutate the source buffer.
+Failure behavior: Malformed data and filesystem failures are returned through the declared Result contract.
+"""
+open verb read_manifest(abs path: Path) -> Result[Int, IoError] {
+    erg loaded = read_to_bytes(path: abs path);
+    return case dat loaded {
+        Result.Err(error) => manifest_io_error(error: dat error),
+        Result.Ok(bytes) => read_manifest_bytes(bytes: dat bytes),
+    };
+}

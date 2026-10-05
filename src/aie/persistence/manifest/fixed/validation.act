@@ -1,0 +1,37 @@
+"""
+Purpose: Validate the fixed manifest header against the configured compatibility contract.
+Inputs: The manifest, descriptor, shard, or header values declared by the signature.
+Outputs: Returns Bool for predicates or a typed Result when validation also reports an I/O condition.
+Invariants: Validation is side-effect free and enforces magic, version, bounds, checksum, and layout rules.
+Failure behavior: Returns false or InvalidData/InvalidInput according to the public contract; it never accepts partial state.
+"""
+open verb manifest_header_is_valid(abs header: ManifestHeader) -> Bool {
+    return header.magic == BRAIN_MANIFEST_MAGIC && header.version == BRAIN_MANIFEST_VERSION && header.header_bytes == BRAIN_MANIFEST_HEADER_BYTES && header.manifest_bytes == BRAIN_MANIFEST_FILE_BYTES && header.shard_count == BRAIN_MANIFEST_SHARD_COUNT && header.column_stride_bytes == BRAIN_SHARD_COLUMN_STRIDE_BYTES && header.binding_stride_bytes == BRAIN_SHARD_BINDING_STRIDE_BYTES && header.tokenizer_version == TOKENIZER_VERSION && header.context_version == CONTEXT_VERSION && header.code_version == TOKEN_CODE_VERSION;
+}
+
+"""
+Purpose: Validate one fixed manifest descriptor against its expected shard identity.
+Inputs: The manifest, descriptor, shard, or header values declared by the signature.
+Outputs: Returns Bool for predicates or a typed Result when validation also reports an I/O condition.
+Invariants: Validation is side-effect free and enforces magic, version, bounds, checksum, and layout rules.
+Failure behavior: Returns false or InvalidData/InvalidInput according to the public contract; it never accepts partial state.
+"""
+open verb manifest_descriptor_is_valid(abs descriptor: ManifestDescriptor, erg expected_id: u32) -> Bool {
+    return descriptor.shard_id == expected_id && descriptor.first_column_index == (expected_id * BRAIN_SHARD_COLUMN_COUNT) && descriptor.column_count == BRAIN_SHARD_COLUMN_COUNT && descriptor.payload_offset == BRAIN_SHARD_HEADER_BYTES && descriptor.payload_bytes == BRAIN_SHARD_COLUMN_PAYLOAD_BYTES && descriptor.binding_offset == 0u32 && descriptor.binding_bytes == BRAIN_SHARD_BINDING_PAYLOAD_BYTES && descriptor.state == 1u32;
+}
+
+"""
+Purpose: Map filesystem errors into the manifest public error contract.
+Inputs: The manifest bytes and typed indexes or metadata declared by the signature.
+Outputs: Returns the requested checksum, metadata, location, or validation result.
+Invariants: All offsets and indexes remain bounded by the position-independent manifest contract.
+Failure behavior: Returns false, InvalidInput, or InvalidData according to the declared return type.
+"""
+verb manifest_io_error(dat error: IoError) -> Result[Int, IoError] {
+    return case dat error {
+        IoError.EndOfStream => Err(IoError.EndOfStream),
+        IoError.Failed => Err(IoError.Failed),
+        IoError.InvalidInput => Err(IoError.InvalidInput),
+        IoError.InvalidData => Err(IoError.InvalidData),
+    };
+}

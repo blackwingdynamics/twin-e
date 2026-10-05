@@ -1,0 +1,63 @@
+
+"""Position-independent index for a bounded set of brain shards."""
+import config;
+
+import std::fs;
+
+import std::io;
+
+open struct ManifestHeader {
+    erg magic: u32,
+    erg version: u16,
+    erg header_bytes: u16,
+    erg manifest_bytes: u32,
+    erg generation: u64,
+    erg total_column_count: u32,
+    erg active_column_count: u32,
+    erg shard_count: u32,
+    erg column_stride_bytes: u16,
+    erg binding_stride_bytes: u16,
+    erg tokenizer_version: u16,
+    erg context_version: u16,
+    erg code_version: u16,
+    erg reserved: u16,
+    erg checksum: u64,
+}
+
+open struct ManifestDescriptor {
+    erg shard_id: u32,
+    erg first_column_index: u32,
+    erg column_count: u32,
+    erg payload_offset: u32,
+    erg payload_bytes: u32,
+    erg binding_offset: u32,
+    erg binding_bytes: u32,
+    erg checksum: u64,
+    erg state: u32,
+}
+
+open struct ColumnLocation {
+    erg global_index: u32,
+    erg shard_id: u32,
+    erg local_index: u32,
+}
+
+open struct AllocationPlan {
+    erg global_index: u32,
+    erg shard_id: u32,
+    erg local_index: u32,
+    erg creates_shard: Bool,
+}
+
+open struct DynamicLoadPlan {
+    erg shard_id: u32,
+    erg first_column_index: u32,
+    erg column_count: u32,
+    erg local_index: u32,
+}
+
+open struct ManifestSelection {
+    erg slot: u8,
+    erg generation: u64,
+}
+

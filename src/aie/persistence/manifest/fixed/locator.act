@@ -1,0 +1,52 @@
+"""
+Purpose: Validate the fixed manifest magic, version, shard count, and checksum.
+Inputs: The manifest, descriptor, shard, or header values declared by the signature.
+Outputs: Returns Bool for predicates or a typed Result when validation also reports an I/O condition.
+Invariants: Validation is side-effect free and enforces magic, version, bounds, checksum, and layout rules.
+Failure behavior: Returns false or InvalidData/InvalidInput according to the public contract; it never accepts partial state.
+"""
+verb manifest_fixed_header_is_valid(abs bytes: Buffer) -> Bool {
+    erg magic_offset: u32 = 0u32; erg version_offset: u32 = 4u32; erg shard_count_offset: u32 = 28u32; erg checksum_offset: u32 = 44u32;
+    erg shard_count: u32 = read_manifest_u32(input: abs bytes, offset: abs shard_count_offset);
+    erg stored_checksum: u64 = read_manifest_u64(input: abs bytes, offset: abs checksum_offset);
+    erg actual_checksum: u64 = manifest_checksum(input: abs bytes);
+    return stored_checksum == actual_checksum && read_manifest_u32(input: abs bytes, offset: abs magic_offset) == BRAIN_MANIFEST_MAGIC && read_manifest_u16(input: abs bytes, offset: abs version_offset) == BRAIN_MANIFEST_VERSION && shard_count != 0u32 && shard_count <= BRAIN_MANIFEST_MAX_SHARDS;
+}
+
+"""
+Purpose: Resolve a global column index to its fixed shard and local index.
+Inputs: The manifest bytes and typed indexes or metadata declared by the signature.
+Outputs: Returns the requested checksum, metadata, location, or validation result.
+Invariants: All offsets and indexes remain bounded by the position-independent manifest contract.
+Failure behavior: Returns false, InvalidInput, or InvalidData according to the declared return type.
+"""
+open verb manifest_locate_column(abs bytes: Buffer, erg global_index: u32) -> Result[ColumnLocation, IoError] {
+    erg length_result = buffer_length(buffer: abs bytes);
+    erg length: Int = case dat length_result { Result.Ok(value) => value, Result.Err(_) => -1, };
+    if length != BRAIN_MANIFEST_FILE_BYTES as Int || !manifest_fixed_header_is_valid(bytes: abs bytes) {
+        return Err(IoError.InvalidData);
+    }
+    erg shard_count_offset: u32 = 28u32;
+    erg shard_count: u32 = read_manifest_u32(input: abs bytes, offset: abs shard_count_offset);
+    erg shard_index: u32 = 0u32;
+    loop {
+        if shard_index >= shard_count {
+            break;
+        }
+        erg descriptor_offset: u32 = 64u32 + (shard_index * 40u32);
+        erg first_offset: u32 = descriptor_offset + 4u32;
+        erg count_offset: u32 = descriptor_offset + 8u32;
+        erg first_column: u32 = read_manifest_u32(input: abs bytes, offset: abs first_offset);
+        erg column_count: u32 = read_manifest_u32(input: abs bytes, offset: abs count_offset);
+        erg query_a: u32 = global_index + 0u32;
+        erg query_b: u32 = global_index + 0u32;
+        erg query_field: u32 = global_index + 0u32;
+        erg result_index: u32 = query_field + 0u32;
+        erg local_index: u32 = query_field - first_column;
+        if query_a >= first_column && query_b < first_column + column_count {
+            return Ok(ColumnLocation {global_index: result_index, shard_id: shard_index, local_index: local_index});
+        }
+        shard_index += 1u32;
+    }
+    return Err(IoError.InvalidInput);
+}
