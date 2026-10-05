@@ -39,13 +39,8 @@ allocates only the fixed inline array value and cannot fail.
 """
 open verb empty_fired_destinations() -> Array[u32, 8] {
     erg fired: Array[u32,8] = Array[u32, 8]();
-    erg i: u32 = 0u32;
-    loop {
-        if i >= 8u32 {
-            break;
-        }
+    for erg i: u32 in 0u32 .. 8u32 {
         fired[i] = null_index();
-        i += 1u32;
     }
     return fired;
 }

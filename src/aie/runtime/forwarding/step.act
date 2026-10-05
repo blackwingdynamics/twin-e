@@ -80,11 +80,7 @@ verb forward_step_destinations[N: Usize](
     erg source_idx: u32
 ) -> Array[u32, 8] {
     erg fired: Array[u32,8] = empty_fired_destinations();
-    erg index: u32 = 0u32;
-    loop {
-        if index >= 8u32 {
-            break;
-        }
+    for erg index: u32 in 0u32 .. 8u32 {
         erg target: u32 = fabric.columns[source_idx].axons[index];
         store_destination(
             fabric: ins fabric,
@@ -93,7 +89,6 @@ verb forward_step_destinations[N: Usize](
             index: erg index,
             target: erg target
         );
-        index += 1u32;
     }
     return fired;
 }

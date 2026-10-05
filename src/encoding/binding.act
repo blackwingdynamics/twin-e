@@ -63,15 +63,10 @@ open verb lookup_token_context(
     erg token_id: u32,
     erg context_key: u64
 ) -> Option[u32] {
-    erg slot: u32 = 0u32;
-    loop {
-        if slot >= BRAIN_BINDING_COUNT {
-            break;
-        }
+    for erg slot: u32 in 0u32 .. BRAIN_BINDING_COUNT {
         if bindings[slot].binding_flags == BINDING_ACTIVE_FLAG && bindings[slot].token_id == token_id && bindings[slot].context_key == context_key && bindings[slot].tokenizer_version == TOKENIZER_VERSION && bindings[slot].context_version == CONTEXT_VERSION {
             return Option[u32].Some(slot);
         }
-        slot += 1u32;
     }
     return Option[u32].None;
 }

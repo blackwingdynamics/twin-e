@@ -200,14 +200,14 @@ indexed access.
 
 ### Gate 3 — Actus syntax modernization
 
-- [ ] Replace statement-form `if` constructs that use an empty `else` with the
+- [x] Replace statement-form `if` constructs that use an empty `else` with the
       supported statement-form guard syntax.
-- [ ] Use `case` for typed result branching where it makes success and failure
+- [x] Use `case` for typed result branching where it makes success and failure
       paths clearer.
-- [ ] Use bounded `for` or `repeat` constructs where they improve readability
+- [x] Use bounded `for` or `repeat` constructs where they improve readability
       without hiding fixed-size engine work.
-- [ ] Preserve explicit ownership roles on every binding and argument.
-- [ ] Preserve explicit integer widths and typed literals.
+- [x] Preserve explicit ownership roles on every binding and argument.
+- [x] Preserve explicit integer widths and typed literals.
 
 #### Current evidence
 
@@ -224,10 +224,21 @@ indexed access.
       publish operations so nested persistence declarations cross the package
       boundary through a canonical public API.
 
-The remaining Gate 3 items are still open. In particular, the wider migration
-to `case` and bounded iteration must be completed and reviewed independently.
-- [ ] Keep value-producing conditional expressions distinct from statement
+- [x] Keep value-producing conditional expressions distinct from statement
       guards and require compatible value branches.
+
+#### Gate 3 evidence
+
+- [x] The complete Actus source audit found no empty statement-form `else`
+      blocks; typed branching uses `case` where ownership and result states are
+      involved.
+- [x] Fixed-size loops in destination initialization, eight-slot forwarding,
+      and bounded token-binding lookup now use Actus `for` ranges. Stateful
+      loops with early termination remain explicit `loop` forms.
+- [x] Ownership roles, explicit integer widths, and typed literals were
+      preserved during the syntax migration.
+- [x] `actus check --strict` and `actus test --strict` pass after the migration
+      with 16 tests passed and 0 failures.
 
 ### Gate 4 — Repeated logic reduction
 
