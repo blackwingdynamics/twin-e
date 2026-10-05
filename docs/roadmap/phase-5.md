@@ -93,7 +93,7 @@ This gate prevents disk I/O from becoming part of inference, forwarding, or
 neurogenesis latency. A newly required shard must become available in memory
 first; persistence is a later operation with an explicit lifecycle.
 
-- [ ] Create an ADR that defines the hot path, persistence path, and allowed
+- [x] Create an ADR that defines the hot path, persistence path, and allowed
   synchronization boundaries.
 - [ ] Define the in-memory shard lifecycle: `Absent`, `Loading`, `Resident`,
   `Dirty`, `Flushing`, `Persisted`, and `Failed`.
