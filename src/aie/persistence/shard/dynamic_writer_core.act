@@ -188,6 +188,12 @@ verb finalize_dynamic_shard(
     return write_file(path: abs path, contents: abs output);
 }
 
+"""Write a dynamic shard containing column payload bytes only.
+
+The path and payload are read through `abs`. Bounds, lengths, and fixed binary
+limits are validated before a checksummed shard is written. Invalid input
+returns `IoError.InvalidInput`; no partial application state is changed.
+"""
 open verb write_dynamic_shard(
     abs path: Path,
     erg shard_id: u32,
@@ -272,6 +278,12 @@ verb complete_dynamic_shard_with_bindings(
     );
 }
 
+"""Atomically publish a staged dynamic shard after full validation.
+
+Both paths are read through `abs`. The staged file is loaded and validated for
+identity, layout, length, and checksum before rename to the active path. A
+failed validation leaves the staged file unpublished and returns an error.
+"""
 open verb publish_dynamic_shard(
     abs staged: Path,
     abs active: Path,

@@ -27,6 +27,12 @@ verb dynamic_binding_buffers_are_valid(
     );
 }
 
+"""Write a dynamic shard with payload and shard-local binding sections.
+
+Paths and buffers are read through `abs`. The function validates matching
+column, payload, and binding lengths, then writes one checksummed binary shard
+whose binding metadata remains local to that shard.
+"""
 open verb write_dynamic_shard_with_bindings(
     abs path: Path,
     erg shard_id: u32,

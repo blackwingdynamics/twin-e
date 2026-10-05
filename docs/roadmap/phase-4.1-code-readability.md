@@ -281,6 +281,8 @@ to `case` and bounded iteration must be completed and reviewed independently.
       tokenization/decoding operations.
 - [x] Expanded the core runtime and BPE documentation to state inputs,
       outputs, ownership roles, bounds, invariants, and failure behavior.
+- [x] Documented fixed and dynamic shard persistence, snapshot serialization,
+      checksum validation, binary loading, and staged publication contracts.
 - [ ] Complete the same documentation audit for persistence, encoding, and
       remaining public facade declarations.
 

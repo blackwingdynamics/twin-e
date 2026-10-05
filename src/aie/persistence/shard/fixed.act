@@ -79,6 +79,13 @@ verb finalize_fixed_shard(dat output: Buffer, abs path: Path) -> Result[Int, IoE
     return write_file(path: abs path, contents: abs output);
 }
 
+"""Write one fixed arena shard with a checksummed binary header and payload.
+
+The path and fabric are read through `abs`; `shard_id` selects one of the two
+fixed arena ranges. Invalid shard IDs return `IoError.InvalidInput`. Valid
+writes serialize the packed bytes, calculate the payload checksum, and write
+the resulting position-independent file.
+"""
 open verb write_shard(
     abs path: Path,
     abs fabric: CorticalFabric[64],
@@ -190,6 +197,13 @@ verb load_fixed_shard_columns(
     }
 }
 
+"""Validate and load one fixed shard from caller-owned bytes.
+
+The fabric receives an exclusive `ins` loan and the input buffer is consumed
+through `dat`. Size, header identity, and checksum are checked before column
+bytes are copied. Invalid data returns `IoError.InvalidData` and releases the
+input buffer without partial column loading.
+"""
 open verb read_shard_bytes(
     ins fabric: CorticalFabric[64],
     dat bytes: Buffer,
@@ -219,6 +233,12 @@ open verb read_shard_bytes(
     return Ok(length);
 }
 
+"""Read, validate, and load one fixed shard from a filesystem path.
+
+The fabric receives an exclusive `ins` loan and the path is read through
+`abs`. Invalid shard IDs return `InvalidInput`; filesystem failures are
+propagated and invalid bytes are rejected before mutation.
+"""
 open verb read_shard(
     ins fabric: CorticalFabric[64],
     abs path: Path,
@@ -254,6 +274,12 @@ verb shard_checksum_bytes(dat bytes: Buffer) -> Result[u64, IoError] {
     return Ok(checksum);
 }
 
+"""Read and verify the stored checksum of one fixed shard file.
+
+The path is read through `abs`; the returned checksum is valid only when the
+file has the expected fixed length and header payload. Filesystem and invalid
+data errors are returned without mutating application state.
+"""
 open verb shard_file_checksum(abs path: Path) -> Result[u64, IoError] {
     erg loaded = read_to_bytes(path: abs path);
     return case dat loaded {

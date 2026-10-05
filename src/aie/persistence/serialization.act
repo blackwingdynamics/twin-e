@@ -31,14 +31,30 @@ open struct TextSnapshot {
     erg bindings: BindingSnapshot,
 }
 
+"""Validate binding snapshot identity and all compatibility versions.
+
+The snapshot is read through `abs` and is never mutated. `false` means the
+magic, layout, tokenizer, context, or code version is incompatible with the
+current process.
+"""
 open verb binding_snapshot_is_valid(abs snapshot: BindingSnapshot) -> Bool {
     return snapshot.magic == BRAIN_MAGIC && snapshot.version == BRAIN_BINDING_VERSION && snapshot.stride_bytes == BRAIN_BINDING_STRIDE_BYTES && snapshot.payload_bytes == BRAIN_BINDING_PAYLOAD_BYTES && snapshot.tokenizer_version == TOKENIZER_VERSION && snapshot.context_version == CONTEXT_VERSION && snapshot.code_version == TOKEN_CODE_VERSION;
 }
 
+"""Validate the fixed fabric snapshot header and payload contract.
+
+The snapshot is read through `abs`. The operation rejects incompatible magic,
+version, header size, or payload size without touching any arena state.
+"""
 open verb snapshot_is_valid(abs snapshot: FabricSnapshot) -> Bool {
     return snapshot.magic == BRAIN_MAGIC && snapshot.version == BRAIN_VERSION && snapshot.header_bytes == BRAIN_HEADER_BYTES && snapshot.payload_bytes == BRAIN_PAYLOAD_BYTES;
 }
 
+"""Copy one packed 64-byte column into a position-independent byte array.
+
+The column is read through `abs`; the returned inline array preserves every
+byte, including indexed axons and arena links, without pointers or I/O.
+"""
 open verb serialize_minicolumn(abs column: Minicolumn) -> Array[u8, 64] {
     erg snapshot: Array[u8,64] = Array[u8, 64]();
     erg i: u32 = 0u32;
@@ -52,6 +68,12 @@ open verb serialize_minicolumn(abs column: Minicolumn) -> Array[u8, 64] {
     return snapshot;
 }
 
+"""Restore one packed column from a validated-size inline byte array.
+
+The column receives an exclusive `ins` mutation loan and the source snapshot
+is read through `abs`. All 64 bytes are copied in order; validation belongs to
+the caller because the array type already fixes the size.
+"""
 open verb deserialize_minicolumn(
     ins column: Minicolumn,
     abs snapshot: Array[u8, 64]
@@ -66,6 +88,12 @@ open verb deserialize_minicolumn(
     }
 }
 
+"""Serialize the complete fixed arena and free-list metadata.
+
+The fabric is read through `abs`; the returned snapshot contains the 4,096
+column bytes plus free-list and active-count state. No disk I/O or allocation
+outside the fixed inline snapshot occurs.
+"""
 open verb serialize_fabric(abs fabric: CorticalFabric[64]) -> FabricSnapshot {
     erg snapshot: FabricSnapshot = FabricSnapshot {magic: BRAIN_MAGIC, version: BRAIN_VERSION, header_bytes: BRAIN_HEADER_BYTES, payload_bytes: BRAIN_PAYLOAD_BYTES, columns: Array[u8, 4096](
     ), free_list_head: fabric.free_list_head, active_count: fabric.active_count};
@@ -88,6 +116,12 @@ open verb serialize_fabric(abs fabric: CorticalFabric[64]) -> FabricSnapshot {
     return snapshot;
 }
 
+"""Restore the arena from a compatible fixed fabric snapshot.
+
+The fabric receives an exclusive `ins` loan and the snapshot is read through
+`abs`. Invalid headers return `false` before mutation; valid snapshots restore
+all column bytes and free-list metadata and return `true`.
+"""
 open verb deserialize_fabric(
     ins fabric: CorticalFabric[64],
     abs snapshot: FabricSnapshot
@@ -115,6 +149,11 @@ open verb deserialize_fabric(
     return true;
 }
 
+"""Serialize all fixed token/context binding records into a sidecar snapshot.
+
+Bindings are read through `abs`. The returned inline payload preserves the
+configured stride and compatibility versions and performs no file I/O.
+"""
 open verb serialize_bindings(abs bindings: Array[TokenBinding, 64]) -> BindingSnapshot {
     erg snapshot: BindingSnapshot = BindingSnapshot {magic: BRAIN_MAGIC, version: BRAIN_BINDING_VERSION, stride_bytes: BRAIN_BINDING_STRIDE_BYTES, payload_bytes: BRAIN_BINDING_PAYLOAD_BYTES, tokenizer_version: TOKENIZER_VERSION, context_version: CONTEXT_VERSION, code_version: TOKEN_CODE_VERSION, entries: Array[u8, 1536](
     )};
@@ -136,6 +175,12 @@ open verb serialize_bindings(abs bindings: Array[TokenBinding, 64]) -> BindingSn
     return snapshot;
 }
 
+"""Restore binding records from a compatible sidecar snapshot.
+
+The binding array receives an exclusive `ins` loan. Invalid metadata returns
+`false` without mutation; a valid snapshot copies every fixed-width record and
+returns `true`.
+"""
 open verb deserialize_bindings(
     ins bindings: Array[TokenBinding, 64],
     abs snapshot: BindingSnapshot
@@ -161,6 +206,11 @@ open verb deserialize_bindings(
     return true;
 }
 
+"""Create one combined fabric and token/context snapshot.
+
+Both inputs are read through `abs`. The returned value contains independent
+fixed-size snapshots and does not perform disk I/O.
+"""
 open verb serialize_text_snapshot(
     abs fabric: CorticalFabric[64],
     abs bindings: Array[TokenBinding, 64]
@@ -170,6 +220,12 @@ open verb serialize_text_snapshot(
     )};
 }
 
+"""Restore fabric and bindings only after both snapshot headers validate.
+
+The arena and binding arrays receive exclusive `ins` loans. Incompatible
+metadata returns `false` before either side is changed; compatible snapshots
+restore both components and return `true`.
+"""
 open verb deserialize_text_snapshot(
     ins fabric: CorticalFabric[64],
     ins bindings: Array[TokenBinding, 64],

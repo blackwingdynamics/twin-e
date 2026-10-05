@@ -5,6 +5,12 @@ import std::io;
 
 open io;
 
+"""Validate and consume one dynamic shard payload without loading it.
+
+The buffer is owned through `dat`; expected identity and column bounds are
+checked against the header, layout, length, and checksum. Success returns the
+validated byte length, while invalid data returns `IoError.InvalidData`.
+"""
 open verb validate_dynamic_shard_bytes(
     dat bytes: Buffer,
     erg expected_shard_id: u32,
@@ -116,6 +122,12 @@ verb dynamic_shard_with_bindings_is_valid(
     ) && dynamic_shard_checksum_is_valid(bytes: abs bytes, length: erg length_u32);
 }
 
+"""Validate and consume a dynamic shard that includes local bindings.
+
+The `dat` buffer is released on every path. The validator checks both payload
+sections, compatibility versions, total length, and checksum before returning
+the validated length or `IoError.InvalidData`.
+"""
 open verb validate_dynamic_shard_with_bindings_bytes(
     dat bytes: Buffer,
     erg expected_shard_id: u32,
@@ -197,6 +209,13 @@ verb release_dynamic_shard_bytes(dat bytes: Buffer) -> Int {
     return length;
 }
 
+"""Validate and load dynamic shard column bytes into an arena range.
+
+The fabric receives an exclusive `ins` loan and the shard bytes are consumed
+through `dat`. Destination bounds and the complete binary contract are checked
+before copying. Invalid input returns `IoError.InvalidData` without loading
+columns.
+"""
 open verb load_dynamic_shard_bytes[N: Usize](
     ins fabric: CorticalFabric[N],
     dat bytes: Buffer,
@@ -223,6 +242,12 @@ open verb load_dynamic_shard_bytes[N: Usize](
     return Ok(release_dynamic_shard_bytes(bytes: dat bytes));
 }
 
+"""Read one local free-list link from a validated dynamic shard payload.
+
+The buffer is read through `abs`; local index and shard capacity are checked
+before the link is decoded. Invalid indexes or lengths return the appropriate
+I/O error and do not mutate the buffer.
+"""
 open verb dynamic_shard_free_link(
     abs bytes: Buffer,
     erg local_index: u32,
