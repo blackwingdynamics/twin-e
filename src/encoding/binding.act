@@ -1,4 +1,9 @@
-"""Position-independent token and context identity stored beside an arena slot."""
+"""Position-independent token and context identity stored beside an arena slot.
+
+The inline 24-byte little-endian layout contains token identity, context key,
+version markers, and binding state. It contains no pointer or dynamic storage,
+so it can be serialized beside the owning shard.
+"""
 open pack TokenBinding {
     erg storage: Array[u8, 24];
     layout little;
@@ -15,12 +20,21 @@ open pack TokenBinding {
     }
 }
 
-"""Return the serialized TokenBinding stride in bytes."""
+"""Return the fixed serialized width of one token binding.
+
+The result is the byte stride used by binding snapshots and shard-local
+binding sections. The operation has no mutation, allocation, or failure path.
+"""
 open verb token_binding_size_bytes() -> u32 {
     return 24u32;
 }
 
-"""Attach one token/context identity to an arena slot."""
+"""Attach one token and context identity to a bounded arena slot.
+
+The binding array receives an exclusive `ins` loan. The slot must be within
+the configured binding count; invalid slots return `false` without mutation.
+Valid bindings receive current tokenizer/context versions and the active flag.
+"""
 open verb bind_token_context(
     ins bindings: Array[TokenBinding, 64],
     erg slot: u32,
@@ -38,7 +52,12 @@ open verb bind_token_context(
     return true;
 }
 
-"""Find the arena slot for one active token/context identity."""
+"""Find an active slot matching one token and context identity.
+
+The binding array is read through `abs`. Version markers and the active flag
+must match the current configuration; a miss returns `Option.None` without
+mutating the binding array.
+"""
 open verb lookup_token_context(
     abs bindings: Array[TokenBinding, 64],
     erg token_id: u32,

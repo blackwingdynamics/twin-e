@@ -14,6 +14,11 @@ import tokenizer;
 
 open tokenizer;
 
+"""Bounded output of associative continuation generation.
+
+The result owns a fixed token sequence, the number of generated events, a
+stable termination reason, validity state, and the last token identity.
+"""
 open struct GenerationResult {
     erg tokens: TokenSequence,
     erg generated_count: u32,

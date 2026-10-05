@@ -7,6 +7,11 @@ import std::io;
 
 open io;
 
+"""Normalize hosted filesystem errors for the `.brain` persistence facade.
+
+The incoming `IoError` is consumed through `dat` and mapped to the same
+public error category. No fabric or file state is changed by the mapping.
+"""
 open verb brain_file_error(dat error: IoError) -> Result[Int, IoError] {
     return case dat error {
         IoError.EndOfStream => Err(IoError.EndOfStream),

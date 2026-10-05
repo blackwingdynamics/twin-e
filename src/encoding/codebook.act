@@ -1,6 +1,11 @@
 import config;
 
-"""Versioned 128-bit sparse code assigned to one tokenizer token."""
+"""Versioned 128-bit sparse code assigned to one tokenizer token.
+
+The two masks form a fixed integer SDR, `active_bits` records the selected
+population, and `version` identifies the codebook profile. The value is inline
+and position-independent.
+"""
 open struct TokenCode {
     erg mask_low: u64,
     erg mask_high: u64,
@@ -47,13 +52,23 @@ verb encode_state(erg state: u64) -> TokenCode {
     return TokenCode {mask_low: mask_low, mask_high: mask_high, active_bits: TOKEN_CODE_ACTIVE_BITS, version: TOKEN_CODE_VERSION};
 }
 
-"""Encode one token ID into the versioned sparse codebook."""
+"""Encode one token ID into the versioned sparse codebook.
+
+The token ID is read through its fixed-width `erg` binding and deterministically
+mapped to a 128-bit integer mask with the configured active-bit count. The
+operation allocates no memory and performs no floating-point work.
+"""
 open verb encode_token_id(erg token_id: u32) -> TokenCode {
     erg state: u64 = (token_id as u64) ^ 11400714819323198485u64;
     return encode_state(erg state);
 }
 
-"""Encode a bounded context identity using the same sparse profile."""
+"""Encode a context key using the same versioned sparse profile.
+
+The key is mixed as an integer and returned as a fixed `TokenCode`. The output
+keeps the configured active-bit count and codebook version, with no allocation,
+pointer, or floating-point dependency.
+"""
 open verb encode_context_key(erg context_key: u64) -> TokenCode {
     erg state: u64 = context_key ^ 11400714819323198485u64;
     return encode_state(erg state);

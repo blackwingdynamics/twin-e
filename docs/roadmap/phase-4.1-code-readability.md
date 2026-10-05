@@ -285,8 +285,10 @@ to `case` and bounded iteration must be completed and reviewed independently.
       checksum validation, binary loading, and staged publication contracts.
 - [x] Documented `.brain` file I/O, bounded shard-cache state transitions,
       manifest location types, and shard-header compatibility checks.
-- [ ] Complete the same documentation audit for persistence, encoding, and
-      remaining public facade declarations.
+- [x] Expanded the encoding contracts for token bindings, context keys, and
+      sparse codebook generation.
+- [x] Audited every `open` public declaration under `src/`; all public verbs,
+      structs, packs, and enums now have an Actus documentation block.
 
 ### Gate 6 — Readability review
 
