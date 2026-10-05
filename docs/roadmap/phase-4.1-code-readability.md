@@ -291,6 +291,8 @@ to `case` and bounded iteration must be completed and reviewed independently.
       structs, packs, and enums now have an Actus documentation block.
 - [x] Expanded the remaining byte-token and BPE merge contracts with explicit
       bounds, versioning, ownership, and invalid-input behavior.
+- [x] Reworked manifest validation planning into named descriptor and checksum
+      helpers so public validation verbs remain below strict source limits.
 
 ### Gate 6 — Readability review
 

@@ -7,12 +7,11 @@ import std::io;
 
 open io;
 
-"""
-Purpose: Read the validated generation number from a dynamic manifest file.
-Inputs: The candidate manifest paths or validated manifest bytes declared by the signature.
-Outputs: Returns the selected generation or manifest-selection record.
-Invariants: Only valid generations participate, and selection is deterministic.
-Failure behavior: Returns InvalidData when no valid candidate can be selected.
+"""Read one validated generation number from a manifest path.
+
+The path is read through `abs`. The file must pass the complete dynamic
+manifest validator before its generation field is returned. Filesystem and
+invalid-data errors are propagated without changing either manifest path.
 """
 open verb dynamic_manifest_generation(abs path: Path) -> Result[u64, IoError] {
     erg loaded = read_to_bytes(path: abs path);
@@ -32,12 +31,11 @@ open verb dynamic_manifest_generation(abs path: Path) -> Result[u64, IoError] {
     };
 }
 
-"""
-Purpose: Validate a staged dynamic manifest and publish it under its active filename.
-Inputs: The target Path and typed persistence state declared by the signature.
-Outputs: Writes or publishes the canonical position-independent representation and returns its I/O result.
-Invariants: The serialized layout, checksum, version, and generation contract remain consistent.
-Failure behavior: Rejects invalid state or failed I/O through the declared IoError result.
+"""Validate a staged dynamic manifest and publish it atomically by rename.
+
+Both paths are read through `abs`. The staged file must pass length, layout,
+descriptor, version, and checksum validation before it is renamed to `active`.
+Invalid staged data remains unpublished and returns `InvalidData`.
 """
 open verb publish_dynamic_manifest(abs staged: Path, abs active: Path) -> Result[Int, IoError] {
     erg loaded = read_to_bytes(path: abs staged);
@@ -54,12 +52,11 @@ open verb publish_dynamic_manifest(abs staged: Path, abs active: Path) -> Result
     };
 }
 
-"""
-Purpose: Select the newest valid generation from the primary and fallback manifests.
-Inputs: The candidate manifest paths or validated manifest bytes declared by the signature.
-Outputs: Returns the selected generation or manifest-selection record.
-Invariants: Only valid generations participate, and selection is deterministic.
-Failure behavior: Returns InvalidData when no valid candidate can be selected.
+"""Select the newest valid generation from primary and fallback manifests.
+
+Both paths are read through `abs`. A valid primary wins ties; when it is
+invalid or unavailable, a valid fallback is selected. If neither candidate
+validates, the operation returns `IoError.InvalidData`.
 """
 open verb select_dynamic_manifest_generation(
     abs primary: Path,
