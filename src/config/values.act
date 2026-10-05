@@ -253,3 +253,4 @@ open const BRAIN_MANIFEST_DYNAMIC_MAX_BYTES: u32 = 384u32;
 
 """Number of inline shard metadata entries in the bounded cache."""
 open const BRAIN_CACHE_CAPACITY: u8 = 4u8;
+

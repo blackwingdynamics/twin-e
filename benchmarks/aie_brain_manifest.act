@@ -1,6 +1,8 @@
 """Prove that a manifest records and validates the bounded shard set."""
 import aie;
+
 import std::io;
+
 import std::path;
 
 verb append_manifest_path_prefix(ins raw: Buffer) {
@@ -49,8 +51,16 @@ verb make_fabric() -> CorticalFabric[64] {
     return fabric;
 }
 
-verb write_status(abs path: Path, abs fabric: CorticalFabric[64], erg shard_id: u32) -> Int {
-    erg result = write_shard(path: abs path, fabric: abs fabric, shard_id: erg shard_id);
+verb write_status(
+    abs path: Path,
+    abs fabric: CorticalFabric[64],
+    erg shard_id: u32
+) -> Int {
+    erg result = write_shard(
+        path: abs path,
+        fabric: abs fabric,
+        shard_id: erg shard_id
+    );
     return case dat result {
         Result.Err(_) => 1,
         Result.Ok(_) => 0,
@@ -106,12 +116,22 @@ verb lookup_status(abs path: Path) -> Int {
     };
 }
 
-verb selective_load_status(abs manifest: Path, abs shard_zero: Path, abs shard_one: Path) -> Int {
+verb selective_load_status(
+    abs manifest: Path,
+    abs shard_zero: Path,
+    abs shard_one: Path
+) -> Int {
     erg fabric: CorticalFabric[64] = make_fabric();
     fabric.columns[0u32].payload = 0u8;
     fabric.columns[32u32].payload = 0u8;
     erg query: u32 = 33u32;
-    erg loaded = load_column_from_shards(fabric: ins fabric, manifest_path: abs manifest, shard_zero_path: abs shard_zero, shard_one_path: abs shard_one, global_index: erg query);
+    erg loaded = load_column_from_shards(
+        fabric: ins fabric,
+        manifest_path: abs manifest,
+        shard_zero_path: abs shard_zero,
+        shard_one_path: abs shard_one,
+        global_index: erg query
+    );
     erg load_status: Int = case dat loaded {
         Result.Err(_) => 1,
         Result.Ok(_) => 0,
@@ -137,15 +157,27 @@ verb validate_manifest(abs path: Path) -> Int {
     return 0;
 }
 
-verb prepare_manifest(abs shard_zero: Path, abs shard_one: Path, abs manifest: Path) -> Int {
+verb prepare_manifest(
+    abs shard_zero: Path,
+    abs shard_one: Path,
+    abs manifest: Path
+) -> Int {
     erg fabric: CorticalFabric[64] = make_fabric();
     erg shard_zero_id: u32 = 0u32;
     erg shard_one_id: u32 = 1u32;
-    erg first_status: Int = write_status(path: abs shard_zero, fabric: abs fabric, shard_id: erg shard_zero_id);
+    erg first_status: Int = write_status(
+        path: abs shard_zero,
+        fabric: abs fabric,
+        shard_id: erg shard_zero_id
+    );
     if first_status != 0 {
         return 1;
     }
-    erg second_status: Int = write_status(path: abs shard_one, fabric: abs fabric, shard_id: erg shard_one_id);
+    erg second_status: Int = write_status(
+        path: abs shard_one,
+        fabric: abs fabric,
+        shard_id: erg shard_one_id
+    );
     if second_status != 0 {
         return 2;
     }
@@ -156,7 +188,13 @@ verb prepare_manifest(abs shard_zero: Path, abs shard_one: Path, abs manifest: P
     }
     erg generation: u64 = 7u64;
     erg active_count: u32 = 2u32;
-    erg saved = write_manifest(path: abs manifest, generation: erg generation, active_count: erg active_count, shard_zero_checksum: abs checksum_zero, shard_one_checksum: abs checksum_one);
+    erg saved = write_manifest(
+        path: abs manifest,
+        generation: erg generation,
+        active_count: erg active_count,
+        shard_zero_checksum: abs checksum_zero,
+        shard_one_checksum: abs checksum_one
+    );
     erg save_status: Int = case dat saved {
         Result.Err(_) => 4,
         Result.Ok(_) => 0,
@@ -168,7 +206,11 @@ verb prepare_manifest(abs shard_zero: Path, abs shard_one: Path, abs manifest: P
 }
 
 verb run_manifest(abs shard_zero: Path, abs shard_one: Path, abs manifest: Path) -> Int {
-    erg prepare_status: Int = prepare_manifest(shard_zero: abs shard_zero, shard_one: abs shard_one, manifest: abs manifest);
+    erg prepare_status: Int = prepare_manifest(
+        shard_zero: abs shard_zero,
+        shard_one: abs shard_one,
+        manifest: abs manifest
+    );
     if prepare_status != 0 {
         return prepare_status;
     }
@@ -180,7 +222,11 @@ verb run_manifest(abs shard_zero: Path, abs shard_one: Path, abs manifest: Path)
     if lookup_result != 0 {
         return 7;
     }
-    erg selective_result: Int = selective_load_status(manifest: abs manifest, shard_zero: abs shard_zero, shard_one: abs shard_one);
+    erg selective_result: Int = selective_load_status(
+        manifest: abs manifest,
+        shard_zero: abs shard_zero,
+        shard_one: abs shard_one
+    );
     if selective_result != 0 {
         return 8;
     }
@@ -199,7 +245,11 @@ verb run_with_shard_zero(abs shard_zero: Path) -> Int {
             erg manifest_result = make_path(suffix: erg manifest_suffix);
             return case dat manifest_result {
                 Result.Err(_) => 12,
-                Result.Ok(manifest) => run_manifest(shard_zero: abs shard_zero, shard_one: abs shard_one, manifest: abs manifest),
+                Result.Ok(manifest) => run_manifest(
+                    shard_zero: abs shard_zero,
+                    shard_one: abs shard_one,
+                    manifest: abs manifest
+                ),
             };
         },
     };

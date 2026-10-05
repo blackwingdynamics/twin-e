@@ -10,11 +10,17 @@ Invariants: Validation is side-effect free and enforces magic, version, bounds, 
 Failure behavior: Returns false or InvalidData/InvalidInput according to the public contract; it never accepts partial state.
 """
 verb manifest_fixed_header_is_valid(abs bytes: Buffer) -> Bool {
-    erg magic_offset: u32 = 0u32; erg version_offset: u32 = 4u32; erg shard_count_offset: u32 = 28u32; erg checksum_offset: u32 = 44u32;
+    erg magic_offset: u32 = 0u32;
+    erg version_offset: u32 = 4u32;
+    erg shard_count_offset: u32 = 28u32;
+    erg checksum_offset: u32 = 44u32;
     erg shard_count: u32 = read_manifest_u32(input: abs bytes, offset: abs shard_count_offset);
     erg stored_checksum: u64 = read_manifest_u64(input: abs bytes, offset: abs checksum_offset);
     erg actual_checksum: u64 = manifest_checksum(input: abs bytes);
-    return stored_checksum == actual_checksum && read_manifest_u32(input: abs bytes, offset: abs magic_offset) == BRAIN_MANIFEST_MAGIC && read_manifest_u16(input: abs bytes, offset: abs version_offset) == BRAIN_MANIFEST_VERSION && shard_count != 0u32 && shard_count <= BRAIN_MANIFEST_MAX_SHARDS;
+    return stored_checksum == actual_checksum && read_manifest_u32(input: abs bytes, offset: abs magic_offset) == BRAIN_MANIFEST_MAGIC && read_manifest_u16(
+        input: abs bytes,
+        offset: abs version_offset
+    ) == BRAIN_MANIFEST_VERSION && shard_count != 0u32 && shard_count <= BRAIN_MANIFEST_MAX_SHARDS;
 }
 
 """
@@ -24,33 +30,45 @@ Outputs: Returns the requested checksum, metadata, location, or validation resul
 Invariants: All offsets and indexes remain bounded by the position-independent manifest contract.
 Failure behavior: Returns false, InvalidInput, or InvalidData according to the declared return type.
 """
-open verb manifest_locate_column(abs bytes: Buffer, erg global_index: u32) -> Result[ColumnLocation, IoError] {
-    erg length_result = buffer_size(buffer: abs bytes);
-    erg length: Int = case dat length_result { Result.Ok(value) => value, Result.Err(_) => -1, };
-    if length != BRAIN_MANIFEST_FILE_BYTES as Int || !manifest_fixed_header_is_valid(bytes: abs bytes) {
-        return Err(IoError.InvalidData);
-    }
-    erg shard_count_offset: u32 = 28u32;
-    erg shard_count: u32 = read_manifest_u32(input: abs bytes, offset: abs shard_count_offset);
+"""Search fixed descriptors after the manifest header has been validated."""
+verb locate_fixed_column_in_descriptors(
+    abs bytes: Buffer,
+    erg shard_count: u32,
+    erg global_index: u32
+) -> Result[ColumnLocation, IoError] {
     erg shard_index: u32 = 0u32;
     loop {
         if shard_index >= shard_count {
             break;
         }
-        erg descriptor_offset: u32 = 64u32 + (shard_index * 40u32);
+        erg descriptor_offset: u32 = BRAIN_MANIFEST_HEADER_BYTES as u32 + (shard_index * BRAIN_MANIFEST_DESCRIPTOR_BYTES as u32);
         erg first_offset: u32 = descriptor_offset + 4u32;
         erg count_offset: u32 = descriptor_offset + 8u32;
         erg first_column: u32 = read_manifest_u32(input: abs bytes, offset: abs first_offset);
         erg column_count: u32 = read_manifest_u32(input: abs bytes, offset: abs count_offset);
-        erg query_a: u32 = global_index + 0u32;
-        erg query_b: u32 = global_index + 0u32;
-        erg query_field: u32 = global_index + 0u32;
-        erg result_index: u32 = query_field + 0u32;
-        erg local_index: u32 = query_field - first_column;
-        if query_a >= first_column && query_b < first_column + column_count {
-            return Ok(ColumnLocation {global_index: result_index, shard_id: shard_index, local_index: local_index});
+        if global_index >= first_column && global_index < first_column + column_count {
+            erg local_index: u32 = global_index - first_column;
+            return Ok(ColumnLocation {global_index: global_index, shard_id: shard_index, local_index: local_index});
         }
         shard_index += 1u32;
     }
     return Err(IoError.InvalidInput);
+}
+
+open verb manifest_locate_column(abs bytes: Buffer, erg global_index: u32) -> Result[ColumnLocation, IoError] {
+    erg length_result = buffer_size(buffer: abs bytes);
+    erg length: Int = case dat length_result {
+        Result.Ok(value) => value,
+        Result.Err(_) => -1,
+    };
+    if length != BRAIN_MANIFEST_FILE_BYTES as Int || !manifest_fixed_header_is_valid(bytes: abs bytes) {
+        return Err(IoError.InvalidData);
+    }
+    erg shard_count_offset: u32 = 28u32;
+    erg shard_count: u32 = read_manifest_u32(input: abs bytes, offset: abs shard_count_offset);
+    return locate_fixed_column_in_descriptors(
+        bytes: abs bytes,
+        shard_count: erg shard_count,
+        global_index: erg global_index
+    );
 }

@@ -331,16 +331,33 @@ to `case` and bounded iteration must be completed and reviewed independently.
 
 ### Gate 7 — Behavioral and performance safety
 
-- [ ] `actus fmt --check` passes for all touched Actus files.
-- [ ] `actus check --strict` passes.
-- [ ] `actus test --strict` passes with no filtered failures.
-- [ ] Snapshot round-trip and corrupted-input tests pass.
-- [ ] Public API lifecycle tests pass.
-- [ ] No floating-point instructions are introduced into the engine build.
-- [ ] Hot-path benchmarks remain within the established baseline or record and
+- [x] `actus fmt --check` passes for all touched Actus files.
+- [x] `actus check --strict` passes.
+- [x] `actus test --strict` passes with no filtered failures.
+- [x] Snapshot round-trip and corrupted-input tests pass.
+- [x] Public API lifecycle tests pass.
+- [x] No floating-point instructions are introduced into the engine build.
+- [x] Hot-path benchmarks remain within the established baseline or record and
       explain any measured change.
-- [ ] The refactor does not add synchronous disk I/O to inference or
+- [x] The refactor does not add synchronous disk I/O to inference or
       neurogenesis hot paths.
+
+#### Gate 7 evidence
+
+- [x] Formatter audit covers 89 Actus files under `src/`, `tests/`, and
+      `benchmarks/`; all 89 pass `actus fmt --check`.
+- [x] Final strict engine build succeeds and reports no floating-point native
+      IR instructions.
+- [x] Snapshot round-trip, corrupted-header, truncated-payload, binding
+      compatibility, and public lifecycle tests pass in the 16-test suite.
+- [x] Final P3.3 debug-host run with 10,000 iterations reports:
+      `coincidence_ns=442592`, `forwarding_8axon_ns=3639626`,
+      `free_list_ns=145862`, and `full_step_ns=4464414`.
+- [x] Compared with the recorded baseline (`678274`, `5608634`, `186179`,
+      `7013406`), this run is faster for all four measurements. Both are
+      single debug-host runs and are treated as environment-specific evidence.
+- [x] The runtime, layout, encoding, and tokenizer paths contain no filesystem
+      read/write or rename calls; persistence remains behind persistence APIs.
 
 ### Gate 8 — Completion evidence
 

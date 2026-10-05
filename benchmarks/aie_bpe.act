@@ -5,20 +5,17 @@ import std::io;
 
 meta limitless("verb")
 verb main() -> Int {
-    erg rules: Array[BpeMergeRule, 128] = Array[BpeMergeRule, 128]();
+    erg rules: Array[BpeMergeRule,128] = Array[BpeMergeRule, 128]();
     rules[0u32] = BpeMergeRule {left_id: 65u32, right_id: 66u32, merged_id: 1000u32, rank: 0u32};
-    erg merged_bytes: Array[u8, 8] = Array[u8, 8]();
+    erg merged_bytes: Array[u8,8] = Array[u8, 8]();
     merged_bytes[0u32] = 65u8;
     merged_bytes[1u32] = 66u8;
     erg merged_record: BpeTokenRecord = BpeTokenRecord {token_id: 1000u32, byte_length: 2u8, bytes: merged_bytes};
-    erg records: Array[BpeTokenRecord, 256] = Array[BpeTokenRecord, 256]();
+    erg records: Array[BpeTokenRecord,256] = Array[BpeTokenRecord, 256]();
     records[0u32] = merged_record;
     erg vocabulary: BpeVocabulary = BpeVocabulary {magic: BPE_VOCAB_MAGIC, version: BPE_VOCAB_VERSION, tokenizer_version: TOKENIZER_VERSION, bos_token_id: BPE_BOS_TOKEN_ID, eos_token_id: BPE_EOS_TOKEN_ID, unknown_token_id: BPE_UNKNOWN_TOKEN_ID, rule_count: 1u32, rules: rules, token_count: 1u32, tokens: records};
     erg text: String = "AB";
-    erg sequence: TokenSequence = bpe_tokenize_with_special_tokens(
-        text: abs text,
-        vocabulary: abs vocabulary
-    );
+    erg sequence: TokenSequence = bpe_tokenize_with_special_tokens(text: abs text, vocabulary: abs vocabulary);
     erg first: Token = sequence.tokens[0u32];
     if !sequence.valid {
         erg invalid_message: String = "AIE_BPE_ERROR invalid_vocabulary";
@@ -35,26 +32,20 @@ verb main() -> Int {
         println(text: abs id_message);
         return 1;
     }
-    erg incompatible_rules: Array[BpeMergeRule, 128] = Array[BpeMergeRule, 128]();
-    erg incompatible_records: Array[BpeTokenRecord, 256] = Array[BpeTokenRecord, 256]();
+    erg incompatible_rules: Array[BpeMergeRule,128] = Array[BpeMergeRule, 128]();
+    erg incompatible_records: Array[BpeTokenRecord,256] = Array[BpeTokenRecord, 256]();
     erg incompatible: BpeVocabulary = BpeVocabulary {magic: BPE_VOCAB_MAGIC, version: BPE_VOCAB_VERSION, tokenizer_version: TOKENIZER_VERSION, bos_token_id: BPE_BOS_TOKEN_ID, eos_token_id: BPE_EOS_TOKEN_ID, unknown_token_id: BPE_UNKNOWN_TOKEN_ID, rule_count: 0u32, rules: incompatible_rules, token_count: 0u32, tokens: incompatible_records};
     incompatible.version = 2u16;
-    erg rejected: TokenSequence = bpe_tokenize_vocabulary(
-        text: abs text,
-        vocabulary: abs incompatible
-    );
+    erg rejected: TokenSequence = bpe_tokenize_vocabulary(text: abs text, vocabulary: abs incompatible);
     if rejected.valid {
         erg rejection_message: String = "AIE_BPE_ERROR incompatible_accepted";
         println(text: abs rejection_message);
         return 1;
     }
-    erg byte_rules: Array[BpeMergeRule, 128] = Array[BpeMergeRule, 128]();
-    erg byte_records: Array[BpeTokenRecord, 256] = Array[BpeTokenRecord, 256]();
+    erg byte_rules: Array[BpeMergeRule,128] = Array[BpeMergeRule, 128]();
+    erg byte_records: Array[BpeTokenRecord,256] = Array[BpeTokenRecord, 256]();
     erg byte_vocabulary: BpeVocabulary = BpeVocabulary {magic: BPE_VOCAB_MAGIC, version: BPE_VOCAB_VERSION, tokenizer_version: TOKENIZER_VERSION, bos_token_id: BPE_BOS_TOKEN_ID, eos_token_id: BPE_EOS_TOKEN_ID, unknown_token_id: BPE_UNKNOWN_TOKEN_ID, rule_count: 0u32, rules: byte_rules, token_count: 0u32, tokens: byte_records};
-    erg byte_sequence: TokenSequence = bpe_tokenize_with_special_tokens(
-        text: abs text,
-        vocabulary: abs byte_vocabulary
-    );
+    erg byte_sequence: TokenSequence = bpe_tokenize_with_special_tokens(text: abs text, vocabulary: abs byte_vocabulary);
     if !bpe_vocabulary_is_valid(vocabulary: abs byte_vocabulary) {
         erg byte_vocab_message: String = "AIE_BPE_ERROR byte_vocabulary_invalid";
         println(text: abs byte_vocab_message);

@@ -1,7 +1,10 @@
 """Verify that truncated brain files are rejected before mutating live state."""
 import aie;
+
 import std::io;
+
 import std::path;
+
 import std::fs;
 
 verb append_validation_prefix(ins raw: Buffer) {

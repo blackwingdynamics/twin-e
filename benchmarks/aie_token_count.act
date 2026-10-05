@@ -1,10 +1,11 @@
 """Compare byte-token and bounded BPE sequence lengths on fixed text."""
 import tokenizer;
+
 import std::io;
 
 meta limitless("verb")
 verb main() -> Int {
-    erg rules: Array[BpeMergeRule, 128] = Array[BpeMergeRule, 128]();
+    erg rules: Array[BpeMergeRule,128] = Array[BpeMergeRule, 128]();
     rules[0u32] = BpeMergeRule {left_id: 72u32, right_id: 101u32, merged_id: 1000u32, rank: 0u32};
     erg text: String = "Hello Giorgi";
     erg byte_sequence: TokenSequence = tokenize_string(text: abs text);
