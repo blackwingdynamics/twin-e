@@ -1,0 +1,114 @@
+"""Write a vocabulary-aware restart fixture and exit as a separate process."""
+import aie;
+
+import config;
+
+import encoding;
+
+import tokenizer;
+
+import std::io;
+
+import std::path;
+
+verb append_restart_prefix(ins raw: Buffer) {
+    erg bytes: Array[u8,11] = Array[u8, 11]();
+    bytes[0u32] = 47u8;
+    bytes[1u32] = 116u8;
+    bytes[2u32] = 109u8;
+    bytes[3u32] = 112u8;
+    bytes[4u32] = 47u8;
+    bytes[5u32] = 116u8;
+    bytes[6u32] = 119u8;
+    bytes[7u32] = 105u8;
+    bytes[8u32] = 110u8;
+    bytes[9u32] = 45u8;
+    bytes[10u32] = 101u8;
+    for erg index: u32 in 0u32 .. 11u32 {
+        append(raw, bytes[index]);
+    }
+}
+
+verb append_restart_suffix(ins raw: Buffer) {
+    erg bytes: Array[u8,18] = Array[u8, 18]();
+    bytes[0u32] = 45u8;
+    bytes[1u32] = 112u8;
+    bytes[2u32] = 53u8;
+    bytes[3u32] = 45u8;
+    bytes[4u32] = 114u8;
+    bytes[5u32] = 101u8;
+    bytes[6u32] = 115u8;
+    bytes[7u32] = 116u8;
+    bytes[8u32] = 97u8;
+    bytes[9u32] = 114u8;
+    bytes[10u32] = 116u8;
+    bytes[11u32] = 46u8;
+    bytes[12u32] = 98u8;
+    bytes[13u32] = 114u8;
+    bytes[14u32] = 97u8;
+    bytes[15u32] = 105u8;
+    bytes[16u32] = 110u8;
+    bytes[17u32] = 0u8;
+    for erg index: u32 in 0u32 .. 18u32 {
+        append(raw, bytes[index]);
+    }
+}
+
+verb restart_path() -> Result[Path, PathError] {
+    erg raw = Buffer[0];
+    append_restart_prefix(raw: ins raw);
+    append_restart_suffix(raw: ins raw);
+    return path_from_ascii(storage: dat raw);
+}
+
+verb restart_vocabulary() -> BpeVocabulary {
+    erg rules: Array[BpeMergeRule,128] = Array[BpeMergeRule, 128]();
+    rules[0u32] = BpeMergeRule {left_id: 65u32, right_id: 66u32, merged_id: 256u32, rank: 0u32};
+    erg records: Array[BpeTokenRecord,256] = Array[BpeTokenRecord, 256]();
+    records[0u32].token_id = 256u32;
+    records[0u32].byte_length = 2u8;
+    records[0u32].bytes[0u32] = 65u8;
+    records[0u32].bytes[1u32] = 66u8;
+    return BpeVocabulary {magic: BPE_VOCAB_MAGIC, version: BPE_VOCAB_VERSION, tokenizer_version: TOKENIZER_VERSION, bos_token_id: BPE_BOS_TOKEN_ID, eos_token_id: BPE_EOS_TOKEN_ID, unknown_token_id: BPE_UNKNOWN_TOKEN_ID, rule_count: 1u32, rules: rules, token_count: 1u32, tokens: records};
+}
+
+verb write_fixture(abs path: Path) -> Int {
+    erg fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](), free_list_head: 0u32, active_count: 0u32};
+    fabric_init(fabric: ins fabric);
+    erg slot: u32 = allocate_column_index(fabric: ins fabric);
+    fabric.columns[slot].payload = 88u8;
+    fabric.columns[slot].myelination = 12u8;
+    erg bindings: Array[TokenBinding,64] = Array[TokenBinding, 64]();
+    bindings[slot].token_id = 12345u32;
+    bindings[slot].context_key = 72623859790382856u64;
+    bindings[slot].tokenizer_version = TOKENIZER_VERSION;
+    bindings[slot].context_version = CONTEXT_VERSION;
+    bindings[slot].binding_flags = BINDING_ACTIVE_FLAG;
+    erg vocabulary: BpeVocabulary = restart_vocabulary();
+    erg saved = write_text_brain_with_vocabulary(
+        path: abs path,
+        fabric: abs fabric,
+        bindings: abs bindings,
+        vocabulary: abs vocabulary
+    );
+    return case dat saved {
+        Result.Err(_) => 2,
+        Result.Ok(_) => 0,
+    };
+}
+
+verb main() -> Int {
+    erg result = restart_path();
+    return case dat result {
+        Result.Err(_) => 1,
+        Result.Ok(path) => {
+            erg status: Int = write_fixture(path: abs path);
+            if status != 0 {
+                return status;
+            }
+            erg message: String = "AIE_P5_VOCAB_RESTART save=1 bytes=11106 process=writer";
+            println(text: abs message);
+            return 0;
+        },
+    };
+}

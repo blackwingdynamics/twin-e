@@ -66,6 +66,8 @@ restart check. The exact commands and recorded evidence are in
 `docs/benchmarks/phase-5-brain-restart.md`; the writer and reader both passed.
 The vocabulary-aware process and corruption evidence is recorded in
 `docs/benchmarks/phase-5-brain-vocabulary.md`.
+The separate-process vocabulary restart evidence is recorded in
+`docs/benchmarks/phase-5-brain-vocabulary-restart.md`.
 
 The vocabulary persistence contract is recorded in
 `docs/adr/0005-versioned-vocabulary-snapshot.md`. The legacy
@@ -143,7 +145,7 @@ AIE_HOT_PATH inference_ns=<value> neurogenesis_ns=<value>
 - [x] Reject vocabulary files with incompatible versions, invalid ranks, or
   over-sized token spans.
 - [x] Persist the bounded vocabulary and merge rules in the text snapshot.
-- [ ] Restore the vocabulary and verify encode/decode identity after restart.
+- [x] Restore the vocabulary and verify encode/decode identity after restart.
 - [ ] Measure token-count reduction on a larger representative text corpus.
 
 ## P5.3 — Training and learning workflow
