@@ -266,11 +266,11 @@ verb manifest_file_bytes(abs path: Path) -> u64 {
     return case dat loaded {
         Result.Err(_) => 0u64,
         Result.Ok(bytes) => {
-            erg length_result = buffer_length(buffer: abs bytes);
-            return case dat length_result {
-                Result.Err(_) => 0u64,
-                Result.Ok(value) => value as u64,
-            };
+            erg length: Int = buffer_length(buffer: abs bytes);
+            if length < 0 {
+                return 0u64;
+            }
+            return length as u64;
         },
     };
 }
