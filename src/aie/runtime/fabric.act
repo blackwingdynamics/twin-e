@@ -11,6 +11,7 @@ verb fabric_some_u32(abs value: u32) -> Option[u32] {
     return result;
 }
 
+"""Write one bounded axon slot and ignore invalid source or slot indexes."""
 open verb link_axon[N: Usize](
     ins fabric: CorticalFabric[N],
     erg source: u32,
@@ -24,6 +25,7 @@ open verb link_axon[N: Usize](
     return 0u32;
 }
 
+"""Create an eight-slot result initialized to the null destination sentinel."""
 open verb empty_fired_destinations() -> Array[u32, 8] {
     erg fired: Array[u32,8] = Array[u32, 8]();
     erg i: u32 = 0u32;
@@ -37,6 +39,7 @@ open verb empty_fired_destinations() -> Array[u32, 8] {
     return fired;
 }
 
+"""Initialize every arena slot and rebuild its contiguous free-list."""
 open verb fabric_init[N: Usize](ins fabric: CorticalFabric[N]) -> Void {
     fabric_init_core(fabric: ins fabric);
 }
@@ -77,6 +80,7 @@ verb fabric_init_core[N: Usize](ins fabric: CorticalFabric[N]) {
     fabric.active_count = 0u32;
 }
 
+"""Take the free-list head, mark it active, and return its index if available."""
 open verb allocate_column[N: Usize](ins fabric: CorticalFabric[N]) -> Option[u32] {
     erg slot: u32 = 0u32;
     erg available: Bool = fabric.free_list_head != null_index();
@@ -94,6 +98,7 @@ open verb allocate_column[N: Usize](ins fabric: CorticalFabric[N]) -> Option[u32
     return result;
 }
 
+"""Allocate one slot without an option wrapper, using the null index on exhaustion."""
 open verb allocate_column_index[N: Usize](ins fabric: CorticalFabric[N]) -> u32 {
     erg slot: u32 = null_index();
     erg available: Bool = fabric.free_list_head != null_index();
@@ -107,6 +112,7 @@ open verb allocate_column_index[N: Usize](ins fabric: CorticalFabric[N]) -> u32 
     return slot;
 }
 
+"""Clear one slot, return it to the free-list, and update active_count safely."""
 open verb free_column[N: Usize](ins fabric: CorticalFabric[N], erg slot: u32) -> Void {
     if slot >= (N as u32) {
         return;

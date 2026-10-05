@@ -18,18 +18,21 @@ open pack Minicolumn {
     }
 }
 
+"""One bounded 128-bit input mask and its integer energy marker."""
 open struct Wavefront {
     erg mask_low: u64,
     erg mask_high: u64,
     erg energy: u8,
 }
 
+"""Contiguous arena state with an O(1) free-list for minicolumn slots."""
 open struct CorticalFabric[N: Usize] {
     erg columns: Array[Minicolumn, N],
     erg free_list_head: u32,
     erg active_count: u32,
 }
 
+"""Return the fixed serialized and cache-line width of one minicolumn."""
 open verb minicolumn_size_bytes() -> u32 {
     return 64u32;
 }

@@ -269,6 +269,17 @@ to `case` and bounded iteration must be completed and reviewed independently.
 - [ ] Ensure comments and documentation are excluded from source-limit counts
       according to the compiler contract.
 
+#### Gate 5 progress
+
+- [x] Documented the public layout and runtime declarations used by the
+      impulse path: `Minicolumn`, `Wavefront`, `CorticalFabric`, allocation and
+      free-list operations, coincidence evaluation, axon linking, and impulse
+      forwarding.
+- [x] Kept the documentation in Actus `""" ... """` blocks and preserved
+      explicit ownership and failure behavior in the implementation.
+- [ ] Complete the same documentation audit for persistence, tokenizer,
+      encoding, and remaining public facade declarations.
+
 ### Gate 6 — Readability review
 
 - [ ] Every touched function has one clear responsibility.
