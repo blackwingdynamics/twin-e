@@ -283,6 +283,8 @@ to `case` and bounded iteration must be completed and reviewed independently.
       outputs, ownership roles, bounds, invariants, and failure behavior.
 - [x] Documented fixed and dynamic shard persistence, snapshot serialization,
       checksum validation, binary loading, and staged publication contracts.
+- [x] Documented `.brain` file I/O, bounded shard-cache state transitions,
+      manifest location types, and shard-header compatibility checks.
 - [ ] Complete the same documentation audit for persistence, encoding, and
       remaining public facade declarations.
 

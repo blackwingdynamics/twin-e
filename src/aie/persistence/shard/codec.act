@@ -37,6 +37,12 @@ open verb shard_header_is_valid(abs header: ShardHeader) -> Bool {
     return header.magic == BRAIN_SHARD_MAGIC && header.version == BRAIN_SHARD_VERSION && header.header_bytes == BRAIN_SHARD_HEADER_BYTES && header.column_stride_bytes == BRAIN_SHARD_COLUMN_STRIDE_BYTES && header.binding_stride_bytes == BRAIN_SHARD_BINDING_STRIDE_BYTES && header.tokenizer_version == TOKENIZER_VERSION && header.context_version == CONTEXT_VERSION && header.code_version == TOKEN_CODE_VERSION;
 }
 
+"""Verify a shard header against one expected fixed shard identity.
+
+The header is read through `abs`; the check covers compatibility versions,
+layout widths, payload sizes, shard ID, and its first-column range. It returns
+`false` without mutation when any field is incompatible.
+"""
 open verb shard_header_matches(abs header: ShardHeader, erg shard_id: u32) -> Bool {
     return shard_header_is_valid(header: abs header) && header.shard_id == shard_id && header.first_column_index == (shard_id * BRAIN_SHARD_COLUMN_COUNT) && header.column_count == BRAIN_SHARD_COLUMN_COUNT && header.column_payload_bytes == BRAIN_SHARD_COLUMN_PAYLOAD_BYTES && header.binding_payload_bytes == BRAIN_SHARD_BINDING_PAYLOAD_BYTES;
 }
