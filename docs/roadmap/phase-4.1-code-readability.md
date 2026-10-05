@@ -385,6 +385,8 @@ indexed access.
 
 - [x] Final implementation commit: `90756668a53ea093f08a412e795cb073a4ddbd42`
       (`refactor: close behavioral safety gate`).
+- [x] Syntax modernization commit: `8293197` (`refactor: modernize bounded
+      Actus loops`).
 - [x] Compiler binary: `/home/magradze/.cargo/bin/actus`.
 - [x] Compiler SHA-256:
       `827fa0a8b43fdbf8562872459048037e82017484055a5a71e4d03a8890d9168b`.
@@ -400,9 +402,8 @@ indexed access.
 
 #### Phase status
 
-Gate 8 evidence is complete. Phase 4.1 acceptance remains open because the
-earlier Gate 3 syntax-modernization checklist still contains intentional
-unchecked items for a separate, compiler-validated migration.
+Gate 3, Gate 5, Gate 6, Gate 7, and Gate 8 are closed. Phase 4.1 acceptance
+criteria are now satisfied for the documented scope.
 
 ## Acceptance Criteria
 
