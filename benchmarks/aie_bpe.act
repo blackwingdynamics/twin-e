@@ -105,7 +105,24 @@ verb main() -> Int {
         println(text: abs merged_decode_message);
         return 1;
     }
-    erg heading: String = "AIE_BPE input_bytes=2 output_tokens=3 special_tokens=2 decoded_bytes=2 merged_decode=2 artifact=valid rejected=1 invalid_rank_rejected=1 oversized_span_rejected=1";
+    erg unknown_sequence: TokenSequence = TokenSequence {tokens: Array[Token, 256](), length: 1u32, valid: true};
+    unknown_sequence.tokens[0u32].id = BPE_UNKNOWN_TOKEN_ID;
+    erg unknown_storage: Buffer = Buffer[0];
+    erg unknown_decoded = bpe_decode_bytes(
+        sequence: abs unknown_sequence,
+        vocabulary: abs vocabulary,
+        storage: ins unknown_storage
+    );
+    erg unknown_rejected: Bool = case dat unknown_decoded {
+        Result.Ok(_) => false,
+        Result.Err(_) => true,
+    };
+    if !unknown_rejected {
+        erg unknown_message: String = "AIE_BPE_ERROR unknown_token_accepted";
+        println(text: abs unknown_message);
+        return 1;
+    }
+    erg heading: String = "AIE_BPE input_bytes=2 output_tokens=3 special_tokens=2 decoded_bytes=2 merged_decode=2 artifact=valid rejected=1 invalid_rank_rejected=1 oversized_span_rejected=1 unknown_rejected=1";
     println(text: abs heading);
     return 0;
 }
