@@ -191,6 +191,13 @@ facade. `bpe/types.act` owns vocabulary and token record types,
 `bpe/api.act` owns public tokenization and decoding operations. The serialized
 vocabulary contract and public tokenizer API remain unchanged.
 
+The runtime generation implementation is split behind the existing
+`runtime::generation` facade. `generation/history.act` owns the bounded
+repetition history, `generation/selection.act` owns successor validation and
+deterministic selection, and `generation/core.act` owns generation
+orchestration. The current explicit `axon_at` mapping remains unchanged until
+Phase 34 provides verified indexed access for repeated packed fields.
+
 ### Gate 3 — Actus syntax modernization
 
 - [ ] Replace statement-form `if` constructs that use an empty `else` with the
