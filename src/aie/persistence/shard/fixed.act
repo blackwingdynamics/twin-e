@@ -1,0 +1,269 @@
+"""Fixed shard persistence for the bounded arena contract."""
+import config;
+
+import std::fs;
+
+import std::io;
+
+open io;
+
+verb append_fixed_shard_header(ins output: Buffer, erg shard_id: u32) {
+    erg magic: u32 = BRAIN_SHARD_MAGIC;
+    erg version: u16 = BRAIN_SHARD_VERSION;
+    erg header_bytes: u16 = BRAIN_SHARD_HEADER_BYTES;
+    erg first_column_index: u32 = shard_id * BRAIN_SHARD_COLUMN_COUNT;
+    erg column_count: u32 = BRAIN_SHARD_COLUMN_COUNT;
+    erg column_stride: u16 = BRAIN_SHARD_COLUMN_STRIDE_BYTES;
+    erg binding_stride: u16 = BRAIN_SHARD_BINDING_STRIDE_BYTES;
+    erg column_payload: u32 = BRAIN_SHARD_COLUMN_PAYLOAD_BYTES;
+    erg binding_payload: u32 = BRAIN_SHARD_BINDING_PAYLOAD_BYTES;
+    erg tokenizer_version: u16 = TOKENIZER_VERSION;
+    erg context_version: u16 = CONTEXT_VERSION;
+    erg code_version: u16 = TOKEN_CODE_VERSION;
+    append_shard_u32(output: ins output, value: abs magic);
+    append_shard_u16(output: ins output, value: abs version);
+    append_shard_u16(output: ins output, value: abs header_bytes);
+    append_shard_u32(output: ins output, value: abs shard_id);
+    append_shard_u32(output: ins output, value: abs first_column_index);
+    append_shard_u32(output: ins output, value: abs column_count);
+    append_shard_u16(output: ins output, value: abs column_stride);
+    append_shard_u16(output: ins output, value: abs binding_stride);
+    append_shard_u32(output: ins output, value: abs column_payload);
+    append_shard_u32(output: ins output, value: abs binding_payload);
+    append_shard_u16(output: ins output, value: abs tokenizer_version);
+    append_shard_u16(output: ins output, value: abs context_version);
+    append_shard_u16(output: ins output, value: abs code_version);
+    append_shard_u16(output: ins output, value: abs 0u16);
+    append_shard_u64(output: ins output, value: abs 0u64);
+}
+
+verb initialize_fixed_shard_output(erg shard_id: u32) -> Buffer {
+    erg output: Buffer = Buffer[0];
+    erg capacity: Int = BRAIN_SHARD_FILE_BYTES as Int;
+    erg reserved = reserve(buffer: ins output, capacity: erg capacity);
+    append_fixed_shard_header(output: ins output, shard_id: erg shard_id);
+    return output;
+}
+
+verb append_fixed_shard_columns(
+    ins output: Buffer,
+    abs fabric: CorticalFabric[64],
+    erg shard_id: u32
+) {
+    erg column: u32 = 0u32;
+    erg first: u32 = shard_id * BRAIN_SHARD_COLUMN_COUNT;
+    loop {
+        if column >= BRAIN_SHARD_COLUMN_COUNT {
+            break;
+        }
+        erg byte: u32 = 0u32;
+        loop {
+            if byte >= 64u32 {
+                break;
+            }
+            append(output, fabric.columns[first + column].storage[byte]);
+            byte += 1u32;
+        }
+        column += 1u32;
+    }
+}
+
+verb finalize_fixed_shard(dat output: Buffer, abs path: Path) -> Result[Int, IoError] {
+    erg checksum: u64 = shard_payload_checksum(input: abs output);
+    erg checksum_offset: u32 = 40u32;
+    write_shard_u64(
+        output: ins output,
+        value: abs checksum,
+        offset: abs checksum_offset
+    );
+    return write_file(path: abs path, contents: abs output);
+}
+
+open verb write_shard(
+    abs path: Path,
+    abs fabric: CorticalFabric[64],
+    erg shard_id: u32
+) -> Result[Int, IoError] {
+    if shard_id >= 2u32 {
+        return Err(IoError.InvalidInput);
+    }
+    erg output = initialize_fixed_shard_output(shard_id: erg shard_id);
+    append_fixed_shard_columns(
+        output: ins output,
+        fabric: abs fabric,
+        shard_id: erg shard_id
+    );
+    return finalize_fixed_shard(output: dat output, path: abs path);
+}
+
+struct FixedHeaderIdentity {
+    erg magic: u32,
+    erg version: u16,
+    erg header_bytes: u16,
+    erg shard_id: u32,
+    erg first_column_index: u32,
+    erg column_count: u32,
+}
+
+struct FixedHeaderLayout {
+    erg column_stride_bytes: u16,
+    erg binding_stride_bytes: u16,
+    erg column_payload_bytes: u32,
+    erg binding_payload_bytes: u32,
+    erg tokenizer_version: u16,
+    erg context_version: u16,
+    erg code_version: u16,
+    erg reserved: u16,
+    erg checksum: u64,
+}
+
+verb read_fixed_header_identity(abs bytes: Buffer) -> FixedHeaderIdentity {
+    erg magic_offset: u32 = 0u32;
+    erg version_offset: u32 = 4u32;
+    erg header_offset: u32 = 6u32;
+    erg shard_offset: u32 = 8u32;
+    erg first_offset: u32 = 12u32;
+    erg count_offset: u32 = 16u32;
+    return FixedHeaderIdentity {magic: read_shard_u32(input: abs bytes, offset: abs magic_offset), version: read_shard_u16(
+        input: abs bytes,
+        offset: abs version_offset
+    ), header_bytes: read_shard_u16(input: abs bytes, offset: abs header_offset), shard_id: read_shard_u32(
+        input: abs bytes,
+        offset: abs shard_offset
+    ), first_column_index: read_shard_u32(input: abs bytes, offset: abs first_offset), column_count: read_shard_u32(
+        input: abs bytes,
+        offset: abs count_offset
+    )};
+}
+
+verb read_fixed_header_layout(abs bytes: Buffer) -> FixedHeaderLayout {
+    erg column_stride_offset: u32 = 20u32;
+    erg binding_stride_offset: u32 = 22u32;
+    erg payload_offset: u32 = 24u32;
+    erg binding_payload_offset: u32 = 28u32;
+    erg tokenizer_offset: u32 = 32u32;
+    erg context_offset: u32 = 34u32;
+    erg code_offset: u32 = 36u32;
+    erg reserved_offset: u32 = 38u32;
+    erg checksum_offset: u32 = 40u32;
+    return FixedHeaderLayout {column_stride_bytes: read_shard_u16(input: abs bytes, offset: abs column_stride_offset), binding_stride_bytes: read_shard_u16(
+        input: abs bytes,
+        offset: abs binding_stride_offset
+    ), column_payload_bytes: read_shard_u32(input: abs bytes, offset: abs payload_offset), binding_payload_bytes: read_shard_u32(
+        input: abs bytes,
+        offset: abs binding_payload_offset
+    ), tokenizer_version: read_shard_u16(input: abs bytes, offset: abs tokenizer_offset), context_version: read_shard_u16(
+        input: abs bytes,
+        offset: abs context_offset
+    ), code_version: read_shard_u16(input: abs bytes, offset: abs code_offset), reserved: read_shard_u16(
+        input: abs bytes,
+        offset: abs reserved_offset
+    ), checksum: read_shard_u64(input: abs bytes, offset: abs checksum_offset)};
+}
+
+verb read_fixed_shard_header(abs bytes: Buffer) -> ShardHeader {
+    erg identity: FixedHeaderIdentity = read_fixed_header_identity(bytes: abs bytes);
+    erg layout: FixedHeaderLayout = read_fixed_header_layout(bytes: abs bytes);
+    return ShardHeader {magic: identity.magic, version: identity.version, header_bytes: identity.header_bytes, shard_id: identity.shard_id, first_column_index: identity.first_column_index, column_count: identity.column_count, column_stride_bytes: layout.column_stride_bytes, binding_stride_bytes: layout.binding_stride_bytes, column_payload_bytes: layout.column_payload_bytes, binding_payload_bytes: layout.binding_payload_bytes, tokenizer_version: layout.tokenizer_version, context_version: layout.context_version, code_version: layout.code_version, reserved: layout.reserved, checksum: layout.checksum};
+}
+
+verb load_fixed_shard_columns(
+    ins fabric: CorticalFabric[64],
+    abs bytes: Buffer,
+    erg shard_id: u32
+) {
+    erg column: u32 = 0u32;
+    erg first: u32 = shard_id * BRAIN_SHARD_COLUMN_COUNT;
+    loop {
+        if column >= BRAIN_SHARD_COLUMN_COUNT {
+            break;
+        }
+        erg byte: u32 = 0u32;
+        loop {
+            if byte >= 64u32 {
+                break;
+            }
+            fabric.columns[first + column].storage[byte] = bytes[48u32 + (column * 64u32) + byte];
+            byte += 1u32;
+        }
+        column += 1u32;
+    }
+}
+
+open verb read_shard_bytes(
+    ins fabric: CorticalFabric[64],
+    dat bytes: Buffer,
+    erg shard_id: u32
+) -> Result[Int, IoError] {
+    erg length_result = buffer_size(buffer: abs bytes);
+    erg length: Int = case dat length_result {
+        Result.Ok(value) => value,
+        Result.Err(_) => -1,
+    };
+    if length != BRAIN_SHARD_FILE_BYTES as Int {
+        drop(bytes);
+        return Err(IoError.InvalidData);
+    }
+    erg header: ShardHeader = read_fixed_shard_header(bytes: abs bytes);
+    erg actual_checksum: u64 = shard_payload_checksum(input: abs bytes);
+    if !shard_header_matches(header: abs header, shard_id: erg shard_id) || header.checksum != actual_checksum {
+        drop(bytes);
+        return Err(IoError.InvalidData);
+    }
+    load_fixed_shard_columns(
+        fabric: ins fabric,
+        bytes: abs bytes,
+        shard_id: erg shard_id
+    );
+    drop(bytes);
+    return Ok(length);
+}
+
+open verb read_shard(
+    ins fabric: CorticalFabric[64],
+    abs path: Path,
+    erg shard_id: u32
+) -> Result[Int, IoError] {
+    if shard_id >= 2u32 {
+        return Err(IoError.InvalidInput);
+    }
+    erg loaded = read_to_bytes(path: abs path);
+    return case dat loaded {
+        Result.Err(error) => shard_io_error(error: dat error),
+        Result.Ok(bytes) => read_shard_bytes(
+            fabric: ins fabric,
+            bytes: dat bytes,
+            shard_id: erg shard_id
+        ),
+    };
+}
+
+verb shard_checksum_bytes(dat bytes: Buffer) -> Result[u64, IoError] {
+    erg length_result = buffer_size(buffer: abs bytes);
+    erg length: Int = case dat length_result {
+        Result.Ok(value) => value,
+        Result.Err(_) => -1,
+    };
+    if length != BRAIN_SHARD_FILE_BYTES as Int {
+        drop(bytes);
+        return Err(IoError.InvalidData);
+    }
+    erg checksum_offset: u32 = 40u32;
+    erg checksum: u64 = read_shard_u64(input: abs bytes, offset: abs checksum_offset);
+    drop(bytes);
+    return Ok(checksum);
+}
+
+open verb shard_file_checksum(abs path: Path) -> Result[u64, IoError] {
+    erg loaded = read_to_bytes(path: abs path);
+    return case dat loaded {
+        Result.Err(error) => {
+            erg mapped_result = shard_io_error(error: dat error);
+            return case dat mapped_result {
+                Result.Err(mapped) => Err(mapped),
+                Result.Ok(_) => Err(IoError.InvalidData),
+            };
+        },
+        Result.Ok(bytes) => shard_checksum_bytes(bytes: dat bytes),
+    };
+}

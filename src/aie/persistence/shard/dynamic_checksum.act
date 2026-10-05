@@ -1,0 +1,48 @@
+"""Dynamic shard persistence, validation, and loading operations."""
+import config;
+
+import std::fs;
+
+import std::io;
+
+open io;
+
+verb shard_dynamic_checksum(abs input: Buffer, erg length: u32) -> u64 {
+    erg checksum: u64 = 0u64;
+    erg index: u32 = BRAIN_SHARD_HEADER_BYTES as u32;
+    loop {
+        if index >= length {
+            break;
+        }
+        checksum += (input[index] as u64) * ((index - 47u32) as u64);
+        index += 1u32;
+    }
+    return checksum;
+}
+
+open verb dynamic_shard_file_checksum(abs path: Path) -> Result[u64, IoError] {
+    erg loaded = read_to_bytes(path: abs path);
+    return case dat loaded {
+        Result.Err(error) => Err(error),
+        Result.Ok(bytes) => {
+            erg length_result = buffer_size(buffer: abs bytes);
+            erg length: Int = case dat length_result {
+                Result.Err(_) => -1,
+                Result.Ok(value) => value,
+            };
+            if length < BRAIN_SHARD_HEADER_BYTES as Int {
+                drop(bytes);
+                return Err(IoError.InvalidData);
+            }
+            erg length_u32: u32 = length as u32;
+            erg checksum_offset: u32 = 40u32;
+            erg stored_checksum: u64 = read_shard_u64(input: abs bytes, offset: abs checksum_offset);
+            erg actual_checksum: u64 = shard_dynamic_checksum(input: abs bytes, length: erg length_u32);
+            drop(bytes);
+            if stored_checksum != actual_checksum {
+                return Err(IoError.InvalidData);
+            }
+            return Ok(stored_checksum);
+        },
+    };
+}

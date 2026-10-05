@@ -27,23 +27,163 @@ separate approved design decision is recorded first.
 
 ### Gate 1 — Baseline and inventory
 
-- [ ] Record the current branch, commit, compiler revision, and test result.
-- [ ] Inventory functions longer than the repository's configured source limit.
-- [ ] Inventory repeated blocks, repeated scalar temporaries, and repeated
+- [x] Record the current branch, commit, compiler revision, and test result.
+- [x] Inventory functions longer than the repository's configured source limit.
+- [x] Inventory repeated blocks, repeated scalar temporaries, and repeated
       field or axon handling.
-- [ ] Identify public facades and confirm that every implementation remains
+- [x] Identify public facades and confirm that every implementation remains
       reachable through its canonical parent facade.
-- [ ] Mark every planned refactor with the behavior it must preserve.
+- [x] Mark every planned refactor with the behavior it must preserve.
+
+#### Gate 1 evidence
+
+Baseline captured on branch `phase-4.1-gate-1-baseline` from commit
+`bf5a414e57dfdd2dcf70fded0a32a4b9c9ecf3cc`.
+
+- Actus compiler revision: `5bd8ae069922bf54e85ee3b8644e2f680a202a2f`.
+- Installed compiler and release compiler SHA-256:
+  `06f57a5cb7b7c6ba52d33a092032d53c7608700cc04ec378fbaadbba1f903074`.
+- Source inventory: 42 `.act` files and 4,374 nonblank source lines.
+- `actus lock --check`: passed.
+- `actus check --strict`: passed.
+- `actus test --strict`: 16 passed, 0 failed.
+
+The configured conformance thresholds are 300 preferred file lines, 400
+split-required file lines, 500 hard file lines, 30 preferred function lines,
+40 split-required function lines, and 60 hard function lines.
+
+The current function inventory above the preferred 30-line threshold is:
+
+| File | Verb | Lines |
+| --- | --- | ---: |
+| `src/aie/persistence/file.act` | `read_brain_bytes` | 34 |
+| `src/aie/persistence/shard.act` | `write_shard` | 57 |
+| `src/aie/persistence/shard.act` | `read_shard_bytes` | 50 |
+| `src/aie/persistence/shard.act` | `write_dynamic_shard` | 62 |
+| `src/aie/persistence/shard.act` | `write_dynamic_shard_with_bindings` | 76 |
+| `src/aie/persistence/shard.act` | `dynamic_shard_with_bindings_is_valid` | 42 |
+| `src/aie/persistence/shard.act` | `dynamic_shard_bytes_are_valid` | 41 |
+| `src/aie/persistence/shard.act` | `load_dynamic_shard_bytes` | 35 |
+| `src/aie/runtime/coincidence.act` | `evaluate_minicolumn_core` | 41 |
+| `src/aie/runtime/fabric.act` | `fabric_init_core` | 34 |
+| `src/aie/runtime/forwarding.act` | `forward_group_a` | 31 |
+| `src/aie/runtime/forwarding.act` | `forward_group_b` | 31 |
+| `src/aie/runtime/forwarding.act` | `evaluate_active_source` | 34 |
+| `src/aie/runtime/forwarding.act` | `forward_step_destinations` | 80 |
+| `src/aie/runtime/generation.act` | `generate_associative_core` | 79 |
+| `src/aie/runtime/neurogenesis.act` | `link_first_four` | 31 |
+| `src/aie/runtime/neurogenesis.act` | `link_last_four` | 31 |
+| `src/tokenizer/bpe.act` | `find_best_merge` | 32 |
+| `src/tokenizer/bpe.act` | `bpe_decode_bytes` | 53 |
+| `src/tokenizer/byte.act` | `tokenize_string` | 36 |
+
+The primary file-level decomposition targets are:
+
+- `src/aie/persistence/shard.act` — 640 physical lines, with serialization,
+  validation, checksum, publication, and loading responsibilities mixed in one
+  implementation boundary.
+- `src/aie/runtime/forwarding.act` — 414 physical lines, with repeated fixed
+  axon-slot forwarding and public step orchestration in one file.
+- `src/tokenizer/bpe.act` — 305 physical lines, with vocabulary validation,
+  merge selection, encoding, special-token handling, and decoding together.
+
+The inventory also identified repeated logic that Gate 4 must address:
+
+- fixed axon slot access and forwarding for slots 0 through 7;
+- first-four and last-four axon linking in neurogenesis;
+- repeated little-endian append/read operations across snapshot, shard, and
+  manifest persistence;
+- repeated descriptor and header validation expressions;
+- repeated token sequence copying and bounded merge traversal.
+
+The canonical public facades identified for preservation are:
+
+- `src/aie/layout/layout.act`
+- `src/aie/runtime/runtime.act`
+- `src/aie/persistence/persistence.act`
+- `src/aie/persistence/manifest/manifest.act`
+- `src/aie/persistence/manifest/fixed/fixed.act`
+- `src/aie/persistence/manifest/dynamic_manifest/dynamic_manifest.act`
+- `src/config/config.act`
+- `src/encoding/encoding.act`
+- `src/tokenizer/tokenizer.act`
+
+Planned refactors must preserve fixed binary offsets and widths, public facade
+paths, ownership roles, checksum and validation behavior, deterministic axon
+selection, bounded storage, and the current 16-test strict AIE baseline.
+
+The standalone `actus conformance --strict` command currently reports a source
+root scan error before producing a report. This is recorded as a tooling issue
+for Gate 7; it does not invalidate the source inventory above.
 
 ### Gate 2 — Module and responsibility boundaries
 
-- [ ] Group source files by one clear responsibility: layout, runtime state,
+- [x] Group source files by one clear responsibility: layout, runtime state,
       selection, generation, persistence, encoding, tokenization, or config.
-- [ ] Keep public declarations in canonical facade files.
-- [ ] Keep implementation helpers private unless an external module needs them.
-- [ ] Remove imports that bypass a parent facade.
-- [ ] Confirm that module movement does not create cycles or duplicate exports.
-- [ ] Run strict module and facade checks after each boundary change.
+- [x] Keep public declarations in canonical facade files.
+- [x] Keep implementation helpers private unless an external module needs them.
+- [x] Remove imports that bypass a parent facade.
+- [x] Confirm that module movement does not create cycles or duplicate exports.
+- [x] Run strict module and facade checks after each boundary change.
+
+#### Gate 2 evidence
+
+The boundary audit preserved public behavior and identified the existing
+canonical facade structure for each public subsystem:
+
+- `src/aie/aie.act` exports layout, runtime, and persistence through the AIE
+  package facade.
+- `src/aie/layout/layout.act` exports packed layout types.
+- `src/aie/runtime/runtime.act` exports runtime state, selection, forwarding,
+  context, neurogenesis, decay, and generation operations.
+- `src/aie/persistence/persistence.act` exports serialization, file, shard,
+  manifest, and cache operations.
+- `src/aie/persistence/manifest/manifest.act` owns the manifest facade and
+  exports its fixed and dynamic implementations through child facades.
+- `src/aie/persistence/manifest/fixed/fixed.act` and
+  `src/aie/persistence/manifest/dynamic_manifest/dynamic_manifest.act` keep
+  their respective manifest implementations behind dedicated child facades.
+- `src/config/config.act`, `src/encoding/encoding.act`, and
+  `src/tokenizer/tokenizer.act` are the canonical facades for package-wide
+  configuration, sparse encoding, and tokenization.
+
+The import audit found no implementation import that bypasses these package
+boundaries for a sibling public API. Direct imports of `config`, `std::fs`, and
+`std::io` remain limited to modules that require those dependencies directly;
+the corresponding domain APIs remain exported through their parent facades.
+Implementation helpers remain private, while declarations marked `open` are
+the intentional re-export surface required by the facade chain.
+
+`actus check --strict` passed successfully after the audit. The compiler found
+no module cycle, duplicate facade export, unresolved import, or invalid public
+reachability.
+
+As the readability work progressed, the oversized shard implementation was
+split behind the same public `persistence::shard` facade. Its responsibilities
+now live in `shard/shard.act`, `shard/codec.act`, `shard/fixed.act`,
+`shard/dynamic_io.act`, `shard/dynamic_writer.act`,
+`shard/dynamic_writer_core.act`, `shard/dynamic_bindings.act`,
+`shard/dynamic_checksum.act`, and `shard/dynamic_validation.act`. The public
+facade path and binary shard contract remain unchanged.
+
+The oversized manifest generation implementation was also split behind the
+existing `persistence::manifest::generation` facade. Its responsibilities now
+live in `generation/generation.act`, `generation/codec.act`,
+`generation/extension.act`, and `generation/selection.act`. The split keeps
+manifest extension, selection, and encoding responsibilities separate without
+changing the serialized format or public API.
+
+Both decomposition groups are formatter-clean and satisfy strict source and
+function limits. The full native strict suite now passes with 16 tests and 0
+failures after the refactor. Gate 4 still tracks repeated domain operations that
+are intentionally fixed-size or require a separate API decision.
+
+The forwarding implementation is now split behind the same
+`runtime::forwarding` facade. `forwarding/slots.act` owns the fixed eight-slot
+propagation path, while `forwarding/step.act` owns public wavefront-step
+orchestration. `forwarding/forwarding.act` is the only child facade exposed to
+the runtime facade. The repeated slot fields remain explicit until Phase 34
+adds verified indexed access for packed repeated fields.
 
 ### Gate 3 — Actus syntax modernization
 

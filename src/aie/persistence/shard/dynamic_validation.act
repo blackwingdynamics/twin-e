@@ -1,0 +1,246 @@
+"""Dynamic shard validation, loading, and free-list access."""
+import config;
+
+import std::io;
+
+open io;
+
+open verb validate_dynamic_shard_bytes(
+    dat bytes: Buffer,
+    erg expected_shard_id: u32,
+    erg expected_first_column_index: u32,
+    erg expected_column_count: u32
+) -> Result[Int, IoError] {
+    erg valid: Bool = dynamic_shard_bytes_are_valid(
+        bytes: abs bytes,
+        expected_shard_id: erg expected_shard_id,
+        expected_first_column_index: erg expected_first_column_index,
+        expected_column_count: erg expected_column_count
+    );
+    if !valid {
+        drop(bytes);
+        return Err(IoError.InvalidData);
+    }
+    erg length_result = buffer_size(buffer: abs bytes);
+    erg length: Int = case dat length_result {
+        Result.Ok(value) => value,
+        Result.Err(_) => -1,
+    };
+    drop(bytes);
+    return Ok(length);
+}
+
+verb dynamic_shard_identity_is_valid(
+    abs bytes: Buffer,
+    erg expected_shard_id: u32,
+    erg expected_first_column_index: u32,
+    erg expected_column_count: u32
+) -> Bool {
+    erg magic_offset: u32 = 0u32;
+    erg version_offset: u32 = 4u32;
+    erg header_offset: u32 = 6u32;
+    erg shard_offset: u32 = 8u32;
+    erg first_offset: u32 = 12u32;
+    erg count_offset: u32 = 16u32;
+    return read_shard_u32(input: abs bytes, offset: abs magic_offset) == BRAIN_SHARD_MAGIC && read_shard_u16(
+        input: abs bytes,
+        offset: abs version_offset
+    ) == BRAIN_SHARD_VERSION && read_shard_u16(input: abs bytes, offset: abs header_offset) == BRAIN_SHARD_HEADER_BYTES && read_shard_u32(
+        input: abs bytes,
+        offset: abs shard_offset
+    ) == expected_shard_id && read_shard_u32(input: abs bytes, offset: abs first_offset) == expected_first_column_index && read_shard_u32(
+        input: abs bytes,
+        offset: abs count_offset
+    ) == expected_column_count;
+}
+
+verb dynamic_shard_layout_is_valid(
+    abs bytes: Buffer,
+    erg expected_payload_bytes: u32,
+    erg expected_binding_bytes: u32
+) -> Bool {
+    erg column_stride_offset: u32 = 20u32;
+    erg binding_stride_offset: u32 = 22u32;
+    erg payload_offset: u32 = 24u32;
+    erg binding_payload_offset: u32 = 28u32;
+    erg tokenizer_offset: u32 = 32u32;
+    erg context_offset: u32 = 34u32;
+    erg code_offset: u32 = 36u32;
+    return read_shard_u16(input: abs bytes, offset: abs column_stride_offset) == BRAIN_SHARD_COLUMN_STRIDE_BYTES && read_shard_u16(
+        input: abs bytes,
+        offset: abs binding_stride_offset
+    ) == BRAIN_SHARD_BINDING_STRIDE_BYTES && read_shard_u32(input: abs bytes, offset: abs payload_offset) == expected_payload_bytes && read_shard_u32(
+        input: abs bytes,
+        offset: abs binding_payload_offset
+    ) == expected_binding_bytes && read_shard_u16(input: abs bytes, offset: abs tokenizer_offset) == TOKENIZER_VERSION && read_shard_u16(
+        input: abs bytes,
+        offset: abs context_offset
+    ) == CONTEXT_VERSION && read_shard_u16(input: abs bytes, offset: abs code_offset) == TOKEN_CODE_VERSION;
+}
+
+verb dynamic_shard_checksum_is_valid(abs bytes: Buffer, erg length: u32) -> Bool {
+    erg checksum_offset: u32 = 40u32;
+    erg stored: u64 = read_shard_u64(input: abs bytes, offset: abs checksum_offset);
+    erg actual: u64 = shard_dynamic_checksum(input: abs bytes, length: erg length);
+    return stored == actual;
+}
+
+verb dynamic_shard_with_bindings_is_valid(
+    abs bytes: Buffer,
+    erg expected_shard_id: u32,
+    erg expected_first_column_index: u32,
+    erg expected_column_count: u32
+) -> Bool {
+    if expected_column_count == 0u32 || expected_column_count > BRAIN_SHARD_DYNAMIC_MAX_COLUMNS || expected_first_column_index > 4294967295u32 - expected_column_count {
+        return false;
+    }
+    erg expected_payload_bytes: u32 = expected_column_count * BRAIN_SHARD_COLUMN_STRIDE_BYTES as u32;
+    erg expected_binding_bytes: u32 = expected_column_count * BRAIN_SHARD_BINDING_STRIDE_BYTES as u32;
+    if !dynamic_shard_file_length_is_valid(payload_bytes: erg expected_payload_bytes, binding_bytes: erg expected_binding_bytes) {
+        return false;
+    }
+    erg length: Int = buffer_length_or_negative(input: abs bytes);
+    if length != (BRAIN_SHARD_HEADER_BYTES as u32 + expected_payload_bytes + expected_binding_bytes) as Int {
+        return false;
+    }
+    erg length_u32: u32 = length as u32;
+    return dynamic_shard_identity_is_valid(
+        bytes: abs bytes,
+        expected_shard_id: erg expected_shard_id,
+        expected_first_column_index: erg expected_first_column_index,
+        expected_column_count: erg expected_column_count
+    ) && dynamic_shard_layout_is_valid(
+        bytes: abs bytes,
+        expected_payload_bytes: erg expected_payload_bytes,
+        expected_binding_bytes: erg expected_binding_bytes
+    ) && dynamic_shard_checksum_is_valid(bytes: abs bytes, length: erg length_u32);
+}
+
+open verb validate_dynamic_shard_with_bindings_bytes(
+    dat bytes: Buffer,
+    erg expected_shard_id: u32,
+    erg expected_first_column_index: u32,
+    erg expected_column_count: u32
+) -> Result[Int, IoError] {
+    erg valid: Bool = dynamic_shard_with_bindings_is_valid(
+        bytes: abs bytes,
+        expected_shard_id: erg expected_shard_id,
+        expected_first_column_index: erg expected_first_column_index,
+        expected_column_count: erg expected_column_count
+    );
+    if !valid {
+        drop(bytes);
+        return Err(IoError.InvalidData);
+    }
+    erg length: Int = buffer_length_or_negative(input: abs bytes);
+    drop(bytes);
+    return Ok(length);
+}
+
+verb dynamic_shard_bytes_are_valid(
+    abs bytes: Buffer,
+    erg expected_shard_id: u32,
+    erg expected_first_column_index: u32,
+    erg expected_column_count: u32
+) -> Bool {
+    if expected_column_count == 0u32 || expected_column_count > BRAIN_SHARD_DYNAMIC_MAX_COLUMNS || expected_first_column_index > 4294967295u32 - expected_column_count {
+        return false;
+    }
+    erg expected_payload_bytes: u32 = expected_column_count * BRAIN_SHARD_COLUMN_STRIDE_BYTES as u32;
+    if BRAIN_SHARD_HEADER_BYTES as u32 + expected_payload_bytes > BRAIN_SHARD_DYNAMIC_MAX_BYTES {
+        return false;
+    }
+    erg length: Int = buffer_length_or_negative(input: abs bytes);
+    if length != (BRAIN_SHARD_HEADER_BYTES as u32 + expected_payload_bytes) as Int {
+        return false;
+    }
+    erg length_u32: u32 = length as u32;
+    erg expected_binding_bytes: u32 = 0u32;
+    return dynamic_shard_identity_is_valid(
+        bytes: abs bytes,
+        expected_shard_id: erg expected_shard_id,
+        expected_first_column_index: erg expected_first_column_index,
+        expected_column_count: erg expected_column_count
+    ) && dynamic_shard_layout_is_valid(
+        bytes: abs bytes,
+        expected_payload_bytes: erg expected_payload_bytes,
+        expected_binding_bytes: erg expected_binding_bytes
+    ) && dynamic_shard_checksum_is_valid(bytes: abs bytes, length: erg length_u32);
+}
+
+verb copy_dynamic_shard_columns[N: Usize](
+    ins fabric: CorticalFabric[N],
+    abs bytes: Buffer,
+    erg destination_index: u32,
+    erg expected_column_count: u32
+) {
+    erg column: u32 = 0u32;
+    loop {
+        if column >= expected_column_count {
+            break;
+        }
+        erg byte: u32 = 0u32;
+        loop {
+            if byte >= 64u32 {
+                break;
+            }
+            fabric.columns[destination_index + column].storage[byte] = bytes[48u32 + (column * 64u32) + byte];
+            byte += 1u32;
+        }
+        column += 1u32;
+    }
+}
+
+verb release_dynamic_shard_bytes(dat bytes: Buffer) -> Int {
+    erg length: Int = buffer_length_or_negative(input: abs bytes);
+    drop(bytes);
+    return length;
+}
+
+open verb load_dynamic_shard_bytes[N: Usize](
+    ins fabric: CorticalFabric[N],
+    dat bytes: Buffer,
+    erg destination_index: u32,
+    erg expected_shard_id: u32,
+    erg expected_first_column_index: u32,
+    erg expected_column_count: u32
+) -> Result[Int, IoError] {
+    if destination_index > (N as u32) || expected_column_count > (N as u32) - destination_index || !dynamic_shard_bytes_are_valid(
+        bytes: abs bytes,
+        expected_shard_id: erg expected_shard_id,
+        expected_first_column_index: erg expected_first_column_index,
+        expected_column_count: erg expected_column_count
+    ) {
+        drop(bytes);
+        return Err(IoError.InvalidData);
+    }
+    copy_dynamic_shard_columns(
+        fabric: ins fabric,
+        bytes: abs bytes,
+        destination_index: erg destination_index,
+        expected_column_count: erg expected_column_count
+    );
+    return Ok(release_dynamic_shard_bytes(bytes: dat bytes));
+}
+
+open verb dynamic_shard_free_link(
+    abs bytes: Buffer,
+    erg local_index: u32,
+    erg expected_column_count: u32
+) -> Result[u32, IoError] {
+    if expected_column_count == 0u32 || local_index >= expected_column_count || expected_column_count > BRAIN_SHARD_DYNAMIC_MAX_COLUMNS {
+        return Err(IoError.InvalidInput);
+    }
+    erg payload_bytes: u32 = expected_column_count * BRAIN_SHARD_COLUMN_STRIDE_BYTES as u32;
+    erg expected_length: u32 = BRAIN_SHARD_HEADER_BYTES as u32 + payload_bytes;
+    erg length_result = buffer_size(buffer: abs bytes);
+    erg length: Int = case dat length_result {
+        Result.Ok(value) => value,
+        Result.Err(_) => -1,
+    };
+    if length != expected_length as Int {
+        return Err(IoError.InvalidData);
+    }
+    erg link_offset: u32 = BRAIN_SHARD_HEADER_BYTES as u32 + (local_index * BRAIN_SHARD_COLUMN_STRIDE_BYTES as u32) + 56u32;
+    return Ok(read_shard_u32(input: abs bytes, offset: abs link_offset));
+}

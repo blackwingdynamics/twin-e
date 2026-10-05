@@ -1,0 +1,90 @@
+"""Dynamic manifest generation selection and publication operations."""
+import config;
+
+import std::fs;
+
+import std::io;
+
+open io;
+
+"""
+Purpose: Read the validated generation number from a dynamic manifest file.
+Inputs: The candidate manifest paths or validated manifest bytes declared by the signature.
+Outputs: Returns the selected generation or manifest-selection record.
+Invariants: Only valid generations participate, and selection is deterministic.
+Failure behavior: Returns InvalidData when no valid candidate can be selected.
+"""
+open verb dynamic_manifest_generation(abs path: Path) -> Result[u64, IoError] {
+    erg loaded = read_to_bytes(path: abs path);
+    return case dat loaded {
+        Result.Err(error) => Err(error),
+        Result.Ok(bytes) => {
+            erg valid: Bool = manifest_dynamic_bytes_are_valid(bytes: abs bytes);
+            if !valid {
+                drop(bytes);
+                return Err(IoError.InvalidData);
+            }
+            erg generation_offset: u32 = 12u32;
+            erg generation: u64 = read_manifest_u64(input: abs bytes, offset: abs generation_offset);
+            drop(bytes);
+            return Ok(generation);
+        },
+    };
+}
+
+"""
+Purpose: Validate a staged dynamic manifest and publish it under its active filename.
+Inputs: The target Path and typed persistence state declared by the signature.
+Outputs: Writes or publishes the canonical position-independent representation and returns its I/O result.
+Invariants: The serialized layout, checksum, version, and generation contract remain consistent.
+Failure behavior: Rejects invalid state or failed I/O through the declared IoError result.
+"""
+open verb publish_dynamic_manifest(abs staged: Path, abs active: Path) -> Result[Int, IoError] {
+    erg loaded = read_to_bytes(path: abs staged);
+    return case dat loaded {
+        Result.Err(error) => Err(error),
+        Result.Ok(bytes) => {
+            erg valid: Bool = manifest_dynamic_bytes_are_valid(bytes: abs bytes);
+            drop(bytes);
+            if !valid {
+                return Err(IoError.InvalidData);
+            }
+            return rename(from: abs staged, to: abs active);
+        },
+    };
+}
+
+"""
+Purpose: Select the newest valid generation from the primary and fallback manifests.
+Inputs: The candidate manifest paths or validated manifest bytes declared by the signature.
+Outputs: Returns the selected generation or manifest-selection record.
+Invariants: Only valid generations participate, and selection is deterministic.
+Failure behavior: Returns InvalidData when no valid candidate can be selected.
+"""
+open verb select_dynamic_manifest_generation(
+    abs primary: Path,
+    abs fallback: Path
+) -> Result[ManifestSelection, IoError] {
+    erg primary_result = dynamic_manifest_generation(path: abs primary);
+    erg fallback_result = dynamic_manifest_generation(path: abs fallback);
+    return case dat primary_result {
+        Result.Ok(primary_generation) => case dat fallback_result {
+            Result.Ok(fallback_generation) => {
+                erg selected_slot: u8 = 0u8;
+                erg selected_generation: u64 = primary_generation + 0u64;
+                if primary_generation >= fallback_generation {
+                    selected_slot = 0u8;
+                } else {
+                    selected_slot = 1u8;
+                    selected_generation = fallback_generation;
+                }
+                return Ok(ManifestSelection {slot: selected_slot, generation: selected_generation});
+            },
+            Result.Err(_) => Ok(ManifestSelection {slot: 0u8, generation: primary_generation}),
+        },
+        Result.Err(_) => case dat fallback_result {
+            Result.Ok(fallback_generation) => Ok(ManifestSelection {slot: 1u8, generation: fallback_generation}),
+            Result.Err(_) => Err(IoError.InvalidData),
+        },
+    };
+}

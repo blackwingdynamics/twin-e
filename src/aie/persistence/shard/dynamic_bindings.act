@@ -1,0 +1,87 @@
+"""Dynamic shard persistence with local token bindings."""
+import config;
+
+import std::io;
+
+open io;
+
+open dynamic_writer_core;
+
+verb dynamic_binding_buffers_are_valid(
+    abs payload: Buffer,
+    abs bindings: Buffer,
+    erg first_column_index: u32,
+    erg column_count: u32,
+    erg expected_payload_bytes: u32
+) -> Bool {
+    erg expected_binding_bytes: u32 = column_count * BRAIN_SHARD_BINDING_STRIDE_BYTES as u32;
+    erg payload_length: Int = buffer_length_or_negative(input: abs payload);
+    erg bindings_length: Int = buffer_length_or_negative(input: abs bindings);
+    return dynamic_shard_write_inputs_are_valid(
+        first_column_index: erg first_column_index,
+        column_count: erg column_count,
+        payload_length: erg payload_length,
+        expected_payload_bytes: erg expected_payload_bytes,
+        bindings_length: erg bindings_length,
+        expected_binding_bytes: erg expected_binding_bytes
+    );
+}
+
+open verb write_dynamic_shard_with_bindings(
+    abs path: Path,
+    erg shard_id: u32,
+    erg first_column_index: u32,
+    erg column_count: u32,
+    abs payload: Buffer,
+    abs bindings: Buffer
+) -> Result[Int, IoError] {
+    erg expected_payload_bytes: u32 = column_count * BRAIN_SHARD_COLUMN_STRIDE_BYTES as u32;
+    if !dynamic_binding_buffers_are_valid(
+        payload: abs payload,
+        bindings: abs bindings,
+        first_column_index: erg first_column_index,
+        column_count: erg column_count,
+        expected_payload_bytes: erg expected_payload_bytes
+    ) {
+        return Err(IoError.InvalidInput);
+    }
+    return persist_dynamic_shard_with_bindings(
+        path: abs path,
+        shard_id: erg shard_id,
+        first_column_index: erg first_column_index,
+        column_count: erg column_count,
+        payload: abs payload,
+        bindings: abs bindings,
+        expected_payload_bytes: erg expected_payload_bytes
+    );
+}
+
+verb persist_dynamic_shard_with_bindings(
+    abs path: Path,
+    erg shard_id: u32,
+    erg first_column_index: u32,
+    erg column_count: u32,
+    abs payload: Buffer,
+    abs bindings: Buffer,
+    erg expected_payload_bytes: u32
+) -> Result[Int, IoError] {
+    erg expected_binding_bytes: u32 = column_count * BRAIN_SHARD_BINDING_STRIDE_BYTES as u32;
+    erg file_length: u32 = BRAIN_SHARD_HEADER_BYTES as u32 + expected_payload_bytes + expected_binding_bytes;
+    erg output = initialize_dynamic_shard_output(
+        shard_id: erg shard_id,
+        first_column_index: erg first_column_index,
+        column_count: erg column_count,
+        expected_payload_bytes: erg expected_payload_bytes,
+        expected_binding_bytes: erg expected_binding_bytes,
+        file_length: erg file_length
+    );
+    return complete_dynamic_shard_with_bindings(
+        output: dat output,
+        path: abs path,
+        file_length: erg file_length,
+        payload: abs payload,
+        bindings: abs bindings,
+        expected_payload_bytes: erg expected_payload_bytes,
+        expected_binding_bytes: erg expected_binding_bytes
+    );
+}
