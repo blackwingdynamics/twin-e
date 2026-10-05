@@ -103,7 +103,7 @@ first; persistence is a later operation with an explicit lifecycle.
   minicolumn into the active fabric.
 - [x] Mark the new or modified shard `Dirty` without writing to disk from the
   inference, forwarding, or neurogenesis call path.
-- [ ] Make shard growth bounded by configured resident capacity and return an
+- [x] Make shard growth bounded by configured resident capacity and return an
   explicit resource error when no safe expansion or eviction is possible.
 - [ ] Reject eviction of dirty or pinned shards unless an explicit flush policy
   has made them safe to evict.

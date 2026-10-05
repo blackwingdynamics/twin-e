@@ -5,6 +5,15 @@ open runtime;
 
 open persistence;
 
+"""Failure categories for resident neurogenesis admission."""
+open enum ResidentNeurogenesisError {
+    InvalidSource,
+    NoColumn,
+    NoAxon,
+    NoResidentCapacity,
+    ActivationFailed,
+}
+
 verb source_can_link[N: Usize](abs fabric: CorticalFabric[N], erg source: u32) -> Bool {
     if source >= (N as u32) || fabric.free_list_head == null_index() {
         return false;
@@ -23,6 +32,22 @@ verb source_can_link[N: Usize](abs fabric: CorticalFabric[N], erg source: u32) -
         slot += 1u32;
     }
     return false;
+}
+
+verb resident_source_error[N: Usize](
+    abs fabric: CorticalFabric[N],
+    erg source: u32
+) -> Option[ResidentNeurogenesisError] {
+    if source >= (N as u32) || (fabric.columns[source].flags & FLAG_ACTIVE) == 0u8 {
+        return Option[ResidentNeurogenesisError].Some(ResidentNeurogenesisError.InvalidSource);
+    }
+    if fabric.free_list_head == null_index() {
+        return Option[ResidentNeurogenesisError].Some(ResidentNeurogenesisError.NoColumn);
+    }
+    if !source_can_link(fabric: abs fabric, source: erg source) {
+        return Option[ResidentNeurogenesisError].Some(ResidentNeurogenesisError.NoAxon);
+    }
+    return Option[ResidentNeurogenesisError].None;
 }
 
 verb finish_resident_neurogenesis[N: Usize](
@@ -66,6 +91,83 @@ verb complete_resident_neurogenesis[N: Usize](
     return case dat prepared {
         Result.Err(_) => Option[u32].None,
         Result.Ok(slot) => finish_resident_neurogenesis(
+            fabric: ins fabric,
+            cache: ins cache,
+            wave: abs wave,
+            source_idx: erg source_idx,
+            slot: erg slot
+        ),
+    };
+}
+
+"""Prepare a resident shard and expose admission failures to the caller."""
+open verb neurogenesis_with_resident_cache_result[N: Usize](
+    ins fabric: CorticalFabric[N],
+    ins cache: ShardCache,
+    abs wave: Wavefront,
+    erg source_idx: u32,
+    erg shard_id: u32,
+    erg generation: u64,
+    erg checksum: u64
+) -> Result[u32, ResidentNeurogenesisError] {
+    erg admission = resident_source_error(fabric: abs fabric, source: erg source_idx);
+    return case dat admission {
+        Option.Some(error) => Result[u32, ResidentNeurogenesisError].Err(error),
+        Option.None => complete_resident_neurogenesis_result(
+            fabric: ins fabric,
+            cache: ins cache,
+            wave: abs wave,
+            source_idx: erg source_idx,
+            shard_id: erg shard_id,
+            generation: erg generation,
+            checksum: erg checksum
+        ),
+    };
+}
+
+verb finish_resident_neurogenesis_result[N: Usize](
+    ins fabric: CorticalFabric[N],
+    ins cache: ShardCache,
+    abs wave: Wavefront,
+    erg source_idx: u32,
+    erg slot: u8
+) -> Result[u32, ResidentNeurogenesisError] {
+    erg created = neurogenesis(
+        fabric: ins fabric,
+        wave: abs wave,
+        source_idx: erg source_idx
+    );
+    erg result: Result[u32,ResidentNeurogenesisError] = Result[u32, ResidentNeurogenesisError].Err(
+        ResidentNeurogenesisError.ActivationFailed
+    );
+    case dat created {
+        Option.None => {},
+        Option.Some(index) => {
+            shard_cache_mark_dirty(cache: ins cache, slot: erg slot);
+            result = Result[u32, ResidentNeurogenesisError].Ok(index);
+        },
+    };
+    return result;
+}
+
+verb complete_resident_neurogenesis_result[N: Usize](
+    ins fabric: CorticalFabric[N],
+    ins cache: ShardCache,
+    abs wave: Wavefront,
+    erg source_idx: u32,
+    erg shard_id: u32,
+    erg generation: u64,
+    erg checksum: u64
+) -> Result[u32, ResidentNeurogenesisError] {
+    erg prepared = shard_cache_insert(
+        cache: ins cache,
+        shard_id: erg shard_id,
+        generation: erg generation,
+        checksum: erg checksum
+    );
+    return case dat prepared {
+        Result.Err(_) => Result[u32, ResidentNeurogenesisError].Err(ResidentNeurogenesisError.NoResidentCapacity),
+        Result.Ok(slot) => finish_resident_neurogenesis_result(
             fabric: ins fabric,
             cache: ins cache,
             wave: abs wave,

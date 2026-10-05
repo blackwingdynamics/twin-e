@@ -76,7 +76,7 @@ verb test_resident_shard_precedes_neurogenesis_link() -> Int {
     erg shard_id: u32 = 7u32;
     erg generation: u64 = 1u64;
     erg checksum: u64 = 77u64;
-    neurogenesis_with_resident_cache(
+    neurogenesis_with_resident_cache_result(
         fabric: ins fabric,
         cache: ins cache,
         wave: abs wave,

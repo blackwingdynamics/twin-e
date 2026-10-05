@@ -42,11 +42,15 @@ flushing or atomic publication is implemented; those remain later P5.1A gates.
 
 ## Resident neurogenesis API evidence
 
-The public `neurogenesis_with_resident_cache` API is covered by
+The public resident-neurogenesis APIs are covered by
 `tests/aie_api.act::test_resident_shard_precedes_neurogenesis_link`. The test
 verifies that a column is linked, the shard is present in the cache, and its
-lifecycle is `Dirty` after the operation. It also runs without any filesystem
-call in the test path.
+lifecycle is `Dirty` after the result-returning operation. The compatibility
+wrapper `neurogenesis_with_resident_cache` keeps the optional success shape.
+Both paths run without any filesystem call in the test path. Capacity
+exhaustion is reported by the result API as `NoResidentCapacity`, while the
+underlying cache benchmark records the corresponding bounded `NoEvictable`
+decision.
 
 The strict test command produced:
 
