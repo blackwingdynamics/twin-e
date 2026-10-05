@@ -387,9 +387,15 @@ to `case` and bounded iteration must be completed and reviewed independently.
 - [x] The repository was clean after the implementation commit; this evidence
       update is the only intentional final documentation change.
 
+#### Phase status
+
+Gate 8 evidence is complete. Phase 4.1 acceptance remains open because the
+earlier Gate 3 syntax-modernization checklist still contains intentional
+unchecked items for a separate, compiler-validated migration.
+
 ## Acceptance Criteria
 
-Phase 4.1 is complete when all gates are checked, the public behavior and
+Phase 4.1 will be complete when all gates are checked, the public behavior and
 binary contracts remain unchanged, the source is reviewed as readable by a
 human contributor, production comments cover the public surface, and the full
 strict validation suite passes.
