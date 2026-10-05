@@ -23,6 +23,7 @@ open verb bpe_tokenize_string(
     );
 }
 
+"""Encode a token sequence using a validated vocabulary's merge rules."""
 open verb bpe_encode_vocabulary(
     abs input: TokenSequence,
     abs vocabulary: BpeVocabulary
@@ -38,11 +39,13 @@ open verb bpe_encode_vocabulary(
     );
 }
 
+"""Tokenize text into bytes and apply the vocabulary's bounded BPE rules."""
 open verb bpe_tokenize_vocabulary(abs text: String, abs vocabulary: BpeVocabulary) -> TokenSequence {
     erg bytes: TokenSequence = tokenize_string(text: abs text);
     return bpe_encode_vocabulary(input: abs bytes, vocabulary: abs vocabulary);
 }
 
+"""Add BOS and EOS markers while preserving the bounded sequence contract."""
 open verb bpe_add_special_tokens(
     abs sequence: TokenSequence,
     abs vocabulary: BpeVocabulary
@@ -64,6 +67,7 @@ open verb bpe_add_special_tokens(
     return result;
 }
 
+"""Tokenize text, apply BPE, and add the vocabulary's boundary markers."""
 open verb bpe_tokenize_with_special_tokens(
     abs text: String,
     abs vocabulary: BpeVocabulary
@@ -135,6 +139,7 @@ verb append_bpe_decoded_sequence(
     }
 }
 
+"""Decode a validated token sequence into caller-owned byte storage."""
 open verb bpe_decode_bytes(
     abs sequence: TokenSequence,
     abs vocabulary: BpeVocabulary,

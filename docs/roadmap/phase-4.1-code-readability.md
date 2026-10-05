@@ -277,8 +277,10 @@ to `case` and bounded iteration must be completed and reviewed independently.
       forwarding.
 - [x] Kept the documentation in Actus `""" ... """` blocks and preserved
       explicit ownership and failure behavior in the implementation.
-- [ ] Complete the same documentation audit for persistence, tokenizer,
-      encoding, and remaining public facade declarations.
+- [x] Documented the public BPE vocabulary types, validation operation, and
+      tokenization/decoding operations.
+- [ ] Complete the same documentation audit for persistence, encoding, and
+      remaining public facade declarations.
 
 ### Gate 6 — Readability review
 
