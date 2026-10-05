@@ -23,12 +23,22 @@ open struct TokenSequence {
     erg valid: Bool,
 }
 
-"""Map one validated byte to its deterministic transition token ID."""
+"""Map one validated byte to its deterministic transition token ID.
+
+The byte is read through its fixed-width `erg` binding and widened to `u32`.
+The mapping is one-to-one for the byte-token adapter and performs no allocation
+or I/O.
+"""
 open verb byte_token_id(erg value: u8) -> u32 {
     return value as u32;
 }
 
-"""Create one byte token with its source position and version metadata."""
+"""Create one byte token with source position and contract metadata.
+
+The byte and offset are fixed-width inputs. The returned inline token records
+one byte, its source offset, and the current tokenizer version; no failure path
+exists after byte validation.
+"""
 open verb byte_token(erg value: u8, erg offset: u32) -> Token {
     return Token {id: byte_token_id(value: erg value), byte_offset: offset, byte_length: 1u16, tokenizer_version: TOKENIZER_VERSION};
 }
@@ -51,7 +61,12 @@ verb token_at(abs text: String, erg position: u32) -> Token {
     return token;
 }
 
-"""Tokenize a bounded String through the current byte-token adapter."""
+"""Tokenize a bounded String through the byte-token adapter.
+
+The String is read through `abs` and converted into fixed inline token storage.
+Inputs longer than `TOKENIZER_MAX_BYTES` or bytes that cannot be read return a
+sequence with `valid == false`; valid input returns its token count and tokens.
+"""
 open verb tokenize_string(abs text: String) -> TokenSequence {
     erg sequence: TokenSequence = TokenSequence {tokens: Array[Token, 256](), length: 0u32, valid: true};
     erg length_result = string_length(text: abs text);

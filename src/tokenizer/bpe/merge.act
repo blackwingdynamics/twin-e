@@ -124,7 +124,12 @@ verb copy_sequence(abs input: TokenSequence) -> TokenSequence {
     return result;
 }
 
-"""Encode byte tokens with bounded deterministic BPE merges."""
+"""Encode byte tokens with bounded deterministic BPE merges.
+
+The input sequence and merge rules are read through `abs`; only the declared
+rule prefix is considered. The returned sequence stays within fixed token
+capacity, and invalid input or an over-capacity merge result is marked invalid.
+"""
 open verb bpe_encode(
     abs input: TokenSequence,
     abs rules: Array[BpeMergeRule, 128],

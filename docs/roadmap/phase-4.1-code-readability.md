@@ -289,6 +289,8 @@ to `case` and bounded iteration must be completed and reviewed independently.
       sparse codebook generation.
 - [x] Audited every `open` public declaration under `src/`; all public verbs,
       structs, packs, and enums now have an Actus documentation block.
+- [x] Expanded the remaining byte-token and BPE merge contracts with explicit
+      bounds, versioning, ownership, and invalid-input behavior.
 
 ### Gate 6 — Readability review
 
