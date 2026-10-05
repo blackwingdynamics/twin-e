@@ -9,6 +9,8 @@ import config;
 
 import encoding;
 
+import tokenizer;
+
 import std::fs;
 
 import std::io;

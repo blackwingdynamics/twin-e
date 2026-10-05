@@ -40,12 +40,10 @@ the corresponding implementation and executable measurement exist.
 ### Current implementation status
 
 `src/aie/persistence/text_file.act` now provides a combined host save/load
-boundary for the fixed fabric and TokenBinding state. The file has a fixed
-header, compatibility metadata, complete fabric and binding sections, and an
-integer checksum. Loading validates the complete byte buffer before mutating
-either live array. This is an implementation slice only; the P5.1 gate remains
-open until vocabulary artifacts, restart evidence, corruption tests, and size
-evidence are added.
+boundary for the fixed fabric, TokenBinding state, and bounded BPE vocabulary.
+The vocabulary-aware format has a fixed header, compatibility metadata,
+complete fabric, binding, and vocabulary sections, and an integer checksum.
+Loading validates the complete byte buffer before mutating live state.
 
 The first executable evidence fixture is `benchmarks/aie_text_brain_file.act`,
 with instructions in `docs/benchmarks/phase-5-brain-file.md`. It proves an
@@ -54,33 +52,38 @@ recovery.
 
 Recorded evidence confirms a 5,702-byte combined file round trip, corruption
 rejection with unchanged live state, and strict native IR verification with no
-floating-point instructions. Vocabulary artifacts and final size reporting
-remain open.
+floating-point instructions. The vocabulary-aware evidence is recorded
+separately below.
 
 The separate `benchmarks/aie_text_brain_bounds.act` fixture now covers
 truncated and oversized rejection with unchanged live state. Its command and
 output are recorded in `docs/benchmarks/phase-5-brain-bounds.md`. Vocabulary
-artifacts and final size reporting remain open.
+artifacts and final size reporting are now covered by the vocabulary fixture.
 
 The paired `aie_text_brain_restart_write.act` and
 `aie_text_brain_restart_read.act` fixtures now define the separate-process
 restart check. The exact commands and recorded evidence are in
 `docs/benchmarks/phase-5-brain-restart.md`; the writer and reader both passed.
-The remaining P5.1 work is vocabulary and context artifact persistence plus
-the final serialized size breakdown.
+The vocabulary-aware process and corruption evidence is recorded in
+`docs/benchmarks/phase-5-brain-vocabulary.md`.
 
-- [ ] Add a public host save API for fabric, bindings, tokenizer metadata, and
+The vocabulary persistence contract is recorded in
+`docs/adr/0005-versioned-vocabulary-snapshot.md`. The legacy
+fabric-and-binding API remains available, and the validated vocabulary-aware
+save/load path is now implemented.
+
+- [x] Add a public host save API for fabric, bindings, tokenizer metadata, and
   context metadata.
-- [ ] Add a public host load API that validates the complete file before
+- [x] Add a public host load API that validates the complete file before
   mutating live state.
-- [ ] Reject truncated, oversized, corrupted, and incompatible `.brain` files.
-- [ ] Verify that a failed load leaves the existing fabric and bindings
+- [x] Reject truncated, oversized, corrupted, and incompatible `.brain` files.
+- [x] Verify that a failed load leaves the existing fabric and bindings
   unchanged.
-- [ ] Persist the tokenizer vocabulary and merge-rule compatibility metadata.
-- [ ] Persist the context-codebook version and active-bit profile.
-- [ ] Add a restart benchmark that saves, exits, reloads, and recalls the same
+- [x] Persist the tokenizer vocabulary and merge-rule compatibility metadata.
+- [x] Persist the context-codebook version and active-bit profile.
+- [x] Add a restart benchmark that saves, exits, reloads, and recalls the same
   learned path.
-- [ ] Record the final `.brain` header, payload, binding, and artifact sizes.
+- [x] Record the final `.brain` header, payload, binding, and artifact sizes.
 
 ## P5.1A — Hot-path storage isolation
 

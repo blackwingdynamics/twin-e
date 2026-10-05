@@ -1,0 +1,134 @@
+"""Vocabulary-aware `.brain` persistence for restart-compatible BPE state."""
+import config;
+
+import encoding;
+
+import tokenizer;
+
+import std::fs;
+
+import std::io;
+
+open io;
+
+verb vocab_read_u16(abs input: Buffer, abs offset: u32) -> u16 {
+    return (input[offset] as u16) + ((input[offset + 1u32] as u16) * 256u16);
+}
+
+verb vocab_read_u32(abs input: Buffer, abs offset: u32) -> u32 {
+    return (input[offset] as u32) + ((input[offset + 1u32] as u32) * 256u32) + ((input[offset + 2u32] as u32) * 65536u32) + ((input[offset + 3u32] as u32) * 16777216u32);
+}
+
+verb vocab_read_u64(abs input: Buffer, abs offset: u32) -> u64 {
+    erg high_offset: u32 = offset + 4u32;
+    return (vocab_read_u32(input: abs input, offset: abs offset) as u64) + ((vocab_read_u32(
+        input: abs input,
+        offset: abs high_offset
+    ) as u64) * 4294967296u64);
+}
+
+verb vocab_append_u16(ins output: Buffer, abs value: u16) {
+    append(output, value as u8);
+    append(output, (value as u32 / 256u32) as u8);
+}
+
+verb vocab_append_u32(ins output: Buffer, abs value: u32) {
+    append(output, (value & 255u32) as u8);
+    append(output, ((value / 256u32) & 255u32) as u8);
+    append(output, ((value / 65536u32) & 255u32) as u8);
+    append(output, ((value / 16777216u32) & 255u32) as u8);
+}
+
+verb vocab_append_u64(ins output: Buffer, abs value: u64) {
+    erg low: u32 = value as u32;
+    erg high: u32 = (value / 4294967296u64) as u32;
+    vocab_append_u32(output: ins output, value: abs low);
+    vocab_append_u32(output: ins output, value: abs high);
+}
+
+verb vocab_write_u64(ins output: Buffer, erg offset: u32, abs value: u64) {
+    erg low: u32 = value as u32;
+    erg high: u32 = (value / 4294967296u64) as u32;
+    erg high_offset: u32 = offset + 4u32;
+    vocab_append_u32_at(
+        output: ins output,
+        offset: erg offset,
+        value: abs low
+    );
+    vocab_append_u32_at(
+        output: ins output,
+        offset: erg high_offset,
+        value: abs high
+    );
+}
+
+verb vocab_append_u32_at(ins output: Buffer, erg offset: u32, abs value: u32) {
+    output[offset] = (value & 255u32) as u8;
+    output[offset + 1u32] = ((value / 256u32) & 255u32) as u8;
+    output[offset + 2u32] = ((value / 65536u32) & 255u32) as u8;
+    output[offset + 3u32] = ((value / 16777216u32) & 255u32) as u8;
+}
+
+verb vocab_checksum(abs input: Buffer, abs start: u32, abs end: u32) -> u64 {
+    erg checksum: u64 = 0u64;
+    erg index: u32 = 0u32;
+    index = start;
+    loop {
+        if index >= end {
+            break;
+        }
+        checksum += (input[index] as u64) * ((index - start) as u64 + 1u64);
+        index += 1u32;
+    }
+    return checksum;
+}
+
+verb vocab_append_fabric(ins output: Buffer, abs fabric: CorticalFabric[64]) {
+    erg magic: u32 = BRAIN_MAGIC;
+    erg version: u16 = BRAIN_VERSION;
+    erg header_bytes: u16 = BRAIN_HEADER_BYTES;
+    erg payload_bytes: u32 = BRAIN_PAYLOAD_BYTES;
+    vocab_append_u32(output: ins output, value: abs magic);
+    vocab_append_u16(output: ins output, value: abs version);
+    vocab_append_u16(output: ins output, value: abs header_bytes);
+    vocab_append_u32(output: ins output, value: abs payload_bytes);
+    for erg column: u32 in 0u32 .. 64u32 {
+        for erg byte: u32 in 0u32 .. 64u32 {
+            append(output, fabric.columns[column].storage[byte]);
+        }
+    }
+    vocab_append_u32(output: ins output, value: abs fabric.free_list_head);
+    vocab_append_u32(output: ins output, value: abs fabric.active_count);
+}
+
+verb vocab_append_bindings(
+    ins output: Buffer,
+    abs bindings: Array[TokenBinding, 64]
+) {
+    erg magic: u32 = BRAIN_MAGIC;
+    erg version: u16 = BRAIN_BINDING_VERSION;
+    erg stride: u16 = BRAIN_BINDING_STRIDE_BYTES;
+    erg payload_bytes: u32 = BRAIN_BINDING_PAYLOAD_BYTES;
+    vocab_append_u32(output: ins output, value: abs magic);
+    vocab_append_u16(output: ins output, value: abs version);
+    vocab_append_u16(output: ins output, value: abs stride);
+    vocab_append_u32(output: ins output, value: abs payload_bytes);
+    vocab_append_u16(output: ins output, value: abs TOKENIZER_VERSION);
+    vocab_append_u16(output: ins output, value: abs CONTEXT_VERSION);
+    vocab_append_u16(output: ins output, value: abs TOKEN_CODE_VERSION);
+    for erg index: u32 in 0u32 .. BRAIN_BINDING_COUNT {
+        for erg byte: u32 in 0u32 .. BRAIN_BINDING_STRIDE_BYTES as u32 {
+            append(output, bindings[index].storage[byte]);
+        }
+    }
+}
+
+verb vocab_append_artifact(
+    ins output: Buffer,
+    abs rules: Array[BpeMergeRule, 128],
+    abs tokens: Array[BpeTokenRecord, 256],
+    erg rule_count: u32,
+    erg token_count: u32
+) {
+    return;
+}

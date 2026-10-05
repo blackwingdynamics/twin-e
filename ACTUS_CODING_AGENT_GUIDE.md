@@ -1955,7 +1955,8 @@ pack Minicolumn {
         erg threshold: u8 at 8;
         erg coincidence_low: u64 at 64;
         erg coincidence_high: u64 at 128;
-        erg axons: Array[u32, 8] at 192;
+        erg axon_0: u32 at 192;
+        erg axon_7: u32 at 416;
         erg inhibitory_link: u32 at 480;
     }
 }
@@ -2089,6 +2090,14 @@ contain scalar literals, arithmetic, bitwise operations, comparisons, casts,
 grouping, and bounded scalar indexing. Calls, method calls, buffers,
 aggregates, resources, mutation, borrows, conditional expressions, and
 ownership transfers remain explicit source forms.
+
+Validated scalar constants are handled by the same normalization boundary when
+they are passed with an explicit `abs` role. The compiler materializes the
+constant as a hidden scalar `erg` local before native constant inlining, then
+passes that local as `abs`. This preserves the source ownership contract and
+prevents native preparation from turning `abs CONSTANT` into an invalid
+borrow of a literal (`E1016`). Constants are not generalized into runtime
+storage, and non-scalar or resource constants remain outside this rule.
 
 The generated form has the same native text as its equivalent explicit local,
 and its object relocations contain no allocation reference. A prior move or

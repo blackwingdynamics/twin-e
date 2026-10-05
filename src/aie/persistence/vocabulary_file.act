@@ -1,0 +1,270 @@
+"""Vocabulary-aware `.brain` persistence for restart-compatible BPE state."""
+import config;
+
+import encoding;
+
+import tokenizer;
+
+import std::fs;
+
+import std::io;
+
+open io;
+
+verb vocab_append_snapshot_header(ins output: Buffer) {
+    erg magic: u32 = BRAIN_TEXT_MAGIC;
+    erg version: u16 = BRAIN_TEXT_VOCABULARY_VERSION;
+    erg header_bytes: u16 = BRAIN_TEXT_HEADER_BYTES as u16;
+    erg fabric_bytes: u32 = BRAIN_TEXT_FABRIC_BYTES;
+    erg binding_bytes: u32 = BRAIN_TEXT_BINDING_BYTES;
+    erg reserved: u16 = TOKEN_CODE_ACTIVE_BITS as u16;
+    erg zero: u64 = 0u64;
+    vocab_append_u32(output: ins output, value: abs magic);
+    vocab_append_u16(output: ins output, value: abs version);
+    vocab_append_u16(output: ins output, value: abs header_bytes);
+    vocab_append_u32(output: ins output, value: abs fabric_bytes);
+    vocab_append_u32(output: ins output, value: abs binding_bytes);
+    vocab_append_u16(output: ins output, value: abs TOKENIZER_VERSION);
+    vocab_append_u16(output: ins output, value: abs CONTEXT_VERSION);
+    vocab_append_u16(output: ins output, value: abs TOKEN_CODE_VERSION);
+    vocab_append_u16(output: ins output, value: abs reserved);
+    vocab_append_u64(output: ins output, value: abs zero);
+}
+
+verb vocab_append_snapshot_sections(
+    ins output: Buffer,
+    abs fabric: CorticalFabric[64],
+    abs bindings: Array[TokenBinding, 64],
+    abs vocabulary: BpeVocabulary
+) {
+    vocab_append_fabric(output: ins output, fabric: abs fabric);
+    vocab_append_bindings(output: ins output, bindings: abs bindings);
+    erg rule_count: u32 = vocabulary.rule_count + 0u32;
+    erg token_count: u32 = vocabulary.token_count + 0u32;
+    vocab_append_artifact(
+        output: ins output,
+        rules: abs vocabulary.rules,
+        tokens: abs vocabulary.tokens,
+        rule_count: erg rule_count,
+        token_count: erg token_count
+    );
+}
+
+verb vocab_header_is_valid(abs input: Buffer) -> Bool {
+    erg magic_offset: u32 = 0u32;
+    erg version_offset: u32 = 4u32;
+    erg header_offset: u32 = 6u32;
+    erg fabric_offset: u32 = 8u32;
+    erg binding_offset: u32 = 12u32;
+    erg tokenizer_offset: u32 = 16u32;
+    erg context_offset: u32 = 18u32;
+    erg code_offset: u32 = 20u32;
+    erg reserved_offset: u32 = 22u32;
+    return vocab_read_u32(input: abs input, offset: abs magic_offset) == BRAIN_TEXT_MAGIC && vocab_read_u16(
+        input: abs input,
+        offset: abs version_offset
+    ) == BRAIN_TEXT_VOCABULARY_VERSION && vocab_read_u16(input: abs input, offset: abs header_offset) == BRAIN_TEXT_HEADER_BYTES as u16 && vocab_read_u32(
+        input: abs input,
+        offset: abs fabric_offset
+    ) == BRAIN_TEXT_FABRIC_BYTES && vocab_read_u32(input: abs input, offset: abs binding_offset) == BRAIN_TEXT_BINDING_BYTES && vocab_read_u16(
+        input: abs input,
+        offset: abs tokenizer_offset
+    ) == TOKENIZER_VERSION && vocab_read_u16(input: abs input, offset: abs context_offset) == CONTEXT_VERSION && vocab_read_u16(
+        input: abs input,
+        offset: abs code_offset
+    ) == TOKEN_CODE_VERSION && vocab_read_u16(input: abs input, offset: abs reserved_offset) == TOKEN_CODE_ACTIVE_BITS as u16;
+}
+
+verb vocab_artifact_is_valid(abs input: Buffer, abs section_offset: u32) -> Bool {
+    erg version_offset: u32 = section_offset + 4u32;
+    erg tokenizer_offset: u32 = section_offset + 6u32;
+    erg rule_count_offset: u32 = section_offset + 20u32;
+    erg token_count_offset: u32 = section_offset + 2072u32;
+    erg rule_count: u32 = vocab_read_u32(input: abs input, offset: abs rule_count_offset);
+    erg token_count: u32 = vocab_read_u32(input: abs input, offset: abs token_count_offset);
+    if vocab_read_u32(input: abs input, offset: abs section_offset) != BPE_VOCAB_MAGIC || vocab_read_u16(
+        input: abs input,
+        offset: abs version_offset
+    ) != BPE_VOCAB_VERSION || vocab_read_u16(input: abs input, offset: abs tokenizer_offset) != TOKENIZER_VERSION || rule_count > BPE_MAX_RULES || token_count > BPE_MAX_TOKENS {
+        return false;
+    }
+    erg token_base: u32 = section_offset + 2076u32;
+    for erg index: u32 in 0u32 .. BPE_MAX_TOKENS {
+        erg length_offset: u32 = token_base + (index * 13u32) + 4u32;
+        if input[length_offset] as u32 > BPE_MAX_TOKEN_BYTES {
+            return false;
+        }
+    }
+    return true;
+}
+
+verb vocab_restore_fabric(ins fabric: CorticalFabric[64], abs input: Buffer) {
+    erg payload_offset: u32 = BRAIN_TEXT_HEADER_BYTES + 12u32;
+    for erg index: u32 in 0u32 .. BRAIN_PAYLOAD_BYTES {
+        fabric.columns[index / 64u32].storage[index % 64u32] = input[payload_offset + index];
+    }
+    erg free_offset: u32 = BRAIN_TEXT_HEADER_BYTES + 4108u32;
+    fabric.free_list_head = vocab_read_u32(input: abs input, offset: abs free_offset);
+    erg active_offset: u32 = free_offset + 4u32;
+    fabric.active_count = vocab_read_u32(input: abs input, offset: abs active_offset);
+}
+
+verb vocab_restore_bindings(
+    ins bindings: Array[TokenBinding, 64],
+    abs input: Buffer
+) {
+    erg section_offset: u32 = BRAIN_TEXT_HEADER_BYTES + BRAIN_TEXT_FABRIC_BYTES;
+    erg entries_offset: u32 = section_offset + 18u32;
+    for erg index: u32 in 0u32 .. BRAIN_BINDING_COUNT {
+        for erg byte: u32 in 0u32 .. BRAIN_BINDING_STRIDE_BYTES as u32 {
+            bindings[index].storage[byte] = input[entries_offset + (index * BRAIN_BINDING_STRIDE_BYTES as u32) + byte];
+        }
+    }
+}
+
+verb vocab_restore_artifact(
+    ins vocabulary: BpeVocabulary,
+    abs input: Buffer,
+    abs section_offset: u32
+) {
+    vocabulary.magic = BPE_VOCAB_MAGIC;
+    vocabulary.version = BPE_VOCAB_VERSION;
+    vocabulary.tokenizer_version = TOKENIZER_VERSION;
+    vocabulary.bos_token_id = BPE_BOS_TOKEN_ID;
+    vocabulary.eos_token_id = BPE_EOS_TOKEN_ID;
+    vocabulary.unknown_token_id = BPE_UNKNOWN_TOKEN_ID;
+    vocabulary.rule_count = vocab_read_u32(input: abs input, offset: abs (section_offset + 20u32));
+    for erg index: u32 in 0u32 .. BPE_MAX_RULES {
+        erg offset: u32 = section_offset + 24u32 + (index * 16u32);
+        vocabulary.rules[index].left_id = vocab_read_u32(input: abs input, offset: abs offset);
+        vocabulary.rules[index].right_id = vocab_read_u32(input: abs input, offset: abs (offset + 4u32));
+        vocabulary.rules[index].merged_id = vocab_read_u32(input: abs input, offset: abs (offset + 8u32));
+        vocabulary.rules[index].rank = vocab_read_u32(input: abs input, offset: abs (offset + 12u32));
+    }
+    vocabulary.token_count = vocab_read_u32(input: abs input, offset: abs (section_offset + 2072u32));
+    for erg index: u32 in 0u32 .. BPE_MAX_TOKENS {
+        erg offset: u32 = section_offset + 2076u32 + (index * 13u32);
+        vocabulary.tokens[index].token_id = vocab_read_u32(input: abs input, offset: abs offset);
+        vocabulary.tokens[index].byte_length = input[offset + 4u32];
+        for erg byte: u32 in 0u32 .. BPE_MAX_TOKEN_BYTES {
+            vocabulary.tokens[index].bytes[byte] = input[offset + 5u32 + byte];
+        }
+    }
+}
+
+verb vocab_checksum_is_valid(abs input: Buffer) -> Bool {
+    erg checksum_offset: u32 = 24u32;
+    erg stored: u64 = vocab_read_u64(input: abs input, offset: abs checksum_offset);
+    erg start: u32 = BRAIN_TEXT_HEADER_BYTES;
+    erg end: u32 = BRAIN_TEXT_VOCABULARY_TOTAL_BYTES;
+    return stored == vocab_checksum(
+        input: abs input,
+        start: abs start,
+        end: abs end
+    );
+}
+
+verb vocab_snapshot_bytes(
+    abs fabric: CorticalFabric[64],
+    abs bindings: Array[TokenBinding, 64],
+    abs vocabulary: BpeVocabulary
+) -> Buffer {
+    erg output: Buffer = Buffer[0];
+    erg capacity: Int = BRAIN_TEXT_VOCABULARY_TOTAL_BYTES as Int;
+    reserve(buffer: ins output, capacity: erg capacity);
+    erg checksum_offset: u32 = 24u32;
+    erg checksum_start: u32 = BRAIN_TEXT_HEADER_BYTES;
+    erg checksum_end: u32 = BRAIN_TEXT_VOCABULARY_TOTAL_BYTES;
+    vocab_append_snapshot_header(output: ins output);
+    vocab_append_snapshot_sections(
+        output: ins output,
+        fabric: abs fabric,
+        bindings: abs bindings,
+        vocabulary: abs vocabulary
+    );
+    erg checksum: u64 = vocab_checksum(
+        input: abs output,
+        start: abs checksum_start,
+        end: abs checksum_end
+    );
+    vocab_write_u64(
+        output: ins output,
+        offset: erg checksum_offset,
+        value: abs checksum
+    );
+    return output;
+}
+
+"""Write fabric, bindings, and the complete bounded vocabulary artifact."""
+open verb write_text_brain_with_vocabulary(
+    abs path: Path,
+    abs fabric: CorticalFabric[64],
+    abs bindings: Array[TokenBinding, 64],
+    abs vocabulary: BpeVocabulary
+) -> Result[Int, IoError] {
+    if !bpe_vocabulary_is_valid(vocabulary: abs vocabulary) {
+        return Err(IoError.InvalidData);
+    }
+    erg output: Buffer = vocab_snapshot_bytes(
+        fabric: abs fabric,
+        bindings: abs bindings,
+        vocabulary: abs vocabulary
+    );
+    return write_file(path: abs path, contents: abs output);
+}
+
+"""Load a vocabulary-aware snapshot only after all sections and checksum pass."""
+verb vocab_snapshot_is_valid(abs input: Buffer, erg length: Int) -> Bool {
+    erg vocabulary_offset: u32 = BRAIN_TEXT_TOTAL_BYTES;
+    return length == BRAIN_TEXT_VOCABULARY_TOTAL_BYTES as Int && vocab_header_is_valid(input: abs input) && vocab_artifact_is_valid(
+        input: abs input,
+        section_offset: abs vocabulary_offset
+    ) && vocab_checksum_is_valid(input: abs input);
+}
+
+verb vocab_restore_snapshot(
+    ins fabric: CorticalFabric[64],
+    ins bindings: Array[TokenBinding, 64],
+    ins vocabulary: BpeVocabulary,
+    abs input: Buffer
+) {
+    erg vocabulary_offset: u32 = BRAIN_TEXT_TOTAL_BYTES;
+    vocab_restore_fabric(fabric: ins fabric, input: abs input);
+    vocab_restore_bindings(bindings: ins bindings, input: abs input);
+    vocab_restore_artifact(
+        vocabulary: ins vocabulary,
+        input: abs input,
+        section_offset: abs vocabulary_offset
+    );
+}
+
+open verb read_text_brain_with_vocabulary(
+    ins fabric: CorticalFabric[64],
+    ins bindings: Array[TokenBinding, 64],
+    ins vocabulary: BpeVocabulary,
+    abs path: Path
+) -> Result[Int, IoError] {
+    erg loaded = read_to_bytes(path: abs path);
+    return case dat loaded {
+        Result.Err(error) => Err(error),
+        Result.Ok(bytes) => {
+            erg size_result = buffer_size(buffer: abs bytes);
+            erg length: Int = case dat size_result {
+                Result.Ok(value) => value,
+                Result.Err(_) => -1,
+            };
+            if !vocab_snapshot_is_valid(input: abs bytes, length: erg length) {
+                drop(bytes);
+                return Err(IoError.InvalidData);
+            }
+            vocab_restore_snapshot(
+                fabric: ins fabric,
+                bindings: ins bindings,
+                vocabulary: ins vocabulary,
+                input: abs bytes
+            );
+            drop(bytes);
+            return Ok(length);
+        },
+    };
+}

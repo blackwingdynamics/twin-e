@@ -95,6 +95,18 @@ open const BRAIN_TEXT_BINDING_BYTES: u32 = 1554u32;
 open const BRAIN_TEXT_TOTAL_BYTES: u32 = BRAIN_TEXT_HEADER_BYTES + BRAIN_TEXT_FABRIC_BYTES + BRAIN_TEXT_BINDING_BYTES;
 
 
+"""Serialized byte length of the fixed vocabulary artifact section."""
+open const BRAIN_TEXT_VOCABULARY_BYTES: u32 = 5404u32;
+
+
+"""Version of the combined `.brain` format that includes vocabulary data."""
+open const BRAIN_TEXT_VOCABULARY_VERSION: u16 = 2u16;
+
+
+"""Serialized byte length of a combined `.brain` file with vocabulary."""
+open const BRAIN_TEXT_VOCABULARY_TOTAL_BYTES: u32 = BRAIN_TEXT_TOTAL_BYTES + BRAIN_TEXT_VOCABULARY_BYTES;
+
+
 """Binding flag indicating that a token-binding slot contains live metadata."""
 open const BINDING_ACTIVE_FLAG: u8 = 1u8;
 
