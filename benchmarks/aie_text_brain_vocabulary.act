@@ -104,6 +104,9 @@ verb load_vocabulary_fixture(
 verb verify_decode(abs vocabulary: BpeVocabulary) -> Int {
     erg text: String = "Hi";
     erg sequence: TokenSequence = bpe_tokenize_with_special_tokens(text: abs text, vocabulary: abs vocabulary);
+    if sequence.length != 3u32 || sequence.tokens[1u32].id != 256u32 {
+        return 6;
+    }
     erg decoded: Buffer = Buffer[0];
     erg decoded_result = bpe_decode_bytes(
         sequence: abs sequence,

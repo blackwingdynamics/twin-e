@@ -41,7 +41,8 @@ instructions. The executable produced:
 AIE_P5_BRAIN_VOCAB bytes=11106 rules=1 tokens=1 restart_decode=1 compatibility=1 corrupted_rejected=1 unchanged=1
 ```
 
-This proves bounded vocabulary persistence, restart decode identity, checksum
-or section rejection for corrupted vocabulary data, and preservation of live
-state after the failed load. It does not measure vocabulary quality or token
-count reduction on a representative corpus; those remain P5.2 work.
+This proves bounded vocabulary persistence, in-process reload decode identity,
+checksum or section rejection for corrupted vocabulary data, and preservation
+of live state after the failed load. It does not prove a separate-process
+vocabulary restart or measure vocabulary quality and token-count reduction on
+a representative corpus; those remain P5.2 work.

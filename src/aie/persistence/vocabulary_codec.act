@@ -123,12 +123,47 @@ verb vocab_append_bindings(
     }
 }
 
-verb vocab_append_artifact(
+verb vocab_append_artifact_header(
     ins output: Buffer,
-    abs rules: Array[BpeMergeRule, 128],
-    abs tokens: Array[BpeTokenRecord, 256],
-    erg rule_count: u32,
-    erg token_count: u32
+    abs vocabulary: BpeVocabulary
 ) {
-    return;
+    vocab_append_u32(output: ins output, value: abs BPE_VOCAB_MAGIC);
+    vocab_append_u16(output: ins output, value: abs BPE_VOCAB_VERSION);
+    vocab_append_u16(output: ins output, value: abs TOKENIZER_VERSION);
+    vocab_append_u32(output: ins output, value: abs vocabulary.bos_token_id);
+    vocab_append_u32(output: ins output, value: abs vocabulary.eos_token_id);
+    vocab_append_u32(output: ins output, value: abs vocabulary.unknown_token_id);
+    vocab_append_u32(output: ins output, value: abs vocabulary.rule_count);
+}
+
+verb vocab_append_artifact_rules(
+    ins output: Buffer,
+    abs rules: Array[BpeMergeRule, 128]
+) {
+    for erg index: u32 in 0u32 .. BPE_MAX_RULES {
+        vocab_append_u32(output: ins output, value: abs rules[index].left_id);
+        vocab_append_u32(output: ins output, value: abs rules[index].right_id);
+        vocab_append_u32(output: ins output, value: abs rules[index].merged_id);
+        vocab_append_u32(output: ins output, value: abs rules[index].rank);
+    }
+}
+
+verb vocab_append_artifact_tokens(
+    ins output: Buffer,
+    abs tokens: Array[BpeTokenRecord, 256]
+) {
+    for erg index: u32 in 0u32 .. BPE_MAX_TOKENS {
+        vocab_append_u32(output: ins output, value: abs tokens[index].token_id);
+        append(output, tokens[index].byte_length);
+        for erg byte: u32 in 0u32 .. BPE_MAX_TOKEN_BYTES {
+            append(output, tokens[index].bytes[byte]);
+        }
+    }
+}
+
+verb vocab_append_artifact(ins output: Buffer, abs vocabulary: BpeVocabulary) {
+    vocab_append_artifact_header(output: ins output, vocabulary: abs vocabulary);
+    vocab_append_artifact_rules(output: ins output, rules: abs vocabulary.rules);
+    vocab_append_u32(output: ins output, value: abs vocabulary.token_count);
+    vocab_append_artifact_tokens(output: ins output, tokens: abs vocabulary.tokens);
 }

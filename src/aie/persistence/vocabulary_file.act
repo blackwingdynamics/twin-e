@@ -39,15 +39,7 @@ verb vocab_append_snapshot_sections(
 ) {
     vocab_append_fabric(output: ins output, fabric: abs fabric);
     vocab_append_bindings(output: ins output, bindings: abs bindings);
-    erg rule_count: u32 = vocabulary.rule_count + 0u32;
-    erg token_count: u32 = vocabulary.token_count + 0u32;
-    vocab_append_artifact(
-        output: ins output,
-        rules: abs vocabulary.rules,
-        tokens: abs vocabulary.tokens,
-        rule_count: erg rule_count,
-        token_count: erg token_count
-    );
+    vocab_append_artifact(output: ins output, vocabulary: abs vocabulary);
 }
 
 verb vocab_header_is_valid(abs input: Buffer) -> Bool {
@@ -75,17 +67,30 @@ verb vocab_header_is_valid(abs input: Buffer) -> Bool {
     ) == TOKEN_CODE_VERSION && vocab_read_u16(input: abs input, offset: abs reserved_offset) == TOKEN_CODE_ACTIVE_BITS as u16;
 }
 
-verb vocab_artifact_is_valid(abs input: Buffer, abs section_offset: u32) -> Bool {
+verb vocab_artifact_identity_is_valid(abs input: Buffer, abs section_offset: u32) -> Bool {
     erg version_offset: u32 = section_offset + 4u32;
     erg tokenizer_offset: u32 = section_offset + 6u32;
+    erg bos_offset: u32 = section_offset + 8u32;
+    erg eos_offset: u32 = section_offset + 12u32;
+    erg unknown_offset: u32 = section_offset + 16u32;
+    return vocab_read_u32(input: abs input, offset: abs section_offset) == BPE_VOCAB_MAGIC && vocab_read_u16(
+        input: abs input,
+        offset: abs version_offset
+    ) == BPE_VOCAB_VERSION && vocab_read_u16(input: abs input, offset: abs tokenizer_offset) == TOKENIZER_VERSION && vocab_read_u32(
+        input: abs input,
+        offset: abs bos_offset
+    ) == BPE_BOS_TOKEN_ID && vocab_read_u32(input: abs input, offset: abs eos_offset) == BPE_EOS_TOKEN_ID && vocab_read_u32(
+        input: abs input,
+        offset: abs unknown_offset
+    ) == BPE_UNKNOWN_TOKEN_ID;
+}
+
+verb vocab_artifact_is_valid(abs input: Buffer, abs section_offset: u32) -> Bool {
     erg rule_count_offset: u32 = section_offset + 20u32;
     erg token_count_offset: u32 = section_offset + 2072u32;
     erg rule_count: u32 = vocab_read_u32(input: abs input, offset: abs rule_count_offset);
     erg token_count: u32 = vocab_read_u32(input: abs input, offset: abs token_count_offset);
-    if vocab_read_u32(input: abs input, offset: abs section_offset) != BPE_VOCAB_MAGIC || vocab_read_u16(
-        input: abs input,
-        offset: abs version_offset
-    ) != BPE_VOCAB_VERSION || vocab_read_u16(input: abs input, offset: abs tokenizer_offset) != TOKENIZER_VERSION || rule_count > BPE_MAX_RULES || token_count > BPE_MAX_TOKENS {
+    if !vocab_artifact_identity_is_valid(input: abs input, section_offset: abs section_offset) || rule_count > BPE_MAX_RULES || token_count > BPE_MAX_TOKENS {
         return false;
     }
     erg token_base: u32 = section_offset + 2076u32;
@@ -130,9 +135,9 @@ verb vocab_restore_artifact(
     vocabulary.magic = BPE_VOCAB_MAGIC;
     vocabulary.version = BPE_VOCAB_VERSION;
     vocabulary.tokenizer_version = TOKENIZER_VERSION;
-    vocabulary.bos_token_id = BPE_BOS_TOKEN_ID;
-    vocabulary.eos_token_id = BPE_EOS_TOKEN_ID;
-    vocabulary.unknown_token_id = BPE_UNKNOWN_TOKEN_ID;
+    vocabulary.bos_token_id = vocab_read_u32(input: abs input, offset: abs (section_offset + 8u32));
+    vocabulary.eos_token_id = vocab_read_u32(input: abs input, offset: abs (section_offset + 12u32));
+    vocabulary.unknown_token_id = vocab_read_u32(input: abs input, offset: abs (section_offset + 16u32));
     vocabulary.rule_count = vocab_read_u32(input: abs input, offset: abs (section_offset + 20u32));
     for erg index: u32 in 0u32 .. BPE_MAX_RULES {
         erg offset: u32 = section_offset + 24u32 + (index * 16u32);

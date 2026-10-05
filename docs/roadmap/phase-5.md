@@ -142,7 +142,7 @@ AIE_HOT_PATH inference_ns=<value> neurogenesis_ns=<value>
 - [ ] Verify byte fallback, BOS, EOS, unknown tokens, and merged-token decode.
 - [ ] Reject vocabulary files with incompatible versions, invalid ranks, or
   over-sized token spans.
-- [ ] Persist the bounded vocabulary and merge rules in the text snapshot.
+- [x] Persist the bounded vocabulary and merge rules in the text snapshot.
 - [ ] Restore the vocabulary and verify encode/decode identity after restart.
 - [ ] Measure token-count reduction on a larger representative text corpus.
 
