@@ -309,14 +309,25 @@ to `case` and bounded iteration must be completed and reviewed independently.
 
 ### Gate 6 — Readability review
 
-- [ ] Every touched function has one clear responsibility.
-- [ ] Names describe domain meaning rather than temporary implementation shape.
-- [ ] Nested control flow is bounded and easy to follow.
-- [ ] Error propagation is visible at the point where it occurs.
-- [ ] No unexplained numeric protocol value remains in touched code when a
+- [x] Every touched function has one clear responsibility.
+- [x] Names describe domain meaning rather than temporary implementation shape.
+- [x] Nested control flow is bounded and easy to follow.
+- [x] Error propagation is visible at the point where it occurs.
+- [x] No unexplained numeric protocol value remains in touched code when a
       configuration constant or named layout constant is available.
-- [ ] No empty `else` exists solely to satisfy the compiler.
-- [ ] Review the diff manually for readability before running the final suite.
+- [x] No empty `else` exists solely to satisfy the compiler.
+- [x] Reviewed the refactor diff manually for readability before running the
+      validation suite.
+
+#### Gate 6 evidence
+
+- [x] Fixed manifest reader offset locals were renamed from positional names
+      such as `o4` and `offset_20` to field-domain names.
+- [x] Dynamic manifest loading now uses the configured maximum shard constant
+      instead of repeating the protocol value `8u32` in validation branches.
+- [x] The complete Actus source audit found no empty `else {}` blocks.
+- [x] Touched files pass formatter checking, strict checking, and the full
+      16-test strict suite.
 
 ### Gate 7 — Behavioral and performance safety
 

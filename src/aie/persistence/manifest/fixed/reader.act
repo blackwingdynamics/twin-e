@@ -25,48 +25,48 @@ struct FixedManifestHeaderLayout {
 
 """Decode the identity and count fields of a fixed manifest header."""
 verb read_fixed_manifest_header_core(abs bytes: Buffer) -> FixedManifestHeaderCore {
-    erg o0: u32 = 0u32;
-    erg o4: u32 = 4u32;
-    erg o6: u32 = 6u32;
-    erg o8: u32 = 8u32;
-    erg o12: u32 = 12u32;
-    erg o20: u32 = 20u32;
-    erg o24: u32 = 24u32;
-    erg o28: u32 = 28u32;
-    return FixedManifestHeaderCore {magic: read_manifest_u32(input: abs bytes, offset: abs o0), version: read_manifest_u16(
+    erg magic_offset: u32 = 0u32;
+    erg version_offset: u32 = 4u32;
+    erg header_bytes_offset: u32 = 6u32;
+    erg manifest_bytes_offset: u32 = 8u32;
+    erg generation_offset: u32 = 12u32;
+    erg total_columns_offset: u32 = 20u32;
+    erg active_columns_offset: u32 = 24u32;
+    erg shard_count_offset: u32 = 28u32;
+    return FixedManifestHeaderCore {magic: read_manifest_u32(input: abs bytes, offset: abs magic_offset), version: read_manifest_u16(
         input: abs bytes,
-        offset: abs o4
-    ), header_bytes: read_manifest_u16(input: abs bytes, offset: abs o6), manifest_bytes: read_manifest_u32(
+        offset: abs version_offset
+    ), header_bytes: read_manifest_u16(input: abs bytes, offset: abs header_bytes_offset), manifest_bytes: read_manifest_u32(
         input: abs bytes,
-        offset: abs o8
-    ), generation: read_manifest_u64(input: abs bytes, offset: abs o12), total_column_count: read_manifest_u32(
+        offset: abs manifest_bytes_offset
+    ), generation: read_manifest_u64(input: abs bytes, offset: abs generation_offset), total_column_count: read_manifest_u32(
         input: abs bytes,
-        offset: abs o20
-    ), active_column_count: read_manifest_u32(input: abs bytes, offset: abs o24), shard_count: read_manifest_u32(
+        offset: abs total_columns_offset
+    ), active_column_count: read_manifest_u32(input: abs bytes, offset: abs active_columns_offset), shard_count: read_manifest_u32(
         input: abs bytes,
-        offset: abs o28
+        offset: abs shard_count_offset
     )};
 }
 
 """Decode fixed manifest layout versions and checksum fields."""
 verb read_fixed_manifest_header_layout(abs bytes: Buffer) -> FixedManifestHeaderLayout {
-    erg o32: u32 = 32u32;
-    erg o34: u32 = 34u32;
-    erg o36: u32 = 36u32;
-    erg o38: u32 = 38u32;
-    erg o40: u32 = 40u32;
-    erg o42: u32 = 42u32;
-    erg o44: u32 = 44u32;
-    return FixedManifestHeaderLayout {column_stride_bytes: read_manifest_u16(input: abs bytes, offset: abs o32), binding_stride_bytes: read_manifest_u16(
+    erg column_stride_offset: u32 = 32u32;
+    erg binding_stride_offset: u32 = 34u32;
+    erg tokenizer_version_offset: u32 = 36u32;
+    erg context_version_offset: u32 = 38u32;
+    erg code_version_offset: u32 = 40u32;
+    erg reserved_offset: u32 = 42u32;
+    erg checksum_offset: u32 = 44u32;
+    return FixedManifestHeaderLayout {column_stride_bytes: read_manifest_u16(input: abs bytes, offset: abs column_stride_offset), binding_stride_bytes: read_manifest_u16(
         input: abs bytes,
-        offset: abs o34
-    ), tokenizer_version: read_manifest_u16(input: abs bytes, offset: abs o36), context_version: read_manifest_u16(
+        offset: abs binding_stride_offset
+    ), tokenizer_version: read_manifest_u16(input: abs bytes, offset: abs tokenizer_version_offset), context_version: read_manifest_u16(
         input: abs bytes,
-        offset: abs o38
-    ), code_version: read_manifest_u16(input: abs bytes, offset: abs o40), reserved: read_manifest_u16(
+        offset: abs context_version_offset
+    ), code_version: read_manifest_u16(input: abs bytes, offset: abs code_version_offset), reserved: read_manifest_u16(
         input: abs bytes,
-        offset: abs o42
-    ), checksum: read_manifest_u64(input: abs bytes, offset: abs o44)};
+        offset: abs reserved_offset
+    ), checksum: read_manifest_u64(input: abs bytes, offset: abs checksum_offset)};
 }
 
 """Decode the fixed manifest header from canonical little-endian bytes.
@@ -90,27 +90,27 @@ the position-independent on-disk layout. Range and schema validation remain the
 responsibility of the descriptor predicate.
 """
 verb read_fixed_manifest_descriptor(abs bytes: Buffer, erg offset: u32) -> ManifestDescriptor {
-    erg offset_4: u32 = offset + 4u32;
-    erg offset_8: u32 = offset + 8u32;
-    erg offset_12: u32 = offset + 12u32;
-    erg offset_16: u32 = offset + 16u32;
-    erg offset_20: u32 = offset + 20u32;
-    erg offset_24: u32 = offset + 24u32;
-    erg offset_28: u32 = offset + 28u32;
-    erg offset_36: u32 = offset + 36u32;
+    erg first_column_offset: u32 = offset + 4u32;
+    erg column_count_offset: u32 = offset + 8u32;
+    erg payload_offset_offset: u32 = offset + 12u32;
+    erg payload_bytes_offset: u32 = offset + 16u32;
+    erg binding_offset_offset: u32 = offset + 20u32;
+    erg binding_bytes_offset: u32 = offset + 24u32;
+    erg descriptor_checksum_offset: u32 = offset + 28u32;
+    erg state_offset: u32 = offset + 36u32;
     return ManifestDescriptor {shard_id: read_manifest_u32(input: abs bytes, offset: abs offset), first_column_index: read_manifest_u32(
         input: abs bytes,
-        offset: abs offset_4
-    ), column_count: read_manifest_u32(input: abs bytes, offset: abs offset_8), payload_offset: read_manifest_u32(
+        offset: abs first_column_offset
+    ), column_count: read_manifest_u32(input: abs bytes, offset: abs column_count_offset), payload_offset: read_manifest_u32(
         input: abs bytes,
-        offset: abs offset_12
-    ), payload_bytes: read_manifest_u32(input: abs bytes, offset: abs offset_16), binding_offset: read_manifest_u32(
+        offset: abs payload_offset_offset
+    ), payload_bytes: read_manifest_u32(input: abs bytes, offset: abs payload_bytes_offset), binding_offset: read_manifest_u32(
         input: abs bytes,
-        offset: abs offset_20
-    ), binding_bytes: read_manifest_u32(input: abs bytes, offset: abs offset_24), checksum: read_manifest_u64(
+        offset: abs binding_offset_offset
+    ), binding_bytes: read_manifest_u32(input: abs bytes, offset: abs binding_bytes_offset), checksum: read_manifest_u64(
         input: abs bytes,
-        offset: abs offset_28
-    ), state: read_manifest_u32(input: abs bytes, offset: abs offset_36)};
+        offset: abs descriptor_checksum_offset
+    ), state: read_manifest_u32(input: abs bytes, offset: abs state_offset)};
 }
 
 """

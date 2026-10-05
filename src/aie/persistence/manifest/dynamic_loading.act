@@ -25,7 +25,7 @@ verb load_dynamic_path_from_plan(
     abs plan: DynamicLoadPlan,
     erg destination_index: u32
 ) -> Result[Int, IoError] {
-    if plan.shard_id >= shard_count || plan.shard_id >= 8u32 {
+    if plan.shard_id >= shard_count || plan.shard_id >= BRAIN_MANIFEST_DYNAMIC_MAX_SHARDS {
         return Err(IoError.InvalidInput);
     }
     erg loaded = read_to_bytes(path: abs shard_paths[plan.shard_id as Usize]);
@@ -109,7 +109,7 @@ verb load_dynamic_manifest_buffer(
     abs shard_paths: Array[Path, 8],
     erg shard_count: u32
 ) -> Result[Int, IoError] {
-    if shard_count == 0u32 || shard_count > 8u32 {
+    if shard_count == 0u32 || shard_count > BRAIN_MANIFEST_DYNAMIC_MAX_SHARDS {
         drop(manifest);
         return Err(IoError.InvalidInput);
     }
@@ -214,7 +214,7 @@ open verb load_column_from_dynamic_shards(
     erg shard_count: u32,
     erg global_index: u32
 ) -> Result[Int, IoError] {
-    if shard_count == 0u32 || shard_count > 8u32 {
+    if shard_count == 0u32 || shard_count > BRAIN_MANIFEST_DYNAMIC_MAX_SHARDS {
         return Err(IoError.InvalidInput);
     }
     erg loaded = read_to_bytes(path: abs manifest_path);
