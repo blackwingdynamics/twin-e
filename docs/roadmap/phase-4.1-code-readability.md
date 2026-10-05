@@ -279,6 +279,8 @@ to `case` and bounded iteration must be completed and reviewed independently.
       explicit ownership and failure behavior in the implementation.
 - [x] Documented the public BPE vocabulary types, validation operation, and
       tokenization/decoding operations.
+- [x] Expanded the core runtime and BPE documentation to state inputs,
+      outputs, ownership roles, bounds, invariants, and failure behavior.
 - [ ] Complete the same documentation audit for persistence, encoding, and
       remaining public facade declarations.
 

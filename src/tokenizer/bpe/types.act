@@ -12,7 +12,12 @@ open struct BpeMergeRule {
     erg rank: u32,
 }
 
-"""One bounded vocabulary record mapping a token ID to its byte payload."""
+"""One bounded vocabulary record mapping a token ID to its byte payload.
+
+The byte payload is inline and limited to the configured maximum token size.
+The record is copied or viewed through ordinary Actus ownership rules; it
+does not contain pointers or dynamically allocated storage.
+"""
 open struct BpeTokenRecord {
     erg token_id: u32,
     erg byte_length: u8,
@@ -33,14 +38,24 @@ open struct BpeVocabulary {
     erg tokens: Array[BpeTokenRecord, 256],
 }
 
-"""Stable failure categories returned by bounded BPE decoding."""
+"""Stable failure categories returned by bounded BPE decoding.
+
+`InvalidVocabulary` identifies incompatible metadata, `InvalidSequence`
+identifies an unusable token sequence, and `InvalidToken` identifies a token
+that cannot be resolved to a bounded byte record.
+"""
 open enum BpeDecodeError {
     InvalidVocabulary,
     InvalidSequence,
     InvalidToken,
 }
 
-"""Validate vocabulary identity, versions, and fixed capacity limits."""
+"""Validate vocabulary identity, versions, and fixed capacity limits.
+
+The vocabulary is read through `abs`. The check verifies magic values,
+version compatibility, special token identity, and bounded rule/token counts.
+It returns `false` without mutation when any contract field is incompatible.
+"""
 open verb bpe_vocabulary_is_valid(abs vocabulary: BpeVocabulary) -> Bool {
     return vocabulary.magic == BPE_VOCAB_MAGIC && vocabulary.version == BPE_VOCAB_VERSION && vocabulary.tokenizer_version == TOKENIZER_VERSION && vocabulary.bos_token_id == BPE_BOS_TOKEN_ID && vocabulary.eos_token_id == BPE_EOS_TOKEN_ID && vocabulary.unknown_token_id == BPE_UNKNOWN_TOKEN_ID && vocabulary.rule_count <= BPE_MAX_RULES && vocabulary.token_count <= BPE_MAX_TOKENS;
 }

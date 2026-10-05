@@ -6,7 +6,12 @@ import config;
 
 """Propagate fired impulses across the eight fixed axon slots."""
 """Deterministic result returned by one public engine step."""
-"""Deterministic result containing source state and eight fired destinations."""
+"""Deterministic result for one bounded impulse step.
+
+The source flags and payload are returned together with eight destination
+indexes. Each destination is either a valid arena index or `null_index()`;
+the fixed result shape avoids dynamic collections in the hot path.
+"""
 open struct ImpulseStepResult {
     erg valid_source: Bool,
     erg source_fired: Bool,
@@ -21,7 +26,13 @@ open struct ImpulseStepResult {
     erg destination_7: u32,
 }
 
-"""Evaluate one indexed destination and store its fired or null result."""
+"""Evaluate one indexed destination and store its firing result.
+
+The exclusive `ins` fabric loan permits target state updates and the exclusive
+`ins` result array loan writes exactly one bounded index. A null target is
+stored as `null_index()` without evaluation. A valid but non-firing target is
+also stored as null; the return value is the fixed status code `0u32`.
+"""
 open verb store_destination[N: Usize](
     ins fabric: CorticalFabric[N],
     abs wave: Wavefront,
@@ -62,7 +73,14 @@ verb forward_one[N: Usize](
     };
 }
 
-"""Propagate one fired source across all eight bounded indexed axon slots."""
+"""Propagate one source across all eight bounded indexed axon slots.
+
+The exclusive `ins` fabric loan is passed through each destination evaluation,
+so target plasticity and inhibition updates are preserved in order. The
+wavefront is read through `abs`, and the returned fixed array contains fired
+destination indexes or `null_index()`. Invalid source indexes return an empty
+array and perform no mutation.
+"""
 open verb forward_impulse[N: Usize](
     ins fabric: CorticalFabric[N],
     abs wave: Wavefront,

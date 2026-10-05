@@ -2,7 +2,12 @@
 import config;
 
 """Evaluate binary coincidence and maintain local firing state."""
-"""Count set bits using integer-only Kernighan iteration."""
+"""Count set bits in one 64-bit word using integer-only Kernighan iteration.
+
+The input is read through the `erg` binding and the function returns a `u32`
+population count. It performs no allocation and emits no floating-point
+operations, which keeps coincidence evaluation hardware-sympathetic.
+"""
 open verb popcount_u64(erg value: u64) -> u32 {
     erg working: u64 = value;
     erg count: u32 = 0u32;
@@ -36,7 +41,12 @@ verb some_u32(abs value: u32) -> Option[u32] {
     return result;
 }
 
-"""Evaluate one target through the public coincidence entry point."""
+"""Evaluate one target through the public coincidence entry point.
+
+The exclusive `ins` fabric loan permits charge, myelination, and inhibition
+updates; the wavefront is read through `abs`. Invalid or ineligible targets
+return `Option.None`, while a firing target returns its payload.
+"""
 open verb evaluate_minicolumn[N: Usize](
     ins fabric: CorticalFabric[N],
     abs wave: Wavefront,
@@ -78,7 +88,15 @@ verb accumulate_minicolumn_charge[N: Usize](
     }
 }
 
-"""Apply eligibility, overlap, plasticity, and payload emission to one column."""
+"""Apply the complete integer coincidence law to one packed column.
+
+The exclusive `ins` fabric loan allows local charge integration, myelination,
+and lateral inhibition. The `abs` wave is ANDed with both 64-bit receptive
+words and their population counts are compared with the column threshold.
+Invalid, refractory, or inhibited targets do not emit a payload. A firing
+target resets charge and idle ticks, reinforces myelination, applies local
+inhibition, and returns `Option.Some(payload)`.
+"""
 open verb evaluate_minicolumn_core[N: Usize](
     ins fabric: CorticalFabric[N],
     abs wave: Wavefront,

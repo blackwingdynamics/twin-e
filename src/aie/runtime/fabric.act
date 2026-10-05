@@ -11,7 +11,13 @@ verb fabric_some_u32(abs value: u32) -> Option[u32] {
     return result;
 }
 
-"""Write one bounded axon slot and ignore invalid source or slot indexes."""
+"""Write one destination into the packed indexed axon array.
+
+Inputs use an exclusive `ins` loan for `fabric`; `source` selects a column,
+`slot` must be in `0..8`, and `target` is a column index or `null_index()`.
+Invalid source or slot indexes are ignored and return `0u32`. The operation
+does not allocate memory or perform I/O.
+"""
 open verb link_axon[N: Usize](
     ins fabric: CorticalFabric[N],
     erg source: u32,
@@ -25,7 +31,12 @@ open verb link_axon[N: Usize](
     return 0u32;
 }
 
-"""Create an eight-slot result initialized to the null destination sentinel."""
+"""Create an empty result for one eight-slot forwarding operation.
+
+Every returned element is initialized to `null_index()`, which distinguishes
+an unconnected or non-firing destination from a valid arena index. The helper
+allocates only the fixed inline array value and cannot fail.
+"""
 open verb empty_fired_destinations() -> Array[u32, 8] {
     erg fired: Array[u32,8] = Array[u32, 8]();
     erg i: u32 = 0u32;
@@ -39,7 +50,13 @@ open verb empty_fired_destinations() -> Array[u32, 8] {
     return fired;
 }
 
-"""Initialize every arena slot and rebuild its contiguous free-list."""
+"""Initialize the complete arena and rebuild its contiguous free-list.
+
+The exclusive `ins` loan is mutated in place. Every column receives default
+threshold and empty state, all indexed axons and links become null, and the
+free-list is chained in ascending index order. Existing arena contents are
+discarded by design; the operation performs no disk I/O.
+"""
 open verb fabric_init[N: Usize](ins fabric: CorticalFabric[N]) -> Void {
     fabric_init_core(fabric: ins fabric);
 }
@@ -80,7 +97,12 @@ verb fabric_init_core[N: Usize](ins fabric: CorticalFabric[N]) {
     fabric.active_count = 0u32;
 }
 
-"""Take the free-list head, mark it active, and return its index if available."""
+"""Allocate the free-list head and return it as an optional index.
+
+The exclusive `ins` loan advances the free-list, clears the returned link,
+marks the column active, and increments `active_count`. Exhaustion returns
+`Option.None` without changing the arena.
+"""
 open verb allocate_column[N: Usize](ins fabric: CorticalFabric[N]) -> Option[u32] {
     erg slot: u32 = 0u32;
     erg available: Bool = fabric.free_list_head != null_index();
@@ -98,7 +120,12 @@ open verb allocate_column[N: Usize](ins fabric: CorticalFabric[N]) -> Option[u32
     return result;
 }
 
-"""Allocate one slot without an option wrapper, using the null index on exhaustion."""
+"""Allocate one slot and return a raw index for low-level runtime paths.
+
+The exclusive `ins` loan performs the same free-list transition as
+`allocate_column`. When no slot exists, the function returns `null_index()`
+and leaves the arena unchanged.
+"""
 open verb allocate_column_index[N: Usize](ins fabric: CorticalFabric[N]) -> u32 {
     erg slot: u32 = null_index();
     erg available: Bool = fabric.free_list_head != null_index();
@@ -112,7 +139,13 @@ open verb allocate_column_index[N: Usize](ins fabric: CorticalFabric[N]) -> u32 
     return slot;
 }
 
-"""Clear one slot, return it to the free-list, and update active_count safely."""
+"""Decommission one column and return its slot to the free-list.
+
+The exclusive `ins` loan clears scalar state, all eight indexed axons, and
+links before pushing the slot at the free-list head. An out-of-range slot is
+ignored. `active_count` is decremented only when it is nonzero, preventing
+underflow during recovery or repeated cleanup.
+"""
 open verb free_column[N: Usize](ins fabric: CorticalFabric[N], erg slot: u32) -> Void {
     if slot >= (N as u32) {
         return;
