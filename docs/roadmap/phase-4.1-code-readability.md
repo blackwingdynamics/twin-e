@@ -185,6 +185,12 @@ orchestration. `forwarding/forwarding.act` is the only child facade exposed to
 the runtime facade. The repeated slot fields remain explicit until Phase 34
 adds verified indexed access for packed repeated fields.
 
+The tokenizer BPE implementation is also split behind the existing tokenizer
+facade. `bpe/types.act` owns vocabulary and token record types,
+`bpe/merge.act` owns bounded merge selection and application, and
+`bpe/api.act` owns public tokenization and decoding operations. The serialized
+vocabulary contract and public tokenizer API remain unchanged.
+
 ### Gate 3 — Actus syntax modernization
 
 - [ ] Replace statement-form `if` constructs that use an empty `else` with the

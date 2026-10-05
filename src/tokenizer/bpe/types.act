@@ -1,0 +1,50 @@
+meta limitless("file")
+
+
+import config;
+
+import std::io;
+
+open io;
+
+"""One deterministic pair merge in a bounded subword vocabulary."""
+open struct BpeMergeRule {
+    erg left_id: u32,
+    erg right_id: u32,
+    erg merged_id: u32,
+    erg rank: u32,
+}
+
+open struct BpeTokenRecord {
+    erg token_id: u32,
+    erg byte_length: u8,
+    erg bytes: Array[u8, 8],
+}
+
+"""Versioned bounded vocabulary artifact consumed by the BPE encoder."""
+open struct BpeVocabulary {
+    erg magic: u32,
+    erg version: u16,
+    erg tokenizer_version: u16,
+    erg bos_token_id: u32,
+    erg eos_token_id: u32,
+    erg unknown_token_id: u32,
+    erg rule_count: u32,
+    erg rules: Array[BpeMergeRule, 128],
+    erg token_count: u32,
+    erg tokens: Array[BpeTokenRecord, 256],
+}
+
+open enum BpeDecodeError {
+    InvalidVocabulary,
+    InvalidSequence,
+    InvalidToken,
+}
+
+open verb bpe_vocabulary_is_valid(abs vocabulary: BpeVocabulary) -> Bool {
+    return vocabulary.magic == BPE_VOCAB_MAGIC && vocabulary.version == BPE_VOCAB_VERSION && vocabulary.tokenizer_version == TOKENIZER_VERSION && vocabulary.bos_token_id == BPE_BOS_TOKEN_ID && vocabulary.eos_token_id == BPE_EOS_TOKEN_ID && vocabulary.unknown_token_id == BPE_UNKNOWN_TOKEN_ID && vocabulary.rule_count <= BPE_MAX_RULES && vocabulary.token_count <= BPE_MAX_TOKENS;
+}
+
+verb invalid_sequence() -> TokenSequence {
+    return TokenSequence {tokens: Array[Token, 256](), length: 0u32, valid: false};
+}

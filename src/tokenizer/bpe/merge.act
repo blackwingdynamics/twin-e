@@ -1,0 +1,157 @@
+"""Bounded deterministic BPE merge operations."""
+import config;
+
+open types;
+
+struct BpeMatch {
+    erg pair_index: u32,
+    erg rule_index: u32,
+    erg rank: u32,
+    erg found: Bool,
+}
+
+struct BpeTokenMatch {
+    erg index: u32,
+    erg found: Bool,
+}
+
+verb find_token_record(abs vocabulary: BpeVocabulary, erg token_id: u32) -> BpeTokenMatch {
+    erg index: u32 = 0u32;
+    loop {
+        if index >= vocabulary.token_count {
+            break;
+        }
+        if vocabulary.tokens[index].token_id == token_id {
+            return BpeTokenMatch {index: index + 0u32, found: true};
+        }
+        index += 1u32;
+    }
+    return BpeTokenMatch {index: 0u32, found: false};
+}
+
+verb pair_matches(
+    abs sequence: TokenSequence,
+    ins pair: u32,
+    abs rule: BpeMergeRule
+) -> Bool {
+    return sequence.tokens[pair as Usize].id == rule.left_id && sequence.tokens[(pair + 1u32) as Usize].id == rule.right_id;
+}
+
+verb consider_merge(
+    abs sequence: TokenSequence,
+    abs rules: Array[BpeMergeRule, 128],
+    ins best: BpeMatch,
+    erg pair: u32,
+    erg rule: u32
+) {
+    if pair_matches(
+        sequence: abs sequence,
+        pair: ins pair,
+        rule: abs rules[rule as Usize]
+    ) && (!best.found || rules[rule as Usize].rank < best.rank) {
+        best = BpeMatch {pair_index: pair + 0u32, rule_index: rule + 0u32, rank: rules[rule as Usize].rank, found: true};
+    }
+}
+
+"""Find the lowest-rank rule matching one adjacent token pair."""
+verb find_best_merge(
+    abs sequence: TokenSequence,
+    abs rules: Array[BpeMergeRule, 128],
+    erg rule_count: u32
+) -> BpeMatch {
+    erg best: BpeMatch = BpeMatch {pair_index: 0u32, rule_index: 0u32, rank: NULL_INDEX, found: false};
+    erg pair: u32 = 0u32;
+    loop {
+        erg next_pair: u32 = pair + 1u32;
+        if next_pair >= sequence.length {
+            break;
+        }
+        erg rule: u32 = 0u32;
+        loop {
+            if rule >= rule_count || rule >= BPE_MAX_RULES {
+                break;
+            }
+            consider_merge(
+                sequence: abs sequence,
+                rules: abs rules,
+                best: ins best,
+                pair: erg pair,
+                rule: erg rule
+            );
+            rule += 1u32;
+        }
+        pair += 1u32;
+    }
+    return best;
+}
+
+"""Apply one selected merge while preserving source byte span metadata."""
+verb apply_merge(
+    ins sequence: TokenSequence,
+    abs rule: BpeMergeRule,
+    erg pair_index: u32
+) -> TokenSequence {
+    erg result: TokenSequence = TokenSequence {tokens: Array[Token, 256](), length: 0u32, valid: sequence.valid};
+    erg input: u32 = 0u32;
+    erg output: u32 = 0u32;
+    loop {
+        if input >= sequence.length {
+            break;
+        }
+        if input == pair_index {
+            result.tokens[output] = Token {id: rule.merged_id, byte_offset: sequence.tokens[input].byte_offset, byte_length: sequence.tokens[input].byte_length + sequence.tokens[input + 1u32].byte_length, tokenizer_version: sequence.tokens[input].tokenizer_version};
+            input += 2u32;
+        } else {
+            result.tokens[output] = sequence.tokens[input];
+            input += 1u32;
+        }
+        output += 1u32;
+    }
+    result.length = output;
+    return result;
+}
+
+verb copy_sequence(abs input: TokenSequence) -> TokenSequence {
+    erg result: TokenSequence = TokenSequence {tokens: Array[Token, 256](), length: input.length, valid: input.valid};
+    erg index: u32 = 0u32;
+    loop {
+        if index >= input.length {
+            break;
+        }
+        result.tokens[index as Usize] = input.tokens[index as Usize];
+        index += 1u32;
+    }
+    return result;
+}
+
+"""Encode byte tokens with bounded deterministic BPE merges."""
+open verb bpe_encode(
+    abs input: TokenSequence,
+    abs rules: Array[BpeMergeRule, 128],
+    erg rule_count: u32
+) -> TokenSequence {
+    erg sequence: TokenSequence = copy_sequence(input: abs input);
+    erg pass: u32 = 0u32;
+    loop {
+        if pass >= TOKENIZER_MAX_BYTES {
+            break;
+        }
+        erg selected: BpeMatch = find_best_merge(
+            sequence: abs sequence,
+            rules: abs rules,
+            rule_count: erg rule_count
+        );
+        if !selected.found {
+            break;
+        }
+        erg selected_pair: u32 = selected.pair_index + 0u32;
+        erg selected_rule: u32 = selected.rule_index + 0u32;
+        sequence = apply_merge(
+            sequence: ins sequence,
+            rule: abs rules[selected_rule as Usize],
+            pair_index: erg selected_pair
+        );
+        pass += 1u32;
+    }
+    return sequence;
+}
