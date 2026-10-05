@@ -208,6 +208,16 @@ Phase 34 provides verified indexed access for repeated packed fields.
       without hiding fixed-size engine work.
 - [ ] Preserve explicit ownership roles on every binding and argument.
 - [ ] Preserve explicit integer widths and typed literals.
+
+#### Current evidence
+
+- [x] Audited `src/`, `benchmarks/`, and `tests/` for empty statement-form
+      `else` blocks; none remain after the benchmark cleanup.
+- [x] `actus check --strict` and `actus test --strict` pass after this cleanup
+      with 16 tests passed and 0 failures.
+
+The remaining Gate 3 items are still open. In particular, the wider migration
+to `case` and bounded iteration must be completed and reviewed independently.
 - [ ] Keep value-producing conditional expressions distinct from statement
       guards and require compatible value branches.
 
