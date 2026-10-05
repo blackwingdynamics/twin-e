@@ -7,7 +7,7 @@ open file;
 
 open text_file;
 
-open vocabulary_file;
+open vocabulary;
 
 open shard;
 
