@@ -10,39 +10,3 @@ open dynamic_io;
 open dynamic_writer;
 
 open dynamic_validation;
-
-open verb write_dynamic_shard_public(
-    abs path: Path,
-    erg shard_id: u32,
-    erg first_column_index: u32,
-    erg column_count: u32,
-    abs payload: Buffer
-) -> Result[Int, IoError] {
-    return write_dynamic_shard_core(
-        path: abs path,
-        shard_id: erg shard_id,
-        first_column_index: erg first_column_index,
-        column_count: erg column_count,
-        payload: abs payload
-    );
-}
-
-open verb publish_dynamic_shard_public(
-    abs staged: Path,
-    abs active: Path,
-    erg expected_shard_id: u32,
-    erg expected_first_column_index: u32,
-    erg expected_column_count: u32
-) -> Result[Int, IoError] {
-    return publish_dynamic_shard_core(
-        staged: abs staged,
-        active: abs active,
-        expected_shard_id: erg expected_shard_id,
-        expected_first_column_index: erg expected_first_column_index,
-        expected_column_count: erg expected_column_count
-    );
-}
-
-open verb dynamic_shard_file_checksum_public(abs path: Path) -> Result[u64, IoError] {
-    return dynamic_shard_file_checksum_core(path: abs path);
-}
