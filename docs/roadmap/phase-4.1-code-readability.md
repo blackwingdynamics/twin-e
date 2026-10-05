@@ -361,12 +361,31 @@ to `case` and bounded iteration must be completed and reviewed independently.
 
 ### Gate 8 — Completion evidence
 
-- [ ] Update this document with completed gates and the final commit reference.
-- [ ] Record the exact compiler binary revision used for validation.
-- [ ] Record strict check, test, benchmark, and zero-float evidence.
-- [ ] Confirm that the working tree contains only intended changes.
-- [ ] Create a focused commit with a message describing the completed
+- [x] Update this document with completed gates and the final implementation
+      commit reference.
+- [x] Record the exact compiler binary revision used for validation.
+- [x] Record strict check, test, benchmark, and zero-float evidence.
+- [x] Confirm that the working tree contains only intended changes before the
+      final evidence commit.
+- [x] Create a focused commit with a message describing the completed
       readability work.
+
+#### Gate 8 evidence
+
+- [x] Final implementation commit: `90756668a53ea093f08a412e795cb073a4ddbd42`
+      (`refactor: close behavioral safety gate`).
+- [x] Compiler binary: `/home/magradze/.cargo/bin/actus`.
+- [x] Compiler SHA-256:
+      `827fa0a8b43fdbf8562872459048037e82017484055a5a71e4d03a8890d9168b`.
+- [x] Validation commands completed successfully: `actus fmt --check` for
+      89 Actus files, `actus check --strict`, and `actus test --strict` with
+      16 passed and 0 failed.
+- [x] Strict executable builds for the engine and P3.3 benchmark both reported
+      that generated native IR contains no floating-point instructions.
+- [x] P3.3 benchmark evidence is recorded above with its exact iteration count,
+      timing output, and comparison against the previous baseline.
+- [x] The repository was clean after the implementation commit; this evidence
+      update is the only intentional final documentation change.
 
 ## Acceptance Criteria
 
