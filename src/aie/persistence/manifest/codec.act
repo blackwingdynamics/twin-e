@@ -115,4 +115,3 @@ verb write_manifest_u64(ins output: Buffer, abs value: u64, abs offset: u32) {
     output[offset + 6u32] = ((high / 65536u32) & 255u32) as u8;
     output[offset + 7u32] = ((high / 16777216u32) & 255u32) as u8;
 }
-

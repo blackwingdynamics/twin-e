@@ -1,0 +1,87 @@
+"""Dynamic manifest generation selection and publication operations."""
+import config;
+
+import std::fs;
+
+import std::io;
+
+open io;
+
+"""Read one validated generation number from a manifest path.
+
+The path is read through `abs`. The file must pass the complete dynamic
+manifest validator before its generation field is returned. Filesystem and
+invalid-data errors are propagated without changing either manifest path.
+"""
+open verb dynamic_manifest_generation(abs path: Path) -> Result[u64, IoError] {
+    erg loaded = read_to_bytes(path: abs path);
+    return case dat loaded {
+        Result.Err(error) => Err(error),
+        Result.Ok(bytes) => {
+            erg valid: Bool = manifest_dynamic_bytes_are_valid(bytes: abs bytes);
+            if !valid {
+                drop(bytes);
+                return Err(IoError.InvalidData);
+            }
+            erg generation_offset: u32 = 12u32;
+            erg generation: u64 = read_manifest_u64(input: abs bytes, offset: abs generation_offset);
+            drop(bytes);
+            return Ok(generation);
+        },
+    };
+}
+
+"""Validate a staged dynamic manifest and publish it atomically by rename.
+
+Both paths are read through `abs`. The staged file must pass length, layout,
+descriptor, version, and checksum validation before it is renamed to `active`.
+Invalid staged data remains unpublished and returns `InvalidData`.
+"""
+open verb publish_dynamic_manifest(abs staged: Path, abs active: Path) -> Result[Int, IoError] {
+    erg loaded = read_to_bytes(path: abs staged);
+    return case dat loaded {
+        Result.Err(error) => Err(error),
+        Result.Ok(bytes) => {
+            erg valid: Bool = manifest_dynamic_bytes_are_valid(bytes: abs bytes);
+            drop(bytes);
+            if !valid {
+                return Err(IoError.InvalidData);
+            }
+            return rename(from: abs staged, to: abs active);
+        },
+    };
+}
+
+"""Select the newest valid generation from primary and fallback manifests.
+
+Both paths are read through `abs`. A valid primary wins ties; when it is
+invalid or unavailable, a valid fallback is selected. If neither candidate
+validates, the operation returns `IoError.InvalidData`.
+"""
+open verb select_dynamic_manifest_generation(
+    abs primary: Path,
+    abs fallback: Path
+) -> Result[ManifestSelection, IoError] {
+    erg primary_result = dynamic_manifest_generation(path: abs primary);
+    erg fallback_result = dynamic_manifest_generation(path: abs fallback);
+    return case dat primary_result {
+        Result.Ok(primary_generation) => case dat fallback_result {
+            Result.Ok(fallback_generation) => {
+                erg selected_slot: u8 = 0u8;
+                erg selected_generation: u64 = primary_generation + 0u64;
+                if primary_generation >= fallback_generation {
+                    selected_slot = 0u8;
+                } else {
+                    selected_slot = 1u8;
+                    selected_generation = fallback_generation;
+                }
+                return Ok(ManifestSelection {slot: selected_slot, generation: selected_generation});
+            },
+            Result.Err(_) => Ok(ManifestSelection {slot: 0u8, generation: primary_generation}),
+        },
+        Result.Err(_) => case dat fallback_result {
+            Result.Ok(fallback_generation) => Ok(ManifestSelection {slot: 1u8, generation: fallback_generation}),
+            Result.Err(_) => Err(IoError.InvalidData),
+        },
+    };
+}

@@ -1,0 +1,106 @@
+meta limitless("file")
+
+
+"""Forwarding retains the eight-slot implementation and public step boundary."""
+import config;
+
+"""Propagate fired impulses across the eight fixed axon slots."""
+"""Deterministic result returned by one public engine step."""
+"""Deterministic result for one bounded impulse step.
+
+The source flags and payload are returned together with eight destination
+indexes. Each destination is either a valid arena index or `null_index()`;
+the fixed result shape avoids dynamic collections in the hot path.
+"""
+open struct ImpulseStepResult {
+    erg valid_source: Bool,
+    erg source_fired: Bool,
+    erg payload: u8,
+    erg destination_0: u32,
+    erg destination_1: u32,
+    erg destination_2: u32,
+    erg destination_3: u32,
+    erg destination_4: u32,
+    erg destination_5: u32,
+    erg destination_6: u32,
+    erg destination_7: u32,
+}
+
+"""Evaluate one indexed destination and store its firing result.
+
+The exclusive `ins` fabric loan permits target state updates and the exclusive
+`ins` result array loan writes exactly one bounded index. A null target is
+stored as `null_index()` without evaluation. A valid but non-firing target is
+also stored as null; the return value is the fixed status code `0u32`.
+"""
+open verb store_destination[N: Usize](
+    ins fabric: CorticalFabric[N],
+    abs wave: Wavefront,
+    ins fired: Array[u32, 8],
+    erg index: u32,
+    erg target: u32
+) -> u32 {
+    if target == null_index() {
+        fired[index] = null_index();
+        return 0u32;
+    }
+    erg evaluation: Option[u8] = evaluate_minicolumn_core(
+        fabric: ins fabric,
+        wave: abs wave,
+        target_idx: target
+    );
+    fired[index] = case dat evaluation {
+        Option.Some(_) => target,
+        Option.None => null_index(),
+    };
+    return 0u32;
+}
+
+"""Evaluate all eight fixed axon destinations from one source column."""
+verb forward_one[N: Usize](
+    ins fabric: CorticalFabric[N],
+    abs wave: Wavefront,
+    erg target: u32
+) -> u32 {
+    erg evaluation: Option[u8] = evaluate_minicolumn(
+        fabric: ins fabric,
+        wave: abs wave,
+        target_idx: erg target
+    );
+    return case dat evaluation {
+        Option.Some(_) => target,
+        Option.None => null_index(),
+    };
+}
+
+"""Propagate one source across all eight bounded indexed axon slots.
+
+The exclusive `ins` fabric loan is passed through each destination evaluation,
+so target plasticity and inhibition updates are preserved in order. The
+wavefront is read through `abs`, and the returned fixed array contains fired
+destination indexes or `null_index()`. Invalid source indexes return an empty
+array and perform no mutation.
+"""
+open verb forward_impulse[N: Usize](
+    ins fabric: CorticalFabric[N],
+    abs wave: Wavefront,
+    erg source_idx: u32
+) -> Array[u32, 8] {
+    erg fired: Array[u32,8] = empty_fired_destinations();
+    if source_idx < (N as u32) {
+        erg index: u32 = 0u32;
+        loop {
+            if index >= 8u32 {
+                break;
+            }
+            erg target: u32 = fabric.columns[source_idx].axons[index];
+            fired[index] = forward_one(
+                fabric: ins fabric,
+                wave: abs wave,
+                target: erg target
+            );
+            index += 1u32;
+        }
+    }
+    return fired;
+}

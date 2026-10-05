@@ -1,10 +1,13 @@
-meta limitless("file")
-
-
 """Coincidence keeps the public wrapper and native lowering core together."""
 import config;
 
 """Evaluate binary coincidence and maintain local firing state."""
+"""Count set bits in one 64-bit word using integer-only Kernighan iteration.
+
+The input is read through the `erg` binding and the function returns a `u32`
+population count. It performs no allocation and emits no floating-point
+operations, which keeps coincidence evaluation hardware-sympathetic.
+"""
 open verb popcount_u64(erg value: u64) -> u32 {
     erg working: u64 = value;
     erg count: u32 = 0u32;
@@ -38,6 +41,12 @@ verb some_u32(abs value: u32) -> Option[u32] {
     return result;
 }
 
+"""Evaluate one target through the public coincidence entry point.
+
+The exclusive `ins` fabric loan permits charge, myelination, and inhibition
+updates; the wavefront is read through `abs`. Invalid or ineligible targets
+return `Option.None`, while a firing target returns its payload.
+"""
 open verb evaluate_minicolumn[N: Usize](
     ins fabric: CorticalFabric[N],
     abs wave: Wavefront,
@@ -51,16 +60,50 @@ open verb evaluate_minicolumn[N: Usize](
 }
 
 """Evaluate one packed column, update plastic state, and apply inhibition."""
+verb apply_minicolumn_fire[N: Usize](
+    ins fabric: CorticalFabric[N],
+    erg target_idx: u32
+) {
+    fabric.columns[target_idx].charge = 0u8;
+    fabric.columns[target_idx].idle_ticks = 0u8;
+    if fabric.columns[target_idx].myelination < MAX_U8 {
+        fabric.columns[target_idx].myelination += 1u8;
+    }
+    if fabric.columns[target_idx].inhibitory_link != null_index() && fabric.columns[target_idx].inhibitory_link < (N as u32) {
+        erg inhibitory_idx: u32 = fabric.columns[target_idx].inhibitory_link;
+        fabric.columns[inhibitory_idx].flags |= FLAG_INHIBITED;
+    }
+}
+
+verb accumulate_minicolumn_charge[N: Usize](
+    ins fabric: CorticalFabric[N],
+    erg target_idx: u32,
+    erg overlap: u32
+) {
+    erg accumulated: u32 = (fabric.columns[target_idx].charge as u32) + overlap;
+    if accumulated > (MAX_U8 as u32) {
+        fabric.columns[target_idx].charge = MAX_U8;
+    } else {
+        fabric.columns[target_idx].charge = accumulated as u8;
+    }
+}
+
+"""Apply the complete integer coincidence law to one packed column.
+
+The exclusive `ins` fabric loan allows local charge integration, myelination,
+and lateral inhibition. The `abs` wave is ANDed with both 64-bit receptive
+words and their population counts are compared with the column threshold.
+Invalid, refractory, or inhibited targets do not emit a payload. A firing
+target resets charge and idle ticks, reinforces myelination, applies local
+inhibition, and returns `Option.Some(payload)`.
+"""
 open verb evaluate_minicolumn_core[N: Usize](
     ins fabric: CorticalFabric[N],
     abs wave: Wavefront,
     erg target_idx: u32
 ) -> Option[u8] {
-    erg max_value: u8 = MAX_U8;
-    erg refractory_flag: u8 = FLAG_REFRACTORY;
-    erg inhibited_flag: u8 = FLAG_INHIBITED;
     erg valid: Bool = target_idx < (N as u32);
-    erg eligible: Bool = valid && (fabric.columns[target_idx].flags & (refractory_flag | inhibited_flag)) == 0u8;
+    erg eligible: Bool = valid && (fabric.columns[target_idx].flags & (FLAG_REFRACTORY | FLAG_INHIBITED)) == 0u8;
     erg overlap: u32 = 0u32;
     if valid {
         erg low: u64 = wave.mask_low & fabric.columns[target_idx].coincidence_low;
@@ -69,22 +112,13 @@ open verb evaluate_minicolumn_core[N: Usize](
     }
     erg fires: Bool = eligible && overlap >= (fabric.columns[target_idx].threshold as u32);
     if fires {
-        fabric.columns[target_idx].charge = 0u8;
-        fabric.columns[target_idx].idle_ticks = 0u8;
-        if fabric.columns[target_idx].myelination < max_value {
-            fabric.columns[target_idx].myelination += 1u8;
-        }
-        if fabric.columns[target_idx].inhibitory_link != null_index() && fabric.columns[target_idx].inhibitory_link < (N as u32) {
-            erg inhibitory_idx: u32 = fabric.columns[target_idx].inhibitory_link;
-            fabric.columns[inhibitory_idx].flags |= inhibited_flag;
-        }
+        apply_minicolumn_fire(fabric: ins fabric, target_idx: erg target_idx);
     } else if eligible {
-        erg accumulated: u32 = (fabric.columns[target_idx].charge as u32) + overlap;
-        if accumulated > (max_value as u32) {
-            fabric.columns[target_idx].charge = max_value;
-        } else {
-            fabric.columns[target_idx].charge = accumulated as u8;
-        };
+        accumulate_minicolumn_charge(
+            fabric: ins fabric,
+            target_idx: erg target_idx,
+            overlap: erg overlap
+        );
     }
     erg result: Option[u8] = Option[u8].None;
     if fires {

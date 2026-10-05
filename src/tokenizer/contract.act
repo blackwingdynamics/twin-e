@@ -1,6 +1,11 @@
 import config;
 
-"""Return the tokenizer contract version used by this package."""
+"""Return the tokenizer contract version used by this package.
+
+The version is embedded in token and vocabulary metadata so persisted or
+shared token records cannot be silently interpreted under a different
+tokenization contract. This operation has no mutation or failure path.
+"""
 open verb tokenizer_version() -> u16 {
     return TOKENIZER_VERSION;
 }

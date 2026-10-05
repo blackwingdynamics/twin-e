@@ -1,4 +1,3 @@
-
 """Position-independent index for a bounded set of brain shards."""
 import config;
 
@@ -6,6 +5,7 @@ import std::fs;
 
 import std::io;
 
+"""Versioned header describing the complete shard manifest."""
 open struct ManifestHeader {
     erg magic: u32,
     erg version: u16,
@@ -24,6 +24,7 @@ open struct ManifestHeader {
     erg checksum: u64,
 }
 
+"""Position-independent location and checksum metadata for one shard."""
 open struct ManifestDescriptor {
     erg shard_id: u32,
     erg first_column_index: u32,
@@ -36,12 +37,14 @@ open struct ManifestDescriptor {
     erg state: u32,
 }
 
+"""Resolved mapping from one global column index to a shard-local index."""
 open struct ColumnLocation {
     erg global_index: u32,
     erg shard_id: u32,
     erg local_index: u32,
 }
 
+"""Deterministic allocation result, including whether a shard is created."""
 open struct AllocationPlan {
     erg global_index: u32,
     erg shard_id: u32,
@@ -49,6 +52,7 @@ open struct AllocationPlan {
     erg creates_shard: Bool,
 }
 
+"""Bounded plan for loading one dynamic shard and selecting its local column."""
 open struct DynamicLoadPlan {
     erg shard_id: u32,
     erg first_column_index: u32,
@@ -56,8 +60,8 @@ open struct DynamicLoadPlan {
     erg local_index: u32,
 }
 
+"""Selected manifest slot and generation for recovery or publication."""
 open struct ManifestSelection {
     erg slot: u8,
     erg generation: u64,
 }
-

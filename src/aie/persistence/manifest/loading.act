@@ -1,9 +1,9 @@
-"""
-Purpose: Load the selected fixed shard into the requested fabric destination.
-Inputs: The fabric destination plus manifest, shard paths, indexes, and load plan declared by the signature.
-Outputs: Loads validated bytes into the fabric and returns the declared count or I/O result.
-Invariants: Only validated descriptors and checksums may reach the mutable fabric.
-Failure behavior: Rejects malformed, missing, mismatched, or out-of-range data without publishing a partial load.
+"""Select and load the fixed shard identified by a validated column location.
+
+The fabric is borrowed mutably for the duration of the shard read. The two
+fixed shard paths are read-only inputs, and the location decides which path is
+allowed to satisfy the request. Invalid shard identifiers return `InvalidInput`.
+The delegated shard loader validates the bytes before writing the destination.
 """
 verb load_selected_shard(
     ins fabric: CorticalFabric[64],
@@ -14,20 +14,29 @@ verb load_selected_shard(
     erg zero_id: u32 = 0u32;
     erg one_id: u32 = 1u32;
     if location.shard_id == zero_id {
-        return read_shard(fabric: ins fabric, path: abs shard_zero_path, shard_id: erg zero_id);
+        return read_shard(
+            fabric: ins fabric,
+            path: abs shard_zero_path,
+            shard_id: erg zero_id
+        );
     }
     if location.shard_id == one_id {
-        return read_shard(fabric: ins fabric, path: abs shard_one_path, shard_id: erg one_id);
+        return read_shard(
+            fabric: ins fabric,
+            path: abs shard_one_path,
+            shard_id: erg one_id
+        );
     }
     return Err(IoError.InvalidInput);
 }
 
-"""
-Purpose: Resolve a fixed manifest location and load the corresponding shard.
-Inputs: The fabric destination plus manifest, shard paths, indexes, and load plan declared by the signature.
-Outputs: Loads validated bytes into the fabric and returns the declared count or I/O result.
-Invariants: Only validated descriptors and checksums may reach the mutable fabric.
-Failure behavior: Rejects malformed, missing, mismatched, or out-of-range data without publishing a partial load.
+"""Resolve a global column index through the fixed manifest and load its shard.
+
+The manifest buffer and shard paths are immutable views. The fabric receives an
+exclusive `ins` loan only while the selected shard is decoded. Resolution and
+payload validation happen before the shard loader mutates the destination;
+malformed metadata, missing files, checksum failures, and range errors are
+returned through `IoError`.
 """
 verb load_selected_shard_from_manifest(
     ins fabric: CorticalFabric[64],
@@ -39,16 +48,21 @@ verb load_selected_shard_from_manifest(
     erg location_result = manifest_locate_column(bytes: abs manifest_bytes, global_index: erg global_index);
     return case dat location_result {
         Result.Err(error) => Err(error),
-        Result.Ok(location) => load_selected_shard(fabric: ins fabric, location: abs location, shard_zero_path: abs shard_zero_path, shard_one_path: abs shard_one_path),
+        Result.Ok(location) => load_selected_shard(
+            fabric: ins fabric,
+            location: abs location,
+            shard_zero_path: abs shard_zero_path,
+            shard_one_path: abs shard_one_path
+        ),
     };
 }
 
-"""
-Purpose: Load one fixed-layout column through manifest and shard validation.
-Inputs: The fabric destination plus manifest, shard paths, indexes, and load plan declared by the signature.
-Outputs: Loads validated bytes into the fabric and returns the declared count or I/O result.
-Invariants: Only validated descriptors and checksums may reach the mutable fabric.
-Failure behavior: Rejects malformed, missing, mismatched, or out-of-range data without publishing a partial load.
+"""Load one column from the fixed manifest and its selected shard file.
+
+The manifest path and both shard paths are read-only views. The global index is
+resolved from the manifest before any column bytes are copied into the mutable
+fabric. Filesystem errors, invalid descriptors, checksum mismatches, and an
+out-of-range column are propagated as `IoError`.
 """
 open verb load_column_from_shards(
     ins fabric: CorticalFabric[64],
@@ -60,151 +74,12 @@ open verb load_column_from_shards(
     erg loaded = read_to_bytes(path: abs manifest_path);
     return case dat loaded {
         Result.Err(error) => Err(error),
-        Result.Ok(bytes) => load_selected_shard_from_manifest(fabric: ins fabric, manifest_bytes: abs bytes, shard_zero_path: abs shard_zero_path, shard_one_path: abs shard_one_path, global_index: erg global_index),
+        Result.Ok(bytes) => load_selected_shard_from_manifest(
+            fabric: ins fabric,
+            manifest_bytes: abs bytes,
+            shard_zero_path: abs shard_zero_path,
+            shard_one_path: abs shard_one_path,
+            global_index: erg global_index
+        ),
     };
 }
-
-"""
-Purpose: Load a dynamic shard selected by a validated load plan.
-Inputs: The fabric destination plus manifest, shard paths, indexes, and load plan declared by the signature.
-Outputs: Loads validated bytes into the fabric and returns the declared count or I/O result.
-Invariants: Only validated descriptors and checksums may reach the mutable fabric.
-Failure behavior: Rejects malformed, missing, mismatched, or out-of-range data without publishing a partial load.
-"""
-verb load_dynamic_path_from_plan(
-    ins fabric: CorticalFabric[64],
-    abs shard_paths: Array[Path, 8],
-    erg shard_count: u32,
-    abs plan: DynamicLoadPlan,
-    erg destination_index: u32
-) -> Result[Int, IoError] {
-    if plan.shard_id >= shard_count || plan.shard_id >= 8u32 {
-        return Err(IoError.InvalidInput);
-    }
-    erg loaded = read_to_bytes(path: abs shard_paths[plan.shard_id as Usize]);
-    return case dat loaded {
-        Result.Err(error) => Err(error),
-        Result.Ok(shard) => {
-            erg selected_shard_id: u32 = plan.shard_id + 0u32;
-            erg selected_first: u32 = plan.first_column_index + 0u32;
-            erg selected_count: u32 = plan.column_count + 0u32;
-            erg loaded_result = load_dynamic_shard_bytes(fabric: ins fabric, bytes: dat shard, destination_index: erg destination_index, expected_shard_id: erg selected_shard_id, expected_first_column_index: erg selected_first, expected_column_count: erg selected_count);
-            return case dat loaded_result {
-                Result.Err(error) => Err(error),
-                Result.Ok(bytes_loaded) => Ok(bytes_loaded),
-            };
-        },
-    };
-}
-
-"""
-Purpose: Resolve and load one dynamic manifest descriptor into the fabric.
-Inputs: The fabric destination plus manifest, shard paths, indexes, and load plan declared by the signature.
-Outputs: Loads validated bytes into the fabric and returns the declared count or I/O result.
-Invariants: Only validated descriptors and checksums may reach the mutable fabric.
-Failure behavior: Rejects malformed, missing, mismatched, or out-of-range data without publishing a partial load.
-"""
-verb load_dynamic_manifest_descriptor(
-    ins fabric: CorticalFabric[64],
-    abs manifest: Buffer,
-    abs shard_paths: Array[Path, 8],
-    erg shard_count: u32,
-    erg descriptor_index: u32
-) -> Result[Int, IoError] {
-    if descriptor_index >= shard_count {
-        return Err(IoError.InvalidInput);
-    }
-    erg first_offset: u32 = BRAIN_MANIFEST_HEADER_BYTES as u32 + (descriptor_index * BRAIN_MANIFEST_DESCRIPTOR_BYTES as u32) + 4u32;
-    erg first_column: u32 = read_manifest_u32(input: abs manifest, offset: abs first_offset);
-    erg plan_result = plan_dynamic_load(manifest: abs manifest, global_index: erg first_column);
-    return case dat plan_result {
-        Result.Err(error) => Err(error),
-        Result.Ok(plan) => load_dynamic_path_from_plan(fabric: ins fabric, shard_paths: abs shard_paths, shard_count: erg shard_count, plan: abs plan, destination_index: erg first_column),
-    };
-}
-
-"""
-Purpose: Validate a dynamic manifest buffer and load every declared shard.
-Inputs: The fabric destination plus manifest, shard paths, indexes, and load plan declared by the signature.
-Outputs: Loads validated bytes into the fabric and returns the declared count or I/O result.
-Invariants: Only validated descriptors and checksums may reach the mutable fabric.
-Failure behavior: Rejects malformed, missing, mismatched, or out-of-range data without publishing a partial load.
-"""
-verb load_dynamic_manifest_buffer(
-    ins fabric: CorticalFabric[64],
-    dat manifest: Buffer,
-    abs shard_paths: Array[Path, 8],
-    erg shard_count: u32
-) -> Result[Int, IoError] {
-    if shard_count == 0u32 || shard_count > 8u32 { drop(manifest); return Err(IoError.InvalidInput); }
-    if !manifest_dynamic_bytes_are_valid(bytes: abs manifest) { drop(manifest); return Err(IoError.InvalidData); }
-    erg descriptor_index: u32 = 0u32;
-    loop {
-        if descriptor_index >= shard_count {
-            break;
-        }
-        erg result = load_dynamic_manifest_descriptor(fabric: ins fabric, manifest: abs manifest, shard_paths: abs shard_paths, shard_count: erg shard_count, descriptor_index: erg descriptor_index);
-        erg succeeded: Bool = case dat result {
-            Result.Err(_) => false,
-            Result.Ok(_) => true,
-        };
-        if !succeeded { drop(manifest); return Err(IoError.InvalidData); }
-        descriptor_index += 1u32;
-    }
-    drop(manifest);
-    return Ok(descriptor_index as Int);
-}
-
-"""
-Purpose: Read a dynamic manifest file and load all declared shards into the fabric.
-Inputs: The fabric destination plus manifest, shard paths, indexes, and load plan declared by the signature.
-Outputs: Loads validated bytes into the fabric and returns the declared count or I/O result.
-Invariants: Only validated descriptors and checksums may reach the mutable fabric.
-Failure behavior: Rejects malformed, missing, mismatched, or out-of-range data without publishing a partial load.
-"""
-open verb load_all_dynamic_shards(
-    ins fabric: CorticalFabric[64],
-    abs manifest_path: Path,
-    abs shard_paths: Array[Path, 8],
-    erg shard_count: u32
-) -> Result[Int, IoError] {
-    erg loaded = read_to_bytes(path: abs manifest_path);
-    return case dat loaded {
-        Result.Err(error) => Err(error),
-        Result.Ok(manifest) => load_dynamic_manifest_buffer(fabric: ins fabric, manifest: dat manifest, shard_paths: abs shard_paths, shard_count: erg shard_count),
-    };
-}
-
-"""
-Purpose: Resolve and load one column from the dynamic shard collection.
-Inputs: The fabric destination plus manifest, shard paths, indexes, and load plan declared by the signature.
-Outputs: Loads validated bytes into the fabric and returns the declared count or I/O result.
-Invariants: Only validated descriptors and checksums may reach the mutable fabric.
-Failure behavior: Rejects malformed, missing, mismatched, or out-of-range data without publishing a partial load.
-"""
-open verb load_column_from_dynamic_shards(
-    ins fabric: CorticalFabric[64],
-    abs manifest_path: Path,
-    abs shard_paths: Array[Path, 8],
-    erg shard_count: u32,
-    erg global_index: u32
-) -> Result[Int, IoError] {
-    if shard_count == 0u32 || shard_count > 8u32 {
-        return Err(IoError.InvalidInput);
-    }
-    erg loaded = read_to_bytes(path: abs manifest_path);
-    return case dat loaded {
-        Result.Err(error) => Err(error),
-        Result.Ok(manifest) => {
-            erg plan_result = plan_dynamic_load(manifest: abs manifest, global_index: erg global_index);
-            return case dat plan_result {
-                Result.Err(error) => Err(error),
-                Result.Ok(plan) => {
-                    erg destination_index: u32 = 0u32;
-                    return load_dynamic_path_from_plan(fabric: ins fabric, shard_paths: abs shard_paths, shard_count: erg shard_count, plan: abs plan, destination_index: erg destination_index);
-                },
-            };
-        },
-    };
-}
-

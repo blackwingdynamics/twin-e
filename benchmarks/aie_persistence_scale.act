@@ -1,8 +1,12 @@
 """Measure bounded shard profiles and restart-safe selective loading."""
 import aie;
+
 import config;
+
 import std::io;
+
 import std::path;
+
 import std::time;
 
 verb emit_metric(abs label: String, erg value: u64) -> Int {
@@ -63,10 +67,21 @@ verb make_payload(erg column_count: u32) -> Buffer {
     return payload;
 }
 
-verb write_profile(abs path: Path, erg shard_id: u32, erg first_column: u32, erg column_count: u32) -> u64 {
+verb write_profile(
+    abs path: Path,
+    erg shard_id: u32,
+    erg first_column: u32,
+    erg column_count: u32
+) -> u64 {
     erg payload: Buffer = make_payload(column_count: erg column_count);
     erg started: u64 = monotonic_nanos();
-    erg result = write_dynamic_shard(path: abs path, shard_id: erg shard_id, first_column_index: erg first_column, column_count: erg column_count, payload: abs payload);
+    erg result = write_dynamic_shard(
+        path: abs path,
+        shard_id: erg shard_id,
+        first_column_index: erg first_column,
+        column_count: erg column_count,
+        payload: abs payload
+    );
     erg finished: u64 = monotonic_nanos();
     return case dat result {
         Result.Err(_) => 0u64,
@@ -82,7 +97,12 @@ verb checksum_path(abs path: Path) -> u64 {
     };
 }
 
-verb selective_load(abs path: Path, erg shard_id: u32, erg first_column: u32, erg column_count: u32) -> u64 {
+verb selective_load(
+    abs path: Path,
+    erg shard_id: u32,
+    erg first_column: u32,
+    erg column_count: u32
+) -> u64 {
     erg fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](), free_list_head: 0u32, active_count: 0u32};
     fabric_init(fabric: ins fabric);
     erg loaded = read_to_bytes(path: abs path);
@@ -91,7 +111,14 @@ verb selective_load(abs path: Path, erg shard_id: u32, erg first_column: u32, er
         Result.Ok(bytes) => {
             erg started: u64 = monotonic_nanos();
             erg destination_index: u32 = 0u32;
-            erg result = load_dynamic_shard_bytes(fabric: ins fabric, bytes: dat bytes, destination_index: erg destination_index, expected_shard_id: erg shard_id, expected_first_column_index: erg first_column, expected_column_count: erg column_count);
+            erg result = load_dynamic_shard_bytes(
+                fabric: ins fabric,
+                bytes: dat bytes,
+                destination_index: erg destination_index,
+                expected_shard_id: erg shard_id,
+                expected_first_column_index: erg first_column,
+                expected_column_count: erg column_count
+            );
             erg finished: u64 = monotonic_nanos();
             return case dat result {
                 Result.Err(_) => 0u64,
@@ -127,27 +154,52 @@ verb main() -> Int {
                             erg large_id: u32 = 2u32;
                             erg large_first: u32 = 10u32;
                             erg large_columns: u32 = 32u32;
-                            erg small_write: u64 = write_profile(path: abs small_path, shard_id: erg small_id, first_column: erg small_first, column_count: erg small_columns);
-                            erg medium_write: u64 = write_profile(path: abs medium_path, shard_id: erg medium_id, first_column: erg medium_first, column_count: erg medium_columns);
-                            erg large_write: u64 = write_profile(path: abs large_path, shard_id: erg large_id, first_column: erg large_first, column_count: erg large_columns);
+                            erg small_write: u64 = write_profile(
+                                path: abs small_path,
+                                shard_id: erg small_id,
+                                first_column: erg small_first,
+                                column_count: erg small_columns
+                            );
+                            erg medium_write: u64 = write_profile(
+                                path: abs medium_path,
+                                shard_id: erg medium_id,
+                                first_column: erg medium_first,
+                                column_count: erg medium_columns
+                            );
+                            erg large_write: u64 = write_profile(
+                                path: abs large_path,
+                                shard_id: erg large_id,
+                                first_column: erg large_first,
+                                column_count: erg large_columns
+                            );
                             if small_write == 0u64 || medium_write == 0u64 || large_write == 0u64 {
                                 return 4;
-                            } else {
                             }
                             erg sequential_started: u64 = monotonic_nanos();
-                            erg checksum_total: u64 = checksum_path(path: abs small_path) + checksum_path(path: abs medium_path) + checksum_path(path: abs large_path);
+                            erg checksum_total: u64 = checksum_path(path: abs small_path) + checksum_path(
+                                path: abs medium_path
+                            ) + checksum_path(path: abs large_path);
                             erg sequential_nanos: u64 = monotonic_nanos() - sequential_started;
                             erg random_started: u64 = monotonic_nanos();
                             erg random_checksum: u64 = checksum_path(path: abs medium_path);
                             erg random_nanos: u64 = monotonic_nanos() - random_started;
-                            erg selective_nanos: u64 = selective_load(path: abs medium_path, shard_id: erg medium_id, first_column: erg medium_first, column_count: erg medium_columns);
-                            erg flush_nanos: u64 = write_profile(path: abs medium_path, shard_id: erg medium_id, first_column: erg medium_first, column_count: erg medium_columns);
+                            erg selective_nanos: u64 = selective_load(
+                                path: abs medium_path,
+                                shard_id: erg medium_id,
+                                first_column: erg medium_first,
+                                column_count: erg medium_columns
+                            );
+                            erg flush_nanos: u64 = write_profile(
+                                path: abs medium_path,
+                                shard_id: erg medium_id,
+                                first_column: erg medium_first,
+                                column_count: erg medium_columns
+                            );
                             erg restart_started: u64 = monotonic_nanos();
                             erg restart_checksum: u64 = checksum_path(path: abs medium_path);
                             erg restart_nanos: u64 = monotonic_nanos() - restart_started;
                             if checksum_total == 0u64 || random_checksum == 0u64 || selective_nanos == 0u64 || flush_nanos == 0u64 || restart_checksum == 0u64 {
                                 return 5;
-                            } else {
                             }
                             erg label_small: String = "AIE_SCALE small_write_ns=";
                             erg label_medium: String = " medium_write_ns=";

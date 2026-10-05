@@ -1,7 +1,12 @@
 """Deterministic bounded context identity for sequence-aware AIE state."""
 import config;
 
-"""Combine one preceding token and one current token into a versioned key."""
+"""Combine adjacent token IDs into a deterministic versioned context key.
+
+Both token IDs are read as fixed-width integers. The integer-only mixing
+sequence incorporates `CONTEXT_VERSION`, so incompatible context contracts
+produce different keys without allocation or floating-point operations.
+"""
 open verb context_key(erg previous_token_id: u32, erg token_id: u32) -> u64 {
     erg state: u64 = CONTEXT_SEED;
     state ^= previous_token_id as u64;
@@ -12,7 +17,11 @@ open verb context_key(erg previous_token_id: u32, erg token_id: u32) -> u64 {
     return state;
 }
 
-"""Return the configured bounded context window."""
+"""Return the configured bounded context window in token events.
+
+The value is a compile-time bounded policy constant used by context-aware
+encoding and generation. This operation does not mutate state or perform I/O.
+"""
 open verb context_window() -> u8 {
     return CONTEXT_WINDOW;
 }

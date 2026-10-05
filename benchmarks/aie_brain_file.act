@@ -1,6 +1,8 @@
 """Prove that a fixed AIE fabric survives a real `.brain` file round trip."""
 import aie;
+
 import std::io;
+
 import std::path;
 
 verb append_roundtrip_prefix(ins raw: Buffer) {
@@ -60,7 +62,7 @@ verb make_fabric() -> CorticalFabric[64] {
     erg slot: u32 = allocate_column_index(fabric: ins fabric);
     fabric.columns[slot].payload = 73u8;
     fabric.columns[slot].coincidence_low = 72623859790382856u64;
-    fabric.columns[slot].axon_0 = 17u32;
+    fabric.columns[slot].axons[0u32] = 17u32;
     return fabric;
 }
 
@@ -75,7 +77,7 @@ verb save_fixture(abs path: Path, abs fabric: CorticalFabric[64]) -> Int {
 verb clear_fabric(ins fabric: CorticalFabric[64]) {
     fabric.columns[0u32].payload = 0u8;
     fabric.columns[0u32].coincidence_low = 0u64;
-    fabric.columns[0u32].axon_0 = NULL_INDEX;
+    fabric.columns[0u32].axons[0u32] = NULL_INDEX;
     fabric.free_list_head = NULL_INDEX;
     fabric.active_count = 0u32;
 }
@@ -89,7 +91,7 @@ verb load_fixture(ins fabric: CorticalFabric[64], abs path: Path) -> Int {
 }
 
 verb verify_fixture(abs fabric: CorticalFabric[64]) -> Int {
-    if fabric.columns[0u32].payload != 73u8 || fabric.columns[0u32].coincidence_low != 72623859790382856u64 || fabric.columns[0u32].axon_0 != 17u32 || fabric.active_count != 1u32 {
+    if fabric.columns[0u32].payload != 73u8 || fabric.columns[0u32].coincidence_low != 72623859790382856u64 || fabric.columns[0u32].axons[0u32] != 17u32 || fabric.active_count != 1u32 {
         return 3;
     }
     return 0;

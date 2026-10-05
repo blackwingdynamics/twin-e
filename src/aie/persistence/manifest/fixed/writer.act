@@ -1,24 +1,18 @@
+"""Append fixed layout versions and reserved header fields.
+
+The output buffer is the exclusive mutable destination. These fields complete
+the fixed header's schema metadata after its identity and count fields have
+been written.
 """
-Purpose: Append the fixed manifest header using the configured schema and version contract.
-Inputs: The typed value arguments declared by the signature and the destination Buffer.
-Outputs: Extends the destination Buffer in canonical little-endian order.
-Invariants: The destination remains the only mutable owner and field ordering is preserved.
-Failure behavior: This low-level encoder has no error result; callers must provide valid typed values and capacity.
-"""
-verb append_fixed_manifest_header(
-    ins output: Buffer,
-    erg generation: u64,
-    erg active_count: u32
-) {
-    erg magic: u32 = BRAIN_MANIFEST_MAGIC; erg version: u16 = BRAIN_MANIFEST_VERSION; erg header_bytes: u16 = BRAIN_MANIFEST_HEADER_BYTES; erg manifest_bytes: u32 = BRAIN_MANIFEST_FILE_BYTES; erg total_columns: u32 = 64u32; erg shard_count: u32 = BRAIN_MANIFEST_SHARD_COUNT as u32; erg column_stride: u16 = BRAIN_SHARD_COLUMN_STRIDE_BYTES; erg binding_stride: u16 = BRAIN_SHARD_BINDING_STRIDE_BYTES; erg tokenizer_version: u16 = TOKENIZER_VERSION; erg context_version: u16 = CONTEXT_VERSION; erg code_version: u16 = TOKEN_CODE_VERSION; erg zero_u16: u16 = 0u16; erg zero_u32: u32 = 0u32; erg zero_u64: u64 = 0u64;
-    append_manifest_u32(output: ins output, value: abs magic);
-    append_manifest_u16(output: ins output, value: abs version);
-    append_manifest_u16(output: ins output, value: abs header_bytes);
-    append_manifest_u32(output: ins output, value: abs manifest_bytes);
-    append_manifest_u64(output: ins output, value: abs generation);
-    append_manifest_u32(output: ins output, value: abs total_columns);
-    append_manifest_u32(output: ins output, value: abs active_count);
-    append_manifest_u32(output: ins output, value: abs shard_count);
+verb append_fixed_manifest_header_layout(ins output: Buffer) {
+    erg column_stride: u16 = BRAIN_SHARD_COLUMN_STRIDE_BYTES;
+    erg binding_stride: u16 = BRAIN_SHARD_BINDING_STRIDE_BYTES;
+    erg tokenizer_version: u16 = TOKENIZER_VERSION;
+    erg context_version: u16 = CONTEXT_VERSION;
+    erg code_version: u16 = TOKEN_CODE_VERSION;
+    erg zero_u16: u16 = 0u16;
+    erg zero_u64: u64 = 0u64;
+    erg zero_u32: u32 = 0u32;
     append_manifest_u16(output: ins output, value: abs column_stride);
     append_manifest_u16(output: ins output, value: abs binding_stride);
     append_manifest_u16(output: ins output, value: abs tokenizer_version);
@@ -31,12 +25,92 @@ verb append_fixed_manifest_header(
     append_manifest_u32(output: ins output, value: abs zero_u32);
 }
 
+"""Append the fixed manifest identity and count fields.
+
+The output buffer is the exclusive mutable destination. Generation and active
+count are supplied by the caller; schema constants provide the fixed file
+length, shard count, layout strides, and version fields. This encoder has no
+error result, so its caller must reserve the complete manifest capacity first.
 """
-Purpose: Append one fixed shard descriptor with its payload and checksum metadata.
-Inputs: The typed value arguments declared by the signature and the destination Buffer.
-Outputs: Extends the destination Buffer in canonical little-endian order.
-Invariants: The destination remains the only mutable owner and field ordering is preserved.
-Failure behavior: This low-level encoder has no error result; callers must provide valid typed values and capacity.
+verb append_fixed_manifest_header(
+    ins output: Buffer,
+    erg generation: u64,
+    erg active_count: u32
+) {
+    erg magic: u32 = BRAIN_MANIFEST_MAGIC;
+    erg version: u16 = BRAIN_MANIFEST_VERSION;
+    erg header_bytes: u16 = BRAIN_MANIFEST_HEADER_BYTES;
+    erg manifest_bytes: u32 = BRAIN_MANIFEST_FILE_BYTES;
+    erg total_columns: u32 = 64u32;
+    erg shard_count: u32 = BRAIN_MANIFEST_SHARD_COUNT as u32;
+    append_manifest_u32(output: ins output, value: abs magic);
+    append_manifest_u16(output: ins output, value: abs version);
+    append_manifest_u16(output: ins output, value: abs header_bytes);
+    append_manifest_u32(output: ins output, value: abs manifest_bytes);
+    append_manifest_u64(output: ins output, value: abs generation);
+    append_manifest_u32(output: ins output, value: abs total_columns);
+    append_manifest_u32(output: ins output, value: abs active_count);
+    append_manifest_u32(output: ins output, value: abs shard_count);
+    append_fixed_manifest_header_layout(output: ins output);
+}
+
+"""Append both fixed shard descriptors and their payload checksums."""
+verb append_fixed_manifest_descriptors(
+    ins output: Buffer,
+    abs shard_zero_checksum: u64,
+    abs shard_one_checksum: u64
+) {
+    erg shard_zero: u32 = 0u32;
+    erg shard_one: u32 = 1u32;
+    erg first_zero: u32 = 0u32;
+    erg first_one: u32 = 32u32;
+    append_fixed_manifest_descriptor(
+        output: ins output,
+        shard_id: erg shard_zero,
+        first_column: erg first_zero,
+        checksum: abs shard_zero_checksum
+    );
+    append_fixed_manifest_descriptor(
+        output: ins output,
+        shard_id: erg shard_one,
+        first_column: erg first_one,
+        checksum: abs shard_one_checksum
+    );
+}
+
+"""Build a complete fixed manifest and write its checksum into the buffer."""
+verb build_fixed_manifest_output(
+    ins output: Buffer,
+    erg generation: u64,
+    erg active_count: u32,
+    abs shard_zero_checksum: u64,
+    abs shard_one_checksum: u64
+) {
+    append_fixed_manifest_header(
+        output: ins output,
+        generation: erg generation,
+        active_count: erg active_count
+    );
+    append_fixed_manifest_descriptors(
+        output: ins output,
+        shard_zero_checksum: abs shard_zero_checksum,
+        shard_one_checksum: abs shard_one_checksum
+    );
+    erg checksum: u64 = manifest_checksum(input: abs output);
+    erg checksum_offset: u32 = 44u32;
+    write_manifest_u64(
+        output: ins output,
+        value: abs checksum,
+        offset: abs checksum_offset
+    );
+}
+
+"""Append one fixed shard descriptor in canonical little-endian order.
+
+The output buffer is the exclusive mutable destination. The shard id, first
+column, fixed column count, payload geometry, checksum, and active state are
+encoded in the descriptor contract. The caller must provide a reserved buffer;
+validation of the resulting descriptor is performed by the manifest reader.
 """
 verb append_fixed_manifest_descriptor(
     ins output: Buffer,
@@ -44,7 +118,11 @@ verb append_fixed_manifest_descriptor(
     erg first_column: u32,
     abs checksum: u64
 ) {
-    erg column_count: u32 = BRAIN_SHARD_COLUMN_COUNT as u32; erg payload_offset: u32 = BRAIN_SHARD_HEADER_BYTES as u32; erg payload_bytes: u32 = BRAIN_SHARD_COLUMN_PAYLOAD_BYTES; erg zero: u32 = 0u32; erg state: u32 = 1u32;
+    erg column_count: u32 = BRAIN_SHARD_COLUMN_COUNT as u32;
+    erg payload_offset: u32 = BRAIN_SHARD_HEADER_BYTES as u32;
+    erg payload_bytes: u32 = BRAIN_SHARD_COLUMN_PAYLOAD_BYTES;
+    erg zero: u32 = 0u32;
+    erg state: u32 = 1u32;
     append_manifest_u32(output: ins output, value: abs shard_id);
     append_manifest_u32(output: ins output, value: abs first_column);
     append_manifest_u32(output: ins output, value: abs column_count);
@@ -56,12 +134,13 @@ verb append_fixed_manifest_descriptor(
     append_manifest_u32(output: ins output, value: abs state);
 }
 
-"""
-Purpose: Serialize and write the two-shard fixed manifest atomically through the filesystem facade.
-Inputs: The target Path and typed persistence state declared by the signature.
-Outputs: Writes or publishes the canonical position-independent representation and returns its I/O result.
-Invariants: The serialized layout, checksum, version, and generation contract remain consistent.
-Failure behavior: Rejects invalid state or failed I/O through the declared IoError result.
+"""Serialize and write the canonical two-shard fixed manifest.
+
+The path and shard checksums are immutable inputs. The function reserves the
+exact fixed manifest size, writes the header and both descriptors, computes the
+manifest checksum after all fields are present, and stores that checksum before
+delegating to the filesystem facade. The returned `IoError` reports write
+failure; the layout and version contract are fixed by configuration constants.
 """
 open verb write_manifest(
     abs path: Path,
@@ -73,12 +152,12 @@ open verb write_manifest(
     erg output: Buffer = Buffer[0];
     erg capacity: Int = BRAIN_MANIFEST_FILE_BYTES as Int;
     erg reserved = reserve(buffer: ins output, capacity: erg capacity);
-    append_fixed_manifest_header(output: ins output, generation: erg generation, active_count: erg active_count);
-    erg shard_zero: u32 = 0u32; erg shard_one: u32 = 1u32; erg first_zero: u32 = 0u32; erg first_one: u32 = 32u32;
-    append_fixed_manifest_descriptor(output: ins output, shard_id: erg shard_zero, first_column: erg first_zero, checksum: abs shard_zero_checksum);
-    append_fixed_manifest_descriptor(output: ins output, shard_id: erg shard_one, first_column: erg first_one, checksum: abs shard_one_checksum);
-    erg checksum: u64 = manifest_checksum(input: abs output);
-    erg checksum_offset: u32 = 44u32;
-    write_manifest_u64(output: ins output, value: abs checksum, offset: abs checksum_offset);
+    build_fixed_manifest_output(
+        output: ins output,
+        generation: erg generation,
+        active_count: erg active_count,
+        shard_zero_checksum: abs shard_zero_checksum,
+        shard_one_checksum: abs shard_one_checksum
+    );
     return write_file(path: abs path, contents: abs output);
 }

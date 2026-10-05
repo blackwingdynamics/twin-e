@@ -1,0 +1,224 @@
+"""Dynamic manifest extension and persistence operations."""
+import config;
+
+import std::fs;
+
+import std::io;
+
+open io;
+
+struct ManifestExtensionState {
+    erg old_length: u32,
+    erg old_generation: u64,
+    erg old_total: u32,
+    erg old_count: u32,
+}
+
+struct ManifestExtensionRequest {
+    erg old_length: u32,
+    erg old_generation: u64,
+    erg old_total: u32,
+    erg old_count: u32,
+    erg new_column_count: u32,
+    erg new_checksum: u64,
+    erg active_count: u32,
+    erg free_list_head: u32,
+}
+
+verb read_manifest_extension_state(abs bytes: Buffer) -> ManifestExtensionState {
+    erg old_length_result = buffer_size(buffer: abs bytes);
+    erg old_length: Int = case dat old_length_result {
+        Result.Ok(value) => value,
+        Result.Err(_) => -1,
+    };
+    erg generation_offset: u32 = 12u32;
+    erg total_offset: u32 = 20u32;
+    erg count_offset: u32 = 28u32;
+    return ManifestExtensionState {old_length: old_length as u32, old_generation: read_manifest_u64(
+        input: abs bytes,
+        offset: abs generation_offset
+    ), old_total: read_manifest_u32(input: abs bytes, offset: abs total_offset), old_count: read_manifest_u32(
+        input: abs bytes,
+        offset: abs count_offset
+    )};
+}
+
+verb build_manifest_extension_request(
+    abs state: ManifestExtensionState,
+    erg new_column_count: u32,
+    erg new_checksum: u64,
+    erg active_count: u32,
+    erg free_list_head: u32
+) -> ManifestExtensionRequest {
+    return ManifestExtensionRequest {old_length: state.old_length, old_generation: state.old_generation, old_total: state.old_total, old_count: state.old_count, new_column_count: new_column_count, new_checksum: new_checksum, active_count: active_count, free_list_head: free_list_head};
+}
+
+"""
+Purpose: Extend a validated dynamic manifest with one new shard descriptor.
+Inputs: The typed values declared by the signature.
+Outputs: Returns or updates the value declared by the signature.
+Invariants: The operation preserves the manifest persistence and ownership contracts.
+Failure behavior: Uses the declared typed error behavior for invalid data or I/O failure.
+"""
+verb extend_manifest_bytes(
+    dat bytes: Buffer,
+    abs path: Path,
+    erg new_column_count: u32,
+    erg new_checksum: u64,
+    erg active_count: u32,
+    erg free_list_head: u32
+) -> Result[Int, IoError] {
+    if !manifest_dynamic_bytes_are_valid(bytes: abs bytes) {
+        drop(bytes);
+        return Err(IoError.InvalidData);
+    }
+    erg state: ManifestExtensionState = read_manifest_extension_state(bytes: abs bytes);
+    if new_column_count == 0u32 || state.old_count >= BRAIN_MANIFEST_DYNAMIC_MAX_SHARDS || state.old_total > 4294967295u32 - new_column_count {
+        drop(bytes);
+        return Err(IoError.InvalidInput);
+    }
+    erg request = build_manifest_extension_request(
+        state: abs state,
+        new_column_count: erg new_column_count,
+        new_checksum: erg new_checksum,
+        active_count: erg active_count,
+        free_list_head: erg free_list_head
+    );
+    return persist_manifest_extension(
+        bytes: dat bytes,
+        path: abs path,
+        request: abs request
+    );
+}
+
+verb persist_manifest_extension(
+    dat bytes: Buffer,
+    abs path: Path,
+    abs request: ManifestExtensionRequest
+) -> Result[Int, IoError] {
+    erg new_length: u32 = request.old_length + BRAIN_MANIFEST_DESCRIPTOR_BYTES as u32;
+    if new_length > BRAIN_MANIFEST_DYNAMIC_MAX_BYTES {
+        drop(bytes);
+        return Err(IoError.InvalidInput);
+    }
+    erg prepared: Buffer = prepare_manifest_extension(
+        bytes: dat bytes,
+        new_length: erg new_length,
+        request: abs request
+    );
+    return finalize_manifest_extension(
+        bytes: dat prepared,
+        path: abs path,
+        new_length: erg new_length
+    );
+}
+
+verb prepare_manifest_extension(
+    dat bytes: Buffer,
+    erg new_length: u32,
+    abs request: ManifestExtensionRequest
+) -> Buffer {
+    erg capacity: Int = new_length as Int;
+    erg reserved = reserve(buffer: ins bytes, capacity: erg capacity);
+    append_manifest_extension_payload(
+        bytes: ins bytes,
+        new_length: erg new_length,
+        request: abs request
+    );
+    return bytes;
+}
+
+verb append_manifest_extension_payload(
+    ins bytes: Buffer,
+    erg new_length: u32,
+    abs request: ManifestExtensionRequest
+) {
+    append_manifest_extension_descriptor(bytes: ins bytes, request: abs request);
+    update_manifest_extension_header(
+        bytes: ins bytes,
+        new_length: erg new_length,
+        request: abs request
+    );
+}
+
+verb append_manifest_extension_descriptor(
+    ins bytes: Buffer,
+    abs request: ManifestExtensionRequest
+) {
+    erg shard_id: u32 = request.old_count;
+    erg first_column: u32 = request.old_total;
+    erg column_count: u32 = request.new_column_count;
+    erg new_checksum: u64 = request.new_checksum;
+    append_extended_manifest_descriptor(
+        bytes: ins bytes,
+        shard_id: erg shard_id,
+        first_column: erg first_column,
+        column_count: erg column_count,
+        new_checksum: erg new_checksum
+    );
+}
+
+verb update_manifest_extension_header(
+    ins bytes: Buffer,
+    erg new_length: u32,
+    abs request: ManifestExtensionRequest
+) {
+    erg generation: u64 = request.old_generation + 1u64;
+    erg new_total: u32 = request.old_total + request.new_column_count;
+    erg active_count: u32 = request.active_count;
+    erg new_shard_count: u32 = request.old_count + 1u32;
+    erg free_list_head: u32 = request.free_list_head;
+    update_extended_manifest_header(
+        bytes: ins bytes,
+        new_length: erg new_length,
+        generation: erg generation,
+        new_total: erg new_total,
+        active_count: erg active_count,
+        new_shard_count: erg new_shard_count,
+        free_list_head: erg free_list_head
+    );
+}
+
+verb finalize_manifest_extension(
+    dat bytes: Buffer,
+    abs path: Path,
+    erg new_length: u32
+) -> Result[Int, IoError] {
+    erg checksum: u64 = manifest_dynamic_checksum(input: abs bytes, length: erg new_length);
+    erg checksum_offset: u32 = 44u32;
+    write_manifest_u64(
+        output: ins bytes,
+        value: abs checksum,
+        offset: abs checksum_offset
+    );
+    return write_file(path: abs path, contents: abs bytes);
+}
+
+"""Append one shard descriptor to an existing dynamic manifest on disk.
+
+The manifest path is an immutable view. The current file is read into an owned
+buffer, validated, extended with the new descriptor, assigned the next
+generation and updated counts, checksummed, and written back through the I/O
+facade. Invalid counts, oversized output, malformed input, and filesystem
+failures return `IoError` without publishing a new manifest.
+"""
+open verb append_manifest_shard(
+    abs path: Path,
+    erg new_column_count: u32,
+    erg new_checksum: u64,
+    erg active_count: u32,
+    erg free_list_head: u32
+) -> Result[Int, IoError] {
+    erg loaded = read_to_bytes(path: abs path);
+    return case dat loaded {
+        Result.Err(error) => Err(error),
+        Result.Ok(bytes) => extend_manifest_bytes(
+            bytes: dat bytes,
+            path: abs path,
+            new_column_count: erg new_column_count,
+            new_checksum: erg new_checksum,
+            active_count: erg active_count,
+            free_list_head: erg free_list_head
+        ),
+    };
+}

@@ -1,0 +1,255 @@
+"""Dynamic manifest loading operations.
+
+This module owns the dynamic shard loading path separately from fixed manifest
+loading. The public manifest facade re-exports its entry points unchanged.
+"""
+import config;
+
+import std::fs;
+
+import std::io;
+
+open io;
+
+"""Load the dynamic shard selected by an already validated load plan.
+
+The plan and shard paths are immutable views; the fabric is the only mutable
+destination. The selected shard must be within the caller's declared shard
+count and the fixed path-array bound. Loaded bytes are checked against the
+plan's shard id, first column, column count, and checksum before publication.
+"""
+verb load_dynamic_path_from_plan(
+    ins fabric: CorticalFabric[64],
+    abs shard_paths: Array[Path, 8],
+    erg shard_count: u32,
+    abs plan: DynamicLoadPlan,
+    erg destination_index: u32
+) -> Result[Int, IoError] {
+    if plan.shard_id >= shard_count || plan.shard_id >= BRAIN_MANIFEST_DYNAMIC_MAX_SHARDS {
+        return Err(IoError.InvalidInput);
+    }
+    erg loaded = read_to_bytes(path: abs shard_paths[plan.shard_id as Usize]);
+    return case dat loaded {
+        Result.Err(error) => Err(error),
+        Result.Ok(shard) => load_dynamic_shard_from_plan(
+            fabric: ins fabric,
+            shard: dat shard,
+            plan: abs plan,
+            destination_index: erg destination_index
+        ),
+    };
+}
+
+"""Validate one loaded shard and copy its checked columns into the fabric."""
+verb load_dynamic_shard_from_plan(
+    ins fabric: CorticalFabric[64],
+    dat shard: Buffer,
+    abs plan: DynamicLoadPlan,
+    erg destination_index: u32
+) -> Result[Int, IoError] {
+    erg selected_shard_id: u32 = plan.shard_id + 0u32;
+    erg selected_first: u32 = plan.first_column_index + 0u32;
+    erg selected_count: u32 = plan.column_count + 0u32;
+    erg loaded_result = load_dynamic_shard_bytes(
+        fabric: ins fabric,
+        bytes: dat shard,
+        destination_index: erg destination_index,
+        expected_shard_id: erg selected_shard_id,
+        expected_first_column_index: erg selected_first,
+        expected_column_count: erg selected_count
+    );
+    return case dat loaded_result {
+        Result.Err(error) => Err(error),
+        Result.Ok(bytes_loaded) => Ok(bytes_loaded),
+    };
+}
+
+"""Resolve one dynamic manifest descriptor and load its shard into the fabric.
+
+The manifest and shard paths remain immutable. The descriptor index is checked
+against the declared shard count, then its first column is used to create a
+load plan. The plan carries the expected identity and range into the shard
+loader, so malformed metadata or mismatched payloads cannot be accepted.
+"""
+verb load_dynamic_manifest_descriptor(
+    ins fabric: CorticalFabric[64],
+    abs manifest: Buffer,
+    abs shard_paths: Array[Path, 8],
+    erg shard_count: u32,
+    erg descriptor_index: u32
+) -> Result[Int, IoError] {
+    if descriptor_index >= shard_count {
+        return Err(IoError.InvalidInput);
+    }
+    erg first_offset: u32 = BRAIN_MANIFEST_HEADER_BYTES as u32 + (descriptor_index * BRAIN_MANIFEST_DESCRIPTOR_BYTES as u32) + 4u32;
+    erg first_column: u32 = read_manifest_u32(input: abs manifest, offset: abs first_offset);
+    erg plan_result = plan_dynamic_load(manifest: abs manifest, global_index: erg first_column);
+    return case dat plan_result {
+        Result.Err(error) => Err(error),
+        Result.Ok(plan) => load_dynamic_path_from_plan(
+            fabric: ins fabric,
+            shard_paths: abs shard_paths,
+            shard_count: erg shard_count,
+            plan: abs plan,
+            destination_index: erg first_column
+        ),
+    };
+}
+
+"""Validate a dynamic manifest and load every declared shard in descriptor order.
+
+The manifest owns its input through `dat` and is released on every return
+path. The manifest is validated before the loop starts; each descriptor then
+loads one checked shard into the fabric. A failed descriptor aborts the
+operation and returns an error rather than reporting a complete load.
+"""
+verb load_dynamic_manifest_buffer(
+    ins fabric: CorticalFabric[64],
+    dat manifest: Buffer,
+    abs shard_paths: Array[Path, 8],
+    erg shard_count: u32
+) -> Result[Int, IoError] {
+    if shard_count == 0u32 || shard_count > BRAIN_MANIFEST_DYNAMIC_MAX_SHARDS {
+        drop(manifest);
+        return Err(IoError.InvalidInput);
+    }
+    if !manifest_dynamic_bytes_are_valid(bytes: abs manifest) {
+        drop(manifest);
+        return Err(IoError.InvalidData);
+    }
+    return load_dynamic_manifest_descriptors(
+        fabric: ins fabric,
+        manifest: dat manifest,
+        shard_paths: abs shard_paths,
+        shard_count: erg shard_count
+    );
+}
+
+"""Load each validated dynamic manifest descriptor in stable order."""
+verb load_dynamic_manifest_descriptors(
+    ins fabric: CorticalFabric[64],
+    dat manifest: Buffer,
+    abs shard_paths: Array[Path, 8],
+    erg shard_count: u32
+) -> Result[Int, IoError] {
+    erg descriptor_index: u32 = 0u32;
+    loop {
+        if descriptor_index >= shard_count {
+            break;
+        }
+        erg succeeded: Bool = load_dynamic_manifest_descriptor_succeeded(
+            fabric: ins fabric,
+            manifest: abs manifest,
+            shard_paths: abs shard_paths,
+            shard_count: erg shard_count,
+            descriptor_index: erg descriptor_index
+        );
+        if !succeeded {
+            drop(manifest);
+            return Err(IoError.InvalidData);
+        }
+        descriptor_index += 1u32;
+    }
+    drop(manifest);
+    return Ok(descriptor_index as Int);
+}
+
+"""Convert one descriptor load result into the manifest sweep predicate."""
+verb load_dynamic_manifest_descriptor_succeeded(
+    ins fabric: CorticalFabric[64],
+    abs manifest: Buffer,
+    abs shard_paths: Array[Path, 8],
+    erg shard_count: u32,
+    erg descriptor_index: u32
+) -> Bool {
+    erg result = load_dynamic_manifest_descriptor(
+        fabric: ins fabric,
+        manifest: abs manifest,
+        shard_paths: abs shard_paths,
+        shard_count: erg shard_count,
+        descriptor_index: erg descriptor_index
+    );
+    return case dat result {
+        Result.Err(_) => false,
+        Result.Ok(_) => true,
+    };
+}
+
+"""Read a dynamic manifest file and load all of its declared shard files.
+
+The manifest path and shard paths are immutable inputs, while the fabric is
+borrowed mutably during validated shard loading. File read failures are
+returned directly; malformed headers, descriptors, ranges, or checksums are
+rejected before the operation reports success.
+"""
+open verb load_all_dynamic_shards(
+    ins fabric: CorticalFabric[64],
+    abs manifest_path: Path,
+    abs shard_paths: Array[Path, 8],
+    erg shard_count: u32
+) -> Result[Int, IoError] {
+    erg loaded = read_to_bytes(path: abs manifest_path);
+    return case dat loaded {
+        Result.Err(error) => Err(error),
+        Result.Ok(manifest) => load_dynamic_manifest_buffer(
+            fabric: ins fabric,
+            manifest: dat manifest,
+            shard_paths: abs shard_paths,
+            shard_count: erg shard_count
+        ),
+    };
+}
+
+"""Resolve one global column in a dynamic manifest and load its owning shard.
+
+The manifest is read through an immutable path view and the fabric receives an
+exclusive loan only for the selected shard copy. The resolved plan maps the
+global index to the shard's local destination slot. Invalid shard counts,
+manifest data, file contents, or column ranges return `IoError`.
+"""
+open verb load_column_from_dynamic_shards(
+    ins fabric: CorticalFabric[64],
+    abs manifest_path: Path,
+    abs shard_paths: Array[Path, 8],
+    erg shard_count: u32,
+    erg global_index: u32
+) -> Result[Int, IoError] {
+    if shard_count == 0u32 || shard_count > BRAIN_MANIFEST_DYNAMIC_MAX_SHARDS {
+        return Err(IoError.InvalidInput);
+    }
+    erg loaded = read_to_bytes(path: abs manifest_path);
+    return case dat loaded {
+        Result.Err(error) => Err(error),
+        Result.Ok(manifest) => load_dynamic_column_from_manifest(
+            fabric: ins fabric,
+            manifest: abs manifest,
+            shard_paths: abs shard_paths,
+            shard_count: erg shard_count,
+            global_index: erg global_index
+        ),
+    };
+}
+
+"""Resolve one global index from an already loaded dynamic manifest."""
+verb load_dynamic_column_from_manifest(
+    ins fabric: CorticalFabric[64],
+    abs manifest: Buffer,
+    abs shard_paths: Array[Path, 8],
+    erg shard_count: u32,
+    erg global_index: u32
+) -> Result[Int, IoError] {
+    erg plan_result = plan_dynamic_load(manifest: abs manifest, global_index: erg global_index);
+    return case dat plan_result {
+        Result.Err(error) => Err(error),
+        Result.Ok(plan) => {
+            erg destination_index: u32 = 0u32;
+            return load_dynamic_path_from_plan(
+                fabric: ins fabric,
+                shard_paths: abs shard_paths,
+                shard_count: erg shard_count,
+                plan: abs plan,
+                destination_index: erg destination_index
+            );
+        },
+    };
+}

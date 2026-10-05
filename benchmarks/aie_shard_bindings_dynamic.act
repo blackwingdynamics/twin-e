@@ -1,6 +1,8 @@
 """Verify dynamic shard column and TokenBinding payload persistence."""
 import aie;
+
 import std::io;
+
 import std::path;
 
 meta limitless("verb")
@@ -52,8 +54,16 @@ verb write_u64(ins output: Buffer, abs offset: u32, abs value: u64) {
     erg low: u32 = (value & 4294967295u64) as u32;
     erg high: u32 = (value / 4294967296u64) as u32;
     erg high_offset: u32 = offset + 4u32;
-    write_u32(output: ins output, offset: abs offset, value: abs low);
-    write_u32(output: ins output, offset: abs high_offset, value: abs high);
+    write_u32(
+        output: ins output,
+        offset: abs offset,
+        value: abs low
+    );
+    write_u32(
+        output: ins output,
+        offset: abs high_offset,
+        value: abs high
+    );
 }
 
 verb make_payload() -> Buffer {
@@ -87,8 +97,16 @@ verb make_bindings() -> Buffer {
     erg flags: u8 = BINDING_ACTIVE_FLAG;
     erg token_offset: u32 = 0u32;
     erg context_offset: u32 = 4u32;
-    write_u32(output: ins bindings, offset: abs token_offset, value: abs token_id);
-    write_u64(output: ins bindings, offset: abs context_offset, value: abs context_key);
+    write_u32(
+        output: ins bindings,
+        offset: abs token_offset,
+        value: abs token_id
+    );
+    write_u64(
+        output: ins bindings,
+        offset: abs context_offset,
+        value: abs context_key
+    );
     bindings[12u32] = version as u8;
     bindings[14u32] = context_version as u8;
     bindings[16u32] = code_version as u8;
@@ -135,25 +153,73 @@ verb binding_manifest_descriptor(abs checksum: u64) -> Buffer {
     erg offset_binding_bytes: u32 = 24u32;
     erg offset_checksum: u32 = 28u32;
     erg offset_state: u32 = 36u32;
-    write_u32(output: ins descriptor, offset: abs offset_id, value: abs shard_id);
-    write_u32(output: ins descriptor, offset: abs offset_first, value: abs first_column);
-    write_u32(output: ins descriptor, offset: abs offset_count, value: abs column_count);
-    write_u32(output: ins descriptor, offset: abs offset_payload, value: abs payload_offset);
-    write_u32(output: ins descriptor, offset: abs offset_payload_bytes, value: abs payload_bytes);
-    write_u32(output: ins descriptor, offset: abs offset_binding, value: abs binding_offset);
-    write_u32(output: ins descriptor, offset: abs offset_binding_bytes, value: abs binding_bytes);
-    write_u64(output: ins descriptor, offset: abs offset_checksum, value: abs checksum);
-    write_u32(output: ins descriptor, offset: abs offset_state, value: abs state);
+    write_u32(
+        output: ins descriptor,
+        offset: abs offset_id,
+        value: abs shard_id
+    );
+    write_u32(
+        output: ins descriptor,
+        offset: abs offset_first,
+        value: abs first_column
+    );
+    write_u32(
+        output: ins descriptor,
+        offset: abs offset_count,
+        value: abs column_count
+    );
+    write_u32(
+        output: ins descriptor,
+        offset: abs offset_payload,
+        value: abs payload_offset
+    );
+    write_u32(
+        output: ins descriptor,
+        offset: abs offset_payload_bytes,
+        value: abs payload_bytes
+    );
+    write_u32(
+        output: ins descriptor,
+        offset: abs offset_binding,
+        value: abs binding_offset
+    );
+    write_u32(
+        output: ins descriptor,
+        offset: abs offset_binding_bytes,
+        value: abs binding_bytes
+    );
+    write_u64(
+        output: ins descriptor,
+        offset: abs offset_checksum,
+        value: abs checksum
+    );
+    write_u32(
+        output: ins descriptor,
+        offset: abs offset_state,
+        value: abs state
+    );
     return descriptor;
 }
 
-verb validate_binding_manifest_path(abs path: Path, dat shard: Buffer, abs descriptor: Buffer) -> Int {
+verb validate_binding_manifest_path(
+    abs path: Path,
+    dat shard: Buffer,
+    abs descriptor: Buffer
+) -> Int {
     erg null_head: u32 = NULL_INDEX;
     erg generation: u64 = 1u64;
     erg active_count: u32 = 2u32;
     erg total_columns: u32 = 2u32;
     erg shard_count: u32 = 1u32;
-    erg manifest_saved = write_manifest_dynamic(path: abs path, generation: erg generation, active_count: erg active_count, free_list_head: erg null_head, total_column_count: erg total_columns, shard_count: erg shard_count, descriptors: abs descriptor);
+    erg manifest_saved = write_manifest_dynamic(
+        path: abs path,
+        generation: erg generation,
+        active_count: erg active_count,
+        free_list_head: erg null_head,
+        total_column_count: erg total_columns,
+        shard_count: erg shard_count,
+        descriptors: abs descriptor
+    );
     return case dat manifest_saved {
         Result.Err(_) => 6,
         Result.Ok(_) => {
@@ -162,7 +228,11 @@ verb validate_binding_manifest_path(abs path: Path, dat shard: Buffer, abs descr
                 Result.Err(_) => 7,
                 Result.Ok(manifest) => {
                     erg descriptor_index: u32 = 0u32;
-                    erg validated = validate_dynamic_manifest_binding_shard(manifest: abs manifest, shard: abs shard, descriptor_index: erg descriptor_index);
+                    erg validated = validate_dynamic_manifest_binding_shard(
+                        manifest: abs manifest,
+                        shard: abs shard,
+                        descriptor_index: erg descriptor_index
+                    );
                     return case dat validated {
                         Result.Err(_) => 8,
                         Result.Ok(_) => 0,
@@ -182,7 +252,14 @@ verb run(abs path: Path) -> Int {
     erg column_count: u32 = 2u32;
     erg start_message: String = "AIE_BINDING_STAGE start";
     println(text: abs start_message);
-    erg written = write_dynamic_shard_with_bindings(path: abs path, shard_id: erg shard_id, first_column_index: erg first_column, column_count: erg column_count, payload: abs payload, bindings: abs bindings);
+    erg written = write_dynamic_shard_with_bindings(
+        path: abs path,
+        shard_id: erg shard_id,
+        first_column_index: erg first_column,
+        column_count: erg column_count,
+        payload: abs payload,
+        bindings: abs bindings
+    );
     erg write_status: Int = case dat written {
         Result.Err(_) => 1,
         Result.Ok(_) => 0,
@@ -196,7 +273,12 @@ verb run(abs path: Path) -> Int {
     return case dat loaded {
         Result.Err(_) => 2,
         Result.Ok(bytes) => {
-            erg validation = validate_dynamic_shard_with_bindings_bytes(bytes: dat bytes, expected_shard_id: erg shard_id, expected_first_column_index: erg first_column, expected_column_count: erg column_count);
+            erg validation = validate_dynamic_shard_with_bindings_bytes(
+                bytes: dat bytes,
+                expected_shard_id: erg shard_id,
+                expected_first_column_index: erg first_column,
+                expected_column_count: erg column_count
+            );
             return case dat validation {
                 Result.Err(_) => 3,
                 Result.Ok(_) => {
@@ -211,7 +293,11 @@ verb run(abs path: Path) -> Int {
                                 Result.Err(_) => 6,
                                 Result.Ok(checksum) => {
                                     erg descriptor: Buffer = binding_manifest_descriptor(checksum: abs checksum);
-                                    return validate_binding_manifest_path(path: abs path, shard: dat shard_copy, descriptor: abs descriptor);
+                                    return validate_binding_manifest_path(
+                                        path: abs path,
+                                        shard: dat shard_copy,
+                                        descriptor: abs descriptor
+                                    );
                                 },
                             };
                         },

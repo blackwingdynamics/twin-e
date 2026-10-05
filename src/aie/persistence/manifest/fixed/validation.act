@@ -16,7 +16,10 @@ Outputs: Returns Bool for predicates or a typed Result when validation also repo
 Invariants: Validation is side-effect free and enforces magic, version, bounds, checksum, and layout rules.
 Failure behavior: Returns false or InvalidData/InvalidInput according to the public contract; it never accepts partial state.
 """
-open verb manifest_descriptor_is_valid(abs descriptor: ManifestDescriptor, erg expected_id: u32) -> Bool {
+open verb manifest_descriptor_is_valid(
+    abs descriptor: ManifestDescriptor,
+    erg expected_id: u32
+) -> Bool {
     return descriptor.shard_id == expected_id && descriptor.first_column_index == (expected_id * BRAIN_SHARD_COLUMN_COUNT) && descriptor.column_count == BRAIN_SHARD_COLUMN_COUNT && descriptor.payload_offset == BRAIN_SHARD_HEADER_BYTES && descriptor.payload_bytes == BRAIN_SHARD_COLUMN_PAYLOAD_BYTES && descriptor.binding_offset == 0u32 && descriptor.binding_bytes == BRAIN_SHARD_BINDING_PAYLOAD_BYTES && descriptor.state == 1u32;
 }
 

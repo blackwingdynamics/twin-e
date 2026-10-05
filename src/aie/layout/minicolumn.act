@@ -1,4 +1,9 @@
-"""The 64-byte cache-line representation used by the impulse engine."""
+"""The fixed 64-byte cache-line representation used by the impulse engine.
+
+The inline byte storage is little-endian and contains all scalar state, eight
+indexed axon targets, and arena links. The axon array begins at the same byte
+offset as the former eight scalar fields, so snapshots remain compatible.
+"""
 open pack Minicolumn {
     erg storage: Array[u8, 64];
     layout little;
@@ -12,31 +17,39 @@ open pack Minicolumn {
         erg layer_depth: u16 at 48;
         erg coincidence_low: u64 at 64;
         erg coincidence_high: u64 at 128;
-        erg axon_0: u32 at 192;
-        erg axon_1: u32 at 224;
-        erg axon_2: u32 at 256;
-        erg axon_3: u32 at 288;
-        erg axon_4: u32 at 320;
-        erg axon_5: u32 at 352;
-        erg axon_6: u32 at 384;
-        erg axon_7: u32 at 416;
+        erg axons: Array[u32, 8] at 192;
         erg free_list_link: u32 at 448;
         erg inhibitory_link: u32 at 480;
     }
 }
 
+"""One bounded input event presented to the impulse engine.
+
+`mask_low` and `mask_high` form the 128-bit coincidence mask. `energy` is an
+integer marker carried by the event; no floating-point state is introduced.
+"""
 open struct Wavefront {
     erg mask_low: u64,
     erg mask_high: u64,
     erg energy: u8,
 }
 
+"""Contiguous arena state with an O(1) free-list for minicolumn slots.
+
+The arena owns every column and the free-list links. `free_list_head` points
+to the next reusable slot, while `active_count` tracks allocated columns.
+"""
 open struct CorticalFabric[N: Usize] {
     erg columns: Array[Minicolumn, N],
     erg free_list_head: u32,
     erg active_count: u32,
 }
 
+"""Return the fixed width of one minicolumn in bytes.
+
+The result is both the serialized column width and the intended cache-line
+size. The operation has no allocation, mutation, or failure path.
+"""
 open verb minicolumn_size_bytes() -> u32 {
     return 64u32;
 }

@@ -1,0 +1,179 @@
+"""Successor validation and deterministic bounded selection."""
+import config;
+
+import tokenizer;
+
+open tokenizer;
+
+open history;
+
+struct SuccessorChoice {
+    erg index: u32,
+    erg found: Bool,
+    erg loop_guarded: Bool,
+}
+
+struct SuccessorSelection {
+    erg index: u32,
+    erg strength: u8,
+    erg found: Bool,
+    erg guarded: Bool,
+}
+
+verb history_contains(
+    abs history: Array[u32, 8],
+    abs history_count: u32,
+    erg candidate: u32
+) -> Bool {
+    erg index: u32 = 0u32;
+    loop {
+        if index >= history_count {
+            break;
+        }
+        if history[index] == candidate {
+            return true;
+        }
+        index += 1u32;
+    }
+    return false;
+}
+
+verb push_history(
+    ins history: Array[u32, 8],
+    erg history_count: u32,
+    erg candidate: u32
+) -> u32 {
+    if history_count < GENERATION_HISTORY_LIMIT {
+        history[history_count] = candidate;
+        return history_count + 1u32;
+    }
+    erg index: u32 = 1u32;
+    loop {
+        if index >= GENERATION_HISTORY_LIMIT {
+            break;
+        }
+        history[index - 1u32] = history[index];
+        index += 1u32;
+    }
+    history[GENERATION_HISTORY_LIMIT - 1u32] = candidate;
+    return GENERATION_HISTORY_LIMIT;
+}
+
+verb successor_context_matches(
+    abs bindings: Array[TokenBinding, 64],
+    erg candidate: u32,
+    abs current_token_id: u32
+) -> Bool {
+    erg next_token_id: u32 = bindings[candidate].token_id;
+    erg current_copy: u32 = 0u32;
+    current_copy = current_token_id;
+    erg next_copy: u32 = next_token_id;
+    erg expected_context: u64 = context_key(previous_token_id: erg current_copy, token_id: erg next_copy);
+    return bindings[candidate].context_key == expected_context;
+}
+
+verb evaluate_successor(
+    abs fabric: CorticalFabric[64],
+    abs bindings: Array[TokenBinding, 64],
+    abs history: Array[u32, 8],
+    abs history_count: u32,
+    abs current_token_id: u32,
+    erg candidate: u32
+) -> SuccessorChoice {
+    if candidate == null_index() || candidate >= BRAIN_BINDING_COUNT || !((fabric.columns[candidate].flags & FLAG_ACTIVE) != 0u8 && bindings[candidate].binding_flags == BINDING_ACTIVE_FLAG && bindings[candidate].tokenizer_version == TOKENIZER_VERSION && bindings[candidate].context_version == CONTEXT_VERSION) {
+        return SuccessorChoice {index: null_index(), found: false, loop_guarded: false};
+    }
+    if !successor_context_matches(
+        bindings: abs bindings,
+        candidate: erg candidate,
+        current_token_id: abs current_token_id
+    ) {
+        return SuccessorChoice {index: null_index(), found: false, loop_guarded: false};
+    }
+    if history_contains(
+        history: abs history,
+        history_count: abs history_count,
+        candidate: erg candidate
+    ) {
+        return SuccessorChoice {index: null_index(), found: false, loop_guarded: true};
+    }
+    return SuccessorChoice {index: candidate, found: true, loop_guarded: false};
+}
+
+verb consider_successor(
+    ins selection: SuccessorSelection,
+    abs fabric: CorticalFabric[64],
+    abs choice: SuccessorChoice
+) {
+    if choice.loop_guarded {
+        selection.guarded = true;
+    }
+    if !choice.found {
+        return;
+    }
+    erg candidate_strength: u8 = fabric.columns[choice.index].myelination;
+    erg stronger: Bool = !selection.found || candidate_strength > selection.strength;
+    erg stable_tie: Bool = selection.found && candidate_strength == selection.strength && choice.index < selection.index;
+    if stronger || stable_tie {
+        selection.index = choice.index;
+        selection.strength = candidate_strength;
+        selection.found = true;
+    }
+}
+
+verb evaluate_successor_slot(
+    ins selection: SuccessorSelection,
+    abs fabric: CorticalFabric[64],
+    abs bindings: Array[TokenBinding, 64],
+    abs history: Array[u32, 8],
+    erg history_count: u32,
+    erg source_idx: u32,
+    erg current_token_id: u32,
+    erg slot: u32
+) {
+    erg candidate: u32 = fabric.columns[source_idx].axons[slot];
+    erg choice: SuccessorChoice = evaluate_successor(
+        fabric: abs fabric,
+        bindings: abs bindings,
+        history: abs history,
+        history_count: abs history_count,
+        current_token_id: abs current_token_id,
+        candidate: erg candidate
+    );
+    consider_successor(
+        selection: ins selection,
+        fabric: abs fabric,
+        choice: abs choice
+    );
+}
+
+"""Select the strongest valid successor with deterministic index tie-breaking."""
+verb choose_successor(
+    abs fabric: CorticalFabric[64],
+    abs bindings: Array[TokenBinding, 64],
+    abs history: Array[u32, 8],
+    erg history_count: u32,
+    erg source_idx: u32,
+    erg current_token_id: u32
+) -> SuccessorChoice {
+    erg selection: SuccessorSelection = SuccessorSelection {index: null_index(), strength: 0u8, found: false, guarded: false};
+    erg slot: u32 = 0u32;
+    loop {
+        if slot >= 8u32 {
+            break;
+        }
+        evaluate_successor_slot(
+            selection: ins selection,
+            fabric: abs fabric,
+            bindings: abs bindings,
+            history: abs history,
+            history_count: erg history_count,
+            source_idx: erg source_idx,
+            current_token_id: erg current_token_id,
+            slot: erg slot
+        );
+        slot += 1u32;
+    }
+    erg loop_guarded: Bool = selection.guarded && !selection.found;
+    return SuccessorChoice {index: selection.index, found: selection.found, loop_guarded: loop_guarded};
+}

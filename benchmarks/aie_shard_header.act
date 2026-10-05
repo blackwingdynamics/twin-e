@@ -1,6 +1,8 @@
 """Verify the fixed shard header compatibility contract."""
 import aie;
+
 import config;
+
 import std::io;
 
 verb valid_header() -> ShardHeader {

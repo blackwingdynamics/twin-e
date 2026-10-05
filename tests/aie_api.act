@@ -12,7 +12,7 @@ verb test_public_wavefront_lifecycle() -> Int {
     fabric.columns[source_idx].threshold = 1u8;
     fabric.columns[source_idx].coincidence_low = 1u64;
     fabric.columns[source_idx].payload = 41u8;
-    fabric.columns[source_idx].axon_0 = target_idx;
+    fabric.columns[source_idx].axons[0u32] = target_idx;
     fabric.columns[target_idx].threshold = 1u8;
     fabric.columns[target_idx].coincidence_low = 1u64;
     erg wave: Wavefront = Wavefront {mask_low: 1u64, mask_high: 0u64, energy: 1u8};

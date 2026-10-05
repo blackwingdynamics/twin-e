@@ -1,8 +1,13 @@
 meta limitless("file")
+
+
 """Prove that manifest descriptors are generated and located dynamically."""
 import aie;
+
 import std::fs;
+
 import std::io;
+
 import std::path;
 
 meta limitless("verb")
@@ -201,7 +206,13 @@ verb append_and_validate(abs path: Path) -> Int {
     erg new_checksum: u64 = 4u64;
     erg new_active_count: u32 = 5u32;
     erg new_free_list_head: u32 = 5u32;
-    erg appended = append_manifest_shard(path: abs path, new_column_count: erg new_count, new_checksum: erg new_checksum, active_count: erg new_active_count, free_list_head: erg new_free_list_head);
+    erg appended = append_manifest_shard(
+        path: abs path,
+        new_column_count: erg new_count,
+        new_checksum: erg new_checksum,
+        active_count: erg new_active_count,
+        free_list_head: erg new_free_list_head
+    );
     erg append_status: Int = case dat appended {
         Result.Err(_) => 6,
         Result.Ok(_) => 0,
@@ -219,7 +230,15 @@ verb run_dynamic(abs path: Path) -> Int {
     erg free_list_head: u32 = 5u32;
     erg total_columns: u32 = 96u32;
     erg shard_count: u32 = 3u32;
-    erg saved = write_manifest_dynamic(path: abs path, generation: erg generation, active_count: erg active_count, free_list_head: erg free_list_head, total_column_count: erg total_columns, shard_count: erg shard_count, descriptors: abs descriptors);
+    erg saved = write_manifest_dynamic(
+        path: abs path,
+        generation: erg generation,
+        active_count: erg active_count,
+        free_list_head: erg free_list_head,
+        total_column_count: erg total_columns,
+        shard_count: erg shard_count,
+        descriptors: abs descriptors
+    );
     erg save_status: Int = case dat saved {
         Result.Err(_) => 1,
         Result.Ok(_) => 0,
@@ -247,11 +266,11 @@ verb manifest_file_bytes(abs path: Path) -> u64 {
     return case dat loaded {
         Result.Err(_) => 0u64,
         Result.Ok(bytes) => {
-            erg length_result = buffer_length(buffer: abs bytes);
-            return case dat length_result {
-                Result.Err(_) => 0u64,
-                Result.Ok(value) => value as u64,
-            };
+            erg length: Int = buffer_length(buffer: abs bytes);
+            if length < 0 {
+                return 0u64;
+            }
+            return length as u64;
         },
     };
 }
@@ -298,7 +317,11 @@ verb rejects_oversized_manifest(abs path: Path) -> Int {
         Result.Ok(bytes) => {
             erg offset: u32 = 8u32;
             erg value: u8 = 255u8;
-            return verify_invalid_field(bytes: ins bytes, offset: erg offset, value: erg value);
+            return verify_invalid_field(
+                bytes: ins bytes,
+                offset: erg offset,
+                value: erg value
+            );
         },
     };
 }
@@ -310,7 +333,11 @@ verb rejects_malformed_state(abs path: Path) -> Int {
         Result.Ok(bytes) => {
             erg offset: u32 = 100u32;
             erg value: u8 = 0u8;
-            return verify_invalid_field(bytes: ins bytes, offset: erg offset, value: erg value);
+            return verify_invalid_field(
+                bytes: ins bytes,
+                offset: erg offset,
+                value: erg value
+            );
         },
     };
 }
@@ -328,30 +355,48 @@ verb write_generation(abs path: Path, erg generation: u64, abs descriptors: Buff
     erg free_list_head: u32 = 5u32;
     erg total_columns: u32 = 96u32;
     erg shard_count: u32 = 3u32;
-    return write_manifest_dynamic(path: abs path, generation: erg generation, active_count: erg active_count, free_list_head: erg free_list_head, total_column_count: erg total_columns, shard_count: erg shard_count, descriptors: abs descriptors);
+    return write_manifest_dynamic(
+        path: abs path,
+        generation: erg generation,
+        active_count: erg active_count,
+        free_list_head: erg free_list_head,
+        total_column_count: erg total_columns,
+        shard_count: erg shard_count,
+        descriptors: abs descriptors
+    );
 }
 
-verb complete_generation_recovery(abs primary: Path, abs fallback: Path, abs staged: Path) -> Int {
+verb complete_generation_recovery(
+    abs primary: Path,
+    abs fallback: Path,
+    abs staged: Path
+) -> Int {
     erg descriptors: Buffer = build_descriptors();
     erg old_generation: u64 = 8u64;
     erg new_generation: u64 = 10u64;
-    erg old_saved = write_generation(path: abs fallback, generation: erg old_generation, descriptors: abs descriptors);
+    erg old_saved = write_generation(
+        path: abs fallback,
+        generation: erg old_generation,
+        descriptors: abs descriptors
+    );
     erg old_status: Int = case dat old_saved {
         Result.Err(_) => 15,
         Result.Ok(_) => 0,
     };
     if old_status != 0 {
         return old_status;
-    } else {
     }
-    erg staged_saved = write_generation(path: abs staged, generation: erg new_generation, descriptors: abs descriptors);
+    erg staged_saved = write_generation(
+        path: abs staged,
+        generation: erg new_generation,
+        descriptors: abs descriptors
+    );
     erg staged_status: Int = case dat staged_saved {
         Result.Err(_) => 16,
         Result.Ok(_) => 0,
     };
     if staged_status != 0 {
         return staged_status;
-    } else {
     }
     erg published = publish_dynamic_manifest(staged: abs staged, active: abs primary);
     erg published_status: Int = case dat published {
@@ -360,19 +405,21 @@ verb complete_generation_recovery(abs primary: Path, abs fallback: Path, abs sta
     };
     if published_status != 0 {
         return published_status;
-    } else {
     }
     erg selected = select_dynamic_manifest_generation(primary: abs primary, fallback: abs fallback);
     erg selected_status: Int = case dat selected {
         Result.Err(_) => 18,
         Result.Ok(choice) => case choice.slot {
-            0 => if choice.generation == new_generation { 0 } else { 19 },
+            0 => if choice.generation == new_generation {
+                0;
+            } else {
+                19;
+            },
             _ => 19,
         },
     };
     if selected_status != 0 {
         return selected_status;
-    } else {
     }
     erg invalid: Buffer = Buffer[1];
     invalid[0u32] = 0u8;
@@ -383,7 +430,6 @@ verb complete_generation_recovery(abs primary: Path, abs fallback: Path, abs sta
     };
     if invalid_status != 0 {
         return invalid_status;
-    } else {
     }
     erg rejected = publish_dynamic_manifest(staged: abs staged, active: abs primary);
     erg rejected_status: Int = case dat rejected {
@@ -392,13 +438,16 @@ verb complete_generation_recovery(abs primary: Path, abs fallback: Path, abs sta
     };
     if rejected_status != 0 {
         return rejected_status;
-    } else {
     }
     erg after_rejected = select_dynamic_manifest_generation(primary: abs primary, fallback: abs fallback);
     return case dat after_rejected {
         Result.Err(_) => 22,
         Result.Ok(choice) => case choice.slot {
-            0 => if choice.generation == new_generation { 0 } else { 22 },
+            0 => if choice.generation == new_generation {
+                0;
+            } else {
+                22;
+            },
             _ => 22,
         },
     };
@@ -409,7 +458,11 @@ verb resolve_staged_generation(abs primary: Path, abs fallback: Path) -> Int {
     erg staged_result = generation_path(marker: abs staged_marker);
     return case dat staged_result {
         Result.Err(_) => 14,
-        Result.Ok(resolved_staged) => complete_generation_recovery(primary: abs primary, fallback: abs fallback, staged: abs resolved_staged),
+        Result.Ok(resolved_staged) => complete_generation_recovery(
+            primary: abs primary,
+            fallback: abs fallback,
+            staged: abs resolved_staged
+        ),
     };
 }
 
@@ -459,7 +512,6 @@ verb emit_dynamic(abs path: Path) -> Int {
     erg manifest_bytes: u64 = manifest_file_bytes(path: abs path);
     if manifest_bytes == 0u64 {
         return 14;
-    } else {
     }
     erg operational_label: String = "AIE_OPERATIONAL manifest_bytes=";
     print(text: abs operational_label);

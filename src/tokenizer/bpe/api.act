@@ -1,0 +1,194 @@
+"""Public BPE tokenization and decoding operations."""
+import config;
+
+import std::io;
+
+open io;
+
+open types;
+
+open merge;
+
+"""Tokenize one bounded String and apply explicit BPE merge rules.
+
+The input String and rule table are read through `abs`; `rule_count` selects
+the valid prefix of the fixed rule array. The returned sequence is bounded
+and invalid input is represented by its `valid` flag.
+"""
+open verb bpe_tokenize_string(
+    abs text: String,
+    abs rules: Array[BpeMergeRule, 128],
+    erg rule_count: u32
+) -> TokenSequence {
+    erg bytes: TokenSequence = tokenize_string(text: abs text);
+    return bpe_encode(
+        input: abs bytes,
+        rules: abs rules,
+        rule_count: erg rule_count
+    );
+}
+
+"""Encode a token sequence using a validated vocabulary.
+
+The input sequence and vocabulary are read through `abs`. Incompatible
+metadata returns an invalid sequence; compatible metadata applies only the
+declared bounded rule prefix and preserves fixed storage limits.
+"""
+open verb bpe_encode_vocabulary(
+    abs input: TokenSequence,
+    abs vocabulary: BpeVocabulary
+) -> TokenSequence {
+    if !bpe_vocabulary_is_valid(vocabulary: abs vocabulary) {
+        return invalid_sequence();
+    }
+    erg rule_count: u32 = vocabulary.rule_count + 0u32;
+    return bpe_encode(
+        input: abs input,
+        rules: abs vocabulary.rules,
+        rule_count: erg rule_count
+    );
+}
+
+"""Tokenize text into bytes and apply a validated vocabulary's BPE rules.
+
+Both inputs are read through `abs`. The result remains a fixed-capacity token
+sequence; vocabulary validation failures are returned as an invalid result.
+"""
+open verb bpe_tokenize_vocabulary(abs text: String, abs vocabulary: BpeVocabulary) -> TokenSequence {
+    erg bytes: TokenSequence = tokenize_string(text: abs text);
+    return bpe_encode_vocabulary(input: abs bytes, vocabulary: abs vocabulary);
+}
+
+"""Add BOS and EOS markers to a valid bounded token sequence.
+
+The sequence and vocabulary are read through `abs`. A sequence that is
+invalid or too long returns the invalid sequence sentinel; otherwise a new
+fixed-capacity value is returned with the vocabulary's configured markers.
+"""
+open verb bpe_add_special_tokens(
+    abs sequence: TokenSequence,
+    abs vocabulary: BpeVocabulary
+) -> TokenSequence {
+    if !sequence.valid || sequence.length + 2u32 > TOKENIZER_MAX_BYTES {
+        return invalid_sequence();
+    }
+    erg result: TokenSequence = TokenSequence {tokens: Array[Token, 256](), length: sequence.length + 2u32, valid: true};
+    result.tokens[0u32] = Token {id: vocabulary.bos_token_id, byte_offset: 0u32, byte_length: 0u16, tokenizer_version: TOKENIZER_VERSION};
+    erg index: u32 = 0u32;
+    loop {
+        if index >= sequence.length {
+            break;
+        }
+        result.tokens[index + 1u32] = sequence.tokens[index];
+        index += 1u32;
+    }
+    result.tokens[sequence.length + 1u32] = Token {id: vocabulary.eos_token_id, byte_offset: sequence.length, byte_length: 0u16, tokenizer_version: TOKENIZER_VERSION};
+    return result;
+}
+
+"""Tokenize text, apply BPE, and add vocabulary boundary markers.
+
+The text and vocabulary are read through `abs`. This composes the bounded
+tokenization and special-token operations and returns their invalid result
+unchanged when either stage cannot produce a valid sequence.
+"""
+open verb bpe_tokenize_with_special_tokens(
+    abs text: String,
+    abs vocabulary: BpeVocabulary
+) -> TokenSequence {
+    erg sequence: TokenSequence = bpe_tokenize_vocabulary(text: abs text, vocabulary: abs vocabulary);
+    return bpe_add_special_tokens(sequence: abs sequence, vocabulary: abs vocabulary);
+}
+
+verb bpe_decode_sequence_is_valid(
+    abs sequence: TokenSequence,
+    abs vocabulary: BpeVocabulary
+) -> Bool {
+    erg index: u32 = 0u32;
+    loop {
+        if index >= sequence.length {
+            break;
+        }
+        erg token_id: u32 = sequence.tokens[index].id;
+        if token_id != vocabulary.bos_token_id && token_id != vocabulary.eos_token_id && token_id > 255u32 {
+            erg record: BpeTokenMatch = find_token_record(vocabulary: abs vocabulary, token_id: erg token_id);
+            if !record.found || vocabulary.tokens[record.index].byte_length as u32 > BPE_MAX_TOKEN_BYTES {
+                return false;
+            }
+        }
+        index += 1u32;
+    }
+    return true;
+}
+
+verb append_bpe_decoded_token(
+    ins storage: Buffer,
+    abs vocabulary: BpeVocabulary,
+    erg token_id: u32
+) {
+    if token_id <= 255u32 {
+        append(storage, token_id as u8);
+        return;
+    }
+    erg record: BpeTokenMatch = find_token_record(vocabulary: abs vocabulary, token_id: erg token_id);
+    erg byte: u32 = 0u32;
+    loop {
+        if byte >= vocabulary.tokens[record.index].byte_length as u32 {
+            break;
+        }
+        append(storage, vocabulary.tokens[record.index].bytes[byte]);
+        byte += 1u32;
+    }
+}
+
+verb append_bpe_decoded_sequence(
+    ins storage: Buffer,
+    abs sequence: TokenSequence,
+    abs vocabulary: BpeVocabulary
+) {
+    erg index: u32 = 0u32;
+    loop {
+        if index >= sequence.length {
+            break;
+        }
+        erg token_id: u32 = sequence.tokens[index].id;
+        if token_id != vocabulary.bos_token_id && token_id != vocabulary.eos_token_id {
+            append_bpe_decoded_token(
+                storage: ins storage,
+                vocabulary: abs vocabulary,
+                token_id: erg token_id
+            );
+        }
+        index += 1u32;
+    }
+}
+
+"""Decode a validated token sequence into caller-owned byte storage.
+
+The sequence and vocabulary are read through `abs`; `storage` is an exclusive
+`ins` loan and receives decoded bytes in token order, excluding BOS and EOS.
+Invalid vocabulary, sequence, or token data returns the corresponding
+`BpeDecodeError` and no decoded result length.
+"""
+open verb bpe_decode_bytes(
+    abs sequence: TokenSequence,
+    abs vocabulary: BpeVocabulary,
+    ins storage: Buffer
+) -> Result[Int, BpeDecodeError] {
+    if !bpe_vocabulary_is_valid(vocabulary: abs vocabulary) || !sequence.valid {
+        return Err(BpeDecodeError.InvalidVocabulary);
+    }
+    if !bpe_decode_sequence_is_valid(sequence: abs sequence, vocabulary: abs vocabulary) {
+        return Err(BpeDecodeError.InvalidToken);
+    }
+    append_bpe_decoded_sequence(
+        storage: ins storage,
+        sequence: abs sequence,
+        vocabulary: abs vocabulary
+    );
+    erg stored_length = buffer_size(buffer: abs storage);
+    return case dat stored_length {
+        Result.Ok(value) => Result[Int, BpeDecodeError].Ok(value),
+        Result.Err(_) => Result[Int, BpeDecodeError].Err(BpeDecodeError.InvalidToken),
+    };
+}

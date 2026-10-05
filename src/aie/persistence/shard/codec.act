@@ -1,0 +1,117 @@
+"""Binary encoding, decoding, and header validation for shard storage."""
+import config;
+
+import std::io;
+
+open io;
+
+import config;
+
+import std::fs;
+
+import std::io;
+
+open io;
+
+"""Describes one contiguous logical arena range and its sidecar payload."""
+open struct ShardHeader {
+    erg magic: u32,
+    erg version: u16,
+    erg header_bytes: u16,
+    erg shard_id: u32,
+    erg first_column_index: u32,
+    erg column_count: u32,
+    erg column_stride_bytes: u16,
+    erg binding_stride_bytes: u16,
+    erg column_payload_bytes: u32,
+    erg binding_payload_bytes: u32,
+    erg tokenizer_version: u16,
+    erg context_version: u16,
+    erg code_version: u16,
+    erg reserved: u16,
+    erg checksum: u64,
+}
+
+"""Accept a shard header only when its layout and compatibility profile match."""
+open verb shard_header_is_valid(abs header: ShardHeader) -> Bool {
+    return header.magic == BRAIN_SHARD_MAGIC && header.version == BRAIN_SHARD_VERSION && header.header_bytes == BRAIN_SHARD_HEADER_BYTES && header.column_stride_bytes == BRAIN_SHARD_COLUMN_STRIDE_BYTES && header.binding_stride_bytes == BRAIN_SHARD_BINDING_STRIDE_BYTES && header.tokenizer_version == TOKENIZER_VERSION && header.context_version == CONTEXT_VERSION && header.code_version == TOKEN_CODE_VERSION;
+}
+
+"""Verify a shard header against one expected fixed shard identity.
+
+The header is read through `abs`; the check covers compatibility versions,
+layout widths, payload sizes, shard ID, and its first-column range. It returns
+`false` without mutation when any field is incompatible.
+"""
+open verb shard_header_matches(abs header: ShardHeader, erg shard_id: u32) -> Bool {
+    return shard_header_is_valid(header: abs header) && header.shard_id == shard_id && header.first_column_index == (shard_id * BRAIN_SHARD_COLUMN_COUNT) && header.column_count == BRAIN_SHARD_COLUMN_COUNT && header.column_payload_bytes == BRAIN_SHARD_COLUMN_PAYLOAD_BYTES && header.binding_payload_bytes == BRAIN_SHARD_BINDING_PAYLOAD_BYTES;
+}
+
+verb append_shard_u16(ins output: Buffer, abs value: u16) {
+    append(output, value as u8);
+    append(output, ((value as u32 / 256u32) & 255u32) as u8);
+}
+
+verb append_shard_u32(ins output: Buffer, abs value: u32) {
+    append(output, (value & 255u32) as u8);
+    append(output, ((value / 256u32) & 255u32) as u8);
+    append(output, ((value / 65536u32) & 255u32) as u8);
+    append(output, ((value / 16777216u32) & 255u32) as u8);
+}
+
+verb append_shard_u64(ins output: Buffer, abs value: u64) {
+    erg low: u32 = (value & 4294967295u64) as u32;
+    erg high: u32 = (value / 4294967296u64) as u32;
+    append_shard_u32(output: ins output, value: abs low);
+    append_shard_u32(output: ins output, value: abs high);
+}
+
+verb read_shard_u16(abs input: Buffer, abs offset: u32) -> u16 {
+    return (input[offset] as u16) + (((input[offset + 1u32] as u16) * 256u16));
+}
+
+verb read_shard_u32(abs input: Buffer, abs offset: u32) -> u32 {
+    return (input[offset] as u32) + ((input[offset + 1u32] as u32 * 256u32)) + ((input[offset + 2u32] as u32 * 65536u32)) + ((input[offset + 3u32] as u32 * 16777216u32));
+}
+
+verb read_shard_u64(abs input: Buffer, abs offset: u32) -> u64 {
+    erg low: u64 = read_shard_u32(input: abs input, offset: abs offset) as u64;
+    erg high_offset: u32 = offset + 4u32;
+    erg high: u64 = read_shard_u32(input: abs input, offset: abs high_offset) as u64;
+    return low + (high * 4294967296u64);
+}
+
+verb shard_payload_checksum(abs input: Buffer) -> u64 {
+    erg checksum: u64 = 0u64;
+    erg index: u32 = 48u32;
+    loop {
+        if index >= BRAIN_SHARD_FILE_BYTES {
+            break;
+        }
+        checksum += (input[index] as u64) * ((index - 47u32) as u64);
+        index += 1u32;
+    }
+    return checksum;
+}
+
+verb write_shard_u64(ins output: Buffer, abs value: u64, abs offset: u32) {
+    erg low: u32 = (value & 4294967295u64) as u32;
+    erg high: u32 = (value / 4294967296u64) as u32;
+    output[offset] = (low & 255u32) as u8;
+    output[offset + 1u32] = ((low / 256u32) & 255u32) as u8;
+    output[offset + 2u32] = ((low / 65536u32) & 255u32) as u8;
+    output[offset + 3u32] = ((low / 16777216u32) & 255u32) as u8;
+    output[offset + 4u32] = (high & 255u32) as u8;
+    output[offset + 5u32] = ((high / 256u32) & 255u32) as u8;
+    output[offset + 6u32] = ((high / 65536u32) & 255u32) as u8;
+    output[offset + 7u32] = ((high / 16777216u32) & 255u32) as u8;
+}
+
+verb shard_io_error(dat error: IoError) -> Result[Int, IoError] {
+    return case dat error {
+        IoError.EndOfStream => Err(IoError.EndOfStream),
+        IoError.Failed => Err(IoError.Failed),
+        IoError.InvalidInput => Err(IoError.InvalidInput),
+        IoError.InvalidData => Err(IoError.InvalidData),
+    };
+}

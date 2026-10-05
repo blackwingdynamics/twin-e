@@ -1,3 +1,6 @@
 """Dynamic manifest validation and persistence facade."""
+open schema_validation;
+
 open validation;
+
 open writer;

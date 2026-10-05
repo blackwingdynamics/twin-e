@@ -1,6 +1,8 @@
 """Prove that two bounded shard files preserve columns and cross-shard links."""
 import aie;
+
 import std::io;
+
 import std::path;
 
 verb append_shard_path_prefix(ins raw: Buffer) {
@@ -42,25 +44,37 @@ verb make_fabric() -> CorticalFabric[64] {
     erg fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](), free_list_head: 0u32, active_count: 0u32};
     fabric_init(fabric: ins fabric);
     fabric.columns[0u32].payload = 11u8;
-    fabric.columns[0u32].axon_0 = 32u32;
+    fabric.columns[0u32].axons[0u32] = 32u32;
     fabric.columns[32u32].payload = 22u8;
     return fabric;
 }
 
 verb clear_fabric(ins fabric: CorticalFabric[64]) {
     fabric.columns[0u32].payload = 0u8;
-    fabric.columns[0u32].axon_0 = NULL_INDEX;
+    fabric.columns[0u32].axons[0u32] = NULL_INDEX;
     fabric.columns[32u32].payload = 0u8;
 }
 
-verb write_both(abs path_zero: Path, abs path_one: Path, abs fabric: CorticalFabric[64]) -> Bool {
+verb write_both(
+    abs path_zero: Path,
+    abs path_one: Path,
+    abs fabric: CorticalFabric[64]
+) -> Bool {
     erg shard_zero: u32 = 0u32;
     erg shard_one: u32 = 1u32;
-    erg zero = write_shard(path: abs path_zero, fabric: abs fabric, shard_id: erg shard_zero);
+    erg zero = write_shard(
+        path: abs path_zero,
+        fabric: abs fabric,
+        shard_id: erg shard_zero
+    );
     return case dat zero {
         Result.Err(_) => false,
         Result.Ok(_) => {
-            erg one = write_shard(path: abs path_one, fabric: abs fabric, shard_id: erg shard_one);
+            erg one = write_shard(
+                path: abs path_one,
+                fabric: abs fabric,
+                shard_id: erg shard_one
+            );
             return case dat one {
                 Result.Err(_) => false,
                 Result.Ok(_) => true,
@@ -69,14 +83,26 @@ verb write_both(abs path_zero: Path, abs path_one: Path, abs fabric: CorticalFab
     };
 }
 
-verb read_both(ins fabric: CorticalFabric[64], abs path_zero: Path, abs path_one: Path) -> Bool {
+verb read_both(
+    ins fabric: CorticalFabric[64],
+    abs path_zero: Path,
+    abs path_one: Path
+) -> Bool {
     erg shard_zero: u32 = 0u32;
     erg shard_one: u32 = 1u32;
-    erg zero = read_shard(fabric: ins fabric, path: abs path_zero, shard_id: erg shard_zero);
+    erg zero = read_shard(
+        fabric: ins fabric,
+        path: abs path_zero,
+        shard_id: erg shard_zero
+    );
     return case dat zero {
         Result.Err(_) => false,
         Result.Ok(_) => {
-            erg one = read_shard(fabric: ins fabric, path: abs path_one, shard_id: erg shard_one);
+            erg one = read_shard(
+                fabric: ins fabric,
+                path: abs path_one,
+                shard_id: erg shard_one
+            );
             return case dat one {
                 Result.Err(_) => false,
                 Result.Ok(_) => true,
@@ -92,7 +118,11 @@ verb corrupted_shard_rejected(ins fabric: CorticalFabric[64], abs path: Path) ->
         Result.Ok(bytes) => {
             bytes[53u32] = 12u8;
             erg shard_zero: u32 = 0u32;
-            erg result = read_shard_bytes(fabric: ins fabric, bytes: dat bytes, shard_id: erg shard_zero);
+            erg result = read_shard_bytes(
+                fabric: ins fabric,
+                bytes: dat bytes,
+                shard_id: erg shard_zero
+            );
             erg status: Int = case dat result {
                 Result.Err(_) => 1,
                 Result.Ok(_) => 0,
@@ -104,13 +134,21 @@ verb corrupted_shard_rejected(ins fabric: CorticalFabric[64], abs path: Path) ->
 
 verb run_paths(abs path_zero: Path, abs path_one: Path) -> Int {
     erg fabric: CorticalFabric[64] = make_fabric();
-    erg written: Bool = write_both(path_zero: abs path_zero, path_one: abs path_one, fabric: abs fabric);
+    erg written: Bool = write_both(
+        path_zero: abs path_zero,
+        path_one: abs path_one,
+        fabric: abs fabric
+    );
     if !written {
         return 3;
     }
     clear_fabric(fabric: ins fabric);
-    erg loaded: Bool = read_both(fabric: ins fabric, path_zero: abs path_zero, path_one: abs path_one);
-    if !loaded || fabric.columns[0u32].payload != 11u8 || fabric.columns[0u32].axon_0 != 32u32 || fabric.columns[32u32].payload != 22u8 {
+    erg loaded: Bool = read_both(
+        fabric: ins fabric,
+        path_zero: abs path_zero,
+        path_one: abs path_one
+    );
+    if !loaded || fabric.columns[0u32].payload != 11u8 || fabric.columns[0u32].axons[0u32] != 32u32 || fabric.columns[32u32].payload != 22u8 {
         return 4;
     }
     erg corruption_rejected: Bool = corrupted_shard_rejected(fabric: ins fabric, path: abs path_zero);
