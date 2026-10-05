@@ -54,8 +54,13 @@ recovery.
 
 Recorded evidence confirms a 5,702-byte combined file round trip, corruption
 rejection with unchanged live state, and strict native IR verification with no
-floating-point instructions. Restart recovery, truncated and oversized input
-coverage, vocabulary artifacts, and final size reporting remain open.
+floating-point instructions. Restart recovery, vocabulary artifacts, and final
+size reporting remain open.
+
+The separate `benchmarks/aie_text_brain_bounds.act` fixture now covers
+truncated and oversized rejection with unchanged live state. Its command and
+output are recorded in `docs/benchmarks/phase-5-brain-bounds.md`. Process
+restart recovery, vocabulary artifacts, and final size reporting remain open.
 
 - [ ] Add a public host save API for fabric, bindings, tokenizer metadata, and
   context metadata.
