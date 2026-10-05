@@ -1,0 +1,158 @@
+"""Prove that the combined `.brain` host API restores fabric and bindings."""
+import aie;
+
+import config;
+
+import encoding;
+
+import std::io;
+
+import std::path;
+
+verb append_path_prefix(ins raw: Buffer) {
+    append(raw, 47u8);
+    append(raw, 116u8);
+    append(raw, 109u8);
+    append(raw, 112u8);
+    append(raw, 47u8);
+    append(raw, 116u8);
+    append(raw, 119u8);
+    append(raw, 105u8);
+    append(raw, 110u8);
+    append(raw, 45u8);
+    append(raw, 101u8);
+}
+
+verb append_path_suffix(ins raw: Buffer) {
+    append(raw, 45u8);
+    append(raw, 112u8);
+    append(raw, 53u8);
+    append(raw, 45u8);
+    append(raw, 116u8);
+    append(raw, 101u8);
+    append(raw, 120u8);
+    append(raw, 116u8);
+    append(raw, 45u8);
+    append(raw, 98u8);
+    append(raw, 114u8);
+    append(raw, 97u8);
+    append(raw, 105u8);
+    append(raw, 110u8);
+    append(raw, 46u8);
+    append(raw, 98u8);
+    append(raw, 114u8);
+    append(raw, 97u8);
+    append(raw, 105u8);
+    append(raw, 110u8);
+    append(raw, 0u8);
+}
+
+verb benchmark_path() -> Result[Path, PathError] {
+    erg raw = Buffer[0];
+    append_path_prefix(raw: ins raw);
+    append_path_suffix(raw: ins raw);
+    return path_from_ascii(storage: dat raw);
+}
+
+verb make_fabric() -> CorticalFabric[64] {
+    erg fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](), free_list_head: 0u32, active_count: 0u32};
+    fabric_init(fabric: ins fabric);
+    erg slot: u32 = allocate_column_index(fabric: ins fabric);
+    fabric.columns[slot].payload = 41u8;
+    fabric.columns[slot].myelination = 9u8;
+    fabric.columns[slot].coincidence_low = 72623859790382856u64;
+    return fabric;
+}
+
+verb make_bindings() -> Array[TokenBinding, 64] {
+    erg bindings: Array[TokenBinding,64] = Array[TokenBinding, 64]();
+    bindings[0u32].token_id = 9001u32;
+    bindings[0u32].context_key = 72623859790382856u64;
+    bindings[0u32].tokenizer_version = TOKENIZER_VERSION;
+    bindings[0u32].context_version = CONTEXT_VERSION;
+    bindings[0u32].binding_flags = BINDING_ACTIVE_FLAG;
+    return bindings;
+}
+
+verb clear_state(
+    ins fabric: CorticalFabric[64],
+    ins bindings: Array[TokenBinding, 64]
+) {
+    fabric.columns[0u32].payload = 0u8;
+    fabric.columns[0u32].myelination = 0u8;
+    fabric.columns[0u32].coincidence_low = 0u64;
+    fabric.active_count = 0u32;
+    bindings[0u32].token_id = 0u32;
+    bindings[0u32].context_key = 0u64;
+    bindings[0u32].binding_flags = 0u8;
+}
+
+verb verify_state(
+    abs fabric: CorticalFabric[64],
+    abs bindings: Array[TokenBinding, 64]
+) -> Bool {
+    return fabric.active_count == 1u32 && fabric.columns[0u32].payload == 41u8 && fabric.columns[0u32].myelination == 9u8 && fabric.columns[0u32].coincidence_low == 72623859790382856u64 && bindings[0u32].token_id == 9001u32 && bindings[0u32].context_key == 72623859790382856u64 && bindings[0u32].binding_flags == BINDING_ACTIVE_FLAG;
+}
+
+verb save_fixture(
+    abs path: Path,
+    abs fabric: CorticalFabric[64],
+    abs bindings: Array[TokenBinding, 64]
+) -> Int {
+    erg saved = write_text_brain(
+        path: abs path,
+        fabric: abs fabric,
+        bindings: abs bindings
+    );
+    return case dat saved {
+        Result.Ok(value) => value,
+        Result.Err(_) => -1,
+    };
+}
+
+verb load_fixture(
+    ins fabric: CorticalFabric[64],
+    ins bindings: Array[TokenBinding, 64],
+    abs path: Path
+) -> Int {
+    erg loaded = read_text_brain(
+        fabric: ins fabric,
+        bindings: ins bindings,
+        path: abs path
+    );
+    return case dat loaded {
+        Result.Ok(value) => value,
+        Result.Err(_) => -1,
+    };
+}
+
+verb run_roundtrip(dat path: Path) -> Int {
+    erg fabric: CorticalFabric[64] = make_fabric();
+    erg bindings: Array[TokenBinding,64] = make_bindings();
+    if save_fixture(
+        path: abs path,
+        fabric: abs fabric,
+        bindings: abs bindings
+    ) < 0 {
+        return 1;
+    }
+    clear_state(fabric: ins fabric, bindings: ins bindings);
+    if load_fixture(
+        fabric: ins fabric,
+        bindings: ins bindings,
+        path: abs path
+    ) < 0 || !verify_state(fabric: abs fabric, bindings: abs bindings) {
+        return 2;
+    }
+    erg message: String = "AIE_P5_BRAIN roundtrip=1 bytes=5702 fabric=1 bindings=1 compatibility=1";
+    println(text: abs message);
+    return 0;
+}
+
+verb main() -> Int {
+    erg result = benchmark_path();
+    return case dat result {
+        Result.Ok(path) => run_roundtrip(path: dat path),
+        Result.Err(_) => 3,
+    };
+}
