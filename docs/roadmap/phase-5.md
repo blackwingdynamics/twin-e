@@ -137,8 +137,8 @@ AIE_HOT_PATH inference_ns=<value> neurogenesis_ns=<value>
 
 ## P5.2 — Production BPE vocabulary
 
-- [ ] Replace the one-merge fixture with a bounded multi-merge vocabulary.
-- [ ] Verify repeated ranked merge passes on a multi-token text fixture.
+- [x] Replace the one-merge fixture with a bounded multi-merge vocabulary.
+- [x] Verify repeated ranked merge passes on a multi-token text fixture.
 - [ ] Verify byte fallback, BOS, EOS, unknown tokens, and merged-token decode.
 - [ ] Reject vocabulary files with incompatible versions, invalid ranks, or
   over-sized token spans.

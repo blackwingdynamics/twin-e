@@ -55,13 +55,25 @@ verb benchmark_path() -> Result[Path, PathError] {
 }
 
 verb make_vocabulary() -> BpeVocabulary {
-    erg vocabulary: BpeVocabulary = BpeVocabulary {magic: BPE_VOCAB_MAGIC, version: BPE_VOCAB_VERSION, tokenizer_version: TOKENIZER_VERSION, bos_token_id: BPE_BOS_TOKEN_ID, eos_token_id: BPE_EOS_TOKEN_ID, unknown_token_id: BPE_UNKNOWN_TOKEN_ID, rule_count: 1u32, rules: Array[BpeMergeRule, 128](
-    ), token_count: 1u32, tokens: Array[BpeTokenRecord, 256]()};
-    vocabulary.rules[0u32] = BpeMergeRule {left_id: 72u32, right_id: 105u32, merged_id: 256u32, rank: 0u32};
+    erg vocabulary: BpeVocabulary = BpeVocabulary {magic: BPE_VOCAB_MAGIC, version: BPE_VOCAB_VERSION, tokenizer_version: TOKENIZER_VERSION, bos_token_id: BPE_BOS_TOKEN_ID, eos_token_id: BPE_EOS_TOKEN_ID, unknown_token_id: BPE_UNKNOWN_TOKEN_ID, rule_count: 3u32, rules: Array[BpeMergeRule, 128](
+    ), token_count: 3u32, tokens: Array[BpeTokenRecord, 256]()};
+    vocabulary.rules[0u32] = BpeMergeRule {left_id: 65u32, right_id: 66u32, merged_id: 256u32, rank: 0u32};
+    vocabulary.rules[1u32] = BpeMergeRule {left_id: 67u32, right_id: 68u32, merged_id: 257u32, rank: 1u32};
+    vocabulary.rules[2u32] = BpeMergeRule {left_id: 256u32, right_id: 257u32, merged_id: 258u32, rank: 2u32};
     vocabulary.tokens[0u32].token_id = 256u32;
     vocabulary.tokens[0u32].byte_length = 2u8;
-    vocabulary.tokens[0u32].bytes[0u32] = 72u8;
-    vocabulary.tokens[0u32].bytes[1u32] = 105u8;
+    vocabulary.tokens[0u32].bytes[0u32] = 65u8;
+    vocabulary.tokens[0u32].bytes[1u32] = 66u8;
+    vocabulary.tokens[1u32].token_id = 257u32;
+    vocabulary.tokens[1u32].byte_length = 2u8;
+    vocabulary.tokens[1u32].bytes[0u32] = 67u8;
+    vocabulary.tokens[1u32].bytes[1u32] = 68u8;
+    vocabulary.tokens[2u32].token_id = 258u32;
+    vocabulary.tokens[2u32].byte_length = 4u8;
+    vocabulary.tokens[2u32].bytes[0u32] = 65u8;
+    vocabulary.tokens[2u32].bytes[1u32] = 66u8;
+    vocabulary.tokens[2u32].bytes[2u32] = 67u8;
+    vocabulary.tokens[2u32].bytes[3u32] = 68u8;
     return vocabulary;
 }
 
@@ -102,9 +114,9 @@ verb load_vocabulary_fixture(
 }
 
 verb verify_decode(abs vocabulary: BpeVocabulary) -> Int {
-    erg text: String = "Hi";
+    erg text: String = "ABCD";
     erg sequence: TokenSequence = bpe_tokenize_with_special_tokens(text: abs text, vocabulary: abs vocabulary);
-    if sequence.length != 3u32 || sequence.tokens[1u32].id != 256u32 {
+    if sequence.length != 3u32 || sequence.tokens[1u32].id != 258u32 {
         return 6;
     }
     erg decoded: Buffer = Buffer[0];
@@ -115,7 +127,7 @@ verb verify_decode(abs vocabulary: BpeVocabulary) -> Int {
     );
     return case dat decoded_result {
         Result.Ok(value) => {
-            if value == 2 && decoded[0u32] == 72u8 && decoded[1u32] == 105u8 {
+            if value == 4 && decoded[0u32] == 65u8 && decoded[1u32] == 66u8 && decoded[2u32] == 67u8 && decoded[3u32] == 68u8 {
                 return 0;
             }
             return 4;
@@ -279,7 +291,7 @@ verb run_fixture(abs path: Path) -> Int {
     if rejection != 0 {
         return 4;
     }
-    erg success_message: String = "AIE_P5_BRAIN_VOCAB bytes=11106 rules=1 tokens=1 restart_decode=1 compatibility=1 corrupted_rejected=1 unchanged=1";
+    erg success_message: String = "AIE_P5_BRAIN_VOCAB bytes=11106 rules=3 tokens=3 repeated_merge=1 reload_decode=1 compatibility=1 corrupted_rejected=1 unchanged=1";
     println(text: abs success_message);
     return 0;
 }
