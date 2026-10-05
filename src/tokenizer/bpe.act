@@ -297,7 +297,7 @@ open verb bpe_decode_bytes(
         }
         index += 1u32;
     }
-    erg stored_length = buffer_length(buffer: abs storage);
+    erg stored_length = buffer_size(buffer: abs storage);
     return case dat stored_length {
         Result.Ok(value) => Result[Int, BpeDecodeError].Ok(value),
         Result.Err(_) => Result[Int, BpeDecodeError].Err(BpeDecodeError.InvalidToken),

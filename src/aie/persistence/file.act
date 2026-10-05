@@ -4,6 +4,8 @@ import config;
 import std::fs;
 import std::io;
 
+open io;
+
 open verb brain_file_error(dat error: IoError) -> Result[Int, IoError] {
     return case dat error {
         IoError.EndOfStream => Err(IoError.EndOfStream),
@@ -27,7 +29,7 @@ verb read_u32(abs input: Buffer, erg offset: u32) -> u32 {
     return byte_0 + (byte_1 * 256u32) + (byte_2 * 65536u32) + (byte_3 * 16777216u32);
 }
 
-verb brain_buffer_length(dat result: Result[Int, IoError]) -> Int {
+verb brain_buffer_size(dat result: Result[Int, IoError]) -> Int {
     return case dat result {
         Result.Ok(value) => value,
         Result.Err(_) => -1,
@@ -91,8 +93,8 @@ verb read_brain_bytes(
     ins fabric: CorticalFabric[64],
     dat bytes: Buffer
 ) -> Result[Int, IoError] {
-    erg length_result = buffer_length(buffer: abs bytes);
-    erg length: Int = brain_buffer_length(result: dat length_result);
+    erg length_result = buffer_size(buffer: abs bytes);
+    erg length: Int = brain_buffer_size(result: dat length_result);
     if length != 4116 {
         drop(bytes);
         return Err(IoError.InvalidData);

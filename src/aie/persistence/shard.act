@@ -4,6 +4,8 @@ import config;
 import std::fs;
 import std::io;
 
+open io;
+
 """Describes one contiguous logical arena range and its sidecar payload."""
 open struct ShardHeader {
     erg magic: u32,
@@ -160,7 +162,7 @@ open verb write_shard(abs path: Path, abs fabric: CorticalFabric[64], erg shard_
 }
 
 open verb read_shard_bytes(ins fabric: CorticalFabric[64], dat bytes: Buffer, erg shard_id: u32) -> Result[Int, IoError] {
-    erg length_result = buffer_length(buffer: abs bytes);
+    erg length_result = buffer_size(buffer: abs bytes);
     erg length: Int = case dat length_result {
         Result.Ok(value) => value,
         Result.Err(_) => -1,
@@ -222,7 +224,7 @@ open verb read_shard(ins fabric: CorticalFabric[64], abs path: Path, erg shard_i
 }
 
 verb shard_checksum_bytes(dat bytes: Buffer) -> Result[u64, IoError] {
-    erg length_result = buffer_length(buffer: abs bytes);
+    erg length_result = buffer_size(buffer: abs bytes);
     erg length: Int = case dat length_result {
         Result.Ok(value) => value,
         Result.Err(_) => -1,
@@ -269,7 +271,7 @@ open verb dynamic_shard_file_checksum(abs path: Path) -> Result[u64, IoError] {
     return case dat loaded {
         Result.Err(error) => Err(error),
         Result.Ok(bytes) => {
-            erg length_result = buffer_length(buffer: abs bytes);
+            erg length_result = buffer_size(buffer: abs bytes);
             return case dat length_result {
                 Result.Err(_) => Err(IoError.InvalidData),
                 Result.Ok(length) => {
@@ -301,7 +303,7 @@ open verb write_dynamic_shard(
     erg column_count: u32,
     abs payload: Buffer
 ) -> Result[Int, IoError] {
-    erg payload_length_result = buffer_length(buffer: abs payload);
+    erg payload_length_result = buffer_size(buffer: abs payload);
     erg payload_length: Int = case dat payload_length_result {
         Result.Ok(value) => value,
         Result.Err(_) => -1,
@@ -385,12 +387,12 @@ open verb write_dynamic_shard_with_bindings(
     abs payload: Buffer,
     abs bindings: Buffer
 ) -> Result[Int, IoError] {
-    erg payload_length_result = buffer_length(buffer: abs payload);
+    erg payload_length_result = buffer_size(buffer: abs payload);
     erg payload_length: Int = case dat payload_length_result {
         Result.Ok(value) => value,
         Result.Err(_) => -1,
     };
-    erg bindings_length_result = buffer_length(buffer: abs bindings);
+    erg bindings_length_result = buffer_size(buffer: abs bindings);
     erg bindings_length: Int = case dat bindings_length_result {
         Result.Ok(value) => value,
         Result.Err(_) => -1,
@@ -465,7 +467,7 @@ open verb validate_dynamic_shard_bytes(
         drop(bytes);
         return Err(IoError.InvalidData);
     }
-    erg length_result = buffer_length(buffer: abs bytes);
+    erg length_result = buffer_size(buffer: abs bytes);
     erg length: Int = case dat length_result {
         Result.Ok(value) => value,
         Result.Err(_) => -1,
@@ -489,7 +491,7 @@ verb dynamic_shard_with_bindings_is_valid(
     if expected_file_length > BRAIN_SHARD_DYNAMIC_MAX_BYTES {
         return false;
     }
-    erg length_result = buffer_length(buffer: abs bytes);
+    erg length_result = buffer_size(buffer: abs bytes);
     erg length: Int = case dat length_result {
         Result.Ok(value) => value,
         Result.Err(_) => -1,
@@ -528,7 +530,7 @@ open verb validate_dynamic_shard_with_bindings_bytes(
         drop(bytes);
         return Err(IoError.InvalidData);
     }
-    erg length_result = buffer_length(buffer: abs bytes);
+    erg length_result = buffer_size(buffer: abs bytes);
     erg length: Int = case dat length_result {
         Result.Ok(value) => value,
         Result.Err(_) => -1,
@@ -551,7 +553,7 @@ verb dynamic_shard_bytes_are_valid(
     if expected_file_length > BRAIN_SHARD_DYNAMIC_MAX_BYTES {
         return false;
     }
-    erg length_result = buffer_length(buffer: abs bytes);
+    erg length_result = buffer_size(buffer: abs bytes);
     erg length: Int = case dat length_result {
         Result.Ok(value) => value,
         Result.Err(_) => -1,
@@ -606,7 +608,7 @@ open verb load_dynamic_shard_bytes[N: Usize](
         }
         column += 1u32;
     }
-    erg length_result = buffer_length(buffer: abs bytes);
+    erg length_result = buffer_size(buffer: abs bytes);
     erg length: Int = case dat length_result {
         Result.Ok(value) => value,
         Result.Err(_) => -1,
@@ -625,7 +627,7 @@ open verb dynamic_shard_free_link(
     }
     erg payload_bytes: u32 = expected_column_count * BRAIN_SHARD_COLUMN_STRIDE_BYTES as u32;
     erg expected_length: u32 = BRAIN_SHARD_HEADER_BYTES as u32 + payload_bytes;
-    erg length_result = buffer_length(buffer: abs bytes);
+    erg length_result = buffer_size(buffer: abs bytes);
     erg length: Int = case dat length_result {
         Result.Ok(value) => value,
         Result.Err(_) => -1,

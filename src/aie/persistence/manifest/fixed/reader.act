@@ -1,3 +1,7 @@
+import std::io;
+
+open io;
+
 """
 Purpose: Decode the fixed manifest header from its position-independent byte representation.
 Inputs: The source Buffer or Path and the typed offset or selector declared by the signature.
@@ -70,7 +74,7 @@ Invariants: Reads are position-independent and do not mutate the source buffer.
 Failure behavior: Malformed data and filesystem failures are returned through the declared Result contract.
 """
 open verb read_manifest_bytes(dat bytes: Buffer) -> Result[Int, IoError] {
-    erg length_result = buffer_length(buffer: abs bytes);
+    erg length_result = buffer_size(buffer: abs bytes);
     erg length: Int = case dat length_result {
         Result.Ok(value) => value,
         Result.Err(_) => -1,

@@ -125,6 +125,48 @@ must document ownership, return values, errors, side effects, allocation
 behavior, and ABI behavior where applicable. Documentation must describe what
 the implementation does now, not what a future design may promise.
 
+Actus uses `#` for ordinary source comments. Comment-only lines and inline
+`#` comments are ignored by the source-size conformance metric. Triple-quoted
+`""" ... """` blocks are documentation strings, not ordinary comments; they
+remain part of the measured source and must be preserved for documentation
+validation. Rust source keeps its normal `//` and `/* ... */` comment rules.
+
+#### Structured verb contracts
+
+When a verb needs a readable multi-line contract, its leading documentation
+string may begin with the exact marker `contract:`. The compiler stores the
+following named sections as documentation metadata and exposes them to the
+formatter, semantic model, hover, completion, and signature-help tools:
+
+```act
+"""
+contract:
+purpose:
+    Read one bounded frame.
+inputs:
+    source: an immutable input buffer.
+outputs:
+    Returns the decoded frame or a typed error.
+ownership:
+    The input view does not escape.
+errors:
+    Reports short or corrupt input.
+"""
+open verb read_frame(abs source: Buffer) -> Result[Frame, DecodeError] {
+    ...
+}
+```
+
+The supported section names are `purpose`, `inputs`, `outputs`, `ownership`,
+`invariants`, `errors`, `side_effects`, and `abi`. This syntax documents the
+existing behavior only: it does not add runtime checks, change ownership
+analysis, or alter native lowering. Unknown, duplicate, empty contracts, or
+otherwise malformed structured contracts produce parser diagnostic `E0014`.
+Ordinary documentation
+strings without `contract:` keep their existing meaning. See
+`docs/decisions/ADR-0065-structured-verb-contracts.md` for the complete
+contract and compatibility rules.
+
 ### 4.3 Whitespace and punctuation
 
 Use semicolons after statements. Braces delimit blocks. Commas separate
@@ -268,6 +310,10 @@ The implemented vocabulary includes the following groups.
 
 - `return` exits a verb and unwinds owned resources in affected scopes.
 - `loop` creates a loop body.
+- `for` creates a bounded range or fixed-array index iteration.
+- `repeat` is a bounded readability alias that expands to the same `for`
+  contract.
+- `in` separates a `for` binding from its bounded source.
 - `break` exits the nearest loop.
 - `continue` starts the next iteration of the nearest loop.
 - `case` performs pattern matching.
@@ -286,10 +332,11 @@ The implemented vocabulary includes the following groups.
 - `meta` attaches compile-time metadata such as `test`, `target`, or
   `limitless`.
 
-`for`, `while`, `in`, `async`, `await`, `yield`, `spawn`, and actor-related
-words are not general implemented control-flow constructs. They must not be
-used in new examples unless the relevant implementation has landed. Some are
-reserved or planned vocabulary only.
+`while`, `async`, `await`, `yield`, `spawn`, and actor-related words are not
+general implemented control-flow constructs. They must not be used in new
+examples unless the relevant implementation has landed. Bounded `for` and its
+`in` separator are implemented only in the restricted form documented in
+Section 11.3. Some other words remain reserved or planned vocabulary only.
 
 ## 6. Types
 
@@ -456,6 +503,13 @@ Variant construction uses `Type[Arguments].Variant(...)` for a known generic
 type or `Result.Ok(...)`/`Result.Err(...)` where inference has enough context.
 Pattern matching extracts payloads. `?` propagates a compatible `Err` from a
 fallible expression.
+
+When native lowering extracts a regular enum payload from another enum, it
+materializes an owned payload allocation before the binding is used. This keeps
+`dat` transfers and cleanup on valid allocation boundaries; inline struct
+payloads continue to use their containing storage directly. Compiler changes
+must preserve this distinction and cover both accepted execution and cleanup
+regressions.
 
 ## 7. Ownership roles
 
@@ -779,8 +833,44 @@ loop {
 
 `break` and `continue` target the nearest enclosing loop. They unwind local
 owned values correctly. Loop-carried state must be initialized and updated in
-an ownership-safe way. `for` and `while` are not substitutes; they are not
-currently general loop syntax.
+an ownership-safe way.
+
+Actus also supports two bounded `for` forms:
+
+```act
+for erg index: u32 in 0u32 .. 8u32 {
+    total += index;
+}
+
+for erg index: u32 in values {
+    total += values[index];
+}
+```
+
+The range is half-open: `start` is included and `end` is excluded. Both range
+bounds must have the declared primitive integer type of the `erg` index
+binding. Empty and reversed ranges execute zero times. Values that overflow
+the declared bound type are rejected during semantic analysis.
+
+The collection form is index iteration over a statically known `Array[T, N]`.
+It also supports pack fields backed by fixed arrays. The compiler derives the
+finite bound from the array layout; the loop does not discover a runtime
+length. The binding is an explicit `erg` integer index. `abs`, `ins`, and `dat`
+bindings are parsed but rejected by semantic analysis in the current profile.
+
+Dynamic collections, scalar sources, unbounded iterators, runtime length
+discovery, and hidden collection allocation are not valid `for` sources. Native
+lowering emits integer condition, body, increment, and exit blocks. `continue`
+always targets the increment block, so it cannot skip index advancement. The
+existing cleanup plan applies to `break`, `continue`, nested loops, and early
+return. Formatter, definition lookup, and hover preserve and expose the loop
+binding like other local bindings.
+
+`repeat erg index: u32 in start .. end { ... }` is a readability helper for the
+same bounded range contract. The compiler expands it to canonical `for` form
+before semantic analysis; formatter output uses the canonical `for` spelling.
+It does not add callbacks, allocation, dynamic bounds, or a second ownership
+model.
 
 ### 11.4 Assignment
 
@@ -896,6 +986,27 @@ Compile-time constants do not make arbitrary runtime computation compile-time.
 Do not rely on a constant evaluator to read files, call foreign functions,
 inspect hardware, or access mutable state.
 
+Pack field offsets may name a checked integer constant:
+
+```act
+const PAYLOAD_OFFSET: u16 = 8u16;
+
+pack Frame {
+    erg storage: Array[u8, 2];
+    layout little;
+    fields {
+        erg marker: u8 at 0;
+        erg payload: u8 at PAYLOAD_OFFSET;
+    }
+}
+```
+
+Named offsets may chain through integer constants and checked integer
+arithmetic. They must resolve before native lowering and remain within the
+`u16` layout-offset domain. Calls, runtime reads, allocation, mutation,
+buffers, strings, booleans, floating point, and dynamic lengths are invalid in
+layout constants. The numeric `at 0` form remains valid for literal offsets.
+
 ## 15. `Buffer`, `Array`, `pack`, and `Arena`
 
 ### 15.1 `Buffer`
@@ -953,7 +1064,57 @@ shift/mask lowering, validates field widths and offsets, and preserves the
 declared endianness/layout contract. Do not manually duplicate bit shifts when
 a pack declaration expresses the actual representation.
 
-### 15.4 `Arena[N]`
+### 15.4 Declarative serialization contracts
+
+Fixed-width binary formats may be declared with `serialize` when the byte
+layout is part of the type contract:
+
+```act
+serialize Frame from FramePack {
+    layout little;
+    version u16 at 0;
+    payload bytes at 2 length 16;
+    checksum crc32 over 0 .. 18 at 18;
+}
+```
+
+The first accepted profile requires exactly one `version u16`, one fixed-size
+payload, and one `crc32` section. Offsets, lengths, checksum ranges, and the
+source pack's byte capacity are validated at compile time. Sections may not
+overlap, and the checksum field may not overlap its input range. The
+declaration does not allocate memory, open files, or perform I/O. Generated
+read, write, validation, and migration operations must use caller-owned
+buffers and explicit ownership roles. The `crc32` intrinsic computes an IEEE
+CRC32 over a validated buffer range, while `crc32_matches` compares that value
+with an expected integer. The `validate_fixed_frame` intrinsic exposes the
+fixed-frame runtime validator, which checks version,
+payload bounds, endianness, and stored CRC without allocation. These operations
+do not allocate. Generated serialization operations use the compiler-provided
+`SerializationError` enum. The compiler currently generates
+`<contract>_validate`, which accepts a caller-owned `Buffer` and a read-only
+expected version, and `<contract>_encode`, which accepts an `abs` source pack
+and an `ins` output `Buffer`, copies the fixed storage bytes, and returns a
+typed `Result[u32, SerializationError]`. It also generates
+`<contract>_decode`, which accepts an `abs expected_version: u16`, checks the
+input length through the compiler-provided `buffer_length` primitive, validates
+the encoded version and checksum, and returns an owned pack or a typed
+`InvalidLayout`, `InvalidVersion`, or `InvalidChecksum` error. Both operations
+derive their fixed storage bounds from the declaration. The compiler also
+generates `<contract>_migrate`, which validates `from_version`, copies the fixed
+frame into an empty caller-owned output, writes `to_version`, recomputes the
+declared checksum, and returns a typed byte count. Dynamic payloads, implicit
+allocation, and automatic filesystem commits remain outside this profile until
+their contracts are implemented and tested.
+
+When generated migration is available, use the explicit form
+`<contract>_migrate(abs input: Buffer, abs from_version: u16,
+abs to_version: u16, ins output: Buffer)`. It validates the source version,
+rewrites the target version, recomputes the declared checksum, and writes into
+the caller-owned output. The output must be empty before migration. Migration
+does not perform filesystem I/O; atomic file replacement belongs to the
+filesystem persistence layer.
+
+### 15.5 `Arena[N]`
 
 The native backend contains bounded arena support used by current aggregate
 and systems examples:
@@ -1069,11 +1230,10 @@ the imported object program; private constants and facade-bypass declarations
 remain unavailable. Constants must be materialized before native identifier
 lowering and must never become runtime storage or native ABI symbols.
 
-This contract also applies through nested module facades. For example,
-`src/aie/persistence/serialization.act` may import `config` and use a
-constant exported by `src/config/config.act` even when the final native
-object is emitted for the parent `aie` module. The compiler must carry the
-constant into the corresponding module object before native semantic
+This contract also applies through nested module facades. A child module may
+import the package configuration facade and use its public constants when the
+final native object is emitted for the parent module. The compiler must carry
+the constant into the corresponding module object before native semantic
 analysis and lowering.
 
 Package constants may be used in all supported compile-time expression
@@ -1230,6 +1390,11 @@ language syntax. Never embed a list of CPU models into a type or operator.
 
 ### Source-limit exceptions
 
+Source-size limits measure code-bearing lines rather than raw physical lines.
+Blank lines and comments are excluded, while Actus documentation strings are
+counted. The preferred, split-required, and hard thresholds therefore apply to
+the actual source structure and are not increased merely by adding comments.
+
 The recommended default is to keep source files and verbs within the project
 limits. If a carefully justified exception is needed:
 
@@ -1311,7 +1476,7 @@ The public I/O facade includes:
 - `flush()` for stdout;
 - `Cursor` and cursor read/write/seek/flush operations;
 - buffered reader and writer types and operations;
-- `copy_stream` for reader-to-writer transfer.
+- `copy` for reader-to-writer transfer.
 
 Use `print` for `String`, `printb` for binary `Buffer`, and typed result
 handling for failures. Do not pass a `String` to `printb` or a `Buffer` to
@@ -1374,13 +1539,16 @@ The filesystem facade includes:
 - `file_open`, `file_create`, `file_read`, `file_write`, `file_flush`,
   `file_close`, and file seek operations;
 - `read_to_bytes` and `read_to_string`;
-- `write_file`;
+- `write_file` and `write_file_atomic`;
 - `remove_file`, `rename`, `copy_file`, `create_dir`, and `remove_dir`;
 - metadata access through paths and file handles.
 
 All public operations return typed `Result` contracts. Files and buffers are
 owned resources and must be passed with the correct role. A failed operation
 must preserve the documented owner and cleanup behavior.
+`write_file_atomic` consumes a caller-selected staging `Path`, flushes the
+staging file, renames it to the final destination, and removes staging on
+failure. Manifest publication and directory durability remain caller policy.
 
 ### 20.4 `std::path`
 
@@ -1505,8 +1673,8 @@ installation model.
 ### Current systems-language capability status
 
 The current systems-language capability set is compiler-owned and
-target-neutral; it is not an AIE-specific lowering path and does not embed
-ARM, RISC-V, STM32, RP, or other CPU identities into Actus syntax.
+target-neutral; CPU identities belong in target and runtime configuration,
+not in Actus syntax.
 
 #### Const generics
 
@@ -1835,6 +2003,73 @@ verb snapshot(ins output: Buffer, abs column: Minicolumn) -> Int {
 or an unbounded storage representation for the supported packed-storage
 contract.
 
+#### Explicit scalar reuse
+
+Use `copy(value: abs value)` when an eligible scalar must be reused at an
+owning call boundary. The compiler accepts `Int`, `Bool`, and fixed-width
+integer values. The `abs` role is explicit for this intrinsic and the operation
+does not consume the caller. Do not use identity arithmetic such as `value + 0u32` to express
+reuse. Buffers, strings, resources, cleanup-bearing aggregates, and
+unsupported user-defined values are rejected with `E1021`; a missing explicit
+`abs` role or a missing safe inferred role is rejected with `E1016`.
+
+Static local calls support a narrow ownership inference profile. When a call
+argument omits its role, the compiler may infer `abs` only from an `abs`
+binding and `ins` only from an `ins` binding that is active and mutable. The
+inference is resolved before ownership validation and native lowering. It does
+not apply to `erg` or `dat`, dynamic or external calls, aggregates, buffers,
+resources, or ambiguous expressions. Explicit `abs value` and `ins value`
+remain valid and are the source-level opt-out when the ownership intent should
+be visible. An unsafe omission uses the stable `E1016` argument-role diagnostic.
+
+For a direct static call argument, the compiler may materialize a hidden
+`erg` local when the source expression is a pure scalar expression and the
+argument explicitly uses `abs`. This keeps small arithmetic and bounded index
+expressions readable without changing ownership or evaluation order:
+
+```act
+verb read(abs value: u32) -> Int {
+    return value as Int;
+}
+
+verb main() -> Int {
+    erg values: Array[u32, 2] = Array[u32, 2]();
+    values[1] = 41u32;
+    erg index: u32 = 1u32;
+    return read(value: abs values[index]);
+}
+```
+
+The compiler-owned local is equivalent to an explicit scalar binding for the
+duration of that call. It is generated in deterministic source order, receives
+`erg`, and is passed to the callee as `abs`. Generated names are reserved
+internally and avoid collisions with source bindings. Formatter and LSP
+semantic declarations do not display the hidden local. The initializer may
+contain scalar literals, arithmetic, bitwise operations, comparisons, casts,
+grouping, and bounded scalar indexing. Calls, method calls, buffers,
+aggregates, resources, mutation, borrows, conditional expressions, and
+ownership transfers remain explicit source forms.
+
+The generated form has the same native text as its equivalent explicit local,
+and its object relocations contain no allocation reference. A prior move or
+borrow rule is still diagnosed by ordinary semantic analysis; normalization
+does not repair invalid ownership.
+
+When an imported generic verb named `copy` is visible, dispatch is determined
+by call shape and declaration provenance. A local module-scoped `copy`
+declaration has precedence. The one-argument scalar form
+`copy(value: abs scalar)` uses the compiler-checked scalar reuse intrinsic when
+no local declaration shadows it. The two-argument `reader`/`writer` form uses
+the imported generic standard-library verb. Generic specialization must occur
+only after this dispatch decision so unresolved parameters cannot reach native
+semantic reanalysis. This rule does not relax the explicit `abs` requirement
+or the supported scalar type set.
+
+Indexed selection remains bounded through `values[index]`. Constant indexes
+outside `0 <= index < N` produce `E1085`; computed indexes retain the native
+bounds check. Indexed views preserve the source ownership role, so an
+exclusive `ins` view cannot be created from an `abs` owner (`E1016`).
+
 The formatter emits array-backed packs in canonical multiline form while
 preserving storage type, field offsets, layout, and `"""` documentation. The
 LSP exposes storage width, byte capacity, layout, field metadata, hover,
@@ -1844,10 +2079,10 @@ source spans, including invalid storage (`E1070`), out-of-range fields
 (`E1072`), overlap (`E1073`), constant index bounds (`E1085`), and ownership
 violations (`E1051`).
 
-The canonical end-to-end evidence is:
+The canonical end-to-end evidence is maintained in:
 
 ```text
-the readiness package acceptance test in `tests/examples_cli.rs`
+the repository's strict package and executable acceptance tests
 ```
 
 That acceptance runs strict check/test/format validation, host-native build and
@@ -1926,9 +2161,9 @@ generic parameters, Boolean literals, nested fields/places, diagnostics,
 hover, definitions, semantic tokens, formatting, versioned overlays, and
 malformed nested documents without process termination.
 
-#### Acceptance boundary
+#### Verification boundary
 
-The readiness package proves the combined systems-language workflow:
+The verification workflow covers the combined systems-language contract:
 
 - strict package checking succeeds;
 - accepted and rejected ownership cases are tested;
@@ -1937,12 +2172,9 @@ The readiness package proves the combined systems-language workflow:
 - LSP analysis remains synchronized with the workspace source;
 - source limits, public documentation, and native IR verification checks pass.
 
-This status means the implemented capability set is working and verified. It
-does not claim that deferred features such as const expressions,
-arbitrary compile-time evaluation, a full target matrix, AIE, Wire, Ustari,
-closures, async execution, or a complete enterprise compiler platform already
-exist. Those require separate designs, implementations, and acceptance
-evidence.
+This status describes the implemented compiler capabilities and their required
+verification evidence. Deferred language features require separate designs,
+implementations, and tests before they may be used.
 
 ## LSP and editor behavior
 
@@ -2027,7 +2259,7 @@ runtime profile, and standard-library support outside the language syntax.
 
 The following require separate evidence and must not be invented in examples:
 
-- general `for`, `while`, or iterator syntax;
+- unbounded `for`, `while`, or general iterator syntax;
 - async/await, tasks, actors, closures, lambdas, macros, or REPL;
 - automatic numeric promotion or implicit casts;
 - null values or nullable references;
@@ -2036,9 +2268,8 @@ The following require separate evidence and must not be invented in examples:
 - every target-specific runtime profile;
 - WASM, DWARF, incremental compilation, or parallel compilation;
 - a complete `Map` standard-library API;
-- Wire or Ustari protocol implementation merely because ADR-0051 exists;
-- a production-ready neural or endocrine runtime merely because Actus can
-  express packs, arrays, buffers, and fixed-width arithmetic.
+- a protocol or domain runtime merely because Actus can express packs, arrays,
+  buffers, and fixed-width arithmetic.
 
 If a requested feature falls into this list, report it as a language/toolchain
 gap and propose the parser, AST, semantic, codegen, tooling, and test work
@@ -2150,7 +2381,7 @@ from another project directory can locate the source of truth directly:
 - `/home/magradze/Projects/actus_project/actus/docs/decisions/ADR-0052-core-control-flow-constants-and-type-directed-ergonomics.md`:
   current ergonomic/core direction.
 - `/home/magradze/Projects/actus_project/actus/docs/decisions/ADR-0053-production-language-capability-and-wire-readiness.md`:
-  production readiness boundary.
+  production capability boundary.
 - `/home/magradze/Projects/actus_project/actus/examples/`: executable language examples.
 - `/home/magradze/Projects/actus_project/actus/library/std/src/`: public standard-library facades and sibling modules.
 - `/home/magradze/Projects/actus_project/actus/tests/`: compiler, native, runtime, LSP, and standard-library evidence.

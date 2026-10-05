@@ -1,3 +1,7 @@
+import std::io;
+
+open io;
+
 """
 Purpose: Append a descriptor for a newly allocated dynamic shard.
 Inputs: The typed value arguments declared by the signature and the destination Buffer.
@@ -58,7 +62,7 @@ Failure behavior: Uses the declared typed error behavior for invalid data or I/O
 """
 verb extend_manifest_bytes(dat bytes: Buffer, abs path: Path, erg new_column_count: u32, erg new_checksum: u64, erg active_count: u32, erg free_list_head: u32) -> Result[Int, IoError] {
     if !manifest_dynamic_bytes_are_valid(bytes: abs bytes) { drop(bytes); return Err(IoError.InvalidData); }
-    erg old_length_result = buffer_length(buffer: abs bytes);
+    erg old_length_result = buffer_size(buffer: abs bytes);
     erg old_length: Int = case dat old_length_result { Result.Ok(value) => value, Result.Err(_) => -1, };
     erg old_length_u32: u32 = old_length as u32;
     erg offset_12: u32 = 12u32; erg offset_20: u32 = 20u32; erg offset_28: u32 = 28u32;

@@ -1,3 +1,7 @@
+import std::io;
+
+open io;
+
 """
 Purpose: Compute the position-independent checksum while excluding the stored checksum field.
 Inputs: The manifest bytes and typed indexes or metadata declared by the signature.
@@ -150,7 +154,7 @@ Invariants: Validation is side-effect free and enforces magic, version, bounds, 
 Failure behavior: Returns false or InvalidData/InvalidInput according to the public contract; it never accepts partial state.
 """
 open verb manifest_dynamic_bytes_are_valid(abs bytes: Buffer) -> Bool {
-    erg length_result = buffer_length(buffer: abs bytes);
+    erg length_result = buffer_size(buffer: abs bytes);
     erg length: Int = case dat length_result { Result.Ok(value) => value, Result.Err(_) => -1, };
     if length < BRAIN_MANIFEST_HEADER_BYTES as Int || length > BRAIN_MANIFEST_DYNAMIC_MAX_BYTES as Int { return false; }
     erg length_u32: u32 = length as u32;

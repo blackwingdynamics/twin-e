@@ -1,3 +1,7 @@
+import std::io;
+
+open io;
+
 """
 Purpose: Validate a dynamic shard against its manifest descriptor and checksum.
 Inputs: The manifest, descriptor, shard, or header values declared by the signature.
@@ -59,7 +63,7 @@ open verb validate_dynamic_manifest_binding_shard(abs manifest: Buffer, abs shar
     erg stored_checksum: u64 = read_shard_u64(input: abs shard, offset: abs shard_checksum_offset);
     if stored_checksum != expected_checksum { return Err(IoError.InvalidData); }
     if !dynamic_shard_with_bindings_is_valid(bytes: abs shard, expected_shard_id: erg expected_id, expected_first_column_index: erg expected_first, expected_column_count: erg expected_count) { return Err(IoError.InvalidData); }
-    erg length_result = buffer_length(buffer: abs shard);
+    erg length_result = buffer_size(buffer: abs shard);
     return case dat length_result {
         Result.Err(_) => Err(IoError.Failed),
         Result.Ok(length) => Ok(length),

@@ -1,3 +1,7 @@
+import std::io;
+
+open io;
+
 """
 Purpose: Validate the fixed manifest magic, version, shard count, and checksum.
 Inputs: The manifest, descriptor, shard, or header values declared by the signature.
@@ -21,7 +25,7 @@ Invariants: All offsets and indexes remain bounded by the position-independent m
 Failure behavior: Returns false, InvalidInput, or InvalidData according to the declared return type.
 """
 open verb manifest_locate_column(abs bytes: Buffer, erg global_index: u32) -> Result[ColumnLocation, IoError] {
-    erg length_result = buffer_length(buffer: abs bytes);
+    erg length_result = buffer_size(buffer: abs bytes);
     erg length: Int = case dat length_result { Result.Ok(value) => value, Result.Err(_) => -1, };
     if length != BRAIN_MANIFEST_FILE_BYTES as Int || !manifest_fixed_header_is_valid(bytes: abs bytes) {
         return Err(IoError.InvalidData);
