@@ -20,7 +20,7 @@ verb shard_dynamic_checksum(abs input: Buffer, erg length: u32) -> u64 {
     return checksum;
 }
 
-open verb dynamic_shard_file_checksum(abs path: Path) -> Result[u64, IoError] {
+verb dynamic_shard_file_checksum_core(abs path: Path) -> Result[u64, IoError] {
     erg loaded = read_to_bytes(path: abs path);
     return case dat loaded {
         Result.Err(error) => Err(error),

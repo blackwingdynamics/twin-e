@@ -42,3 +42,7 @@ open verb publish_dynamic_shard_public(
         expected_column_count: erg expected_column_count
     );
 }
+
+open verb dynamic_shard_file_checksum_public(abs path: Path) -> Result[u64, IoError] {
+    return dynamic_shard_file_checksum_core(path: abs path);
+}
