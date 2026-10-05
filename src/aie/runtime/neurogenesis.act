@@ -63,19 +63,37 @@ verb allocate_binding_slot[N: Usize](
         }
         return Option[u32].None;
     }
-    seed_column(fabric: ins fabric, slot: erg slot, wave: abs wave);
-    erg link_available: Bool = true;
-    erg linked: Bool = link_allocated(
+    erg linked: Bool = seed_and_link_binding(
         fabric: ins fabric,
+        wave: abs wave,
         source: source_idx,
-        slot: slot,
-        available: erg link_available
+        slot: slot
     );
     if !linked {
         free_column(fabric: ins fabric, slot: erg slot);
         return Option[u32].None;
     }
     return Option[u32].Some(slot);
+}
+
+verb seed_and_link_binding[N: Usize](
+    ins fabric: CorticalFabric[N],
+    abs wave: Wavefront,
+    erg source: u32,
+    erg slot: u32
+) -> Bool {
+    erg available: Bool = true;
+    seed_column(
+        fabric: ins fabric,
+        slot: erg slot,
+        wave: abs wave
+    );
+    return link_allocated(
+        fabric: ins fabric,
+        source: erg source,
+        slot: erg slot,
+        available: erg available
+    );
 }
 
 """Allocate, seed, link, or reclaim one novel minicolumn."""
@@ -135,88 +153,16 @@ verb link_allocated[N: Usize](
         source: source,
         available: available
     );
-    if link_choice < 4u32 {
-        return link_first_four(
-            fabric: ins fabric,
-            source: source,
-            slot: slot,
-            link_choice: link_choice
-        );
-    } else {
-        return link_last_four(
-            fabric: ins fabric,
-            source: source,
-            slot: slot,
-            link_choice: link_choice
-        );
+    if link_choice >= 8u32 {
+        return false;
     }
-    return false;
-}
-
-meta limitless("verb")
-verb link_first_four[N: Usize](
-    ins fabric: CorticalFabric[N],
-    erg source: u32,
-    erg slot: u32,
-    erg link_choice: u32
-) -> Bool {
-    erg dispatched_low: u32 = case true {
-        true if link_choice == 0u32 => link_axon_0(
-            fabric: ins fabric,
-            source: source,
-            target: slot
-        ),
-        true if link_choice == 1u32 => link_axon_1(
-            fabric: ins fabric,
-            source: source,
-            target: slot
-        ),
-        true if link_choice == 2u32 => link_axon_2(
-            fabric: ins fabric,
-            source: source,
-            target: slot
-        ),
-        true if link_choice == 3u32 => link_axon_3(
-            fabric: ins fabric,
-            source: source,
-            target: slot
-        ),
-        _ => 0u32,
-    };
-    return link_choice < 4u32;
-}
-
-meta limitless("verb")
-verb link_last_four[N: Usize](
-    ins fabric: CorticalFabric[N],
-    erg source: u32,
-    erg slot: u32,
-    erg link_choice: u32
-) -> Bool {
-    erg dispatched_high: u32 = case true {
-        true if link_choice == 4u32 => link_axon_4(
-            fabric: ins fabric,
-            source: source,
-            target: slot
-        ),
-        true if link_choice == 5u32 => link_axon_5(
-            fabric: ins fabric,
-            source: source,
-            target: slot
-        ),
-        true if link_choice == 6u32 => link_axon_6(
-            fabric: ins fabric,
-            source: source,
-            target: slot
-        ),
-        true if link_choice == 7u32 => link_axon_7(
-            fabric: ins fabric,
-            source: source,
-            target: slot
-        ),
-        _ => 0u32,
-    };
-    return link_choice < 8u32;
+    link_axon(
+        fabric: ins fabric,
+        source: source,
+        slot: link_choice,
+        target: slot
+    );
+    return true;
 }
 
 meta limitless("verb")
@@ -225,25 +171,18 @@ verb choose_link[N: Usize](
     erg source: u32,
     erg available: Bool
 ) -> u32 {
-    erg zero: u32 = 0u32;
-    erg one: u32 = 1u32;
-    erg two: u32 = 2u32;
-    erg three: u32 = 3u32;
-    erg four: u32 = 4u32;
-    erg five: u32 = 5u32;
-    erg six: u32 = 6u32;
-    erg seven: u32 = 7u32;
-    erg eight: u32 = 8u32;
-    erg empty: u32 = null_index();
-    return case true {
-        true if available && source < (N as u32) && fabric.columns[source].axon_0 == empty => zero,
-        true if available && source < (N as u32) && fabric.columns[source].axon_1 == empty => one,
-        true if available && source < (N as u32) && fabric.columns[source].axon_2 == empty => two,
-        true if available && source < (N as u32) && fabric.columns[source].axon_3 == empty => three,
-        true if available && source < (N as u32) && fabric.columns[source].axon_4 == empty => four,
-        true if available && source < (N as u32) && fabric.columns[source].axon_5 == empty => five,
-        true if available && source < (N as u32) && fabric.columns[source].axon_6 == empty => six,
-        true if available && source < (N as u32) && fabric.columns[source].axon_7 == empty => seven,
-        _ => eight,
-    };
+    if !available || source >= (N as u32) {
+        return 8u32;
+    }
+    erg index: u32 = 0u32;
+    loop {
+        if index >= 8u32 {
+            break;
+        }
+        if fabric.columns[source].axons[index] == null_index() {
+            return index;
+        }
+        index += 1u32;
+    }
+    return 8u32;
 }

@@ -15,7 +15,7 @@ verb demo_firing(ins fabric: CorticalFabric[64]) -> Bool {
     fabric.columns[0u32].threshold = 1u8;
     fabric.columns[0u32].coincidence_low = 1u64;
     fabric.columns[0u32].payload = 41u8;
-    fabric.columns[0u32].axon_0 = 2u32;
+    fabric.columns[0u32].axons[0u32] = 2u32;
     fabric.columns[0u32].inhibitory_link = 1u32;
     fabric.columns[2u32].threshold = 1u8;
     fabric.columns[2u32].coincidence_low = 1u64;
@@ -41,7 +41,7 @@ verb demo_firing(ins fabric: CorticalFabric[64]) -> Bool {
 """Create a novel column and verify its attachment to the active source."""
 verb demo_linked_result(ins fabric: CorticalFabric[64], erg index: u32) -> Option[u32] {
     erg result: Option[u32] = Option[u32].None;
-    if fabric.columns[0u32].axon_1 == index {
+    if fabric.columns[0u32].axons[1u32] == index {
         erg linking_message: String = "AIE_DEMO neurogenesis linked=1";
         demo_line(text: erg linking_message);
         result = Option[u32].Some(index);

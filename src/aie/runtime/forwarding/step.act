@@ -81,76 +81,19 @@ verb forward_step_destinations[N: Usize](
 ) -> Array[u32, 8] {
     erg fired: Array[u32,8] = empty_fired_destinations();
     erg index: u32 = 0u32;
-    erg target: u32 = fabric.columns[source_idx].axon_0;
-    store_destination(
-        fabric: ins fabric,
-        wave: abs wave,
-        fired: ins fired,
-        index: erg index,
-        target: erg target
-    );
-    index = 1u32;
-    target = fabric.columns[source_idx].axon_1;
-    store_destination(
-        fabric: ins fabric,
-        wave: abs wave,
-        fired: ins fired,
-        index: erg index,
-        target: erg target
-    );
-    index = 2u32;
-    target = fabric.columns[source_idx].axon_2;
-    store_destination(
-        fabric: ins fabric,
-        wave: abs wave,
-        fired: ins fired,
-        index: erg index,
-        target: erg target
-    );
-    index = 3u32;
-    target = fabric.columns[source_idx].axon_3;
-    store_destination(
-        fabric: ins fabric,
-        wave: abs wave,
-        fired: ins fired,
-        index: erg index,
-        target: erg target
-    );
-    index = 4u32;
-    target = fabric.columns[source_idx].axon_4;
-    store_destination(
-        fabric: ins fabric,
-        wave: abs wave,
-        fired: ins fired,
-        index: erg index,
-        target: erg target
-    );
-    index = 5u32;
-    target = fabric.columns[source_idx].axon_5;
-    store_destination(
-        fabric: ins fabric,
-        wave: abs wave,
-        fired: ins fired,
-        index: erg index,
-        target: erg target
-    );
-    index = 6u32;
-    target = fabric.columns[source_idx].axon_6;
-    store_destination(
-        fabric: ins fabric,
-        wave: abs wave,
-        fired: ins fired,
-        index: erg index,
-        target: erg target
-    );
-    index = 7u32;
-    target = fabric.columns[source_idx].axon_7;
-    store_destination(
-        fabric: ins fabric,
-        wave: abs wave,
-        fired: ins fired,
-        index: erg index,
-        target: erg target
-    );
+    loop {
+        if index >= 8u32 {
+            break;
+        }
+        erg target: u32 = fabric.columns[source_idx].axons[index];
+        store_destination(
+            fabric: ins fabric,
+            wave: abs wave,
+            fired: ins fired,
+            index: erg index,
+            target: erg target
+        );
+        index += 1u32;
+    }
     return fired;
 }

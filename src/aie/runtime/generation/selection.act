@@ -100,20 +100,6 @@ verb evaluate_successor(
     return SuccessorChoice {index: candidate, found: true, loop_guarded: false};
 }
 
-verb axon_at(abs fabric: CorticalFabric[64], abs source_idx: u32, abs slot: u32) -> u32 {
-    return case true {
-        true if slot == 0u32 => fabric.columns[source_idx].axon_0,
-        true if slot == 1u32 => fabric.columns[source_idx].axon_1,
-        true if slot == 2u32 => fabric.columns[source_idx].axon_2,
-        true if slot == 3u32 => fabric.columns[source_idx].axon_3,
-        true if slot == 4u32 => fabric.columns[source_idx].axon_4,
-        true if slot == 5u32 => fabric.columns[source_idx].axon_5,
-        true if slot == 6u32 => fabric.columns[source_idx].axon_6,
-        true if slot == 7u32 => fabric.columns[source_idx].axon_7,
-        _ => null_index(),
-    };
-}
-
 verb consider_successor(
     ins selection: SuccessorSelection,
     abs fabric: CorticalFabric[64],
@@ -145,11 +131,7 @@ verb evaluate_successor_slot(
     erg current_token_id: u32,
     erg slot: u32
 ) {
-    erg candidate: u32 = axon_at(
-        fabric: abs fabric,
-        source_idx: abs source_idx,
-        slot: abs slot
-    );
+    erg candidate: u32 = fabric.columns[source_idx].axons[slot];
     erg choice: SuccessorChoice = evaluate_successor(
         fabric: abs fabric,
         bindings: abs bindings,

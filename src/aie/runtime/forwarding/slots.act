@@ -60,184 +60,6 @@ verb forward_one[N: Usize](
     };
 }
 
-verb forward_slot_0[N: Usize](
-    ins fabric: CorticalFabric[N],
-    abs wave: Wavefront,
-    ins fired: Array[u32, 8],
-    erg source_idx: u32
-) {
-    erg target: u32 = fabric.columns[source_idx].axon_0;
-    fired[0] = forward_one(
-        fabric: ins fabric,
-        wave: abs wave,
-        target: erg target
-    );
-}
-
-verb forward_slot_1[N: Usize](
-    ins fabric: CorticalFabric[N],
-    abs wave: Wavefront,
-    ins fired: Array[u32, 8],
-    erg source_idx: u32
-) {
-    erg target: u32 = fabric.columns[source_idx].axon_1;
-    fired[1] = forward_one(
-        fabric: ins fabric,
-        wave: abs wave,
-        target: erg target
-    );
-}
-
-verb forward_slot_2[N: Usize](
-    ins fabric: CorticalFabric[N],
-    abs wave: Wavefront,
-    ins fired: Array[u32, 8],
-    erg source_idx: u32
-) {
-    erg target: u32 = fabric.columns[source_idx].axon_2;
-    fired[2] = forward_one(
-        fabric: ins fabric,
-        wave: abs wave,
-        target: erg target
-    );
-}
-
-verb forward_slot_3[N: Usize](
-    ins fabric: CorticalFabric[N],
-    abs wave: Wavefront,
-    ins fired: Array[u32, 8],
-    erg source_idx: u32
-) {
-    erg target: u32 = fabric.columns[source_idx].axon_3;
-    fired[3] = forward_one(
-        fabric: ins fabric,
-        wave: abs wave,
-        target: erg target
-    );
-}
-
-verb forward_slot_4[N: Usize](
-    ins fabric: CorticalFabric[N],
-    abs wave: Wavefront,
-    ins fired: Array[u32, 8],
-    erg source_idx: u32
-) {
-    erg target: u32 = fabric.columns[source_idx].axon_4;
-    fired[4] = forward_one(
-        fabric: ins fabric,
-        wave: abs wave,
-        target: erg target
-    );
-}
-
-verb forward_slot_5[N: Usize](
-    ins fabric: CorticalFabric[N],
-    abs wave: Wavefront,
-    ins fired: Array[u32, 8],
-    erg source_idx: u32
-) {
-    erg target: u32 = fabric.columns[source_idx].axon_5;
-    fired[5] = forward_one(
-        fabric: ins fabric,
-        wave: abs wave,
-        target: erg target
-    );
-}
-
-verb forward_slot_6[N: Usize](
-    ins fabric: CorticalFabric[N],
-    abs wave: Wavefront,
-    ins fired: Array[u32, 8],
-    erg source_idx: u32
-) {
-    erg target: u32 = fabric.columns[source_idx].axon_6;
-    fired[6] = forward_one(
-        fabric: ins fabric,
-        wave: abs wave,
-        target: erg target
-    );
-}
-
-verb forward_slot_7[N: Usize](
-    ins fabric: CorticalFabric[N],
-    abs wave: Wavefront,
-    ins fired: Array[u32, 8],
-    erg source_idx: u32
-) {
-    erg target: u32 = fabric.columns[source_idx].axon_7;
-    fired[7] = forward_one(
-        fabric: ins fabric,
-        wave: abs wave,
-        target: erg target
-    );
-}
-
-meta limitless("verb")
-verb forward_group_a[N: Usize](
-    ins fabric: CorticalFabric[N],
-    abs wave: Wavefront,
-    ins fired: Array[u32, 8],
-    erg source_idx: u32
-) {
-    forward_slot_0(
-        fabric: ins fabric,
-        wave: abs wave,
-        fired: ins fired,
-        source_idx: erg source_idx
-    );
-    forward_slot_1(
-        fabric: ins fabric,
-        wave: abs wave,
-        fired: ins fired,
-        source_idx: erg source_idx
-    );
-    forward_slot_2(
-        fabric: ins fabric,
-        wave: abs wave,
-        fired: ins fired,
-        source_idx: erg source_idx
-    );
-    forward_slot_3(
-        fabric: ins fabric,
-        wave: abs wave,
-        fired: ins fired,
-        source_idx: erg source_idx
-    );
-}
-
-meta limitless("verb")
-verb forward_group_b[N: Usize](
-    ins fabric: CorticalFabric[N],
-    abs wave: Wavefront,
-    ins fired: Array[u32, 8],
-    erg source_idx: u32
-) {
-    forward_slot_4(
-        fabric: ins fabric,
-        wave: abs wave,
-        fired: ins fired,
-        source_idx: erg source_idx
-    );
-    forward_slot_5(
-        fabric: ins fabric,
-        wave: abs wave,
-        fired: ins fired,
-        source_idx: erg source_idx
-    );
-    forward_slot_6(
-        fabric: ins fabric,
-        wave: abs wave,
-        fired: ins fired,
-        source_idx: erg source_idx
-    );
-    forward_slot_7(
-        fabric: ins fabric,
-        wave: abs wave,
-        fired: ins fired,
-        source_idx: erg source_idx
-    );
-}
-
 open verb forward_impulse[N: Usize](
     ins fabric: CorticalFabric[N],
     abs wave: Wavefront,
@@ -245,18 +67,19 @@ open verb forward_impulse[N: Usize](
 ) -> Array[u32, 8] {
     erg fired: Array[u32,8] = empty_fired_destinations();
     if source_idx < (N as u32) {
-        forward_group_a(
-            fabric: ins fabric,
-            wave: abs wave,
-            fired: ins fired,
-            source_idx: erg source_idx
-        );
-        forward_group_b(
-            fabric: ins fabric,
-            wave: abs wave,
-            fired: ins fired,
-            source_idx: erg source_idx
-        );
+        erg index: u32 = 0u32;
+        loop {
+            if index >= 8u32 {
+                break;
+            }
+            erg target: u32 = fabric.columns[source_idx].axons[index];
+            fired[index] = forward_one(
+                fabric: ins fabric,
+                wave: abs wave,
+                target: erg target
+            );
+            index += 1u32;
+        }
     }
     return fired;
 }

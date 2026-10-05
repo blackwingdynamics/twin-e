@@ -172,8 +172,8 @@ verb main() -> Int {
     if successor_a == NULL_INDEX || successor_b == NULL_INDEX || successor_a == successor_b {
         return 1;
     }
-    erg context_a_destination: u32 = fabric.columns[context_a].axon_0;
-    erg context_b_destination: u32 = fabric.columns[context_b].axon_0;
+    erg context_a_destination: u32 = fabric.columns[context_a].axons[0u32];
+    erg context_b_destination: u32 = fabric.columns[context_b].axons[0u32];
     if context_a_destination != successor_a || context_b_destination != successor_b || context_a_destination == context_b_destination {
         return 1;
     }

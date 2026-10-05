@@ -11,75 +11,16 @@ verb fabric_some_u32(abs value: u32) -> Option[u32] {
     return result;
 }
 
-open verb link_axon_0[N: Usize](
+open verb link_axon[N: Usize](
     ins fabric: CorticalFabric[N],
     erg source: u32,
+    erg slot: u32,
     erg target: u32
 ) -> u32 {
-    fabric.columns[source].axon_0 = target;
-    return 0u32;
-}
-
-open verb link_axon_1[N: Usize](
-    ins fabric: CorticalFabric[N],
-    erg source: u32,
-    erg target: u32
-) -> u32 {
-    fabric.columns[source].axon_1 = target;
-    return 0u32;
-}
-
-open verb link_axon_2[N: Usize](
-    ins fabric: CorticalFabric[N],
-    erg source: u32,
-    erg target: u32
-) -> u32 {
-    fabric.columns[source].axon_2 = target;
-    return 0u32;
-}
-
-open verb link_axon_3[N: Usize](
-    ins fabric: CorticalFabric[N],
-    erg source: u32,
-    erg target: u32
-) -> u32 {
-    fabric.columns[source].axon_3 = target;
-    return 0u32;
-}
-
-open verb link_axon_4[N: Usize](
-    ins fabric: CorticalFabric[N],
-    erg source: u32,
-    erg target: u32
-) -> u32 {
-    fabric.columns[source].axon_4 = target;
-    return 0u32;
-}
-
-open verb link_axon_5[N: Usize](
-    ins fabric: CorticalFabric[N],
-    erg source: u32,
-    erg target: u32
-) -> u32 {
-    fabric.columns[source].axon_5 = target;
-    return 0u32;
-}
-
-open verb link_axon_6[N: Usize](
-    ins fabric: CorticalFabric[N],
-    erg source: u32,
-    erg target: u32
-) -> u32 {
-    fabric.columns[source].axon_6 = target;
-    return 0u32;
-}
-
-open verb link_axon_7[N: Usize](
-    ins fabric: CorticalFabric[N],
-    erg source: u32,
-    erg target: u32
-) -> u32 {
-    fabric.columns[source].axon_7 = target;
+    if source >= (N as u32) || slot >= 8u32 {
+        return 0u32;
+    }
+    fabric.columns[source].axons[slot] = target;
     return 0u32;
 }
 
@@ -116,14 +57,14 @@ verb fabric_init_core[N: Usize](ins fabric: CorticalFabric[N]) {
         fabric.columns[i].layer_depth = 0u16;
         fabric.columns[i].coincidence_low = 0u64;
         fabric.columns[i].coincidence_high = 0u64;
-        fabric.columns[i].axon_0 = null_index();
-        fabric.columns[i].axon_1 = null_index();
-        fabric.columns[i].axon_2 = null_index();
-        fabric.columns[i].axon_3 = null_index();
-        fabric.columns[i].axon_4 = null_index();
-        fabric.columns[i].axon_5 = null_index();
-        fabric.columns[i].axon_6 = null_index();
-        fabric.columns[i].axon_7 = null_index();
+        erg axon_index: u32 = 0u32;
+        loop {
+            if axon_index >= 8u32 {
+                break;
+            }
+            fabric.columns[i].axons[axon_index] = null_index();
+            axon_index += 1u32;
+        }
         fabric.columns[i].inhibitory_link = null_index();
         if i + 1u32 < (N as u32) {
             fabric.columns[i].free_list_link = (i as u32) + 1u32;
@@ -179,14 +120,14 @@ open verb free_column[N: Usize](ins fabric: CorticalFabric[N], erg slot: u32) ->
     fabric.columns[slot].layer_depth = 0u16;
     fabric.columns[slot].coincidence_low = 0u64;
     fabric.columns[slot].coincidence_high = 0u64;
-    fabric.columns[slot].axon_0 = null_index();
-    fabric.columns[slot].axon_1 = null_index();
-    fabric.columns[slot].axon_2 = null_index();
-    fabric.columns[slot].axon_3 = null_index();
-    fabric.columns[slot].axon_4 = null_index();
-    fabric.columns[slot].axon_5 = null_index();
-    fabric.columns[slot].axon_6 = null_index();
-    fabric.columns[slot].axon_7 = null_index();
+    erg axon_index: u32 = 0u32;
+    loop {
+        if axon_index >= 8u32 {
+            break;
+        }
+        fabric.columns[slot].axons[axon_index] = null_index();
+        axon_index += 1u32;
+    }
     fabric.columns[slot].inhibitory_link = null_index();
     fabric.columns[slot].free_list_link = fabric.free_list_head;
     fabric.free_list_head = slot;
