@@ -1,4 +1,3 @@
-meta limitless("file")
 """Hosted `.brain` file persistence for the fixed fabric snapshot contract."""
 import config;
 import std::fs;
@@ -89,25 +88,15 @@ open verb read_brain(ins fabric: CorticalFabric[64], abs path: Path) -> Result[I
     };
 }
 
-verb read_brain_bytes(
-    ins fabric: CorticalFabric[64],
-    dat bytes: Buffer
-) -> Result[Int, IoError] {
-    erg length_result = buffer_size(buffer: abs bytes);
-    erg length: Int = brain_buffer_size(result: dat length_result);
-    if length != 4116 {
-        drop(bytes);
-        return Err(IoError.InvalidData);
-    }
+verb brain_bytes_have_valid_header(abs bytes: Buffer) -> Bool {
     erg offset_zero: u32 = 0u32;
     erg offset_magic_version: u32 = 4u32;
     erg offset_header: u32 = 6u32;
     erg offset_payload: u32 = 8u32;
-    erg valid_header: Bool = read_u32(input: abs bytes, offset: erg offset_zero) == BRAIN_MAGIC && read_u16(input: abs bytes, offset: erg offset_magic_version) == BRAIN_VERSION && read_u16(input: abs bytes, offset: erg offset_header) == BRAIN_HEADER_BYTES && read_u32(input: abs bytes, offset: erg offset_payload) == BRAIN_PAYLOAD_BYTES;
-    if !valid_header {
-        drop(bytes);
-        return Err(IoError.InvalidData);
-    }
+    return read_u32(input: abs bytes, offset: erg offset_zero) == BRAIN_MAGIC && read_u16(input: abs bytes, offset: erg offset_magic_version) == BRAIN_VERSION && read_u16(input: abs bytes, offset: erg offset_header) == BRAIN_HEADER_BYTES && read_u32(input: abs bytes, offset: erg offset_payload) == BRAIN_PAYLOAD_BYTES;
+}
+
+verb restore_brain_payload(ins fabric: CorticalFabric[64], abs bytes: Buffer) {
     erg index: u32 = 0u32;
     loop {
         if index >= BRAIN_PAYLOAD_BYTES {
@@ -116,10 +105,27 @@ verb read_brain_bytes(
         fabric.columns[index / 64u32].storage[index % 64u32] = bytes[index + 12u32];
         index += 1u32;
     }
+}
+
+verb restore_brain_indexes(ins fabric: CorticalFabric[64], abs bytes: Buffer) {
     erg free_list_offset: u32 = 4108u32;
     erg active_count_offset: u32 = 4112u32;
     fabric.free_list_head = read_u32(input: abs bytes, offset: erg free_list_offset);
     fabric.active_count = read_u32(input: abs bytes, offset: erg active_count_offset);
+}
+
+verb read_brain_bytes(
+    ins fabric: CorticalFabric[64],
+    dat bytes: Buffer
+) -> Result[Int, IoError] {
+    erg length_result = buffer_size(buffer: abs bytes);
+    erg length: Int = brain_buffer_size(result: dat length_result);
+    if length != 4116 || !brain_bytes_have_valid_header(bytes: abs bytes) {
+        drop(bytes);
+        return Err(IoError.InvalidData);
+    }
+    restore_brain_payload(fabric: ins fabric, bytes: abs bytes);
+    restore_brain_indexes(fabric: ins fabric, bytes: abs bytes);
     drop(bytes);
     return Ok(length);
 }

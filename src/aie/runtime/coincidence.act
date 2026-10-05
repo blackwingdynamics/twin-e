@@ -1,6 +1,3 @@
-meta limitless("file")
-
-
 """Coincidence keeps the public wrapper and native lowering core together."""
 import config;
 
@@ -51,12 +48,32 @@ open verb evaluate_minicolumn[N: Usize](
 }
 
 """Evaluate one packed column, update plastic state, and apply inhibition."""
+verb apply_minicolumn_fire[N: Usize](ins fabric: CorticalFabric[N], erg target_idx: u32) {
+    fabric.columns[target_idx].charge = 0u8;
+    fabric.columns[target_idx].idle_ticks = 0u8;
+    if fabric.columns[target_idx].myelination < MAX_U8 {
+        fabric.columns[target_idx].myelination += 1u8;
+    }
+    if fabric.columns[target_idx].inhibitory_link != null_index() && fabric.columns[target_idx].inhibitory_link < (N as u32) {
+        erg inhibitory_idx: u32 = fabric.columns[target_idx].inhibitory_link;
+        fabric.columns[inhibitory_idx].flags |= FLAG_INHIBITED;
+    }
+}
+
+verb accumulate_minicolumn_charge[N: Usize](ins fabric: CorticalFabric[N], erg target_idx: u32, erg overlap: u32) {
+    erg accumulated: u32 = (fabric.columns[target_idx].charge as u32) + overlap;
+    if accumulated > (MAX_U8 as u32) {
+        fabric.columns[target_idx].charge = MAX_U8;
+    } else {
+        fabric.columns[target_idx].charge = accumulated as u8;
+    };
+}
+
 open verb evaluate_minicolumn_core[N: Usize](
     ins fabric: CorticalFabric[N],
     abs wave: Wavefront,
     erg target_idx: u32
 ) -> Option[u8] {
-    erg max_value: u8 = MAX_U8;
     erg refractory_flag: u8 = FLAG_REFRACTORY;
     erg inhibited_flag: u8 = FLAG_INHIBITED;
     erg valid: Bool = target_idx < (N as u32);
@@ -69,22 +86,9 @@ open verb evaluate_minicolumn_core[N: Usize](
     }
     erg fires: Bool = eligible && overlap >= (fabric.columns[target_idx].threshold as u32);
     if fires {
-        fabric.columns[target_idx].charge = 0u8;
-        fabric.columns[target_idx].idle_ticks = 0u8;
-        if fabric.columns[target_idx].myelination < max_value {
-            fabric.columns[target_idx].myelination += 1u8;
-        }
-        if fabric.columns[target_idx].inhibitory_link != null_index() && fabric.columns[target_idx].inhibitory_link < (N as u32) {
-            erg inhibitory_idx: u32 = fabric.columns[target_idx].inhibitory_link;
-            fabric.columns[inhibitory_idx].flags |= inhibited_flag;
-        }
+        apply_minicolumn_fire(fabric: ins fabric, target_idx: erg target_idx);
     } else if eligible {
-        erg accumulated: u32 = (fabric.columns[target_idx].charge as u32) + overlap;
-        if accumulated > (max_value as u32) {
-            fabric.columns[target_idx].charge = max_value;
-        } else {
-            fabric.columns[target_idx].charge = accumulated as u8;
-        };
+        accumulate_minicolumn_charge(fabric: ins fabric, target_idx: erg target_idx, overlap: erg overlap);
     }
     erg result: Option[u8] = Option[u8].None;
     if fires {

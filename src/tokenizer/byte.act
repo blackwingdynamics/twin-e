@@ -1,4 +1,3 @@
-meta limitless("file")
 """Byte-token transition adapter used before subword vocabulary support."""
 import config;
 
@@ -34,6 +33,24 @@ open verb byte_token(erg value: u8, erg offset: u32) -> Token {
     return Token {id: byte_token_id(value: erg value), byte_offset: offset, byte_length: 1u16, tokenizer_version: TOKENIZER_VERSION};
 }
 
+verb empty_token() -> Token {
+    return Token {id: 0u32, byte_offset: 0u32, byte_length: 0u16, tokenizer_version: TOKENIZER_VERSION};
+}
+
+verb token_at(abs text: String, erg position: u32) -> Token {
+    erg byte_index: Int = position as Int;
+    erg byte_result = string_byte_at(text: abs text, index: erg byte_index);
+    erg token: Token = empty_token();
+    case dat byte_result {
+        Result.Ok(value) => {
+            erg byte_value: u8 = value as u8;
+            token = byte_token(value: erg byte_value, offset: erg position);
+        },
+        Result.Err(_) => {},
+    };
+    return token;
+}
+
 """Tokenize a bounded String through the current byte-token adapter."""
 open verb tokenize_string(abs text: String) -> TokenSequence {
     erg sequence: TokenSequence = TokenSequence {tokens: Array[Token, 256](), length: 0u32, valid: true};
@@ -51,16 +68,7 @@ open verb tokenize_string(abs text: String) -> TokenSequence {
         if position >= text_length {
             break;
         }
-        erg byte_index: Int = position as Int;
-        erg byte_result = string_byte_at(text: abs text, index: erg byte_index);
-        erg token: Token = Token {id: 0u32, byte_offset: 0u32, byte_length: 0u16, tokenizer_version: TOKENIZER_VERSION};
-        case dat byte_result {
-            Result.Ok(value) => {
-                erg byte_id: u32 = value as u32;
-                token = Token {id: byte_id, byte_offset: position + 0u32, byte_length: 1u16, tokenizer_version: TOKENIZER_VERSION};
-            },
-            Result.Err(_) => {},
-        };
+        erg token: Token = token_at(text: abs text, position: erg position);
         if token.byte_length == 0u16 {
             sequence.valid = false;
             return sequence;

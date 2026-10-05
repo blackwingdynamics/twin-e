@@ -215,6 +215,14 @@ Phase 34 provides verified indexed access for repeated packed fields.
       `else` blocks; none remain after the benchmark cleanup.
 - [x] `actus check --strict` and `actus test --strict` pass after this cleanup
       with 16 tests passed and 0 failures.
+- [x] Removed unnecessary file-level `limitless` exceptions from the small
+      tokenizer, coincidence, and fixed snapshot files.
+- [x] Split the snapshot reader, coincidence state update, and byte tokenizer
+      helpers where strict function-size validation required clearer
+      responsibilities.
+- [x] Added an explicit `src/aie/api.act` facade for dynamic shard write and
+      publish operations so nested persistence declarations cross the package
+      boundary through a canonical public API.
 
 The remaining Gate 3 items are still open. In particular, the wider migration
 to `case` and bounded iteration must be completed and reviewed independently.

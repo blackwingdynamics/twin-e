@@ -188,7 +188,7 @@ verb finalize_dynamic_shard(
     return write_file(path: abs path, contents: abs output);
 }
 
-open verb write_dynamic_shard(
+verb write_dynamic_shard_core(
     abs path: Path,
     erg shard_id: u32,
     erg first_column_index: u32,
@@ -272,7 +272,7 @@ verb complete_dynamic_shard_with_bindings(
     );
 }
 
-open verb publish_dynamic_shard(
+verb publish_dynamic_shard_core(
     abs staged: Path,
     abs active: Path,
     erg expected_shard_id: u32,
