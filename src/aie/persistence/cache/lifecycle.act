@@ -1,0 +1,41 @@
+"""Explicit resident-state lifecycle for one bounded shard cache entry."""
+open enum ShardLifecycle {
+    Absent,
+    Loading,
+    Resident,
+    Dirty,
+    Flushing,
+    Persisted,
+    Failed,
+}
+
+verb cache_entry_is_present(abs entry: ShardCacheEntry) -> Bool {
+    return case entry.lifecycle {
+        ShardLifecycle.Absent => false,
+        ShardLifecycle.Loading => false,
+        _ => true,
+    };
+}
+
+verb cache_entry_is_dirty(abs entry: ShardCacheEntry) -> Bool {
+    return case entry.lifecycle {
+        ShardLifecycle.Dirty => true,
+        ShardLifecycle.Flushing => true,
+        _ => false,
+    };
+}
+
+verb cache_entry_is_empty(abs entry: ShardCacheEntry) -> Bool {
+    return case entry.lifecycle {
+        ShardLifecycle.Absent => true,
+        _ => false,
+    };
+}
+
+verb cache_entry_is_clean_resident(abs entry: ShardCacheEntry) -> Bool {
+    return case entry.lifecycle {
+        ShardLifecycle.Resident => true,
+        ShardLifecycle.Persisted => true,
+        _ => false,
+    };
+}

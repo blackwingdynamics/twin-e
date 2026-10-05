@@ -1,0 +1,4 @@
+"""Public facade for bounded shard cache lifecycle and operations."""
+open lifecycle;
+
+open operations;

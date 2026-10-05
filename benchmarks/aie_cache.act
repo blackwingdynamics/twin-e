@@ -48,6 +48,22 @@ verb is_evicted(abs cache: ShardCache, erg shard_id: u32) -> Bool {
     };
 }
 
+verb is_dirty_state(abs cache: ShardCache, erg slot: u8) -> Bool {
+    erg entry: ShardCacheEntry = cache.entries[slot as Usize];
+    return case entry.lifecycle {
+        ShardLifecycle.Dirty => true,
+        _ => false,
+    };
+}
+
+verb is_resident_state(abs cache: ShardCache, erg slot: u8) -> Bool {
+    erg entry: ShardCacheEntry = cache.entries[slot as Usize];
+    return case entry.lifecycle {
+        ShardLifecycle.Resident => true,
+        _ => false,
+    };
+}
+
 meta limitless("verb")
 verb main() -> Int {
     erg cache: ShardCache = ShardCache {entries: Array[ShardCacheEntry, 4](), clock: 0u64};
@@ -75,10 +91,10 @@ verb main() -> Int {
         Result.Ok(_) => true,
         Result.Err(_) => false,
     };
-    if !dirty_ok || !pin_ok || !rejects_dirty(cache: ins cache, slot: erg slot_zero_u8) || !rejects_pinned(
+    if !dirty_ok || !pin_ok || !is_dirty_state(cache: abs cache, slot: erg slot_zero_u8) || !rejects_dirty(
         cache: ins cache,
-        slot: erg slot_one_u8
-    ) {
+        slot: erg slot_zero_u8
+    ) || !rejects_pinned(cache: ins cache, slot: erg slot_one_u8) {
         return 2;
     }
     erg unpin_result = shard_cache_unpin(cache: ins cache, slot: erg slot_one_u8);
@@ -88,10 +104,11 @@ verb main() -> Int {
     };
     erg id_four: u32 = 4u32;
     erg slot_four: Int = insert_slot(cache: ins cache, shard_id: erg id_four);
-    erg returned_slot: Int = slot_four;
+    erg slot_four_is_valid: Bool = slot_four >= 0;
+    erg slot_four_u8: u8 = slot_four as u8;
     erg query_old: u32 = 1u32;
     erg evicted_old: Bool = is_evicted(cache: abs cache, shard_id: erg query_old);
-    if !unpinned || returned_slot < 0 || !evicted_old {
+    if !unpinned || !slot_four_is_valid || !evicted_old || !is_resident_state(cache: abs cache, slot: erg slot_four_u8) {
         return 3;
     }
     erg message: String = "AIE_CACHE capacity=4 working_set=4 dirty_rejected=1 pinned_rejected=1 clean_evicted=1 replacement=1";

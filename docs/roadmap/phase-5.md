@@ -95,7 +95,7 @@ first; persistence is a later operation with an explicit lifecycle.
 
 - [x] Create an ADR that defines the hot path, persistence path, and allowed
   synchronization boundaries.
-- [ ] Define the in-memory shard lifecycle: `Absent`, `Loading`, `Resident`,
+- [x] Define the in-memory shard lifecycle: `Absent`, `Loading`, `Resident`,
   `Dirty`, `Flushing`, `Persisted`, and `Failed`.
 - [ ] Define the behavior when neurogenesis needs a slot and the current
   resident working set is full.

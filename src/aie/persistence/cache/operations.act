@@ -1,6 +1,8 @@
 """Bounded metadata cache for disk-backed shard working sets."""
 import config;
 
+open lifecycle;
+
 """Failure categories for bounded shard-cache state transitions."""
 open enum ShardCacheError {
     Missing,
@@ -16,14 +18,14 @@ open struct ShardCacheEntry {
     erg last_use: u64,
     erg checksum: u64,
     erg pin_count: u16,
-    erg loaded: Bool,
-    erg dirty: Bool,
+    erg lifecycle: ShardLifecycle,
 }
 
 """Fixed-capacity metadata cache for shard working-set management.
 
 The cache owns four inline entries and a monotonic logical clock. It tracks
-pinning and dirty state so eviction never discards protected or unsaved work.
+the explicit resident lifecycle and pinning so eviction never discards
+protected or unsaved work.
 """
 open struct ShardCache {
     erg entries: Array[ShardCacheEntry, 4],
@@ -31,7 +33,7 @@ open struct ShardCache {
 }
 
 verb empty_entry() -> ShardCacheEntry {
-    return ShardCacheEntry {shard_id: 0u32, generation: 0u64, last_use: 0u64, checksum: 0u64, pin_count: 0u16, loaded: false, dirty: false};
+    return ShardCacheEntry {shard_id: 0u32, generation: 0u64, last_use: 0u64, checksum: 0u64, pin_count: 0u16, lifecycle: ShardLifecycle.Absent};
 }
 
 """Reset every cache entry and restart the logical usage clock.
@@ -51,7 +53,7 @@ open verb shard_cache_init(ins cache: ShardCache) -> Void {
     cache.clock = 0u64;
 }
 
-"""Find a loaded shard by ID without changing cache state.
+"""Find a managed shard by ID without changing cache state.
 
 The cache is read through `abs`; success returns the bounded slot index and a
 miss returns `Option.None`.
@@ -62,7 +64,8 @@ open verb shard_cache_find(abs cache: ShardCache, erg shard_id: u32) -> Option[u
         if index >= BRAIN_CACHE_CAPACITY {
             break;
         }
-        if cache.entries[index as Usize].loaded && cache.entries[index as Usize].shard_id == shard_id {
+        erg entry: ShardCacheEntry = cache.entries[index as Usize];
+        if cache_entry_is_present(entry: abs entry) && entry.shard_id == shard_id {
             return Option[u8].Some(index);
         }
         index += 1u8;
@@ -88,7 +91,8 @@ verb find_free_cache_slot(abs cache: ShardCache) -> u8 {
         if index >= BRAIN_CACHE_CAPACITY {
             break;
         }
-        if !cache.entries[index as Usize].loaded {
+        erg entry: ShardCacheEntry = cache.entries[index as Usize];
+        if cache_entry_is_empty(entry: abs entry) {
             return index;
         }
         index += 1u8;
@@ -105,7 +109,8 @@ verb find_cache_victim(abs cache: ShardCache) -> u8 {
         if index >= BRAIN_CACHE_CAPACITY {
             break;
         }
-        if !cache.entries[index as Usize].dirty && cache.entries[index as Usize].pin_count == 0u16 && (!has_victim || cache.entries[index as Usize].last_use < oldest) {
+        erg entry: ShardCacheEntry = cache.entries[index as Usize];
+        if !cache_entry_is_dirty(entry: abs entry) && cache_entry_is_clean_resident(entry: abs entry) && entry.pin_count == 0u16 && (!has_victim || entry.last_use < oldest) {
             oldest = cache.entries[index as Usize].last_use;
             victim = index;
             has_victim = true;
@@ -130,13 +135,17 @@ verb refresh_cache_entry(
     };
 }
 
-"""Update one loaded entry's logical last-use timestamp.
+"""Update one resident entry's logical last-use timestamp.
 
 The cache uses an exclusive `ins` loan. Invalid or unloaded slots return
 `Missing`; valid slots return `Ok(0)` and become newer eviction candidates.
 """
 open verb shard_cache_touch(ins cache: ShardCache, abs slot: u8) -> Result[Int, ShardCacheError] {
-    if slot >= BRAIN_CACHE_CAPACITY || !cache.entries[slot as Usize].loaded {
+    if slot >= BRAIN_CACHE_CAPACITY {
+        return Result[Int, ShardCacheError].Err(ShardCacheError.Missing);
+    }
+    erg entry: ShardCacheEntry = cache.entries[slot as Usize];
+    if !cache_entry_is_present(entry: abs entry) {
         return Result[Int, ShardCacheError].Err(ShardCacheError.Missing);
     }
     erg stamp: u64 = cache_next_clock(cache: ins cache);
@@ -144,26 +153,34 @@ open verb shard_cache_touch(ins cache: ShardCache, abs slot: u8) -> Result[Int, 
     return Result[Int, ShardCacheError].Ok(0);
 }
 
-"""Pin one loaded entry against eviction.
+"""Pin one resident entry against eviction.
 
 The cache is mutated through `ins`. Missing slots return `Missing`; successful
 calls increment the bounded pin count and return `Ok(0)`.
 """
 open verb shard_cache_pin(ins cache: ShardCache, erg slot: u8) -> Result[Int, ShardCacheError] {
-    if slot >= BRAIN_CACHE_CAPACITY || !cache.entries[slot as Usize].loaded {
+    if slot >= BRAIN_CACHE_CAPACITY {
+        return Result[Int, ShardCacheError].Err(ShardCacheError.Missing);
+    }
+    erg entry: ShardCacheEntry = cache.entries[slot as Usize];
+    if !cache_entry_is_present(entry: abs entry) {
         return Result[Int, ShardCacheError].Err(ShardCacheError.Missing);
     }
     cache.entries[slot as Usize].pin_count += 1u16;
     return Result[Int, ShardCacheError].Ok(0);
 }
 
-"""Release one pin from a loaded cache entry.
+"""Release one pin from a resident cache entry.
 
 Missing slots return `Missing`; an already unpinned entry returns `Pinned` so
 underflow cannot occur. Successful calls decrement the pin count.
 """
 open verb shard_cache_unpin(ins cache: ShardCache, erg slot: u8) -> Result[Int, ShardCacheError] {
-    if slot >= BRAIN_CACHE_CAPACITY || !cache.entries[slot as Usize].loaded {
+    if slot >= BRAIN_CACHE_CAPACITY {
+        return Result[Int, ShardCacheError].Err(ShardCacheError.Missing);
+    }
+    erg entry: ShardCacheEntry = cache.entries[slot as Usize];
+    if !cache_entry_is_present(entry: abs entry) {
         return Result[Int, ShardCacheError].Err(ShardCacheError.Missing);
     }
     if cache.entries[slot as Usize].pin_count == 0u16 {
@@ -173,29 +190,38 @@ open verb shard_cache_unpin(ins cache: ShardCache, erg slot: u8) -> Result[Int, 
     return Result[Int, ShardCacheError].Ok(0);
 }
 
-"""Mark one loaded entry as requiring persistence before eviction.
+"""Mark one resident entry as requiring persistence before eviction.
 
-The exclusive `ins` loan changes only the dirty flag. Missing slots return
-`Missing`; successful calls return `Ok(0)`.
+The exclusive `ins` loan changes the lifecycle to `Dirty`. Missing slots
+return `Missing`; successful calls return `Ok(0)`.
 """
 open verb shard_cache_mark_dirty(ins cache: ShardCache, erg slot: u8) -> Result[Int, ShardCacheError] {
-    if slot >= BRAIN_CACHE_CAPACITY || !cache.entries[slot as Usize].loaded {
+    if slot >= BRAIN_CACHE_CAPACITY {
         return Result[Int, ShardCacheError].Err(ShardCacheError.Missing);
     }
-    cache.entries[slot as Usize].dirty = true;
+    erg entry: ShardCacheEntry = cache.entries[slot as Usize];
+    if !cache_entry_is_present(entry: abs entry) {
+        return Result[Int, ShardCacheError].Err(ShardCacheError.Missing);
+    }
+    cache.entries[slot as Usize].lifecycle = ShardLifecycle.Dirty;
     return Result[Int, ShardCacheError].Ok(0);
 }
 
 """Evict one safe cache entry and clear all of its metadata.
 
 Dirty, pinned, missing, or out-of-range slots are rejected with the matching
-error. Only a loaded clean unpinned entry is cleared and returns `Ok(0)`.
+error. Only a clean resident or persisted entry is cleared and returns
+`Ok(0)`.
 """
 open verb shard_cache_evict(ins cache: ShardCache, erg slot: u8) -> Result[Int, ShardCacheError] {
-    if slot >= BRAIN_CACHE_CAPACITY || !cache.entries[slot as Usize].loaded {
+    if slot >= BRAIN_CACHE_CAPACITY {
         return Result[Int, ShardCacheError].Err(ShardCacheError.Missing);
     }
-    if cache.entries[slot as Usize].dirty {
+    erg entry: ShardCacheEntry = cache.entries[slot as Usize];
+    if !cache_entry_is_present(entry: abs entry) {
+        return Result[Int, ShardCacheError].Err(ShardCacheError.Missing);
+    }
+    if cache_entry_is_dirty(entry: abs entry) {
         return Result[Int, ShardCacheError].Err(ShardCacheError.Dirty);
     }
     if cache.entries[slot as Usize].pin_count > 0u16 {
@@ -206,8 +232,7 @@ open verb shard_cache_evict(ins cache: ShardCache, erg slot: u8) -> Result[Int, 
     cache.entries[slot as Usize].last_use = 0u64;
     cache.entries[slot as Usize].checksum = 0u64;
     cache.entries[slot as Usize].pin_count = 0u16;
-    cache.entries[slot as Usize].loaded = false;
-    cache.entries[slot as Usize].dirty = false;
+    cache.entries[slot as Usize].lifecycle = ShardLifecycle.Absent;
     return Result[Int, ShardCacheError].Ok(0);
 }
 
@@ -239,8 +264,7 @@ verb populate_cache_slot(
     cache.entries[slot as Usize].last_use = stamp;
     cache.entries[slot as Usize].checksum = checksum;
     cache.entries[slot as Usize].pin_count = 0u16;
-    cache.entries[slot as Usize].loaded = true;
-    cache.entries[slot as Usize].dirty = false;
+    cache.entries[slot as Usize].lifecycle = ShardLifecycle.Resident;
     return Result[u8, ShardCacheError].Ok(slot);
 }
 
