@@ -293,6 +293,14 @@ to `case` and bounded iteration must be completed and reviewed independently.
       bounds, versioning, ownership, and invalid-input behavior.
 - [x] Reworked manifest validation planning into named descriptor and checksum
       helpers so public validation verbs remain below strict source limits.
+- [x] Expanded manifest loading, fixed manifest readers and writers, dynamic
+      manifest writers, and generation extension documentation with explicit
+      ownership, validation order, serialization guarantees, and failure paths.
+- [x] Split dynamic manifest loading from fixed manifest loading so each module
+      stays within the strict file-size policy without changing the public
+      persistence facade or its exported operation names.
+- [x] Rechecked Actus source comments: no Rust-style `//` or `///` comments
+      remain in `src/`, `tests/`, or `benchmarks/` Actus sources.
 
 ### Gate 6 — Readability review
 

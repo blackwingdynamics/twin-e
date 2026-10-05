@@ -194,12 +194,13 @@ verb finalize_manifest_extension(
     return write_file(path: abs path, contents: abs bytes);
 }
 
-"""
-Purpose: Read a dynamic manifest, append a shard descriptor, and persist the new generation.
-Inputs: The typed value arguments declared by the signature and the destination Buffer.
-Outputs: Extends the destination Buffer in canonical little-endian order.
-Invariants: The destination remains the only mutable owner and field ordering is preserved.
-Failure behavior: This low-level encoder has no error result; callers must provide valid typed values and capacity.
+"""Append one shard descriptor to an existing dynamic manifest on disk.
+
+The manifest path is an immutable view. The current file is read into an owned
+buffer, validated, extended with the new descriptor, assigned the next
+generation and updated counts, checksummed, and written back through the I/O
+facade. Invalid counts, oversized output, malformed input, and filesystem
+failures return `IoError` without publishing a new manifest.
 """
 open verb append_manifest_shard(
     abs path: Path,

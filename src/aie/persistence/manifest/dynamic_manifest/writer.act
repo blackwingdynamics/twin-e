@@ -2,6 +2,26 @@ import std::io;
 
 open io;
 
+"""Append the versioned layout fields shared by dynamic manifest headers.
+
+The output buffer is the exclusive mutable destination. These fields describe
+the serialized column, binding, tokenizer, context, and code layouts; keeping
+them in one helper prevents the header encoder from mixing identity values with
+format-version metadata.
+"""
+verb append_dynamic_manifest_layout(ins output: Buffer) {
+    erg column_stride: u16 = BRAIN_SHARD_COLUMN_STRIDE_BYTES;
+    erg binding_stride: u16 = BRAIN_SHARD_BINDING_STRIDE_BYTES;
+    erg tokenizer_version: u16 = TOKENIZER_VERSION;
+    erg context_version: u16 = CONTEXT_VERSION;
+    erg code_version: u16 = TOKEN_CODE_VERSION;
+    append_manifest_u16(output: ins output, value: abs column_stride);
+    append_manifest_u16(output: ins output, value: abs binding_stride);
+    append_manifest_u16(output: ins output, value: abs tokenizer_version);
+    append_manifest_u16(output: ins output, value: abs context_version);
+    append_manifest_u16(output: ins output, value: abs code_version);
+}
+
 """
 Purpose: Append the dynamic manifest identity fields using the canonical on-disk schema.
 Inputs: The typed value arguments declared by the signature and the destination Buffer.
@@ -9,15 +29,18 @@ Outputs: Extends the destination Buffer in canonical little-endian order.
 Invariants: The destination remains the only mutable owner and field ordering is preserved.
 Failure behavior: This low-level encoder has no error result; callers must provide valid typed values and capacity.
 """
-verb append_dynamic_manifest_identity(ins output: Buffer, abs manifest_length: u32, erg generation: u64, erg active_count: u32, erg free_list_head: u32, erg total_column_count: u32, erg shard_count: u32) {
+verb append_dynamic_manifest_identity(
+    ins output: Buffer,
+    abs manifest_length: u32,
+    erg generation: u64,
+    erg active_count: u32,
+    erg free_list_head: u32,
+    erg total_column_count: u32,
+    erg shard_count: u32
+) {
     erg magic: u32 = BRAIN_MANIFEST_MAGIC;
     erg version: u16 = BRAIN_MANIFEST_VERSION;
     erg header_bytes: u16 = BRAIN_MANIFEST_HEADER_BYTES;
-    erg column_stride: u16 = BRAIN_SHARD_COLUMN_STRIDE_BYTES;
-    erg binding_stride: u16 = BRAIN_SHARD_BINDING_STRIDE_BYTES;
-    erg tokenizer_version: u16 = TOKENIZER_VERSION;
-    erg context_version: u16 = CONTEXT_VERSION;
-    erg code_version: u16 = TOKEN_CODE_VERSION;
     append_manifest_u32(output: ins output, value: abs magic);
     append_manifest_u16(output: ins output, value: abs version);
     append_manifest_u16(output: ins output, value: abs header_bytes);
@@ -26,11 +49,7 @@ verb append_dynamic_manifest_identity(ins output: Buffer, abs manifest_length: u
     append_manifest_u32(output: ins output, value: abs total_column_count);
     append_manifest_u32(output: ins output, value: abs active_count);
     append_manifest_u32(output: ins output, value: abs shard_count);
-    append_manifest_u16(output: ins output, value: abs column_stride);
-    append_manifest_u16(output: ins output, value: abs binding_stride);
-    append_manifest_u16(output: ins output, value: abs tokenizer_version);
-    append_manifest_u16(output: ins output, value: abs context_version);
-    append_manifest_u16(output: ins output, value: abs code_version);
+    append_dynamic_manifest_layout(output: ins output);
 }
 
 """
@@ -73,38 +92,145 @@ verb append_dynamic_manifest_descriptors(
     }
 }
 
+"""Calculate the exact serialized length for a dynamic manifest.
+
+The descriptor buffer is read through `abs`. Its byte length must match the
+declared shard count and each shard descriptor width; the resulting manifest
+must also fit the configured dynamic manifest limit. Invalid dimensions return
+`InvalidInput` before any output buffer or filesystem operation is created.
 """
-Purpose: Serialize and write a complete dynamic manifest after validating its descriptor bounds.
-Inputs: The target Path and typed persistence state declared by the signature.
-Outputs: Writes or publishes the canonical position-independent representation and returns its I/O result.
-Invariants: The serialized layout, checksum, version, and generation contract remain consistent.
-Failure behavior: Rejects invalid state or failed I/O through the declared IoError result.
-"""
-open verb write_manifest_dynamic(abs path: Path, erg generation: u64, erg active_count: u32, erg free_list_head: u32, erg total_column_count: u32, erg shard_count: u32, abs descriptors: Buffer) -> Result[Int, IoError] {
+verb dynamic_manifest_length(abs descriptors: Buffer, erg shard_count: u32) -> Result[u32, IoError] {
     erg descriptor_length_result = buffer_size(buffer: abs descriptors);
-    erg descriptor_length: Int = case dat descriptor_length_result { Result.Ok(value) => value, Result.Err(_) => -1, };
+    erg descriptor_length: Int = case dat descriptor_length_result {
+        Result.Ok(value) => value,
+        Result.Err(_) => -1,
+    };
     erg expected_descriptor_length: u32 = shard_count * BRAIN_MANIFEST_DESCRIPTOR_BYTES as u32;
-    if shard_count == 0u32 || shard_count > BRAIN_MANIFEST_DYNAMIC_MAX_SHARDS || descriptor_length != expected_descriptor_length as Int { return Err(IoError.InvalidInput); }
+    if shard_count == 0u32 || shard_count > BRAIN_MANIFEST_DYNAMIC_MAX_SHARDS || descriptor_length != expected_descriptor_length as Int {
+        return Err(IoError.InvalidInput);
+    }
     erg manifest_length: u32 = BRAIN_MANIFEST_HEADER_BYTES as u32 + expected_descriptor_length;
-    if manifest_length > BRAIN_MANIFEST_DYNAMIC_MAX_BYTES { return Err(IoError.InvalidInput); }
-    erg output: Buffer = Buffer[0];
-    erg capacity: Int = manifest_length as Int;
-    erg reserved = reserve(buffer: ins output, capacity: erg capacity);
-    append_dynamic_manifest_identity(output: ins output, manifest_length: abs manifest_length, generation: erg generation, active_count: erg active_count, free_list_head: erg free_list_head, total_column_count: erg total_column_count, shard_count: erg shard_count);
-    append_dynamic_manifest_state(output: ins output, free_list_head: erg free_list_head);
-    append_dynamic_manifest_descriptors(output: ins output, descriptors: abs descriptors, descriptor_length: erg expected_descriptor_length);
-    erg checksum: u64 = manifest_dynamic_checksum(input: abs output, length: erg manifest_length);
-    erg checksum_offset: u32 = 44u32;
-    write_manifest_u64(output: ins output, value: abs checksum, offset: abs checksum_offset);
-    return write_file(path: abs path, contents: abs output);
+    if manifest_length > BRAIN_MANIFEST_DYNAMIC_MAX_BYTES {
+        return Err(IoError.InvalidInput);
+    }
+    return Ok(manifest_length);
 }
 
+"""Append the validated dynamic manifest payload to an output buffer.
+
+The output buffer is the exclusive mutable destination. Header, state, and
+descriptor bytes are appended in schema order. The checksum is added by the
+outer builder after every serialized byte is present.
 """
-Purpose: Validate an in-memory dynamic manifest and return its byte length without retaining the buffer.
-Inputs: The source Buffer or Path and the typed offset or selector declared by the signature.
-Outputs: Returns the decoded value, validated length, or typed I/O result declared by the signature.
-Invariants: Reads are position-independent and do not mutate the source buffer.
-Failure behavior: Malformed data and filesystem failures are returned through the declared Result contract.
+verb append_dynamic_manifest_payload(
+    ins output: Buffer,
+    abs descriptors: Buffer,
+    erg manifest_length: u32,
+    erg generation: u64,
+    erg active_count: u32,
+    erg free_list_head: u32,
+    erg total_column_count: u32,
+    erg shard_count: u32
+) {
+    append_dynamic_manifest_identity(
+        output: ins output,
+        manifest_length: abs manifest_length,
+        generation: erg generation,
+        active_count: erg active_count,
+        free_list_head: erg free_list_head,
+        total_column_count: erg total_column_count,
+        shard_count: erg shard_count
+    );
+    append_dynamic_manifest_state(output: ins output, free_list_head: erg free_list_head);
+    erg descriptor_length: u32 = shard_count * BRAIN_MANIFEST_DESCRIPTOR_BYTES as u32;
+    append_dynamic_manifest_descriptors(
+        output: ins output,
+        descriptors: abs descriptors,
+        descriptor_length: erg descriptor_length
+    );
+}
+
+"""Build a validated dynamic manifest and publish its checksum-bearing bytes.
+
+The output buffer is reserved to the exact validated length before the payload
+helper appends schema fields. Once serialization is complete, the checksum is
+written at its canonical offset. Filesystem publication is intentionally left
+to the public writer.
+"""
+verb build_dynamic_manifest_output(
+    ins output: Buffer,
+    abs descriptors: Buffer,
+    erg manifest_length: u32,
+    erg generation: u64,
+    erg active_count: u32,
+    erg free_list_head: u32,
+    erg total_column_count: u32,
+    erg shard_count: u32
+) {
+    erg capacity: Int = manifest_length as Int;
+    erg reserved = reserve(buffer: ins output, capacity: erg capacity);
+    append_dynamic_manifest_payload(
+        output: ins output,
+        descriptors: abs descriptors,
+        manifest_length: erg manifest_length,
+        generation: erg generation,
+        active_count: erg active_count,
+        free_list_head: erg free_list_head,
+        total_column_count: erg total_column_count,
+        shard_count: erg shard_count
+    );
+    erg checksum: u64 = manifest_dynamic_checksum(input: abs output, length: erg manifest_length);
+    erg checksum_offset: u32 = 44u32;
+    write_manifest_u64(
+        output: ins output,
+        value: abs checksum,
+        offset: abs checksum_offset
+    );
+}
+
+"""Serialize and write one complete dynamic manifest.
+
+The path and descriptor buffer are immutable views. Descriptor length, shard
+count, and total manifest size are checked before a new buffer is built. The
+writer emits the versioned little-endian header and descriptors, calculates the
+manifest checksum after serialization, and returns the filesystem result.
+Invalid bounds are rejected without writing a manifest.
+"""
+open verb write_manifest_dynamic(
+    abs path: Path,
+    erg generation: u64,
+    erg active_count: u32,
+    erg free_list_head: u32,
+    erg total_column_count: u32,
+    erg shard_count: u32,
+    abs descriptors: Buffer
+) -> Result[Int, IoError] {
+    erg length_result = dynamic_manifest_length(descriptors: abs descriptors, shard_count: erg shard_count);
+    return case dat length_result {
+        Result.Err(error) => Err(error),
+        Result.Ok(manifest_length) => {
+            erg output: Buffer = Buffer[0];
+            build_dynamic_manifest_output(
+                output: ins output,
+                descriptors: abs descriptors,
+                manifest_length: erg manifest_length,
+                generation: erg generation,
+                active_count: erg active_count,
+                free_list_head: erg free_list_head,
+                total_column_count: erg total_column_count,
+                shard_count: erg shard_count
+            );
+            return write_file(path: abs path, contents: abs output);
+        },
+    };
+}
+
+"""Validate and consume one in-memory dynamic manifest buffer.
+
+The buffer is owned through `dat`, so the function releases it on both success
+and invalid-data paths. Validation covers the complete manifest schema and its
+checksum. Success returns the encoded byte length; malformed bytes return
+`InvalidData` without retaining any buffer state.
 """
 open verb read_manifest_dynamic_bytes(dat bytes: Buffer) -> Result[Int, IoError] {
     erg valid: Bool = manifest_dynamic_bytes_are_valid(bytes: abs bytes);
