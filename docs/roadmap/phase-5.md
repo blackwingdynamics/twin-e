@@ -16,14 +16,24 @@ validation.
 
 ## P5.0 — Phase contracts and evidence
 
-- [ ] Create an ADR for the Phase 5 snapshot, tokenizer, training, and
+- [x] Create an ADR for the Phase 5 snapshot, tokenizer, training, and
   multimodal event contracts.
-- [ ] Define the supported `.brain` file version and compatibility policy.
-- [ ] Define failure behavior for interrupted writes, invalid artifacts, and
+- [x] Define the supported `.brain` file version and compatibility policy.
+- [x] Define failure behavior for interrupted writes, invalid artifacts, and
   incompatible runtime versions.
-- [ ] Define evidence output for every Phase 5 executable benchmark.
-- [ ] Keep all benchmarks deterministic and free of floating-point
+- [x] Define evidence output for every Phase 5 executable benchmark.
+- [x] Keep all benchmarks deterministic and free of floating-point
   instructions unless a later ADR explicitly changes that rule.
+
+### P5.0 evidence
+
+ADR-0004 defines the compatibility profile, validation-before-publication
+protocol, interrupted-write recovery behavior, hot-path no-write boundary,
+integer-only determinism rule, and benchmark evidence format. The evidence
+record shape is documented in `docs/benchmarks/phase-5-contracts.md`.
+
+This gate records contracts only. No runtime benchmark result is claimed until
+the corresponding implementation and executable measurement exist.
 
 ## P5.1 — Complete `.brain` file persistence
 
