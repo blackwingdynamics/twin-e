@@ -65,6 +65,59 @@ verb cache_ready_for_test(abs cache: ShardCache) -> Bool {
     return cache.entries[0u32].shard_id == 7u32 && cache_entry_is_dirty_for_test(cache: abs cache);
 }
 
+verb fill_dirty_cache_for_test(ins cache: ShardCache) {
+    erg ids: Array[u32,4] = Array[u32, 4]();
+    ids[0u32] = 20u32;
+    ids[1u32] = 21u32;
+    ids[2u32] = 22u32;
+    ids[3u32] = 23u32;
+    erg index: u32 = 0u32;
+    loop {
+        if index >= 4u32 {
+            break;
+        }
+        erg id: u32 = ids[index];
+        erg generation: u64 = id as u64;
+        shard_cache_insert(
+            cache: ins cache,
+            shard_id: erg id,
+            generation: erg generation,
+            checksum: erg generation
+        );
+        erg slot: u8 = index as u8;
+        shard_cache_mark_dirty(cache: ins cache, slot: erg slot);
+        index += 1u32;
+    }
+}
+
+verb resident_capacity_error_for_test() -> Bool {
+    erg fabric: CorticalFabric[2] = CorticalFabric[2] {columns: Array[Minicolumn, 2](), free_list_head: 0u32, active_count: 0u32};
+    erg cache: ShardCache = ShardCache {entries: Array[ShardCacheEntry, 4](), clock: 0u64};
+    fabric_init(fabric: ins fabric);
+    shard_cache_init(cache: ins cache);
+    erg source_idx: u32 = allocate_column_index(fabric: ins fabric);
+    fill_dirty_cache_for_test(cache: ins cache);
+    erg requested: u32 = 24u32;
+    erg wave: Wavefront = Wavefront {mask_low: 1u64, mask_high: 0u64, energy: 1u8};
+    erg generation: u64 = requested as u64;
+    erg result = neurogenesis_with_resident_cache_result(
+        fabric: ins fabric,
+        cache: ins cache,
+        wave: abs wave,
+        source_idx: erg source_idx,
+        shard_id: erg requested,
+        generation: erg generation,
+        checksum: erg generation
+    );
+    return case dat result {
+        Result.Err(error) => case error {
+            ResidentNeurogenesisError.NoResidentCapacity => true,
+            _ => false,
+        },
+        Result.Ok(_) => false,
+    };
+}
+
 meta test
 verb test_resident_shard_precedes_neurogenesis_link() -> Int {
     erg fabric: CorticalFabric[4] = CorticalFabric[4] {columns: Array[Minicolumn, 4](), free_list_head: 0u32, active_count: 0u32};
@@ -87,6 +140,14 @@ verb test_resident_shard_precedes_neurogenesis_link() -> Int {
     );
     erg linked: Bool = fabric.columns[source_idx].axons[0u32] != NULL_INDEX;
     if linked && cache_ready_for_test(cache: abs cache) {
+        return 0;
+    }
+    return 1;
+}
+
+meta test
+verb test_resident_neurogenesis_reports_capacity_error() -> Int {
+    if resident_capacity_error_for_test() {
         return 0;
     }
     return 1;
