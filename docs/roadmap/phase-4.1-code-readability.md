@@ -179,11 +179,11 @@ failures after the refactor. Gate 4 still tracks repeated domain operations that
 are intentionally fixed-size or require a separate API decision.
 
 The forwarding implementation is now split behind the same
-`runtime::forwarding` facade. `forwarding/slots.act` owns the fixed eight-slot
-propagation path, while `forwarding/step.act` owns public wavefront-step
-orchestration. `forwarding/forwarding.act` is the only child facade exposed to
-the runtime facade. The repeated slot fields remain explicit until Phase 34
-adds verified indexed access for packed repeated fields.
+`runtime::forwarding` facade. `forwarding/slots.act` owns bounded indexed
+propagation over the eight-slot packed axon array, while `forwarding/step.act`
+owns public wavefront-step orchestration. `forwarding/forwarding.act` is the
+only child facade exposed to the runtime facade. The packed axon storage keeps
+the original byte offsets while runtime access uses checked indexes.
 
 The tokenizer BPE implementation is also split behind the existing tokenizer
 facade. `bpe/types.act` owns vocabulary and token record types,
@@ -195,8 +195,8 @@ The runtime generation implementation is split behind the existing
 `runtime::generation` facade. `generation/history.act` owns the bounded
 repetition history, `generation/selection.act` owns successor validation and
 deterministic selection, and `generation/core.act` owns generation
-orchestration. The current explicit `axon_at` mapping remains unchanged until
-Phase 34 provides verified indexed access for repeated packed fields.
+orchestration. Successor selection reads the packed axon array through checked
+indexed access.
 
 ### Gate 3 — Actus syntax modernization
 
@@ -231,15 +231,28 @@ to `case` and bounded iteration must be completed and reviewed independently.
 
 ### Gate 4 — Repeated logic reduction
 
-- [ ] Replace repeated axon, candidate, descriptor, or byte handling with
+- [x] Replace repeated axon, candidate, descriptor, or byte handling with
       bounded helpers or supported loops where the generated code remains
       deterministic.
-- [ ] Do not introduce dynamic allocation into the impulse hot path.
-- [ ] Do not replace fixed-size data with hidden pointers or unbounded
+- [x] Do not introduce dynamic allocation into the impulse hot path.
+- [x] Do not replace fixed-size data with hidden pointers or unbounded
       collections.
-- [ ] Keep tie-breaking, bounds checks, ownership transitions, and cleanup
+- [x] Keep tie-breaking, bounds checks, ownership transitions, and cleanup
       behavior explicit.
-- [ ] Add regression tests for every helper that replaces repeated logic.
+- [x] Add regression tests for every helper that replaces repeated logic.
+
+#### Gate 4 evidence
+
+- [x] Replaced the eight scalar packed fields `axon_0..axon_7` with the
+      fixed-width `axons: Array[u32, 8]` field at the same base offset.
+- [x] Replaced forwarding, successor selection, initialization, free-list
+      cleanup, and neurogenesis linking with checked indexed accesses or
+      bounded loops.
+- [x] Updated tests and benchmarks to exercise indexed packed axon access.
+- [x] Snapshot tests continue to pass, proving that the 64-byte storage bytes
+      and serialized offsets remain compatible.
+- [x] `actus check --strict` passes and `actus test --strict` passes with
+      16 tests and 0 failures after the migration.
 
 ### Gate 5 — Production documentation and comments
 
