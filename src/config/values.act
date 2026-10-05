@@ -71,6 +71,30 @@ open const BRAIN_BINDING_COUNT: u32 = 64u32;
 open const BRAIN_BINDING_PAYLOAD_BYTES: u32 = 1536u32;
 
 
+"""Magic value identifying the combined fabric and binding `.brain` file."""
+open const BRAIN_TEXT_MAGIC: u32 = 1414482256u32;
+
+
+"""Version of the combined fabric and binding `.brain` file."""
+open const BRAIN_TEXT_VERSION: u16 = 1u16;
+
+
+"""Serialized byte length of the combined `.brain` file header."""
+open const BRAIN_TEXT_HEADER_BYTES: u32 = 32u32;
+
+
+"""Serialized byte length of one complete fixed fabric section."""
+open const BRAIN_TEXT_FABRIC_BYTES: u32 = 4116u32;
+
+
+"""Serialized byte length of one complete binding section."""
+open const BRAIN_TEXT_BINDING_BYTES: u32 = 1554u32;
+
+
+"""Serialized byte length of the combined `.brain` file."""
+open const BRAIN_TEXT_TOTAL_BYTES: u32 = BRAIN_TEXT_HEADER_BYTES + BRAIN_TEXT_FABRIC_BYTES + BRAIN_TEXT_BINDING_BYTES;
+
+
 """Binding flag indicating that a token-binding slot contains live metadata."""
 open const BINDING_ACTIVE_FLAG: u8 = 1u8;
 

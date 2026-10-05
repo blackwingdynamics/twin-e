@@ -5,6 +5,8 @@ open serialization;
 
 open file;
 
+open text_file;
+
 open shard;
 
 open manifest;

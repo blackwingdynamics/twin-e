@@ -1,0 +1,303 @@
+"""Complete fixed `.brain` persistence for fabric and token/context state.
+
+This module writes one position-independent file containing the packed arena,
+free-list metadata, shard-local binding records, and compatibility versions.
+Validation completes before either live array is mutated. The operation is a
+host persistence boundary and must not be called from inference or forwarding.
+"""
+import config;
+
+import encoding;
+
+import std::fs;
+
+import std::io;
+
+open io;
+
+verb text_read_u16(abs input: Buffer, abs offset: u32) -> u16 {
+    erg low: u16 = input[offset] as u16;
+    erg high: u16 = input[offset + 1u32] as u16;
+    return low + (high * 256u16);
+}
+
+verb text_read_u32(abs input: Buffer, abs offset: u32) -> u32 {
+    erg byte_0: u32 = input[offset] as u32;
+    erg byte_1: u32 = input[offset + 1u32] as u32;
+    erg byte_2: u32 = input[offset + 2u32] as u32;
+    erg byte_3: u32 = input[offset + 3u32] as u32;
+    return byte_0 + (byte_1 * 256u32) + (byte_2 * 65536u32) + (byte_3 * 16777216u32);
+}
+
+verb text_read_u64(abs input: Buffer, abs offset: u32) -> u64 {
+    erg low: u64 = text_read_u32(input: abs input, offset: abs offset) as u64;
+    erg high_offset: u32 = offset + 4u32;
+    erg high: u64 = text_read_u32(input: abs input, offset: abs high_offset) as u64;
+    return low + (high * 4294967296u64);
+}
+
+verb text_append_u16(ins output: Buffer, abs value: u16) {
+    append(output, value as u8);
+    append(output, ((value as u32 / 256u32) as u8));
+}
+
+verb text_append_u32(ins output: Buffer, abs value: u32) {
+    append(output, (value & 255u32) as u8);
+    append(output, ((value / 256u32) & 255u32) as u8);
+    append(output, ((value / 65536u32) & 255u32) as u8);
+    append(output, ((value / 16777216u32) & 255u32) as u8);
+}
+
+verb text_append_u64(ins output: Buffer, abs value: u64) {
+    erg low: u32 = value as u32;
+    erg high: u32 = (value / 4294967296u64) as u32;
+    text_append_u32(output: ins output, value: abs low);
+    text_append_u32(output: ins output, value: abs high);
+}
+
+verb text_write_u64(ins output: Buffer, erg offset: u32, abs value: u64) {
+    erg low: u32 = value as u32;
+    erg high: u32 = (value / 4294967296u64) as u32;
+    output[offset] = (low & 255u32) as u8;
+    output[offset + 1u32] = ((low / 256u32) & 255u32) as u8;
+    output[offset + 2u32] = ((low / 65536u32) & 255u32) as u8;
+    output[offset + 3u32] = ((low / 16777216u32) & 255u32) as u8;
+    output[offset + 4u32] = (high & 255u32) as u8;
+    output[offset + 5u32] = ((high / 256u32) & 255u32) as u8;
+    output[offset + 6u32] = ((high / 65536u32) & 255u32) as u8;
+    output[offset + 7u32] = ((high / 16777216u32) & 255u32) as u8;
+}
+
+verb text_checksum(abs input: Buffer, abs start: u32, abs end: u32) -> u64 {
+    erg checksum: u64 = 0u64;
+    erg index: u32 = 0u32;
+    index = start;
+    loop {
+        if index >= end {
+            break;
+        }
+        checksum += (input[index] as u64) * ((index - start) as u64 + 1u64);
+        index += 1u32;
+    }
+    return checksum;
+}
+
+verb append_fabric_section(ins output: Buffer, abs snapshot: FabricSnapshot) {
+    text_append_u32(output: ins output, value: abs snapshot.magic);
+    text_append_u16(output: ins output, value: abs snapshot.version);
+    text_append_u16(output: ins output, value: abs snapshot.header_bytes);
+    text_append_u32(output: ins output, value: abs snapshot.payload_bytes);
+    for erg index: u32 in 0u32 .. BRAIN_PAYLOAD_BYTES {
+        append(output, snapshot.columns[index]);
+    }
+    text_append_u32(output: ins output, value: abs snapshot.free_list_head);
+    text_append_u32(output: ins output, value: abs snapshot.active_count);
+}
+
+verb append_binding_section(ins output: Buffer, abs snapshot: BindingSnapshot) {
+    text_append_u32(output: ins output, value: abs snapshot.magic);
+    text_append_u16(output: ins output, value: abs snapshot.version);
+    text_append_u16(output: ins output, value: abs snapshot.stride_bytes);
+    text_append_u32(output: ins output, value: abs snapshot.payload_bytes);
+    text_append_u16(output: ins output, value: abs snapshot.tokenizer_version);
+    text_append_u16(output: ins output, value: abs snapshot.context_version);
+    text_append_u16(output: ins output, value: abs snapshot.code_version);
+    for erg index: u32 in 0u32 .. BRAIN_BINDING_PAYLOAD_BYTES {
+        append(output, snapshot.entries[index]);
+    }
+}
+
+verb append_text_header(ins output: Buffer, abs snapshot: TextSnapshot) {
+    erg magic: u32 = BRAIN_TEXT_MAGIC;
+    erg version: u16 = BRAIN_TEXT_VERSION;
+    erg header_bytes: u16 = BRAIN_TEXT_HEADER_BYTES as u16;
+    erg fabric_bytes: u32 = BRAIN_TEXT_FABRIC_BYTES;
+    erg binding_bytes: u32 = BRAIN_TEXT_BINDING_BYTES;
+    erg tokenizer_version: u16 = snapshot.bindings.tokenizer_version;
+    erg context_version: u16 = snapshot.bindings.context_version;
+    erg code_version: u16 = snapshot.bindings.code_version;
+    erg zero_checksum: u64 = 0u64;
+    erg zero_reserved: u16 = 0u16;
+    text_append_u32(output: ins output, value: abs magic);
+    text_append_u16(output: ins output, value: abs version);
+    text_append_u16(output: ins output, value: abs header_bytes);
+    text_append_u32(output: ins output, value: abs fabric_bytes);
+    text_append_u32(output: ins output, value: abs binding_bytes);
+    text_append_u16(output: ins output, value: abs tokenizer_version);
+    text_append_u16(output: ins output, value: abs context_version);
+    text_append_u16(output: ins output, value: abs code_version);
+    text_append_u16(output: ins output, value: abs zero_reserved);
+    text_append_u64(output: ins output, value: abs zero_checksum);
+}
+
+"""Encode the complete fixed `.brain` payload with compatibility metadata."""
+verb text_snapshot_bytes(abs snapshot: TextSnapshot) -> Buffer {
+    erg output: Buffer = Buffer[0];
+    erg capacity: Int = BRAIN_TEXT_TOTAL_BYTES as Int;
+    erg checksum_start: u32 = BRAIN_TEXT_HEADER_BYTES;
+    erg checksum_end: u32 = BRAIN_TEXT_TOTAL_BYTES;
+    erg reserved = reserve(buffer: ins output, capacity: erg capacity);
+    append_text_header(output: ins output, snapshot: abs snapshot);
+    append_fabric_section(output: ins output, snapshot: abs snapshot.fabric);
+    append_binding_section(output: ins output, snapshot: abs snapshot.bindings);
+    erg checksum: u64 = text_checksum(
+        input: abs output,
+        start: abs checksum_start,
+        end: abs checksum_end
+    );
+    erg checksum_offset: u32 = 24u32;
+    text_write_u64(
+        output: ins output,
+        offset: erg checksum_offset,
+        value: abs checksum
+    );
+    return output;
+}
+
+verb text_header_is_valid(abs input: Buffer) -> Bool {
+    erg magic_offset: u32 = 0u32;
+    erg version_offset: u32 = 4u32;
+    erg header_offset: u32 = 6u32;
+    erg fabric_bytes_offset: u32 = 8u32;
+    erg binding_bytes_offset: u32 = 12u32;
+    erg tokenizer_offset: u32 = 16u32;
+    erg context_offset: u32 = 18u32;
+    erg code_offset: u32 = 20u32;
+    erg header_bytes: u16 = BRAIN_TEXT_HEADER_BYTES as u16;
+    return text_read_u32(input: abs input, offset: abs magic_offset) == BRAIN_TEXT_MAGIC && text_read_u16(
+        input: abs input,
+        offset: abs version_offset
+    ) == BRAIN_TEXT_VERSION && text_read_u16(input: abs input, offset: abs header_offset) == header_bytes && text_read_u32(
+        input: abs input,
+        offset: abs fabric_bytes_offset
+    ) == BRAIN_TEXT_FABRIC_BYTES && text_read_u32(input: abs input, offset: abs binding_bytes_offset) == BRAIN_TEXT_BINDING_BYTES && text_read_u16(
+        input: abs input,
+        offset: abs tokenizer_offset
+    ) == TOKENIZER_VERSION && text_read_u16(input: abs input, offset: abs context_offset) == CONTEXT_VERSION && text_read_u16(
+        input: abs input,
+        offset: abs code_offset
+    ) == TOKEN_CODE_VERSION;
+}
+
+verb text_checksum_is_valid(abs input: Buffer) -> Bool {
+    erg checksum_offset: u32 = 24u32;
+    erg stored: u64 = text_read_u64(input: abs input, offset: abs checksum_offset);
+    erg checksum_start: u32 = BRAIN_TEXT_HEADER_BYTES;
+    erg checksum_end: u32 = BRAIN_TEXT_TOTAL_BYTES;
+    erg actual: u64 = text_checksum(
+        input: abs input,
+        start: abs checksum_start,
+        end: abs checksum_end
+    );
+    return stored == actual;
+}
+
+verb text_fabric_section_is_valid(abs input: Buffer, abs section_offset: u32) -> Bool {
+    erg version_offset: u32 = section_offset + 4u32;
+    erg header_offset: u32 = section_offset + 6u32;
+    erg payload_offset: u32 = section_offset + 8u32;
+    return text_read_u32(input: abs input, offset: abs section_offset) == BRAIN_MAGIC && text_read_u16(
+        input: abs input,
+        offset: abs version_offset
+    ) == BRAIN_VERSION && text_read_u16(input: abs input, offset: abs header_offset) == BRAIN_HEADER_BYTES && text_read_u32(
+        input: abs input,
+        offset: abs payload_offset
+    ) == BRAIN_PAYLOAD_BYTES;
+}
+
+verb text_binding_section_is_valid(abs input: Buffer, abs section_offset: u32) -> Bool {
+    erg version_offset: u32 = section_offset + 4u32;
+    erg stride_offset: u32 = section_offset + 6u32;
+    erg payload_offset: u32 = section_offset + 8u32;
+    erg tokenizer_offset: u32 = section_offset + 12u32;
+    erg context_offset: u32 = section_offset + 14u32;
+    erg code_offset: u32 = section_offset + 16u32;
+    return text_read_u32(input: abs input, offset: abs section_offset) == BRAIN_MAGIC && text_read_u16(
+        input: abs input,
+        offset: abs version_offset
+    ) == BRAIN_BINDING_VERSION && text_read_u16(input: abs input, offset: abs stride_offset) == BRAIN_BINDING_STRIDE_BYTES && text_read_u32(
+        input: abs input,
+        offset: abs payload_offset
+    ) == BRAIN_BINDING_PAYLOAD_BYTES && text_read_u16(input: abs input, offset: abs tokenizer_offset) == TOKENIZER_VERSION && text_read_u16(
+        input: abs input,
+        offset: abs context_offset
+    ) == CONTEXT_VERSION && text_read_u16(input: abs input, offset: abs code_offset) == TOKEN_CODE_VERSION;
+}
+
+verb text_payload_is_valid(abs input: Buffer) -> Bool {
+    erg fabric_offset: u32 = BRAIN_TEXT_HEADER_BYTES;
+    erg binding_offset: u32 = fabric_offset + BRAIN_TEXT_FABRIC_BYTES;
+    erg tokenizer_offset: u32 = 16u32;
+    erg context_offset: u32 = 18u32;
+    return text_fabric_section_is_valid(input: abs input, section_offset: abs fabric_offset) && text_binding_section_is_valid(
+        input: abs input,
+        section_offset: abs binding_offset
+    ) && text_read_u16(input: abs input, offset: abs tokenizer_offset) == TOKENIZER_VERSION && text_read_u16(
+        input: abs input,
+        offset: abs context_offset
+    ) == CONTEXT_VERSION;
+}
+
+verb restore_text_fabric(ins fabric: CorticalFabric[64], abs input: Buffer) {
+    erg payload_offset: u32 = BRAIN_TEXT_HEADER_BYTES + 12u32;
+    for erg index: u32 in 0u32 .. BRAIN_PAYLOAD_BYTES {
+        fabric.columns[index / 64u32].storage[index % 64u32] = input[payload_offset + index];
+    }
+    erg metadata_offset: u32 = BRAIN_TEXT_HEADER_BYTES + 4108u32;
+    fabric.free_list_head = text_read_u32(input: abs input, offset: abs metadata_offset);
+    erg active_count_offset: u32 = metadata_offset + 4u32;
+    fabric.active_count = text_read_u32(input: abs input, offset: abs active_count_offset);
+}
+
+verb restore_text_bindings(
+    ins bindings: Array[TokenBinding, 64],
+    abs input: Buffer
+) {
+    erg section_offset: u32 = BRAIN_TEXT_HEADER_BYTES + BRAIN_TEXT_FABRIC_BYTES;
+    erg entries_offset: u32 = section_offset + 18u32;
+    for erg index: u32 in 0u32 .. BRAIN_BINDING_COUNT {
+        for erg byte: u32 in 0u32 .. BRAIN_BINDING_STRIDE_BYTES as u32 {
+            bindings[index].storage[byte] = input[entries_offset + (index * BRAIN_BINDING_STRIDE_BYTES as u32) + byte];
+        }
+    }
+}
+
+"""Write fabric, bindings, and compatibility metadata as one `.brain` file."""
+open verb write_text_brain(
+    abs path: Path,
+    abs fabric: CorticalFabric[64],
+    abs bindings: Array[TokenBinding, 64]
+) -> Result[Int, IoError] {
+    erg snapshot: TextSnapshot = serialize_text_snapshot(fabric: abs fabric, bindings: abs bindings);
+    erg output: Buffer = text_snapshot_bytes(snapshot: abs snapshot);
+    return write_file(path: abs path, contents: abs output);
+}
+
+"""Load one complete `.brain` file without partially mutating live state."""
+open verb read_text_brain(
+    ins fabric: CorticalFabric[64],
+    ins bindings: Array[TokenBinding, 64],
+    abs path: Path
+) -> Result[Int, IoError] {
+    erg loaded = read_to_bytes(path: abs path);
+    return case dat loaded {
+        Result.Err(error) => Err(error),
+        Result.Ok(bytes) => {
+            erg length_result = buffer_size(buffer: abs bytes);
+            erg length: Int = case dat length_result {
+                Result.Ok(value) => value,
+                Result.Err(_) => -1,
+            };
+            if length != BRAIN_TEXT_TOTAL_BYTES as Int || !text_header_is_valid(input: abs bytes) || !text_payload_is_valid(
+                input: abs bytes
+            ) || !text_checksum_is_valid(input: abs bytes) {
+                drop(bytes);
+                return Err(IoError.InvalidData);
+            }
+            restore_text_fabric(fabric: ins fabric, input: abs bytes);
+            restore_text_bindings(bindings: ins bindings, input: abs bytes);
+            drop(bytes);
+            return Ok(length);
+        },
+    };
+}

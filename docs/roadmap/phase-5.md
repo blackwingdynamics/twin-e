@@ -37,6 +37,16 @@ the corresponding implementation and executable measurement exist.
 
 ## P5.1 — Complete `.brain` file persistence
 
+### Current implementation status
+
+`src/aie/persistence/text_file.act` now provides a combined host save/load
+boundary for the fixed fabric and TokenBinding state. The file has a fixed
+header, compatibility metadata, complete fabric and binding sections, and an
+integer checksum. Loading validates the complete byte buffer before mutating
+either live array. This is an implementation slice only; the P5.1 gate remains
+open until vocabulary artifacts, restart evidence, corruption tests, and size
+evidence are added.
+
 - [ ] Add a public host save API for fabric, bindings, tokenizer metadata, and
   context metadata.
 - [ ] Add a public host load API that validates the complete file before
