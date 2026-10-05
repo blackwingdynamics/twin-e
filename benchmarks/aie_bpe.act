@@ -42,6 +42,25 @@ verb main() -> Int {
         println(text: abs rejection_message);
         return 1;
     }
+    erg invalid_rank_rules: Array[BpeMergeRule,128] = Array[BpeMergeRule, 128]();
+    invalid_rank_rules[0u32] = BpeMergeRule {left_id: 65u32, right_id: 66u32, merged_id: 1000u32, rank: 1u32};
+    erg invalid_rank_records: Array[BpeTokenRecord,256] = Array[BpeTokenRecord, 256]();
+    erg invalid_rank_vocabulary: BpeVocabulary = BpeVocabulary {magic: BPE_VOCAB_MAGIC, version: BPE_VOCAB_VERSION, tokenizer_version: TOKENIZER_VERSION, bos_token_id: BPE_BOS_TOKEN_ID, eos_token_id: BPE_EOS_TOKEN_ID, unknown_token_id: BPE_UNKNOWN_TOKEN_ID, rule_count: 1u32, rules: invalid_rank_rules, token_count: 0u32, tokens: invalid_rank_records};
+    if bpe_vocabulary_is_valid(vocabulary: abs invalid_rank_vocabulary) {
+        erg rank_message: String = "AIE_BPE_ERROR invalid_rank_accepted";
+        println(text: abs rank_message);
+        return 1;
+    }
+    erg oversized_records: Array[BpeTokenRecord,256] = Array[BpeTokenRecord, 256]();
+    erg oversized_rules: Array[BpeMergeRule,128] = Array[BpeMergeRule, 128]();
+    oversized_records[0u32].token_id = 1000u32;
+    oversized_records[0u32].byte_length = 9u8;
+    erg oversized_vocabulary: BpeVocabulary = BpeVocabulary {magic: BPE_VOCAB_MAGIC, version: BPE_VOCAB_VERSION, tokenizer_version: TOKENIZER_VERSION, bos_token_id: BPE_BOS_TOKEN_ID, eos_token_id: BPE_EOS_TOKEN_ID, unknown_token_id: BPE_UNKNOWN_TOKEN_ID, rule_count: 0u32, rules: oversized_rules, token_count: 1u32, tokens: oversized_records};
+    if bpe_vocabulary_is_valid(vocabulary: abs oversized_vocabulary) {
+        erg span_message: String = "AIE_BPE_ERROR oversized_span_accepted";
+        println(text: abs span_message);
+        return 1;
+    }
     erg byte_rules: Array[BpeMergeRule,128] = Array[BpeMergeRule, 128]();
     erg byte_records: Array[BpeTokenRecord,256] = Array[BpeTokenRecord, 256]();
     erg byte_vocabulary: BpeVocabulary = BpeVocabulary {magic: BPE_VOCAB_MAGIC, version: BPE_VOCAB_VERSION, tokenizer_version: TOKENIZER_VERSION, bos_token_id: BPE_BOS_TOKEN_ID, eos_token_id: BPE_EOS_TOKEN_ID, unknown_token_id: BPE_UNKNOWN_TOKEN_ID, rule_count: 0u32, rules: byte_rules, token_count: 0u32, tokens: byte_records};
@@ -86,7 +105,7 @@ verb main() -> Int {
         println(text: abs merged_decode_message);
         return 1;
     }
-    erg heading: String = "AIE_BPE input_bytes=2 output_tokens=3 special_tokens=2 decoded_bytes=2 merged_decode=2 artifact=valid rejected=1";
+    erg heading: String = "AIE_BPE input_bytes=2 output_tokens=3 special_tokens=2 decoded_bytes=2 merged_decode=2 artifact=valid rejected=1 invalid_rank_rejected=1 oversized_span_rejected=1";
     println(text: abs heading);
     return 0;
 }

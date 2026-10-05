@@ -140,7 +140,7 @@ AIE_HOT_PATH inference_ns=<value> neurogenesis_ns=<value>
 - [x] Replace the one-merge fixture with a bounded multi-merge vocabulary.
 - [x] Verify repeated ranked merge passes on a multi-token text fixture.
 - [ ] Verify byte fallback, BOS, EOS, unknown tokens, and merged-token decode.
-- [ ] Reject vocabulary files with incompatible versions, invalid ranks, or
+- [x] Reject vocabulary files with incompatible versions, invalid ranks, or
   over-sized token spans.
 - [x] Persist the bounded vocabulary and merge rules in the text snapshot.
 - [ ] Restore the vocabulary and verify encode/decode identity after restart.
