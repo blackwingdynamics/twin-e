@@ -5,6 +5,8 @@ import config;
 
 import encoding;
 
+import std::fs;
+
 import std::io;
 
 import std::path;
@@ -126,6 +128,76 @@ verb load_fixture(
     };
 }
 
+verb corrupt_fixture(abs path: Path) -> Int {
+    erg loaded = read_to_bytes(path: abs path);
+    return case dat loaded {
+        Result.Err(_) => 1,
+        Result.Ok(bytes) => {
+            bytes[32u32] = bytes[32u32] ^ 1u8;
+            erg rewritten = write_file(path: abs path, contents: abs bytes);
+            drop(bytes);
+            return case dat rewritten {
+                Result.Ok(_) => 0,
+                Result.Err(_) => 2,
+            };
+        },
+    };
+}
+
+verb verify_rejected_load(
+    ins fabric: CorticalFabric[64],
+    ins bindings: Array[TokenBinding, 64],
+    abs path: Path
+) -> Int {
+    fabric.columns[0u32].payload = 99u8;
+    bindings[0u32].token_id = 777u32;
+    erg loaded = read_text_brain(
+        fabric: ins fabric,
+        bindings: ins bindings,
+        path: abs path
+    );
+    return case dat loaded {
+        Result.Ok(_) => 1,
+        Result.Err(_) => {
+            if fabric.columns[0u32].payload != 99u8 || bindings[0u32].token_id != 777u32 {
+                return 2;
+            }
+            return 0;
+        },
+    };
+}
+
+verb verify_roundtrip_after_clear(
+    ins fabric: CorticalFabric[64],
+    ins bindings: Array[TokenBinding, 64],
+    abs path: Path
+) -> Int {
+    clear_state(fabric: ins fabric, bindings: ins bindings);
+    if load_fixture(
+        fabric: ins fabric,
+        bindings: ins bindings,
+        path: abs path
+    ) < 0 || !verify_state(fabric: abs fabric, bindings: abs bindings) {
+        return 1;
+    }
+    return 0;
+}
+
+verb verify_corrupted_file(
+    ins fabric: CorticalFabric[64],
+    ins bindings: Array[TokenBinding, 64],
+    abs path: Path
+) -> Int {
+    if corrupt_fixture(path: abs path) != 0 {
+        return 1;
+    }
+    return verify_rejected_load(
+        fabric: ins fabric,
+        bindings: ins bindings,
+        path: abs path
+    );
+}
+
 verb run_roundtrip(dat path: Path) -> Int {
     erg fabric: CorticalFabric[64] = make_fabric();
     erg bindings: Array[TokenBinding,64] = make_bindings();
@@ -136,15 +208,21 @@ verb run_roundtrip(dat path: Path) -> Int {
     ) < 0 {
         return 1;
     }
-    clear_state(fabric: ins fabric, bindings: ins bindings);
-    if load_fixture(
+    if verify_roundtrip_after_clear(
         fabric: ins fabric,
         bindings: ins bindings,
         path: abs path
-    ) < 0 || !verify_state(fabric: abs fabric, bindings: abs bindings) {
+    ) != 0 {
         return 2;
     }
-    erg message: String = "AIE_P5_BRAIN roundtrip=1 bytes=5702 fabric=1 bindings=1 compatibility=1";
+    if verify_corrupted_file(
+        fabric: ins fabric,
+        bindings: ins bindings,
+        path: abs path
+    ) != 0 {
+        return 4;
+    }
+    erg message: String = "AIE_P5_BRAIN roundtrip=1 bytes=5702 fabric=1 bindings=1 compatibility=1 corrupted_rejected=1 unchanged=1";
     println(text: abs message);
     return 0;
 }

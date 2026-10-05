@@ -52,10 +52,10 @@ with instructions in `docs/benchmarks/phase-5-brain-file.md`. It proves an
 in-process save/clear/load round trip; it does not claim process-restart
 recovery.
 
-Recorded evidence confirms a 5,702-byte combined file round trip and strict
-native IR verification with no floating-point instructions. Restart recovery,
-corruption rejection, unchanged-state failure evidence, vocabulary artifacts,
-and final size reporting remain open.
+Recorded evidence confirms a 5,702-byte combined file round trip, corruption
+rejection with unchanged live state, and strict native IR verification with no
+floating-point instructions. Restart recovery, truncated and oversized input
+coverage, vocabulary artifacts, and final size reporting remain open.
 
 - [ ] Add a public host save API for fabric, bindings, tokenizer metadata, and
   context metadata.

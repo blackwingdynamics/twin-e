@@ -15,13 +15,14 @@ actus build --strict --emit exe -o /tmp/twin-e-p5-brain.aie benchmarks/aie_text_
 ## Expected evidence shape
 
 ```text
-AIE_P5_BRAIN roundtrip=1 bytes=5702 fabric=1 bindings=1 compatibility=1
+AIE_P5_BRAIN roundtrip=1 bytes=5702 fabric=1 bindings=1 compatibility=1 corrupted_rejected=1 unchanged=1
 ```
 
 The benchmark is an in-process save/clear/load round trip. It does not yet
 close the restart acceptance gate because the process is not restarted between
-the save and load operations. Corruption rejection, unchanged-state failure
-behavior, and a separate process restart fixture remain open in P5.1.
+the save and load operations. Truncated and oversized input handling, artifact
+compatibility coverage, and a separate process restart fixture remain open in
+P5.1.
 
 ## Recorded evidence
 
@@ -37,10 +38,10 @@ Result:
 ```text
 built `/tmp/twin-e-p5-brain.aie` (strict)
 verified generated native IR: no floating-point instructions
-AIE_P5_BRAIN roundtrip=1 bytes=5702 fabric=1 bindings=1 compatibility=1
+AIE_P5_BRAIN roundtrip=1 bytes=5702 fabric=1 bindings=1 compatibility=1 corrupted_rejected=1 unchanged=1
 ```
 
-Recorded source base: `601080e`.
+Recorded source base: `4ad2aa2`.
 
 Actus binary SHA-256:
 
