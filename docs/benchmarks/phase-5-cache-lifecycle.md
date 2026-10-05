@@ -7,8 +7,8 @@ latency claim.
 ## Command and environment
 
 - Source: `benchmarks/aie_cache.act`
-- Command: `actus build --strict --emit exe -o /tmp/twin-e-cache-lifecycle-final.aie benchmarks/aie_cache.act`
-- Run: `/tmp/twin-e-cache-lifecycle-final.aie`
+- Command: `actus build --strict --emit exe -o /tmp/twin-e-cache-pressure.aie benchmarks/aie_cache.act`
+- Run: `/tmp/twin-e-cache-pressure.aie`
 - Profile: strict native executable
 - Compiler binary digest: `df742fd2611d83aa9705522b9f7c1ea4b14ed98c7c485d8d07b18409597c7634`
 - Floating point: native IR verification reported no floating-point instructions
@@ -19,7 +19,7 @@ latency claim.
 ```text
 built `/tmp/twin-e-cache-lifecycle-final.aie` (strict)
 verified generated native IR: no floating-point instructions
-AIE_CACHE capacity=4 working_set=4 dirty_rejected=1 pinned_rejected=1 clean_evicted=1 replacement=1
+AIE_CACHE capacity=4 working_set=4 dirty_rejected=1 pinned_rejected=1 clean_evicted=1 replacement=1 full_pressure_rejected=1
 ```
 
 ## Meaning
@@ -30,10 +30,13 @@ AIE_CACHE capacity=4 working_set=4 dirty_rejected=1 pinned_rejected=1 clean_evic
 - A pinned entry is protected from eviction.
 - After unpinning, the deterministic replacement path evicts the oldest safe
   clean entry and installs the new resident entry.
+- When all four entries are dirty, insertion returns the bounded resource
+  failure and the requested shard is not published into the cache.
 - The cache now stores an explicit `ShardLifecycle` value instead of separate
   `loaded` and `dirty` booleans. The lifecycle enum includes the states needed
   by the later load, flush, publish, and failure gates.
 
-This evidence closes the lifecycle-definition gate only. It does not claim
-that background flushing, atomic publication, or neurogenesis expansion is
-implemented; those remain later P5.1A gates.
+This evidence closes the lifecycle-definition and full-capacity behavior gates.
+It does not claim that background flushing, atomic publication, or direct
+neurogenesis-to-shard activation is implemented; those remain later P5.1A
+gates.

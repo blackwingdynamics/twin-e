@@ -97,7 +97,7 @@ first; persistence is a later operation with an explicit lifecycle.
   synchronization boundaries.
 - [x] Define the in-memory shard lifecycle: `Absent`, `Loading`, `Resident`,
   `Dirty`, `Flushing`, `Persisted`, and `Failed`.
-- [ ] Define the behavior when neurogenesis needs a slot and the current
+- [x] Define the behavior when neurogenesis needs a slot and the current
   resident working set is full.
 - [ ] Allocate or activate a new shard in memory before linking the new
   minicolumn into the active fabric.

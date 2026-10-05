@@ -64,6 +64,35 @@ verb is_resident_state(abs cache: ShardCache, erg slot: u8) -> Bool {
     };
 }
 
+verb rejects_full_pressure() -> Bool {
+    erg cache: ShardCache = ShardCache {entries: Array[ShardCacheEntry, 4](), clock: 0u64};
+    shard_cache_init(cache: ins cache);
+    erg id_zero: u32 = 10u32;
+    erg id_one: u32 = 11u32;
+    erg id_two: u32 = 12u32;
+    erg id_three: u32 = 13u32;
+    insert_slot(cache: ins cache, shard_id: erg id_zero);
+    insert_slot(cache: ins cache, shard_id: erg id_one);
+    insert_slot(cache: ins cache, shard_id: erg id_two);
+    insert_slot(cache: ins cache, shard_id: erg id_three);
+    erg slot_zero: u8 = 0u8;
+    erg slot_one: u8 = 1u8;
+    erg slot_two: u8 = 2u8;
+    erg slot_three: u8 = 3u8;
+    shard_cache_mark_dirty(cache: ins cache, slot: erg slot_zero);
+    shard_cache_mark_dirty(cache: ins cache, slot: erg slot_one);
+    shard_cache_mark_dirty(cache: ins cache, slot: erg slot_two);
+    shard_cache_mark_dirty(cache: ins cache, slot: erg slot_three);
+    erg new_id: u32 = 14u32;
+    erg result: Int = insert_slot(cache: ins cache, shard_id: erg new_id);
+    erg missing: Option[u8] = shard_cache_find(cache: abs cache, shard_id: erg new_id);
+    erg unchanged: Bool = case dat missing {
+        Option.None => true,
+        Option.Some(_) => false,
+    };
+    return result < 0 && unchanged;
+}
+
 meta limitless("verb")
 verb main() -> Int {
     erg cache: ShardCache = ShardCache {entries: Array[ShardCacheEntry, 4](), clock: 0u64};
@@ -108,10 +137,11 @@ verb main() -> Int {
     erg slot_four_u8: u8 = slot_four as u8;
     erg query_old: u32 = 1u32;
     erg evicted_old: Bool = is_evicted(cache: abs cache, shard_id: erg query_old);
-    if !unpinned || !slot_four_is_valid || !evicted_old || !is_resident_state(cache: abs cache, slot: erg slot_four_u8) {
+    erg full_pressure_rejected: Bool = rejects_full_pressure();
+    if !unpinned || !slot_four_is_valid || !evicted_old || !is_resident_state(cache: abs cache, slot: erg slot_four_u8) || !full_pressure_rejected {
         return 3;
     }
-    erg message: String = "AIE_CACHE capacity=4 working_set=4 dirty_rejected=1 pinned_rejected=1 clean_evicted=1 replacement=1";
+    erg message: String = "AIE_CACHE capacity=4 working_set=4 dirty_rejected=1 pinned_rejected=1 clean_evicted=1 replacement=1 full_pressure_rejected=1";
     println(text: abs message);
     return 0;
 }
