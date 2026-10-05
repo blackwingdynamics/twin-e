@@ -12,41 +12,49 @@ import std::io;
 import std::path;
 
 verb append_path_prefix(ins raw: Buffer) {
-    append(raw, 47u8);
-    append(raw, 116u8);
-    append(raw, 109u8);
-    append(raw, 112u8);
-    append(raw, 47u8);
-    append(raw, 116u8);
-    append(raw, 119u8);
-    append(raw, 105u8);
-    append(raw, 110u8);
-    append(raw, 45u8);
-    append(raw, 101u8);
+    erg bytes: Array[u8,11] = Array[u8, 11]();
+    bytes[0u32] = 47u8;
+    bytes[1u32] = 116u8;
+    bytes[2u32] = 109u8;
+    bytes[3u32] = 112u8;
+    bytes[4u32] = 47u8;
+    bytes[5u32] = 116u8;
+    bytes[6u32] = 119u8;
+    bytes[7u32] = 105u8;
+    bytes[8u32] = 110u8;
+    bytes[9u32] = 45u8;
+    bytes[10u32] = 101u8;
+    for erg index: u32 in 0u32 .. 11u32 {
+        append(raw, bytes[index]);
+    }
 }
 
 verb append_path_suffix(ins raw: Buffer) {
-    append(raw, 45u8);
-    append(raw, 112u8);
-    append(raw, 53u8);
-    append(raw, 45u8);
-    append(raw, 116u8);
-    append(raw, 101u8);
-    append(raw, 120u8);
-    append(raw, 116u8);
-    append(raw, 45u8);
-    append(raw, 98u8);
-    append(raw, 114u8);
-    append(raw, 97u8);
-    append(raw, 105u8);
-    append(raw, 110u8);
-    append(raw, 46u8);
-    append(raw, 98u8);
-    append(raw, 114u8);
-    append(raw, 97u8);
-    append(raw, 105u8);
-    append(raw, 110u8);
-    append(raw, 0u8);
+    erg bytes: Array[u8,21] = Array[u8, 21]();
+    bytes[0u32] = 45u8;
+    bytes[1u32] = 112u8;
+    bytes[2u32] = 53u8;
+    bytes[3u32] = 45u8;
+    bytes[4u32] = 116u8;
+    bytes[5u32] = 101u8;
+    bytes[6u32] = 120u8;
+    bytes[7u32] = 116u8;
+    bytes[8u32] = 45u8;
+    bytes[9u32] = 98u8;
+    bytes[10u32] = 114u8;
+    bytes[11u32] = 97u8;
+    bytes[12u32] = 105u8;
+    bytes[13u32] = 110u8;
+    bytes[14u32] = 46u8;
+    bytes[15u32] = 98u8;
+    bytes[16u32] = 114u8;
+    bytes[17u32] = 97u8;
+    bytes[18u32] = 105u8;
+    bytes[19u32] = 110u8;
+    bytes[20u32] = 0u8;
+    for erg index: u32 in 0u32 .. 21u32 {
+        append(raw, bytes[index]);
+    }
 }
 
 verb benchmark_path() -> Result[Path, PathError] {
@@ -220,7 +228,7 @@ verb run_roundtrip(dat path: Path) -> Int {
         bindings: ins bindings,
         path: abs path
     ) != 0 {
-        return 4;
+        return 3;
     }
     erg message: String = "AIE_P5_BRAIN roundtrip=1 bytes=5702 fabric=1 bindings=1 compatibility=1 corrupted_rejected=1 unchanged=1";
     println(text: abs message);
