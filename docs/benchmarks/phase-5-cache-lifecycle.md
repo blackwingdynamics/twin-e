@@ -77,3 +77,21 @@ The strict test command produced:
 test result: ok
 18 passed; 0 failed
 ```
+
+## Configured bounded capacity
+
+The current host profile uses the following explicit limits:
+
+- resident shard cache capacity: `BRAIN_CACHE_CAPACITY=4` entries;
+- dirty-shard limit: four entries, because every resident entry may become
+  dirty but no dirty entry is evictable;
+- flush queue limit: `0` background queue entries; persistence is currently
+  caller-driven through the explicit save boundary;
+- storage exhaustion behavior: when all four entries are dirty or pinned,
+  insertion returns the bounded `NoEvictable` decision and resident
+  neurogenesis reports `NoResidentCapacity` without changing the existing
+  fabric.
+
+These are host-profile limits, not claims about an unbounded deployment. A
+future background flush profile must define its queue capacity explicitly
+before changing the zero-queue contract.

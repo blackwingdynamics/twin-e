@@ -126,7 +126,7 @@ first; persistence is a later operation with an explicit lifecycle.
   the hot-path operation.
 - [ ] Measure flush latency separately from inference latency and report both
   values in the evidence document.
-- [ ] Document the configured resident shard capacity, dirty-shard limit,
+- [x] Document the configured resident shard capacity, dirty-shard limit,
   flush queue limit, and behavior under storage exhaustion.
 
 Acceptance evidence:
