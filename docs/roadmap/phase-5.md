@@ -110,7 +110,7 @@ first; persistence is a later operation with an explicit lifecycle.
 - [x] Add a background or caller-driven flush operation that writes dirty
   shards to a temporary generation file, validates them, and publishes them
   atomically.
-- [ ] Add an explicit `save` or commit-boundary API for mission completion,
+- [x] Add an explicit `save` or commit-boundary API for mission completion,
   text completion, and caller-requested persistence.
 - [ ] Define flush ordering for shard data, binding data, and manifest metadata
   so a committed generation is internally consistent.
@@ -160,12 +160,12 @@ not evidence that a staged file was written, validated, or published.
 - [x] **Gate D — Resident lifecycle after save**
   - [x] Mark the cache entry `Persisted` only after successful publication.
   - [x] Keep the resident shard `Dirty` and usable after any failed save.
-- [ ] **Gate E — Executable evidence and regression**
-  - [ ] Add a deterministic success benchmark and failure cases for each save
+- [x] **Gate E — Executable evidence and regression**
+  - [x] Add a deterministic success benchmark and failure cases for each save
     stage.
-  - [ ] Record strict build output, zero-float verification, exit status, file
+  - [x] Record strict build output, zero-float verification, exit status, file
     state, and recovery behavior.
-  - [ ] Run the full strict Twin-e suite and close the parent P5.1A save API
+  - [x] Run the full strict Twin-e suite and close the parent P5.1A save API
     checkbox only after all gates pass.
 
 ## P5.2 — Production BPE vocabulary

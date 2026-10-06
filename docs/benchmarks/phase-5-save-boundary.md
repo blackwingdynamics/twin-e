@@ -79,12 +79,52 @@ same entry to persisted only after successful publication.
 
 ## Remaining evidence after Gate D
 
-Gates A through D are closed by the benchmark output above. The following evidence remains
-for the later gates:
+Gates A through D are closed by the benchmark output above. The previous active
+generation and failed-publication recovery are recorded by the
+`previous_generation_preserved` marker.
 
-- prove that a previous active generation remains available when publication
-  fails;
-- record restart selection of the newest complete generation.
+## Gate E executable evidence
+
+The save-boundary executable was built and run with:
+
+```sh
+rm -rf /tmp/twin-e-binding-shard.brain /tmp/twin-e-stage.brain
+actus build --strict --emit exe \
+  -o /tmp/twin-e-shard-bindings-save.aie \
+  benchmarks/aie_shard_bindings_dynamic.act
+/tmp/twin-e-shard-bindings-save.aie
+stat -c 'active=%n bytes=%s' /tmp/twin-e-binding-shard.brain
+test ! -e /tmp/twin-e-stage.brain && echo staged_state=consumed
+```
+
+Observed result:
+
+```text
+verified generated native IR: no floating-point instructions
+save_exit_status=0
+active=/tmp/twin-e-binding-shard.brain bytes=104
+staged_state=consumed
+```
+
+The separate recovery executable was built from
+`benchmarks/aie_shards_dynamic.act`. It returned exit status 0 and reported
+`manifest_selected=1`, `dynamic_loaded=1`, `dynamic_failed_unchanged=1`, and
+`reallocated=2`. Its four complete shard files were 176, 176, 176, and 184
+bytes. This is the restart and incomplete-generation recovery evidence used by
+Gate E.
+
+The full repository checks passed after the Gate E changes:
+
+```text
+actus lock --check       PASS
+actus check --strict     PASS
+actus test --strict      18 passed; 0 failed
+```
+
+Gates A through E are now closed. The remaining P5.1A work concerns broader
+hot-path benchmarking, background flush policy, capacity configuration, and
+negative filesystem-write instrumentation; those are separate from the
+caller-driven save API acceptance gate.
 
 ## Regression baseline
 
