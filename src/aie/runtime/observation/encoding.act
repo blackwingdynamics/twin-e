@@ -34,20 +34,53 @@ verb observation_key(abs event: ObservationEvent) -> u64 {
     return state;
 }
 
+"""Compose two validated observations into one temporal context key."""
+open verb observation_context_key(
+    abs previous: ObservationEvent,
+    abs current: ObservationEvent
+) -> Result[u64, ObservationError] {
+    erg previous_admission = validate_observation(event: abs previous);
+    case dat previous_admission {
+        Result.Err(error) => {
+            return Result[u64, ObservationError].Err(error);
+        },
+        Result.Ok(_) => {},
+    };
+    erg current_admission = validate_observation(event: abs current);
+    case dat current_admission {
+        Result.Err(error) => {
+            return Result[u64, ObservationError].Err(error);
+        },
+        Result.Ok(_) => {},
+    };
+    erg state: u64 = observation_key(event: abs previous);
+    state *= CONTEXT_MULTIPLIER;
+    state ^= observation_key(event: abs current);
+    state *= CONTEXT_MULTIPLIER;
+    state ^= OBSERVATION_VERSION as u64;
+    return Result[u64, ObservationError].Ok(state);
+}
+
+"""Encode one observation together with its bounded preceding context."""
+open verb encode_observation_context(
+    abs previous: ObservationEvent,
+    abs current: ObservationEvent
+) -> Result[TokenCode, ObservationError] {
+    erg context = observation_context_key(previous: abs previous, current: abs current);
+    return case dat context {
+        Result.Err(error) => Result[TokenCode, ObservationError].Err(error),
+        Result.Ok(key) => Result[TokenCode, ObservationError].Ok(encode_context_key(context_key: erg key)),
+    };
+}
+
 """Validate and encode one observation as the engine's 128-bit sparse code."""
 open verb encode_observation(abs event: ObservationEvent) -> Result[TokenCode, ObservationError] {
     erg admission = validate_observation(event: abs event);
-    erg result: Result[TokenCode,ObservationError] = Result[TokenCode, ObservationError].Err(
-        ObservationError.InvalidEvent
-    );
-    case dat admission {
-        Result.Err(error) => {
-            result = Result[TokenCode, ObservationError].Err(error);
-        },
+    return case dat admission {
+        Result.Err(error) => Result[TokenCode, ObservationError].Err(error),
         Result.Ok(_) => {
             erg key: u64 = observation_key(event: abs event);
-            result = Result[TokenCode, ObservationError].Ok(encode_context_key(context_key: erg key));
+            Result[TokenCode, ObservationError].Ok(encode_context_key(context_key: erg key));
         },
     };
-    return result;
 }

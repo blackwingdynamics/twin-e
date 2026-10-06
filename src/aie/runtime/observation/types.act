@@ -20,9 +20,15 @@ open struct ObservationEvent {
     erg valid: Bool,
 }
 
+"""Fixed-width serialized observation payload with no pointers or allocation."""
+open struct ObservationSnapshot {
+    erg bytes: Array[u8, 20],
+}
+
 """Typed rejection reasons for malformed observation input."""
 open enum ObservationError {
     InvalidEvent,
     UnsupportedVersion,
     ValueOutOfBounds,
+    InvalidSerializedData,
 }

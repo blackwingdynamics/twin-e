@@ -1,0 +1,188 @@
+import config;
+
+open types;
+
+"""Return the stable serialized discriminator for one observation category."""
+open verb observation_kind_serialized(abs kind: ObservationKind) -> u8 {
+    return case kind {
+        ObservationKind.Obstacle => 1u8,
+        ObservationKind.Distance => 2u8,
+        ObservationKind.Person => 3u8,
+        ObservationKind.Motion => 4u8,
+        ObservationKind.Direction => 5u8,
+    };
+}
+
+"""Restore one observation category from its serialized discriminator."""
+verb observation_kind_from_serialized(erg value: u8) -> Result[ObservationKind, ObservationError] {
+    if value == 1u8 {
+        return Result[ObservationKind, ObservationError].Ok(ObservationKind.Obstacle);
+    }
+    if value == 2u8 {
+        return Result[ObservationKind, ObservationError].Ok(ObservationKind.Distance);
+    }
+    if value == 3u8 {
+        return Result[ObservationKind, ObservationError].Ok(ObservationKind.Person);
+    }
+    if value == 4u8 {
+        return Result[ObservationKind, ObservationError].Ok(ObservationKind.Motion);
+    }
+    if value == 5u8 {
+        return Result[ObservationKind, ObservationError].Ok(ObservationKind.Direction);
+    }
+    return Result[ObservationKind, ObservationError].Err(ObservationError.InvalidSerializedData);
+}
+
+"""Write one little-endian u16 into a fixed observation snapshot."""
+verb observation_write_u16(
+    ins output: Array[u8, 20],
+    abs offset: u32,
+    abs value: u16
+) {
+    output[offset] = value as u8;
+    output[offset + 1u32] = ((value as u32 / 256u32) & 255u32) as u8;
+}
+
+"""Write one little-endian u32 into a fixed observation snapshot."""
+verb observation_write_u32(
+    ins output: Array[u8, 20],
+    abs offset: u32,
+    abs value: u32
+) {
+    output[offset] = (value & 255u32) as u8;
+    output[offset + 1u32] = ((value / 256u32) & 255u32) as u8;
+    output[offset + 2u32] = ((value / 65536u32) & 255u32) as u8;
+    output[offset + 3u32] = ((value / 16777216u32) & 255u32) as u8;
+}
+
+"""Read one little-endian u16 from a fixed observation snapshot."""
+verb observation_read_u16(abs input: Array[u8, 20], abs offset: u32) -> u16 {
+    return (input[offset] as u16) + ((input[offset + 1u32] as u16) * 256u16);
+}
+
+"""Read one little-endian u32 from a fixed observation snapshot."""
+verb observation_read_u32(abs input: Array[u8, 20], abs offset: u32) -> u32 {
+    return (input[offset] as u32) + ((input[offset + 1u32] as u32) * 256u32) + ((input[offset + 2u32] as u32) * 65536u32) + ((input[offset + 3u32] as u32) * 16777216u32);
+}
+
+"""Validate the fixed header before exposing serialized observation fields."""
+open verb observation_snapshot_is_valid(abs snapshot: ObservationSnapshot) -> Bool {
+    erg magic_offset: u32 = 0u32;
+    erg version_offset: u32 = 4u32;
+    erg size_offset: u32 = 6u32;
+    return observation_read_u32(input: abs snapshot.bytes, offset: abs magic_offset) == OBSERVATION_SNAPSHOT_MAGIC && observation_read_u16(
+        input: abs snapshot.bytes,
+        offset: abs version_offset
+    ) == OBSERVATION_SNAPSHOT_VERSION && observation_read_u16(input: abs snapshot.bytes, offset: abs size_offset) == OBSERVATION_SNAPSHOT_BYTES;
+}
+
+verb observation_event_is_serializable(abs event: ObservationEvent) -> Bool {
+    return event.valid && event.version == OBSERVATION_VERSION && event.primary_value <= OBSERVATION_MAX_VALUE && event.secondary_value <= OBSERVATION_MAX_VALUE;
+}
+
+verb observation_write_header(ins output: Array[u8, 20]) {
+    erg magic_offset: u32 = 0u32;
+    erg version_offset: u32 = 4u32;
+    erg size_offset: u32 = 6u32;
+    observation_write_u32(
+        output: ins output,
+        offset: abs magic_offset,
+        value: abs OBSERVATION_SNAPSHOT_MAGIC
+    );
+    observation_write_u16(
+        output: ins output,
+        offset: abs version_offset,
+        value: abs OBSERVATION_SNAPSHOT_VERSION
+    );
+    observation_write_u16(
+        output: ins output,
+        offset: abs size_offset,
+        value: abs OBSERVATION_SNAPSHOT_BYTES
+    );
+}
+
+verb observation_write_measurements(
+    ins output: Array[u8, 20],
+    abs event: ObservationEvent
+) {
+    erg primary_offset: u32 = 10u32;
+    erg secondary_offset: u32 = 12u32;
+    erg sequence_offset: u32 = 14u32;
+    erg event_version_offset: u32 = 18u32;
+    observation_write_u16(
+        output: ins output,
+        offset: abs primary_offset,
+        value: abs event.primary_value
+    );
+    observation_write_u16(
+        output: ins output,
+        offset: abs secondary_offset,
+        value: abs event.secondary_value
+    );
+    observation_write_u32(
+        output: ins output,
+        offset: abs sequence_offset,
+        value: abs event.sequence
+    );
+    observation_write_u16(
+        output: ins output,
+        offset: abs event_version_offset,
+        value: abs event.version
+    );
+}
+
+verb observation_write_fields(
+    ins output: Array[u8, 20],
+    abs event: ObservationEvent
+) {
+    output[8u32] = observation_kind_serialized(kind: abs event.kind);
+    output[9u32] = 1u8;
+    observation_write_measurements(output: ins output, event: abs event);
+}
+
+"""Write one validated observation into a position-independent fixture."""
+verb observation_write_payload(
+    ins output: Array[u8, 20],
+    abs event: ObservationEvent
+) {
+    observation_write_header(output: ins output);
+    observation_write_fields(output: ins output, event: abs event);
+}
+
+"""Serialize one validated observation into a position-independent fixture."""
+open verb serialize_observation(abs event: ObservationEvent) -> Result[ObservationSnapshot, ObservationError] {
+    if !observation_event_is_serializable(event: abs event) {
+        return Result[ObservationSnapshot, ObservationError].Err(ObservationError.InvalidEvent);
+    }
+    erg output: Array[u8,20] = Array[u8, 20]();
+    observation_write_payload(output: ins output, event: abs event);
+    return Result[ObservationSnapshot, ObservationError].Ok(ObservationSnapshot {bytes: output});
+}
+
+"""Deserialize and validate one fixed observation event without partial state."""
+open verb deserialize_observation(abs snapshot: ObservationSnapshot) -> Result[ObservationEvent, ObservationError] {
+    if !observation_snapshot_is_valid(snapshot: abs snapshot) {
+        return Result[ObservationEvent, ObservationError].Err(ObservationError.InvalidSerializedData);
+    }
+    erg serialized_kind: u8 = snapshot.bytes[8u32];
+    erg kind_result = observation_kind_from_serialized(value: erg serialized_kind);
+    return case dat kind_result {
+        Result.Err(error) => Result[ObservationEvent, ObservationError].Err(error),
+        Result.Ok(kind) => {
+            erg primary_offset: u32 = 10u32;
+            erg secondary_offset: u32 = 12u32;
+            erg sequence_offset: u32 = 14u32;
+            erg event_version_offset: u32 = 18u32;
+            if snapshot.bytes[9u32] != 1u8 {
+                return Result[ObservationEvent, ObservationError].Err(ObservationError.InvalidSerializedData);
+            }
+            Result[ObservationEvent, ObservationError].Ok(ObservationEvent {kind: kind, primary_value: observation_read_u16(
+                input: abs snapshot.bytes,
+                offset: abs primary_offset
+            ), secondary_value: observation_read_u16(input: abs snapshot.bytes, offset: abs secondary_offset), sequence: observation_read_u32(
+                input: abs snapshot.bytes,
+                offset: abs sequence_offset
+            ), version: observation_read_u16(input: abs snapshot.bytes, offset: abs event_version_offset), valid: true});
+        },
+    };
+}

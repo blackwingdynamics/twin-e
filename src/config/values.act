@@ -187,6 +187,18 @@ open const OBSERVATION_MAX_VALUE: u16 = 4095u16;
 open const OBSERVATION_SEED: u64 = 1469598103934665603u64;
 
 
+"""Magic value identifying one serialized observation event."""
+open const OBSERVATION_SNAPSHOT_MAGIC: u32 = 1330595153u32;
+
+
+"""Version of the fixed serialized observation event format."""
+open const OBSERVATION_SNAPSHOT_VERSION: u16 = 1u16;
+
+
+"""Total byte length of one serialized observation event."""
+open const OBSERVATION_SNAPSHOT_BYTES: u16 = 20u16;
+
+
 """Maximum number of generated token ids retained for loop guards."""
 open const GENERATION_HISTORY_LIMIT: u32 = 8u32;
 

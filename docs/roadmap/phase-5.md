@@ -218,10 +218,16 @@ The training benchmark and captured output are recorded in
   and direction.
 - [x] Encode an observation into a deterministic sparse code without using
   floating-point instructions.
-- [ ] Bind an observation to its temporal context in the same way as text
+- [x] Bind an observation to its temporal context in the same way as text
   tokens.
 - [x] Reject malformed, unknown, or over-sized observation events.
-- [ ] Add an observation round-trip benchmark and serialized fixture.
+- [x] Add an observation round-trip benchmark and serialized fixture.
+
+The round-trip evidence fixture is `benchmarks/aie_observation_roundtrip.act`.
+It builds and runs in strict mode, prints
+`AIE_OBSERVATION_ROUNDTRIP bytes=20 code_roundtrip=1 active_bits=8`, and the
+compiler verifies that generated native IR contains no floating-point
+instructions.
 
 ## P5.5 — Sensor and action routing
 
