@@ -297,6 +297,130 @@ verb binding_io_error_status(dat error: IoError) -> Int {
     };
 }
 
+verb benchmark_cache_entry_is_dirty(abs cache: ShardCache, erg slot: u8) -> Bool {
+    return case cache.entries[slot as Usize].lifecycle {
+        ShardLifecycle.Dirty => true,
+        _ => false,
+    };
+}
+
+verb benchmark_cache_entry_is_persisted(abs cache: ShardCache, erg slot: u8) -> Bool {
+    return case cache.entries[slot as Usize].lifecycle {
+        ShardLifecycle.Persisted => true,
+        _ => false,
+    };
+}
+
+verb verify_failed_save_stays_dirty() -> Int {
+    erg path_result = binding_path();
+    return case dat path_result {
+        Result.Err(_) => 21,
+        Result.Ok(path) => {
+            erg staged_result = binding_staged_path();
+            return case dat staged_result {
+                Result.Err(_) => {
+                    drop(path);
+                    return 22;
+                },
+                Result.Ok(staged) => {
+                    erg cache: ShardCache = ShardCache {entries: Array[ShardCacheEntry, 4](), clock: 0u64};
+                    shard_cache_init(cache: ins cache);
+                    erg shard_id: u32 = 0u32;
+                    erg generation: u64 = 1u64;
+                    erg checksum: u64 = 0u64;
+                    erg inserted = shard_cache_insert(
+                        cache: ins cache,
+                        shard_id: erg shard_id,
+                        generation: erg generation,
+                        checksum: erg checksum
+                    );
+                    erg slot: u8 = case dat inserted {
+                        Result.Err(_) => 7u8,
+                        Result.Ok(value) => value,
+                    };
+                    if slot == 7u8 {
+                        drop(path);
+                        drop(staged);
+                        return 7;
+                    }
+                    erg dirtied = shard_cache_mark_dirty(cache: ins cache, slot: erg slot);
+                    erg dirty_status: Int = case dat dirtied {
+                        Result.Err(_) => 8,
+                        Result.Ok(_) => 0,
+                    };
+                    if dirty_status != 0 {
+                        drop(path);
+                        drop(staged);
+                        return dirty_status;
+                    }
+                    erg created = create_dir(path: abs path);
+                    return case dat created {
+                        Result.Err(_) => {
+                            drop(path);
+                            drop(staged);
+                            return 23;
+                        },
+                        Result.Ok(_) => {
+                            erg payload: Buffer = make_payload();
+                            erg bindings: Buffer = make_bindings();
+                            erg first_column_index: u32 = 0u32;
+                            erg column_count: u32 = 2u32;
+                            erg request: ShardSaveRequest = ShardSaveRequest {staged: staged, active: path, shard_id: shard_id, first_column_index: first_column_index, column_count: column_count, payload: payload, bindings: bindings};
+                            erg saved = save_dynamic_shard_with_bindings(
+                                cache: ins cache,
+                                slot: erg slot,
+                                request: abs request
+                            );
+                            erg save_status: Int = case dat saved {
+                                Result.Err(_) => 0,
+                                Result.Ok(_) => 24,
+                            };
+                            if save_status != 0 {
+                                erg removed_active_after_status = remove_dir(path: abs request.active);
+                                drop(request);
+                                case dat removed_active_after_status {
+                                    Result.Ok(_) => {},
+                                    Result.Err(_) => {},
+                                };
+                                return save_status;
+                            }
+                            if !benchmark_cache_entry_is_dirty(cache: abs cache, slot: erg slot) {
+                                erg removed_active_dirty_check = remove_dir(path: abs request.active);
+                                drop(request);
+                                case dat removed_active_dirty_check {
+                                    Result.Ok(_) => {},
+                                    Result.Err(_) => {},
+                                };
+                                return 25;
+                            }
+                            erg removed_staged = remove_file(path: abs request.staged);
+                            erg removed_active_final = remove_dir(path: abs request.active);
+                            drop(request);
+                            erg staged_cleanup_status: Int = case dat removed_staged {
+                                Result.Err(_) => 26,
+                                Result.Ok(_) => 0,
+                            };
+                            erg active_cleanup_status: Int = case dat removed_active_final {
+                                Result.Err(_) => 27,
+                                Result.Ok(_) => 0,
+                            };
+                            if staged_cleanup_status != 0 {
+                                return staged_cleanup_status;
+                            }
+                            if active_cleanup_status != 0 {
+                                return active_cleanup_status;
+                            }
+                            erg message: String = "AIE_BINDING_STAGE dirty_after_failed_save";
+                            println(text: abs message);
+                            return 0;
+                        },
+                    };
+                },
+            };
+        },
+    };
+}
+
 verb print_binding_stage(erg stage: u8) {
     erg message: String = case stage {
         1 => "AIE_BINDING_STAGE write_failed error=IoError.Failed status=11",
@@ -723,6 +847,10 @@ verb run(dat path: Path, dat staged: Path) -> Int {
     if preserved_status != 0 {
         return preserved_status;
     }
+    erg failed_save_status: Int = verify_failed_save_stays_dirty();
+    if failed_save_status != 0 {
+        return failed_save_status;
+    }
     erg invalid_status: Int = verify_corrupt_staged_rejected(
         staged: abs staged,
         shard_id: erg shard_id,
@@ -748,6 +876,11 @@ verb run(dat path: Path, dat staged: Path) -> Int {
     if write_status != 0 {
         return write_status;
     }
+    if !benchmark_cache_entry_is_persisted(cache: abs cache, slot: erg slot) {
+        return 20;
+    }
+    erg persisted_message: String = "AIE_BINDING_STAGE persisted_after_successful_save";
+    println(text: abs persisted_message);
     erg write_message: String = "AIE_BINDING_STAGE write_ok";
     println(text: abs write_message);
     erg loaded = read_to_bytes(path: abs request.active);

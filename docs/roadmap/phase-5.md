@@ -157,9 +157,9 @@ not evidence that a staged file was written, validated, or published.
     after the rename step succeeds.
   - [x] Prove that the previous active generation remains available when
     publication fails.
-- [ ] **Gate D — Resident lifecycle after save**
-  - [ ] Mark the cache entry `Persisted` only after successful publication.
-  - [ ] Keep the resident shard `Dirty` and usable after any failed save.
+- [x] **Gate D — Resident lifecycle after save**
+  - [x] Mark the cache entry `Persisted` only after successful publication.
+  - [x] Keep the resident shard `Dirty` and usable after any failed save.
 - [ ] **Gate E — Executable evidence and regression**
   - [ ] Add a deterministic success benchmark and failure cases for each save
     stage.
