@@ -187,6 +187,10 @@ open const OBSERVATION_MAX_VALUE: u16 = 4095u16;
 open const OBSERVATION_SEED: u64 = 1469598103934665603u64;
 
 
+"""Mask used to project an observation hash into the bounded token ID domain."""
+open const OBSERVATION_TOKEN_MASK: u64 = 4294967295u64;
+
+
 """Magic value identifying one serialized observation event."""
 open const OBSERVATION_SNAPSHOT_MAGIC: u32 = 1330595153u32;
 
@@ -217,6 +221,26 @@ open const GENERATION_STOP_NO_SUCCESSOR: u8 = 3u8;
 
 """Generation stop reason code for repetition protection."""
 open const GENERATION_STOP_LOOP_GUARD: u8 = 4u8;
+
+
+"""Token identity for the bounded stop action."""
+open const ACTION_TOKEN_STOP: u32 = 1u32;
+
+
+"""Token identity for the bounded move action."""
+open const ACTION_TOKEN_MOVE: u32 = 2u32;
+
+
+"""Token identity for the bounded turn action."""
+open const ACTION_TOKEN_TURN: u32 = 3u32;
+
+
+"""Token identity for the bounded follow action."""
+open const ACTION_TOKEN_FOLLOW: u32 = 4u32;
+
+
+"""Token identity for the bounded signal action."""
+open const ACTION_TOKEN_SIGNAL: u32 = 5u32;
 
 
 """Generation stop reason code for an invalid prompt."""

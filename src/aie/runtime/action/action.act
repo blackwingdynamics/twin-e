@@ -1,0 +1,6 @@
+"""Public facade for hardware-neutral sensor-to-action routing."""
+open types;
+
+open validation;
+
+open routing;

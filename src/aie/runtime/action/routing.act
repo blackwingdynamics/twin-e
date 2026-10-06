@@ -1,0 +1,317 @@
+import config;
+
+open types;
+
+open validation;
+
+struct ActionSelection {
+    erg index: u32,
+    erg token_id: u32,
+    erg source_index: u32,
+}
+
+"""Return the bounded token identity used by an observation binding."""
+open verb observation_token_id(abs event: ObservationEvent) -> u32 {
+    erg observation_hash: u64 = observation_key(event: abs event);
+    erg bounded_hash: u64 = observation_hash & OBSERVATION_TOKEN_MASK;
+    return bounded_hash as u32;
+}
+
+"""Reject a successor that does not match the current observation context."""
+verb action_candidate_matches(
+    abs fabric: CorticalFabric[64],
+    abs bindings: Array[TokenBinding, 64],
+    erg candidate: u32,
+    erg current_token_id: u32
+) -> Bool {
+    if candidate == null_index() || candidate >= BRAIN_BINDING_COUNT {
+        return false;
+    }
+    if (fabric.columns[candidate].flags & FLAG_ACTIVE) == 0u8 || bindings[candidate].binding_flags != BINDING_ACTIVE_FLAG {
+        return false;
+    }
+    if bindings[candidate].tokenizer_version != TOKENIZER_VERSION || bindings[candidate].context_version != CONTEXT_VERSION {
+        return false;
+    }
+    erg candidate_token_id: u32 = 0u32;
+    candidate_token_id = bindings[candidate].token_id;
+    erg expected_context: u64 = context_key(previous_token_id: erg current_token_id, token_id: erg candidate_token_id);
+    return bindings[candidate].context_key == expected_context;
+}
+
+"""Check whether one valid successor conflicts with the selected action."""
+verb is_conflicting_action_candidate(
+    abs fabric: CorticalFabric[64],
+    abs bindings: Array[TokenBinding, 64],
+    erg candidate: u32,
+    erg current_token_id: u32,
+    erg selected_token_id: u32
+) -> Bool {
+    if !action_candidate_matches(
+        fabric: abs fabric,
+        bindings: abs bindings,
+        candidate: erg candidate,
+        current_token_id: erg current_token_id
+    ) || bindings[candidate].token_id == selected_token_id {
+        return false;
+    }
+    erg candidate_token_id: u32 = bindings[candidate].token_id;
+    erg candidate_action = action_kind_from_token(token_id: abs candidate_token_id);
+    return case dat candidate_action {
+        Result.Ok(_) => true,
+        Result.Err(_) => false,
+    };
+}
+
+"""Detect distinct valid action identities on the current eight-slot fanout."""
+verb has_conflicting_actions(
+    abs fabric: CorticalFabric[64],
+    abs bindings: Array[TokenBinding, 64],
+    erg source_idx: u32,
+    erg current_token_id: u32,
+    erg selected_token_id: u32
+) -> Bool {
+    erg slot: u32 = 0u32;
+    loop {
+        if slot >= 8u32 {
+            break;
+        }
+        erg candidate: u32 = fabric.columns[source_idx].axons[slot];
+        if is_conflicting_action_candidate(
+            fabric: abs fabric,
+            bindings: abs bindings,
+            candidate: erg candidate,
+            current_token_id: erg current_token_id,
+            selected_token_id: erg selected_token_id
+        ) {
+            return true;
+        }
+        slot += 1u32;
+    }
+    return false;
+}
+
+"""Validate both observations at the routing boundary."""
+verb observation_pair_is_valid(
+    abs previous: ObservationEvent,
+    abs current: ObservationEvent
+) -> Bool {
+    erg admitted_previous = accept_sensor_observation(event: abs previous);
+    case dat admitted_previous {
+        Result.Err(_) => {
+            return false;
+        },
+        Result.Ok(_) => {},
+    };
+    erg admitted_current = accept_sensor_observation(event: abs current);
+    case dat admitted_current {
+        Result.Err(_) => {
+            return false;
+        },
+        Result.Ok(_) => {},
+    };
+    return true;
+}
+
+"""Resolve the temporal context key for an admitted observation pair."""
+verb resolve_observation_context(
+    abs previous: ObservationEvent,
+    abs current: ObservationEvent
+) -> Result[u64, ActionError] {
+    erg context_result = observation_context_key(previous: abs previous, current: abs current);
+    return case dat context_result {
+        Result.Err(_) => Result[u64, ActionError].Err(ActionError.InvalidObservation),
+        Result.Ok(value) => Result[u64, ActionError].Ok(value),
+    };
+}
+
+"""Resolve one observation pair to its context-bound source column."""
+verb resolve_observation_source(
+    abs bindings: Array[TokenBinding, 64],
+    abs previous: ObservationEvent,
+    abs current: ObservationEvent
+) -> Result[u32, ActionError] {
+    if !observation_pair_is_valid(previous: abs previous, current: abs current) {
+        return Result[u32, ActionError].Err(ActionError.InvalidObservation);
+    }
+    erg context_result = resolve_observation_context(previous: abs previous, current: abs current);
+    erg context_key_value: u64 = 0u64;
+    case dat context_result {
+        Result.Err(error) => {
+            return Result[u32, ActionError].Err(error);
+        },
+        Result.Ok(value) => {
+            context_key_value = value;
+        },
+    };
+    erg current_token_id: u32 = observation_token_id(event: abs current);
+    erg found = lookup_token_context(
+        bindings: abs bindings,
+        token_id: erg current_token_id,
+        context_key: erg context_key_value
+    );
+    return case dat found {
+        Option.None => Result[u32, ActionError].Err(ActionError.MissingContext),
+        Option.Some(index) => Result[u32, ActionError].Ok(index),
+    };
+}
+
+"""Select one bounded successor using an empty repetition history."""
+verb select_action_candidate(
+    abs fabric: CorticalFabric[64],
+    abs bindings: Array[TokenBinding, 64],
+    erg source_idx: u32,
+    erg current_token_id: u32
+) -> SuccessorChoice {
+    erg history: Array[u32,8] = Array[u32, 8]();
+    erg history_count: u32 = 0u32;
+    return choose_successor(
+        fabric: abs fabric,
+        bindings: abs bindings,
+        history: abs history,
+        history_count: erg history_count,
+        source_idx: erg source_idx,
+        current_token_id: erg current_token_id
+    );
+}
+
+"""Select one safe action successor and reject ambiguity."""
+verb select_action_successor(
+    abs fabric: CorticalFabric[64],
+    abs bindings: Array[TokenBinding, 64],
+    erg source_idx: u32,
+    erg current_token_id: u32
+) -> Result[ActionSelection, ActionError] {
+    erg choice: SuccessorChoice = select_action_candidate(
+        fabric: abs fabric,
+        bindings: abs bindings,
+        source_idx: erg source_idx,
+        current_token_id: erg current_token_id
+    );
+    if !choice.found {
+        return Result[ActionSelection, ActionError].Err(ActionError.NoSuccessor);
+    }
+    erg selected_token_id: u32 = bindings[choice.index].token_id;
+    if has_conflicting_actions(
+        fabric: abs fabric,
+        bindings: abs bindings,
+        source_idx: erg source_idx,
+        current_token_id: erg current_token_id,
+        selected_token_id: erg selected_token_id
+    ) {
+        return Result[ActionSelection, ActionError].Err(ActionError.ConflictingActions);
+    }
+    return Result[ActionSelection, ActionError].Ok(ActionSelection {index: choice.index, token_id: selected_token_id, source_index: source_idx});
+}
+
+"""Resolve and select the action for one observation pair."""
+verb resolve_route_selection(
+    abs fabric: CorticalFabric[64],
+    abs bindings: Array[TokenBinding, 64],
+    abs previous: ObservationEvent,
+    abs current: ObservationEvent
+) -> Result[ActionSelection, ActionError] {
+    erg current_token_id: u32 = observation_token_id(event: abs current);
+    erg source_result = resolve_observation_source(
+        bindings: abs bindings,
+        previous: abs previous,
+        current: abs current
+    );
+    erg source_idx: u32 = null_index();
+    case dat source_result {
+        Result.Err(error) => {
+            return Result[ActionSelection, ActionError].Err(error);
+        },
+        Result.Ok(index) => {
+            source_idx = index;
+        },
+    };
+    return select_action_successor(
+        fabric: abs fabric,
+        bindings: abs bindings,
+        source_idx: erg source_idx,
+        current_token_id: erg current_token_id
+    );
+}
+
+"""Build and validate the action event selected by context routing."""
+verb build_action_event(
+    abs current: ObservationEvent,
+    erg source_idx: u32,
+    erg successor_idx: u32,
+    erg action_token_id: u32
+) -> Result[ActionEvent, ActionError] {
+    erg action_kind = action_kind_from_token(token_id: abs action_token_id);
+    erg kind: ActionKind = ActionKind.Stop;
+    case dat action_kind {
+        Result.Err(error) => {
+            return Result[ActionEvent, ActionError].Err(error);
+        },
+        Result.Ok(value) => {
+            kind = value;
+        },
+    };
+    erg action: ActionEvent = ActionEvent {kind: kind, primary_value: current.primary_value, secondary_value: current.secondary_value, sequence: current.sequence, source_index: source_idx, successor_index: successor_idx, valid: true};
+    return emit_action_event(action: abs action);
+}
+
+"""Apply repeated-action protection and emit the selected action."""
+verb emit_selected_action(
+    abs current: ObservationEvent,
+    abs selection: ActionSelection,
+    erg has_last_action: Bool,
+    erg last_action_token_id: u32
+) -> Result[ActionEvent, ActionError] {
+    if has_last_action && selection.token_id == last_action_token_id {
+        return Result[ActionEvent, ActionError].Err(ActionError.RepeatedAction);
+    }
+    erg source_idx: u32 = 0u32;
+    erg successor_idx: u32 = 0u32;
+    erg action_token_id: u32 = 0u32;
+    source_idx = selection.source_index;
+    successor_idx = selection.index;
+    action_token_id = selection.token_id;
+    return build_action_event(
+        current: abs current,
+        source_idx: erg source_idx,
+        successor_idx: erg successor_idx,
+        action_token_id: erg action_token_id
+    );
+}
+
+"""Route two observations through lookup and deterministic successor choice.
+
+The operation performs no filesystem I/O and does not allocate. The previous
+and current observations form the context key; the selected successor token
+becomes a bounded action. The optional prior sequence and action identity are
+used to reject stale and repeated output.
+"""
+open verb route_observation_action(
+    ins fabric: CorticalFabric[64],
+    abs bindings: Array[TokenBinding, 64],
+    abs previous: ObservationEvent,
+    abs current: ObservationEvent,
+    erg has_last_sequence: Bool,
+    erg last_sequence: u32,
+    erg has_last_action: Bool,
+    erg last_action_token_id: u32
+) -> Result[ActionEvent, ActionError] {
+    if current.sequence <= previous.sequence || (has_last_sequence && current.sequence <= last_sequence) {
+        return Result[ActionEvent, ActionError].Err(ActionError.StaleSequence);
+    }
+    erg selection = resolve_route_selection(
+        fabric: abs fabric,
+        bindings: abs bindings,
+        previous: abs previous,
+        current: abs current
+    );
+    return case dat selection {
+        Result.Err(error) => Result[ActionEvent, ActionError].Err(error),
+        Result.Ok(value) => emit_selected_action(
+            current: abs current,
+            selection: abs value,
+            has_last_action: erg has_last_action,
+            last_action_token_id: erg last_action_token_id
+        ),
+    };
+}

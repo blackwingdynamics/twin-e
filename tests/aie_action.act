@@ -1,0 +1,180 @@
+"""Acceptance tests for hardware-neutral sensor-to-action routing."""
+import aie;
+
+import config;
+
+verb action_test_fabric() -> CorticalFabric[64] {
+    erg fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](), free_list_head: 0u32, active_count: 0u32};
+    fabric_init(fabric: ins fabric);
+    return fabric;
+}
+
+verb bind_observation_target(
+    ins bindings: Array[TokenBinding, 64],
+    erg source_idx: u32,
+    abs previous: ObservationEvent,
+    abs current: ObservationEvent
+) {
+    erg observation_result = observation_context_key(previous: abs previous, current: abs current);
+    erg observation_context: u64 = 0u64;
+    case dat observation_result {
+        Result.Err(_) => {},
+        Result.Ok(value) => {
+            observation_context = value;
+        },
+    };
+    erg current_token_id: u32 = observation_token_id(event: abs current);
+    bind_token_context(
+        bindings: ins bindings,
+        slot: erg source_idx,
+        token_id: erg current_token_id,
+        context_key: erg observation_context
+    );
+}
+
+verb bind_action_target(
+    ins bindings: Array[TokenBinding, 64],
+    erg action_idx: u32,
+    erg current_token_id: u32,
+    erg action_token_id: u32
+) {
+    erg action_context: u64 = context_key(previous_token_id: erg current_token_id, token_id: erg action_token_id);
+    bind_token_context(
+        bindings: ins bindings,
+        slot: erg action_idx,
+        token_id: erg action_token_id,
+        context_key: erg action_context
+    );
+}
+
+verb bind_action_route(
+    ins fabric: CorticalFabric[64],
+    ins bindings: Array[TokenBinding, 64],
+    abs previous: ObservationEvent,
+    abs current: ObservationEvent,
+    erg action_token_id: u32
+) {
+    erg source_idx: u32 = allocate_column_index(fabric: ins fabric);
+    erg action_idx: u32 = allocate_column_index(fabric: ins fabric);
+    bind_observation_target(
+        bindings: ins bindings,
+        source_idx: erg source_idx,
+        previous: abs previous,
+        current: abs current
+    );
+    erg current_token_id: u32 = observation_token_id(event: abs current);
+    bind_action_target(
+        bindings: ins bindings,
+        action_idx: erg action_idx,
+        current_token_id: erg current_token_id,
+        action_token_id: erg action_token_id
+    );
+    fabric.columns[source_idx].axons[0u32] = action_idx;
+}
+
+verb route_one_action(
+    abs previous: ObservationEvent,
+    abs current: ObservationEvent,
+    erg action_token_id: u32,
+    erg has_last_sequence: Bool,
+    erg last_sequence: u32,
+    erg has_last_action: Bool,
+    erg last_action_token_id: u32
+) -> Result[ActionEvent, ActionError] {
+    erg fabric = action_test_fabric();
+    erg bindings: Array[TokenBinding,64] = Array[TokenBinding, 64]();
+    bind_action_route(
+        fabric: ins fabric,
+        bindings: ins bindings,
+        previous: abs previous,
+        current: abs current,
+        action_token_id: erg action_token_id
+    );
+    return route_observation_action(
+        fabric: ins fabric,
+        bindings: abs bindings,
+        previous: abs previous,
+        current: abs current,
+        has_last_sequence: erg has_last_sequence,
+        last_sequence: erg last_sequence,
+        has_last_action: erg has_last_action,
+        last_action_token_id: erg last_action_token_id
+    );
+}
+
+verb action_matches(
+    erg result: Result[ActionEvent, ActionError],
+    abs expected: ActionKind
+) -> Bool {
+    return case dat result {
+        Result.Ok(action) => case action.kind {
+            ActionKind.Stop => case expected {
+                ActionKind.Stop => true,
+                _ => false,
+            },
+            ActionKind.Move => case expected {
+                ActionKind.Move => true,
+                _ => false,
+            },
+            ActionKind.Turn => case expected {
+                ActionKind.Turn => true,
+                _ => false,
+            },
+            ActionKind.Follow => case expected {
+                ActionKind.Follow => true,
+                _ => false,
+            },
+            ActionKind.Signal => case expected {
+                ActionKind.Signal => true,
+                _ => false,
+            },
+        },
+        Result.Err(_) => false,
+    };
+}
+
+meta test
+verb test_obstacle_routes_to_stop() -> Int {
+    erg previous: ObservationEvent = ObservationEvent {kind: ObservationKind.Motion, primary_value: 0u16, secondary_value: 0u16, sequence: 1u32, version: OBSERVATION_VERSION, valid: true};
+    erg current: ObservationEvent = ObservationEvent {kind: ObservationKind.Obstacle, primary_value: 2u16, secondary_value: 0u16, sequence: 2u32, version: OBSERVATION_VERSION, valid: true};
+    erg action_token_id: u32 = ACTION_TOKEN_STOP;
+    erg no_state: Bool = false;
+    erg zero_value: u32 = 0u32;
+    erg result = route_one_action(
+        previous: abs previous,
+        current: abs current,
+        action_token_id: erg action_token_id,
+        has_last_sequence: erg no_state,
+        last_sequence: erg zero_value,
+        has_last_action: erg no_state,
+        last_action_token_id: erg zero_value
+    );
+    erg expected: ActionKind = ActionKind.Stop;
+    if action_matches(result: erg result, expected: abs expected) {
+        return 0;
+    }
+    return 1;
+}
+
+meta test
+verb test_person_routes_to_follow() -> Int {
+    erg previous: ObservationEvent = ObservationEvent {kind: ObservationKind.Motion, primary_value: 0u16, secondary_value: 0u16, sequence: 10u32, version: OBSERVATION_VERSION, valid: true};
+    erg current: ObservationEvent = ObservationEvent {kind: ObservationKind.Person, primary_value: 1u16, secondary_value: 4u16, sequence: 11u32, version: OBSERVATION_VERSION, valid: true};
+    erg action_token_id: u32 = ACTION_TOKEN_FOLLOW;
+    erg no_state: Bool = false;
+    erg zero_value: u32 = 0u32;
+    erg result = route_one_action(
+        previous: abs previous,
+        current: abs current,
+        action_token_id: erg action_token_id,
+        has_last_sequence: erg no_state,
+        last_sequence: erg zero_value,
+        has_last_action: erg no_state,
+        last_action_token_id: erg zero_value
+    );
+    erg expected: ActionKind = ActionKind.Follow;
+    if action_matches(result: erg result, expected: abs expected) {
+        return 0;
+    }
+    return 1;
+}

@@ -231,16 +231,25 @@ instructions.
 
 ## P5.5 — Sensor and action routing
 
-- [ ] Add a sensor adapter boundary that accepts observation events without
+- [x] Add a sensor adapter boundary that accepts observation events without
   coupling the AIE core to a device driver.
-- [ ] Route an observation through context lookup and successor selection.
-- [ ] Define bounded actions such as stop, move, turn, follow, and signal.
-- [ ] Add an action adapter boundary that emits validated action events.
-- [ ] Add safety rules for missing, conflicting, stale, or repeated actions.
-- [ ] Verify a deterministic obstacle-to-stop scenario.
-- [ ] Verify a deterministic person-to-follow scenario.
-- [ ] Keep sensor and action adapters hardware-neutral until hardware evidence
+- [x] Route an observation through context lookup and successor selection.
+- [x] Define bounded actions such as stop, move, turn, follow, and signal.
+- [x] Add an action adapter boundary that emits validated action events.
+- [x] Add safety rules for missing, conflicting, stale, or repeated actions.
+- [x] Verify a deterministic obstacle-to-stop scenario.
+- [x] Verify a deterministic person-to-follow scenario.
+- [x] Keep sensor and action adapters hardware-neutral until hardware evidence
   is available.
+
+P5.5 evidence 2026-10-06:
+
+- `actus test --strict`: 34 passed, 0 failed.
+- The first native probe exposed an intentional checked-cast trap when a full
+  `u64` observation hash was narrowed directly to `u32`. The adapter now masks
+  the hash with configured `OBSERVATION_TOKEN_MASK` before the checked cast.
+- No filesystem or device I/O was added to the routing path.
+- The action module is exported through the canonical AIE runtime facade.
 
 ## P5.6 — Hardware and scale validation
 

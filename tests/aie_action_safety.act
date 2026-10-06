@@ -1,0 +1,142 @@
+"""Acceptance tests for stale and repeated action safety rules."""
+import aie;
+
+import config;
+
+verb safety_fabric() -> CorticalFabric[64] {
+    erg fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](), free_list_head: 0u32, active_count: 0u32};
+    fabric_init(fabric: ins fabric);
+    return fabric;
+}
+
+verb safety_context_value(
+    abs previous: ObservationEvent,
+    abs current: ObservationEvent
+) -> u64 {
+    erg result = observation_context_key(previous: abs previous, current: abs current);
+    return case dat result {
+        Result.Err(_) => 0u64,
+        Result.Ok(value) => value,
+    };
+}
+
+verb bind_safety_targets(
+    ins bindings: Array[TokenBinding, 64],
+    erg source_idx: u32,
+    erg action_idx: u32,
+    abs previous: ObservationEvent,
+    abs current: ObservationEvent
+) {
+    erg observation_context: u64 = safety_context_value(previous: abs previous, current: abs current);
+    erg current_token_id: u32 = observation_token_id(event: abs current);
+    erg action_token_id: u32 = ACTION_TOKEN_STOP;
+    bind_token_context(
+        bindings: ins bindings,
+        slot: erg source_idx,
+        token_id: erg current_token_id,
+        context_key: erg observation_context
+    );
+    erg action_context: u64 = context_key(previous_token_id: erg current_token_id, token_id: erg action_token_id);
+    bind_token_context(
+        bindings: ins bindings,
+        slot: erg action_idx,
+        token_id: erg action_token_id,
+        context_key: erg action_context
+    );
+}
+
+verb prepare_safety_route(
+    ins fabric: CorticalFabric[64],
+    ins bindings: Array[TokenBinding, 64],
+    abs previous: ObservationEvent,
+    abs current: ObservationEvent
+) {
+    erg source_idx: u32 = allocate_column_index(fabric: ins fabric);
+    erg action_idx: u32 = allocate_column_index(fabric: ins fabric);
+    bind_safety_targets(
+        bindings: ins bindings,
+        source_idx: erg source_idx,
+        action_idx: erg action_idx,
+        previous: abs previous,
+        current: abs current
+    );
+    fabric.columns[source_idx].axons[0u32] = action_idx;
+}
+
+verb safety_route(
+    abs previous: ObservationEvent,
+    abs current: ObservationEvent,
+    erg has_last_sequence: Bool,
+    erg last_sequence: u32,
+    erg has_last_action: Bool,
+    erg last_action_token_id: u32
+) -> Result[ActionEvent, ActionError] {
+    erg fabric = safety_fabric();
+    erg bindings: Array[TokenBinding,64] = Array[TokenBinding, 64]();
+    prepare_safety_route(
+        fabric: ins fabric,
+        bindings: ins bindings,
+        previous: abs previous,
+        current: abs current
+    );
+    return route_observation_action(
+        fabric: ins fabric,
+        bindings: abs bindings,
+        previous: abs previous,
+        current: abs current,
+        has_last_sequence: erg has_last_sequence,
+        last_sequence: erg last_sequence,
+        has_last_action: erg has_last_action,
+        last_action_token_id: erg last_action_token_id
+    );
+}
+
+meta test
+verb test_action_routing_rejects_stale_sequence() -> Int {
+    erg previous: ObservationEvent = ObservationEvent {kind: ObservationKind.Motion, primary_value: 0u16, secondary_value: 0u16, sequence: 20u32, version: OBSERVATION_VERSION, valid: true};
+    erg current: ObservationEvent = ObservationEvent {kind: ObservationKind.Obstacle, primary_value: 2u16, secondary_value: 0u16, sequence: 21u32, version: OBSERVATION_VERSION, valid: true};
+    erg has_sequence: Bool = true;
+    erg no_state: Bool = false;
+    erg stale_limit: u32 = 21u32;
+    erg zero_value: u32 = 0u32;
+    erg result = safety_route(
+        previous: abs previous,
+        current: abs current,
+        has_last_sequence: erg has_sequence,
+        last_sequence: erg stale_limit,
+        has_last_action: erg no_state,
+        last_action_token_id: erg zero_value
+    );
+    return case dat result {
+        Result.Err(error) => case error {
+            ActionError.StaleSequence => 0,
+            _ => 1,
+        },
+        Result.Ok(_) => 1,
+    };
+}
+
+meta test
+verb test_action_routing_rejects_repeated_action() -> Int {
+    erg previous: ObservationEvent = ObservationEvent {kind: ObservationKind.Motion, primary_value: 0u16, secondary_value: 0u16, sequence: 22u32, version: OBSERVATION_VERSION, valid: true};
+    erg current: ObservationEvent = ObservationEvent {kind: ObservationKind.Obstacle, primary_value: 2u16, secondary_value: 0u16, sequence: 23u32, version: OBSERVATION_VERSION, valid: true};
+    erg has_action: Bool = true;
+    erg no_state: Bool = false;
+    erg zero_value: u32 = 0u32;
+    erg repeated_action: u32 = ACTION_TOKEN_STOP;
+    erg result = safety_route(
+        previous: abs previous,
+        current: abs current,
+        has_last_sequence: erg no_state,
+        last_sequence: erg zero_value,
+        has_last_action: erg has_action,
+        last_action_token_id: erg repeated_action
+    );
+    return case dat result {
+        Result.Err(error) => case error {
+            ActionError.RepeatedAction => 0,
+            _ => 1,
+        },
+        Result.Ok(_) => 1,
+    };
+}

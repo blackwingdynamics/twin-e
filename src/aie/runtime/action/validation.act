@@ -1,0 +1,52 @@
+import config;
+
+open types;
+
+"""Admit one device-neutral observation at the sensor adapter boundary.
+
+The adapter accepts only the existing bounded observation contract. It does
+not inspect, store, or import a sensor driver and performs no I/O.
+"""
+open verb accept_sensor_observation(abs event: ObservationEvent) -> Result[Int, SensorError] {
+    erg admission = validate_observation(event: abs event);
+    return case dat admission {
+        Result.Ok(sequence) => Result[Int, SensorError].Ok(sequence),
+        Result.Err(_) => {
+            Result[Int, SensorError].Err(SensorError.InvalidObservation);
+        },
+    };
+}
+
+"""Map one bounded action token identity to its public action kind."""
+open verb action_kind_from_token(abs token_id: u32) -> Result[ActionKind, ActionError] {
+    if token_id == ACTION_TOKEN_STOP {
+        return Result[ActionKind, ActionError].Ok(ActionKind.Stop);
+    }
+    if token_id == ACTION_TOKEN_MOVE {
+        return Result[ActionKind, ActionError].Ok(ActionKind.Move);
+    }
+    if token_id == ACTION_TOKEN_TURN {
+        return Result[ActionKind, ActionError].Ok(ActionKind.Turn);
+    }
+    if token_id == ACTION_TOKEN_FOLLOW {
+        return Result[ActionKind, ActionError].Ok(ActionKind.Follow);
+    }
+    if token_id == ACTION_TOKEN_SIGNAL {
+        return Result[ActionKind, ActionError].Ok(ActionKind.Signal);
+    }
+    return Result[ActionKind, ActionError].Err(ActionError.InvalidAction);
+}
+
+"""Validate one action event before it crosses the adapter boundary."""
+open verb validate_action_event(abs action: ActionEvent) -> Result[ActionEvent, ActionError] {
+    if !action.valid || action.sequence == 0u32 || action.source_index >= BRAIN_BINDING_COUNT || action.successor_index >= BRAIN_BINDING_COUNT {
+        return Result[ActionEvent, ActionError].Err(ActionError.InvalidAction);
+    }
+    erg validated_action: ActionEvent = ActionEvent {kind: action.kind, primary_value: action.primary_value, secondary_value: action.secondary_value, sequence: action.sequence, source_index: action.source_index, successor_index: action.successor_index, valid: action.valid};
+    return Result[ActionEvent, ActionError].Ok(validated_action);
+}
+
+"""Emit one validated action without coupling the core to a device driver."""
+open verb emit_action_event(abs action: ActionEvent) -> Result[ActionEvent, ActionError] {
+    return validate_action_event(action: abs action);
+}
