@@ -195,7 +195,7 @@ not evidence that a staged file was written, validated, or published.
 - [x] Handle competing successors deterministically using the generation
   selection policy.
 - [x] Add bounded training limits for sequence length, events, and arena size.
-- [ ] Verify that training changes recall behavior after a save and reload.
+- [x] Verify that training changes recall behavior after a save and reload.
 - [ ] Add a small text-learning benchmark with repeatable expected output.
 - [ ] Measure training time, allocated columns, active bindings, and snapshot
   size.
@@ -204,6 +204,10 @@ The deterministic successor gate is covered by
 `tests/aie_training.act::test_training_competing_successors_use_lowest_index_on_tie`.
 The fixture gives two valid successors equal myelination and verifies that
 generation selects the lower arena index, preserving repeatable output.
+The save/reload gate is covered by
+`tests/aie_training.act::test_training_recall_survives_snapshot_reload`: it
+trains `AB`, serializes the trained state, restores it into fresh resident
+state, and verifies that `A` recalls `B`.
 
 ## P5.4 — Modality-neutral observation events
 

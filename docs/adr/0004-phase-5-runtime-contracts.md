@@ -136,6 +136,14 @@ strengths are resolved by the lowest arena index. The regression fixture
 `test_training_competing_successors_use_lowest_index_on_tie` verifies the tie
 rule with two equally reinforced successors and a repeatable generated token.
 
+Training recall must survive the existing snapshot boundary. The regression
+fixture `test_training_recall_survives_snapshot_reload` trains the bounded
+sequence `AB`, serializes the resulting fabric and bindings, restores them into
+fresh resident state, and verifies that the restored state generates `B` from
+the prompt `A`. This proves state continuity through the snapshot API without
+claiming process restart behavior; the separate restart evidence remains part
+of the persistence gates.
+
 The tokenizer artifact must contain enough versioned vocabulary and merge-rule
 metadata to reproduce encode and decode behavior after restart. The loader
 must reject incompatible or oversized artifacts before replacing the active

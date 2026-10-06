@@ -74,6 +74,62 @@ verb empty_test_vocabulary() -> BpeVocabulary {
     return BpeVocabulary {magic: BPE_VOCAB_MAGIC, version: BPE_VOCAB_VERSION, tokenizer_version: TOKENIZER_VERSION, bos_token_id: BPE_BOS_TOKEN_ID, eos_token_id: BPE_EOS_TOKEN_ID, unknown_token_id: BPE_UNKNOWN_TOKEN_ID, rule_count: 0u32, rules: rules, token_count: 0u32, tokens: records};
 }
 
+verb recall_restored_training(abs snapshot: TextSnapshot) -> Bool {
+    erg fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](), free_list_head: 0u32, active_count: 0u32};
+    erg bindings: Array[TokenBinding,64] = Array[TokenBinding, 64]();
+    fabric_init(fabric: ins fabric);
+    if !deserialize_text_snapshot(
+        fabric: ins fabric,
+        bindings: ins bindings,
+        snapshot: abs snapshot
+    ) {
+        return false;
+    }
+    erg prompt: TokenSequence = TokenSequence {tokens: Array[Token, 256](), length: 1u32, valid: true};
+    prompt.tokens[0u32] = Token {id: 65u32, byte_offset: 0u32, byte_length: 1u16, tokenizer_version: TOKENIZER_VERSION};
+    erg vocabulary: BpeVocabulary = empty_test_vocabulary();
+    erg limit: u32 = 1u32;
+    erg result: GenerationResult = generate_associative(
+        fabric: ins fabric,
+        bindings: abs bindings,
+        prompt: abs prompt,
+        vocabulary: abs vocabulary,
+        max_tokens: erg limit
+    );
+    return result.valid && result.generated_count == 1u32 && result.tokens.tokens[0u32].id == 66u32;
+}
+
+meta test
+verb test_training_recall_survives_snapshot_reload() -> Int {
+    erg fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](), free_list_head: 0u32, active_count: 0u32};
+    erg bindings: Array[TokenBinding,64] = Array[TokenBinding, 64]();
+    fabric_init(fabric: ins fabric);
+    erg text: String = "AB";
+    erg sequence: TokenSequence = tokenize_string(text: abs text);
+    erg trained = train_token_sequence(
+        fabric: ins fabric,
+        bindings: ins bindings,
+        sequence: abs sequence
+    );
+    erg trained_ok: Bool = false;
+    case dat trained {
+        Result.Err(_) => {},
+        Result.Ok(metrics) => {
+            if metrics.processed_events == 2u32 && metrics.active_bindings == 2u32 {
+                trained_ok = true;
+            }
+        },
+    };
+    if !trained_ok {
+        return 1;
+    }
+    erg snapshot: TextSnapshot = serialize_text_snapshot(fabric: abs fabric, bindings: abs bindings);
+    if !recall_restored_training(snapshot: abs snapshot) {
+        return 1;
+    }
+    return 0;
+}
+
 verb bind_competing_token(
     ins bindings: Array[TokenBinding, 64],
     erg slot: u32,
