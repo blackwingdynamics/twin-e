@@ -144,6 +144,12 @@ the prompt `A`. This proves state continuity through the snapshot API without
 claiming process restart behavior; the separate restart evidence remains part
 of the persistence gates.
 
+The repeatable training benchmark is `benchmarks/aie_training.act`. It reports
+training duration separately from deterministic fields for processed events,
+allocated columns, active bindings, and snapshot size. Its command, compiler
+digest, conditions, and captured output are recorded in
+`docs/benchmarks/phase-5-training.md`.
+
 The tokenizer artifact must contain enough versioned vocabulary and merge-rule
 metadata to reproduce encode and decode behavior after restart. The loader
 must reject incompatible or oversized artifacts before replacing the active

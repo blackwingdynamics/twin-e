@@ -196,8 +196,8 @@ not evidence that a staged file was written, validated, or published.
   selection policy.
 - [x] Add bounded training limits for sequence length, events, and arena size.
 - [x] Verify that training changes recall behavior after a save and reload.
-- [ ] Add a small text-learning benchmark with repeatable expected output.
-- [ ] Measure training time, allocated columns, active bindings, and snapshot
+- [x] Add a small text-learning benchmark with repeatable expected output.
+- [x] Measure training time, allocated columns, active bindings, and snapshot
   size.
 
 The deterministic successor gate is covered by
@@ -208,6 +208,8 @@ The save/reload gate is covered by
 `tests/aie_training.act::test_training_recall_survives_snapshot_reload`: it
 trains `AB`, serializes the trained state, restores it into fresh resident
 state, and verifies that `A` recalls `B`.
+The training benchmark and captured output are recorded in
+`docs/benchmarks/phase-5-training.md`.
 
 ## P5.4 — Modality-neutral observation events
 
