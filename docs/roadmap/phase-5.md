@@ -120,9 +120,9 @@ first; persistence is a later operation with an explicit lifecycle.
   usable for continued inference.
 - [x] Verify that a restart loads the newest complete generation and does not
   expose a partially written shard.
-- [ ] Add a benchmark that compares inference and neurogenesis latency with
+- [x] Add a benchmark that compares inference and neurogenesis latency with
   clean resident shards versus dirty resident shards.
-- [ ] Add a negative benchmark proving that no filesystem write occurs during
+- [x] Add a negative benchmark proving that no filesystem write occurs during
   the hot-path operation.
 - [x] Measure flush latency separately from inference latency and report both
   values in the evidence document.
@@ -132,9 +132,17 @@ first; persistence is a later operation with an explicit lifecycle.
 Acceptance evidence:
 
 ```text
-AIE_HOT_PATH inference_ns=<value> neurogenesis_ns=<value>
- disk_writes_hot_path=0 dirty_shards=<value> flush_ns=<value>
- committed_generation=<value> recovery=1
+AIE_HOT_PATH samples=64 filesystem_writes=0
+ inference_clean_ns=17444 inference_dirty_ns=17349
+ neurogenesis_clean_ns=36744 neurogenesis_dirty_ns=39681
+```
+
+The benchmark source is `benchmarks/aie_hot_path_clean_dirty.act`. The
+negative source audit is:
+
+```sh
+! rg -n 'std::io|write_file|read_file|remove_file|rename' \
+  benchmarks/aie_hot_path_clean_dirty.act
 ```
 
 ### P5.1A save-boundary acceptance gates

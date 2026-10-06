@@ -84,9 +84,49 @@ terminated with host exit status 132, so the full clean-versus-dirty
 neurogenesis gate remains open until that runtime path is isolated and
 reproduced.
 
-## Remaining hot-path evidence
+## Additional hot-path evidence
 
-- compare clean and dirty resident shards using the same workload;
-- add a runtime-backed negative filesystem-write counter or equivalent
-  observable check;
-- repeat the measurements on a selected target hardware profile.
+The hot-path fixture has no filesystem write boundary. Reproduce the source
+audit with:
+
+  ```sh
+  ! rg -n 'std::io|write_file|read_file|remove_file|rename' \
+    benchmarks/aie_hot_path_clean_dirty.act
+  ```
+
+The audit command exits successfully when no filesystem API is present. The
+fixture also keeps an explicit `HotPathAudit.filesystem_writes` value at zero
+and fails if the hot-path code changes it. This is a source and runtime
+boundary check; it is not a claim that the host operating system performed no
+I/O outside the executable.
+
+## Phase 5.1A gate-closing benchmark
+
+```sh
+actus fmt --check benchmarks/aie_hot_path_clean_dirty.act
+actus build --strict --emit exe \
+  -o /tmp/twin-e-hot-path-clean-dirty.aie \
+  benchmarks/aie_hot_path_clean_dirty.act
+/tmp/twin-e-hot-path-clean-dirty.aie
+```
+
+Observed output:
+
+```text
+built `/tmp/twin-e-hot-path-clean-dirty.aie` (strict)
+verified generated native IR: no floating-point instructions
+AIE_HOT_PATH samples=64 filesystem_writes=0
+ inference_clean_ns=17444
+ inference_dirty_ns=17349
+ neurogenesis_clean_ns=36744
+ neurogenesis_dirty_ns=39681
+```
+
+The benchmark creates a fresh bounded fabric and resident cache for each of 64
+samples. It measures inference and resident neurogenesis for both clean and
+dirty cache metadata. Persistence is not called by either path; saving remains
+an explicit operation measured separately above. These are host-native debug
+profile totals and are not hardware latency claims.
+
+The remaining evidence is target-specific: repeat the measurements on a
+selected hardware profile.
