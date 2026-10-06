@@ -124,7 +124,7 @@ first; persistence is a later operation with an explicit lifecycle.
   clean resident shards versus dirty resident shards.
 - [ ] Add a negative benchmark proving that no filesystem write occurs during
   the hot-path operation.
-- [ ] Measure flush latency separately from inference latency and report both
+- [x] Measure flush latency separately from inference latency and report both
   values in the evidence document.
 - [x] Document the configured resident shard capacity, dirty-shard limit,
   flush queue limit, and behavior under storage exhaustion.
