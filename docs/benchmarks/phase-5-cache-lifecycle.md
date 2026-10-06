@@ -37,8 +37,27 @@ AIE_CACHE capacity=4 working_set=4 dirty_rejected=1 pinned_rejected=1 clean_evic
   by the later load, flush, publish, and failure gates.
 
 This evidence closes the lifecycle-definition, full-capacity behavior, and
-resident neurogenesis ordering gates. It does not claim that background
-flushing or atomic publication is implemented; those remain later P5.1A gates.
+resident neurogenesis ordering, and caller-driven flush publication gates. The
+flush path stages a checksummed shard, validates it, and publishes it with an
+atomic rename. It does not claim that background scheduling or manifest
+publication is implemented; those remain later P5.1A gates.
+
+## Caller-driven flush evidence
+
+- Source: `benchmarks/aie_shards_dynamic.act`
+- Command: `actus build --strict --emit exe -o /tmp/twin-e-dynamic-flush.aie benchmarks/aie_shards_dynamic.act`
+- Run: `/tmp/twin-e-dynamic-flush.aie`
+- Compiler binary digest: `ef3114b46e4bcba51267874dbe7852d6af271e4e9431a4a5eac71b2819081353`
+
+```text
+built `/tmp/twin-e-dynamic-flush.aie` (strict)
+verified generated native IR: no floating-point instructions
+AIE_SHARDS_DYNAMIC files=3 generated=1 staged_shard=1 validated=3 manifest_bound=2 swapped_rejected=1 dynamic_loaded=1 dynamic_collection=3 manifest_selected=1 dynamic_failed_unchanged=1 free_chain=5-2-0-null reallocated=2 payload_bytes=128
+```
+
+The benchmark now exercises the public `flush_dynamic_shard` boundary. The
+operation writes a staged payload, validates it, and publishes it atomically;
+the hot-path runtime does not call this operation.
 
 ## Resident neurogenesis API evidence
 

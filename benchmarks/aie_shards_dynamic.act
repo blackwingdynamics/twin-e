@@ -139,8 +139,9 @@ verb verify_staged_shard_publication(abs active_path: Path) -> Int {
             erg shard_id: u32 = 0u32;
             erg first_column: u32 = 0u32;
             erg column_count: u32 = 2u32;
-            erg written = write_dynamic_shard(
-                path: abs staged_path,
+            erg written = flush_dynamic_shard(
+                staged: abs staged_path,
+                active: abs active_path,
                 shard_id: erg shard_id,
                 first_column_index: erg first_column,
                 column_count: erg column_count,
@@ -152,20 +153,6 @@ verb verify_staged_shard_publication(abs active_path: Path) -> Int {
             };
             if write_status_value != 0 {
                 return write_status_value;
-            }
-            erg published = publish_dynamic_shard(
-                staged: abs staged_path,
-                active: abs active_path,
-                expected_shard_id: erg shard_id,
-                expected_first_column_index: erg first_column,
-                expected_column_count: erg column_count
-            );
-            erg publish_status: Int = case dat published {
-                Result.Err(_) => 22,
-                Result.Ok(_) => 0,
-            };
-            if publish_status != 0 {
-                return publish_status;
             }
             return validate_status(
                 path: abs active_path,

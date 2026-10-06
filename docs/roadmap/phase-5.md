@@ -107,7 +107,7 @@ first; persistence is a later operation with an explicit lifecycle.
   explicit resource error when no safe expansion or eviction is possible.
 - [x] Reject eviction of dirty or pinned shards unless an explicit flush policy
   has made them safe to evict.
-- [ ] Add a background or caller-driven flush operation that writes dirty
+- [x] Add a background or caller-driven flush operation that writes dirty
   shards to a temporary generation file, validates them, and publishes them
   atomically.
 - [ ] Add an explicit `save` or commit-boundary API for mission completion,

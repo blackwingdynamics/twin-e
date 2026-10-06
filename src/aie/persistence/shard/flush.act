@@ -1,0 +1,42 @@
+"""Caller-driven shard flush and atomic publication operations."""
+import config;
+
+import std::io;
+
+open io;
+
+open dynamic_writer_core;
+
+"""Flush one payload-only shard through an explicit persistence boundary.
+
+The staged path is written and checksummed first. It is then read back and
+validated before being atomically renamed to the active path. This operation
+may perform filesystem I/O and therefore belongs to an explicit save or flush
+caller, never to inference, forwarding, or neurogenesis.
+"""
+open verb flush_dynamic_shard(
+    abs staged: Path,
+    abs active: Path,
+    erg shard_id: u32,
+    erg first_column_index: u32,
+    erg column_count: u32,
+    abs payload: Buffer
+) -> Result[Int, IoError] {
+    erg written = write_dynamic_shard(
+        path: abs staged,
+        shard_id: erg shard_id,
+        first_column_index: erg first_column_index,
+        column_count: erg column_count,
+        payload: abs payload
+    );
+    return case dat written {
+        Result.Err(error) => Err(error),
+        Result.Ok(_) => publish_dynamic_shard(
+            staged: abs staged,
+            active: abs active,
+            expected_shard_id: erg shard_id,
+            expected_first_column_index: erg first_column_index,
+            expected_column_count: erg column_count
+        ),
+    };
+}
