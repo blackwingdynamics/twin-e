@@ -1,0 +1,90 @@
+"""Explicit caller-driven save boundaries for resident shard state."""
+import config;
+
+import std::io;
+
+open io;
+
+open cache;
+
+open flush;
+
+verb save_slot_is_dirty(abs cache: ShardCache, erg slot: u8, abs shard_id: u32) -> Bool {
+    if slot >= BRAIN_CACHE_CAPACITY {
+        return false;
+    }
+    erg entry: ShardCacheEntry = cache.entries[slot as Usize];
+    erg is_dirty: Bool = case entry.lifecycle {
+        ShardLifecycle.Dirty => true,
+        _ => false,
+    };
+    return entry.shard_id == shard_id && is_dirty;
+}
+
+"""Complete input contract for one explicit dynamic shard save operation."""
+open struct ShardSaveRequest {
+    erg staged: Path,
+    erg active: Path,
+    erg shard_id: u32,
+    erg first_column_index: u32,
+    erg column_count: u32,
+    erg payload: Buffer,
+    erg bindings: Buffer,
+}
+
+verb complete_shard_save(
+    ins cache: ShardCache,
+    erg slot: u8,
+    dat flushed: Result[Int, IoError]
+) -> Result[Int, IoError] {
+    return case dat flushed {
+        Result.Err(error) => Err(error),
+        Result.Ok(bytes) => {
+            cache.entries[slot as Usize].lifecycle = ShardLifecycle.Persisted;
+            return Ok(bytes);
+        },
+    };
+}
+
+verb flush_save_request(abs request: ShardSaveRequest) -> Result[Int, IoError] {
+    erg shard_id: u32 = request.shard_id;
+    erg first_column_index: u32 = request.first_column_index;
+    erg column_count: u32 = request.column_count;
+    return flush_dynamic_shard_with_bindings(
+        staged: abs request.staged,
+        active: abs request.active,
+        shard_id: erg shard_id,
+        first_column_index: erg first_column_index,
+        column_count: erg column_count,
+        payload: abs request.payload,
+        bindings: abs request.bindings
+    );
+}
+
+"""Persist one dirty resident shard and publish it as the active generation.
+
+The cache entry must identify the requested shard and be `Dirty`. Filesystem
+work occurs only inside this explicit save call. The entry becomes `Persisted`
+only after staged validation and atomic publication succeed; every failure
+leaves it dirty for retry.
+"""
+open verb save_dynamic_shard_with_bindings(
+    ins cache: ShardCache,
+    erg slot: u8,
+    abs request: ShardSaveRequest
+) -> Result[Int, IoError] {
+    erg valid_slot: Bool = save_slot_is_dirty(
+        cache: abs cache,
+        slot: erg slot,
+        shard_id: abs request.shard_id
+    );
+    if !valid_slot {
+        return Err(IoError.InvalidInput);
+    }
+    erg flushed: Result[Int,IoError] = flush_save_request(request: abs request);
+    return complete_shard_save(
+        cache: ins cache,
+        slot: erg slot,
+        flushed: dat flushed
+    );
+}

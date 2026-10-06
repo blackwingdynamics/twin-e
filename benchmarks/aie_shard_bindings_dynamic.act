@@ -1,45 +1,90 @@
+meta limitless("file")
+
+
 """Verify dynamic shard column and TokenBinding payload persistence."""
 import aie;
 
 import std::io;
 
+import std::fs;
+
 import std::path;
+
+open fs;
 
 meta limitless("verb")
 verb binding_path() -> Result[Path, PathError] {
     erg raw = Buffer[0];
-    append(raw, 47u8);
-    append(raw, 116u8);
-    append(raw, 109u8);
-    append(raw, 112u8);
-    append(raw, 47u8);
-    append(raw, 116u8);
-    append(raw, 119u8);
-    append(raw, 105u8);
-    append(raw, 110u8);
-    append(raw, 45u8);
-    append(raw, 101u8);
-    append(raw, 45u8);
-    append(raw, 98u8);
-    append(raw, 105u8);
-    append(raw, 110u8);
-    append(raw, 100u8);
-    append(raw, 105u8);
-    append(raw, 110u8);
-    append(raw, 103u8);
-    append(raw, 45u8);
-    append(raw, 115u8);
-    append(raw, 104u8);
-    append(raw, 97u8);
-    append(raw, 114u8);
-    append(raw, 100u8);
-    append(raw, 46u8);
-    append(raw, 98u8);
-    append(raw, 114u8);
-    append(raw, 97u8);
-    append(raw, 105u8);
-    append(raw, 110u8);
-    append(raw, 0u8);
+    erg bytes: Array[u8,32] = Array[u8, 32]();
+    bytes[0u32] = 47u8;
+    bytes[1u32] = 116u8;
+    bytes[2u32] = 109u8;
+    bytes[3u32] = 112u8;
+    bytes[4u32] = 47u8;
+    bytes[5u32] = 116u8;
+    bytes[6u32] = 119u8;
+    bytes[7u32] = 105u8;
+    bytes[8u32] = 110u8;
+    bytes[9u32] = 45u8;
+    bytes[10u32] = 101u8;
+    bytes[11u32] = 45u8;
+    bytes[12u32] = 98u8;
+    bytes[13u32] = 105u8;
+    bytes[14u32] = 110u8;
+    bytes[15u32] = 100u8;
+    bytes[16u32] = 105u8;
+    bytes[17u32] = 110u8;
+    bytes[18u32] = 103u8;
+    bytes[19u32] = 45u8;
+    bytes[20u32] = 115u8;
+    bytes[21u32] = 104u8;
+    bytes[22u32] = 97u8;
+    bytes[23u32] = 114u8;
+    bytes[24u32] = 100u8;
+    bytes[25u32] = 46u8;
+    bytes[26u32] = 98u8;
+    bytes[27u32] = 114u8;
+    bytes[28u32] = 97u8;
+    bytes[29u32] = 105u8;
+    bytes[30u32] = 110u8;
+    bytes[31u32] = 0u8;
+    for erg index: u32 in 0u32 .. 32u32 {
+        append(raw, bytes[index]);
+    }
+    return path_from_ascii(storage: dat raw);
+}
+
+meta limitless("verb")
+verb binding_staged_path() -> Result[Path, PathError] {
+    erg raw = Buffer[0];
+    erg bytes: Array[u8,24] = Array[u8, 24]();
+    bytes[0u32] = 47u8;
+    bytes[1u32] = 116u8;
+    bytes[2u32] = 109u8;
+    bytes[3u32] = 112u8;
+    bytes[4u32] = 47u8;
+    bytes[5u32] = 116u8;
+    bytes[6u32] = 119u8;
+    bytes[7u32] = 105u8;
+    bytes[8u32] = 110u8;
+    bytes[9u32] = 45u8;
+    bytes[10u32] = 101u8;
+    bytes[11u32] = 45u8;
+    bytes[12u32] = 115u8;
+    bytes[13u32] = 116u8;
+    bytes[14u32] = 97u8;
+    bytes[15u32] = 103u8;
+    bytes[16u32] = 101u8;
+    bytes[17u32] = 46u8;
+    bytes[18u32] = 98u8;
+    bytes[19u32] = 114u8;
+    bytes[20u32] = 97u8;
+    bytes[21u32] = 105u8;
+    bytes[22u32] = 110u8;
+    bytes[23u32] = 0u8;
+    for erg index: u32 in 0u32 .. 24u32 {
+        append(raw, bytes[index]);
+    }
     return path_from_ascii(storage: dat raw);
 }
 
@@ -243,25 +288,158 @@ verb validate_binding_manifest_path(
     };
 }
 
+verb binding_io_error_status(dat error: IoError) -> Int {
+    return case dat error {
+        IoError.EndOfStream => 10,
+        IoError.Failed => 11,
+        IoError.InvalidInput => 12,
+        IoError.InvalidData => 13,
+    };
+}
+
+verb print_binding_stage(erg stage: u8) {
+    erg message: String = case stage {
+        1 => "AIE_BINDING_STAGE write_failed",
+        2 => "AIE_BINDING_STAGE staged_read_failed",
+        3 => "AIE_BINDING_STAGE validation_failed",
+        5 => "AIE_BINDING_STAGE path_probe_failed",
+        _ => "AIE_BINDING_STAGE staged_cleanup_failed",
+    };
+    println(text: abs message);
+}
+
+verb probe_staged_path(abs staged: Path, abs bindings: Buffer) -> Int {
+    erg path_probe = write_file(path: abs staged, contents: abs bindings);
+    return case dat path_probe {
+        Result.Err(error) => {
+            erg stage: u8 = 5u8;
+            print_binding_stage(stage: erg stage);
+            return binding_io_error_status(dat error);
+        },
+        Result.Ok(_) => 0,
+    };
+}
+
+verb diagnose_staged_save(
+    abs staged: Path,
+    abs payload: Buffer,
+    abs bindings: Buffer,
+    erg shard_id: u32,
+    erg first_column_index: u32,
+    erg column_count: u32
+) -> Int {
+    erg probe_status: Int = probe_staged_path(staged: abs staged, bindings: abs bindings);
+    if probe_status != 0 {
+        return probe_status;
+    }
+    erg written = write_dynamic_shard_with_bindings(
+        path: abs staged,
+        shard_id: erg shard_id,
+        first_column_index: erg first_column_index,
+        column_count: erg column_count,
+        payload: abs payload,
+        bindings: abs bindings
+    );
+    return case dat written {
+        Result.Err(error) => {
+            erg stage: u8 = 1u8;
+            print_binding_stage(stage: erg stage);
+            return binding_io_error_status(dat error);
+        },
+        Result.Ok(_) => {},
+    };
+    erg loaded = read_to_bytes(path: abs staged);
+    return case dat loaded {
+        Result.Err(error) => {
+            erg stage: u8 = 2u8;
+            print_binding_stage(stage: erg stage);
+            return binding_io_error_status(dat error);
+        },
+        Result.Ok(bytes) => {
+            erg validation = validate_dynamic_shard_with_bindings_bytes(
+                bytes: dat bytes,
+                expected_shard_id: erg shard_id,
+                expected_first_column_index: erg first_column_index,
+                expected_column_count: erg column_count
+            );
+            return case dat validation {
+                Result.Err(error) => {
+                    erg stage: u8 = 3u8;
+                    print_binding_stage(stage: erg stage);
+                    return binding_io_error_status(dat error);
+                },
+                Result.Ok(_) => {
+                    erg removed = remove_file(path: abs staged);
+                    return case dat removed {
+                        Result.Err(error) => {
+                            erg stage: u8 = 4u8;
+                            print_binding_stage(stage: erg stage);
+                            return binding_io_error_status(dat error);
+                        },
+                        Result.Ok(_) => 0,
+                    };
+                },
+            };
+        },
+    };
+}
+
 meta limitless("verb")
-verb run(abs path: Path) -> Int {
+verb run(dat path: Path, dat staged: Path) -> Int {
     erg payload: Buffer = make_payload();
     erg bindings: Buffer = make_bindings();
     erg shard_id: u32 = 0u32;
     erg first_column: u32 = 0u32;
     erg column_count: u32 = 2u32;
+    erg cache: ShardCache = ShardCache {entries: Array[ShardCacheEntry, 4](), clock: 0u64};
+    shard_cache_init(cache: ins cache);
+    erg generation: u64 = 1u64;
+    erg cache_checksum: u64 = 0u64;
+    erg inserted = shard_cache_insert(
+        cache: ins cache,
+        shard_id: erg shard_id,
+        generation: erg generation,
+        checksum: erg cache_checksum
+    );
+    erg slot: u8 = case dat inserted {
+        Result.Err(_) => 7u8,
+        Result.Ok(value) => value,
+    };
+    if slot == 7u8 {
+        return 7;
+    }
+    erg dirtied = shard_cache_mark_dirty(cache: ins cache, slot: erg slot);
+    erg dirty_status: Int = case dat dirtied {
+        Result.Err(_) => 8,
+        Result.Ok(_) => 0,
+    };
+    if dirty_status != 0 {
+        return dirty_status;
+    }
     erg start_message: String = "AIE_BINDING_STAGE start";
     println(text: abs start_message);
-    erg written = write_dynamic_shard_with_bindings(
-        path: abs path,
+    erg diagnostic_status: Int = diagnose_staged_save(
+        staged: abs staged,
+        payload: abs payload,
+        bindings: abs bindings,
         shard_id: erg shard_id,
         first_column_index: erg first_column,
-        column_count: erg column_count,
-        payload: abs payload,
-        bindings: abs bindings
+        column_count: erg column_count
+    );
+    if diagnostic_status != 0 {
+        return diagnostic_status;
+    }
+    erg request: ShardSaveRequest = ShardSaveRequest {staged: staged, active: path, shard_id: shard_id, first_column_index: first_column, column_count: column_count, payload: payload, bindings: bindings};
+    erg expected_shard_id: u32 = request.shard_id;
+    erg expected_first_column_index: u32 = request.first_column_index;
+    erg expected_column_count: u32 = request.column_count;
+    erg written = save_dynamic_shard_with_bindings(
+        cache: ins cache,
+        slot: erg slot,
+        request: abs request
     );
     erg write_status: Int = case dat written {
-        Result.Err(_) => 1,
+        Result.Err(error) => binding_io_error_status(dat error),
         Result.Ok(_) => 0,
     };
     if write_status != 0 {
@@ -269,32 +447,32 @@ verb run(abs path: Path) -> Int {
     }
     erg write_message: String = "AIE_BINDING_STAGE write_ok";
     println(text: abs write_message);
-    erg loaded = read_to_bytes(path: abs path);
+    erg loaded = read_to_bytes(path: abs request.active);
     return case dat loaded {
         Result.Err(_) => 2,
         Result.Ok(bytes) => {
             erg validation = validate_dynamic_shard_with_bindings_bytes(
                 bytes: dat bytes,
-                expected_shard_id: erg shard_id,
-                expected_first_column_index: erg first_column,
-                expected_column_count: erg column_count
+                expected_shard_id: erg expected_shard_id,
+                expected_first_column_index: erg expected_first_column_index,
+                expected_column_count: erg expected_column_count
             );
             return case dat validation {
                 Result.Err(_) => 3,
                 Result.Ok(_) => {
                     erg validate_message: String = "AIE_BINDING_STAGE validate_ok";
                     println(text: abs validate_message);
-                    erg shard_copy_result = read_to_bytes(path: abs path);
+                    erg shard_copy_result = read_to_bytes(path: abs request.active);
                     return case dat shard_copy_result {
                         Result.Err(_) => 5,
                         Result.Ok(shard_copy) => {
-                            erg checksum_result = dynamic_shard_file_checksum(path: abs path);
+                            erg checksum_result = dynamic_shard_file_checksum(path: abs request.active);
                             return case dat checksum_result {
                                 Result.Err(_) => 6,
                                 Result.Ok(checksum) => {
                                     erg descriptor: Buffer = binding_manifest_descriptor(checksum: abs checksum);
                                     return validate_binding_manifest_path(
-                                        path: abs path,
+                                        path: abs request.active,
                                         shard: dat shard_copy,
                                         descriptor: abs descriptor
                                     );
@@ -308,8 +486,8 @@ verb run(abs path: Path) -> Int {
     };
 }
 
-verb emit(abs path: Path) -> Int {
-    erg status: Int = run(path: abs path);
+verb emit(dat path: Path, dat staged: Path) -> Int {
+    erg status: Int = run(path: dat path, staged: dat staged);
     if status != 0 {
         return status;
     }
@@ -322,6 +500,15 @@ verb main() -> Int {
     erg path_result = binding_path();
     return case dat path_result {
         Result.Err(_) => 6,
-        Result.Ok(path) => emit(path: abs path),
+        Result.Ok(path) => {
+            erg staged_result = binding_staged_path();
+            return case dat staged_result {
+                Result.Err(_) => {
+                    drop(path);
+                    return 9;
+                },
+                Result.Ok(staged) => emit(path: dat path, staged: dat staged),
+            };
+        },
     };
 }

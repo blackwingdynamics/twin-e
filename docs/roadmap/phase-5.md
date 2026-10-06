@@ -137,6 +137,37 @@ AIE_HOT_PATH inference_ns=<value> neurogenesis_ns=<value>
  committed_generation=<value> recovery=1
 ```
 
+### P5.1A save-boundary acceptance gates
+
+These gates decompose the caller-driven save contract into independently
+observable steps. They must be completed in order; a passing strict compile is
+not evidence that a staged file was written, validated, or published.
+
+- [ ] **Gate A — Typed save-stage diagnostics**
+  - [ ] Distinguish write, staged-read, validation, and rename failures in the
+    benchmark output without weakening the public `IoError` contract.
+  - [ ] Record the failing stage and complete typed error in the evidence
+    document.
+- [ ] **Gate B — Staged write and validation**
+  - [ ] Prove that a dirty resident shard is written to the staged path with
+    the expected payload, binding section, checksum, and metadata.
+  - [ ] Prove that invalid staged bytes are rejected before publication.
+- [ ] **Gate C — Atomic publication**
+  - [ ] Prove that a validated staged generation becomes the active file only
+    after the rename step succeeds.
+  - [ ] Prove that the previous active generation remains available when
+    publication fails.
+- [ ] **Gate D — Resident lifecycle after save**
+  - [ ] Mark the cache entry `Persisted` only after successful publication.
+  - [ ] Keep the resident shard `Dirty` and usable after any failed save.
+- [ ] **Gate E — Executable evidence and regression**
+  - [ ] Add a deterministic success benchmark and failure cases for each save
+    stage.
+  - [ ] Record strict build output, zero-float verification, exit status, file
+    state, and recovery behavior.
+  - [ ] Run the full strict Twin-e suite and close the parent P5.1A save API
+    checkbox only after all gates pass.
+
 ## P5.2 — Production BPE vocabulary
 
 - [x] Replace the one-merge fixture with a bounded multi-merge vocabulary.

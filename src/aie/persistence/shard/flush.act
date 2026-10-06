@@ -7,6 +7,8 @@ open io;
 
 open dynamic_writer_core;
 
+open dynamic_validation;
+
 """Flush one payload-only shard through an explicit persistence boundary.
 
 The staged path is written and checksummed first. It is then read back and
@@ -38,5 +40,66 @@ open verb flush_dynamic_shard(
             expected_first_column_index: erg first_column_index,
             expected_column_count: erg column_count
         ),
+    };
+}
+
+"""Flush a shard and its local bindings through an explicit save boundary."""
+open verb flush_dynamic_shard_with_bindings(
+    abs staged: Path,
+    abs active: Path,
+    erg shard_id: u32,
+    erg first_column_index: u32,
+    erg column_count: u32,
+    abs payload: Buffer,
+    abs bindings: Buffer
+) -> Result[Int, IoError] {
+    erg written = write_dynamic_shard_with_bindings(
+        path: abs staged,
+        shard_id: erg shard_id,
+        first_column_index: erg first_column_index,
+        column_count: erg column_count,
+        payload: abs payload,
+        bindings: abs bindings
+    );
+    return case dat written {
+        Result.Err(error) => Err(error),
+        Result.Ok(_) => publish_dynamic_shard_with_bindings(
+            staged: abs staged,
+            active: abs active,
+            expected_shard_id: erg shard_id,
+            expected_first_column_index: erg first_column_index,
+            expected_column_count: erg column_count
+        ),
+    };
+}
+
+"""Publish a staged shard that contains its shard-local bindings section.
+
+The staged bytes are fully validated before rename. A failed validation leaves
+the active generation untouched and returns a typed I/O error.
+"""
+open verb publish_dynamic_shard_with_bindings(
+    abs staged: Path,
+    abs active: Path,
+    erg expected_shard_id: u32,
+    erg expected_first_column_index: u32,
+    erg expected_column_count: u32
+) -> Result[Int, IoError] {
+    erg loaded = read_to_bytes(path: abs staged);
+    return case dat loaded {
+        Result.Err(error) => Err(error),
+        Result.Ok(bytes) => {
+            erg valid: Bool = dynamic_shard_with_bindings_is_valid(
+                bytes: abs bytes,
+                expected_shard_id: erg expected_shard_id,
+                expected_first_column_index: erg expected_first_column_index,
+                expected_column_count: erg expected_column_count
+            );
+            drop(bytes);
+            if !valid {
+                return Err(IoError.InvalidData);
+            }
+            return rename(from: abs staged, to: abs active);
+        },
     };
 }
