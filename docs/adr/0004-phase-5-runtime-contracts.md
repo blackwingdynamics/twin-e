@@ -130,6 +130,12 @@ reinforced with saturating integer myelination. The arena capacity and fixed
 binding count remain the admission limits; allocation failure returns a typed
 training error and does not perform persistence I/O.
 
+When more than one valid successor is available during generation, selection is
+deterministic: the candidate with the strongest myelination wins, and equal
+strengths are resolved by the lowest arena index. The regression fixture
+`test_training_competing_successors_use_lowest_index_on_tie` verifies the tie
+rule with two equally reinforced successors and a repeatable generated token.
+
 The tokenizer artifact must contain enough versioned vocabulary and merge-rule
 metadata to reproduce encode and decode behavior after restart. The loader
 must reject incompatible or oversized artifacts before replacing the active

@@ -192,13 +192,18 @@ not evidence that a staged file was written, validated, or published.
 - [x] Define a bounded training input API for tokenized sequences.
 - [x] Create context-bound bindings from consecutive token events.
 - [x] Reinforce the observed successor path through myelination updates.
-- [ ] Handle competing successors deterministically using the generation
+- [x] Handle competing successors deterministically using the generation
   selection policy.
 - [x] Add bounded training limits for sequence length, events, and arena size.
 - [ ] Verify that training changes recall behavior after a save and reload.
 - [ ] Add a small text-learning benchmark with repeatable expected output.
 - [ ] Measure training time, allocated columns, active bindings, and snapshot
   size.
+
+The deterministic successor gate is covered by
+`tests/aie_training.act::test_training_competing_successors_use_lowest_index_on_tie`.
+The fixture gives two valid successors equal myelination and verifies that
+generation selects the lower arena index, preserving repeatable output.
 
 ## P5.4 — Modality-neutral observation events
 
