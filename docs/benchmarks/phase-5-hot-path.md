@@ -58,6 +58,32 @@ AIE_SCALE max_profile_columns=32
 hot-path loop. These values are host-profile observations and should not be
 used as CPU, board, or production latency claims.
 
+## Clean and dirty resident metadata command
+
+```sh
+actus build --strict --emit exe \
+  -o /tmp/twin-e-hot-path-resident.aie \
+  benchmarks/aie_hot_path_resident_state.act
+/tmp/twin-e-hot-path-resident.aie
+```
+
+Observed output:
+
+```text
+built `/tmp/twin-e-hot-path-resident.aie` (strict)
+verified generated native IR: no floating-point instructions
+AIE_HOT_PATH_RESIDENT_LOOKUP iterations=10000 filesystem_calls=0
+AIE_HOT_PATH_RESIDENT_LOOKUP clean_ns=335675 dirty_ns=340868
+```
+
+This compares bounded resident cache lookup with clean and dirty lifecycle
+metadata. The fixture imports no filesystem module and reports the explicit
+memory-only boundary. It is not a full neural neurogenesis latency result. An
+earlier broader standalone neurogenesis fixture reached strict native build but
+terminated with host exit status 132, so the full clean-versus-dirty
+neurogenesis gate remains open until that runtime path is isolated and
+reproduced.
+
 ## Remaining hot-path evidence
 
 - compare clean and dirty resident shards using the same workload;

@@ -1,0 +1,89 @@
+"""Compare clean and dirty resident cache metadata lookup without I/O."""
+import aie;
+
+import std::io;
+
+import std::time;
+
+const BENCH_ITERATIONS: u32 = 10000u32;
+
+
+verb prepare_lookup_cache(ins cache: ShardCache, erg dirty: Bool) -> Bool {
+    erg shard_id: u32 = 0u32;
+    erg generation: u64 = 1u64;
+    erg checksum: u64 = 0u64;
+    erg inserted = shard_cache_insert(
+        cache: ins cache,
+        shard_id: erg shard_id,
+        generation: erg generation,
+        checksum: erg checksum
+    );
+    erg slot: u8 = case dat inserted {
+        Result.Err(_) => 4u8,
+        Result.Ok(value) => value,
+    };
+    if slot == 4u8 {
+        return false;
+    }
+    if dirty {
+        erg marked = shard_cache_mark_dirty(cache: ins cache, slot: erg slot);
+        erg marked_ok: Bool = case dat marked {
+            Result.Err(_) => false,
+            Result.Ok(_) => true,
+        };
+        if !marked_ok {
+            return false;
+        }
+    }
+    return true;
+}
+
+verb benchmark_lookup(erg dirty: Bool) -> u64 {
+    erg cache: ShardCache = ShardCache {entries: Array[ShardCacheEntry, 4](), clock: 0u64};
+    shard_cache_init(cache: ins cache);
+    erg prepared: Bool = prepare_lookup_cache(cache: ins cache, dirty: erg dirty);
+    if !prepared {
+        return 0u64;
+    }
+    erg shard_id: u32 = 0u32;
+    erg started: u64 = monotonic_nanos();
+    erg iteration: u32 = 0u32;
+    loop {
+        if iteration >= BENCH_ITERATIONS {
+            break;
+        }
+        erg result = shard_cache_find(cache: abs cache, shard_id: erg shard_id);
+        case result {
+            Option.None => {},
+            Option.Some(_) => {},
+        };
+        iteration += 1u32;
+    }
+    return monotonic_nanos() - started;
+}
+
+verb emit_metric(abs label: String, erg value: u64) {
+    print(text: abs label);
+    erg display_value: Int = value as Int;
+    print_int(value: erg display_value);
+}
+
+meta limitless("verb")
+verb main() -> Int {
+    erg clean_state: Bool = false;
+    erg dirty_state: Bool = true;
+    erg clean_ns: u64 = benchmark_lookup(dirty: erg clean_state);
+    erg dirty_ns: u64 = benchmark_lookup(dirty: erg dirty_state);
+    if clean_ns == 0u64 || dirty_ns == 0u64 {
+        return 1;
+    }
+    erg header: String = "AIE_HOT_PATH_RESIDENT_LOOKUP iterations=10000 filesystem_calls=0";
+    println(text: abs header);
+    erg clean_label: String = "AIE_HOT_PATH_RESIDENT_LOOKUP clean_ns=";
+    erg dirty_label: String = " dirty_ns=";
+    emit_metric(label: abs clean_label, value: erg clean_ns);
+    emit_metric(label: abs dirty_label, value: erg dirty_ns);
+    erg newline: String = "";
+    println(text: abs newline);
+    return 0;
+}
