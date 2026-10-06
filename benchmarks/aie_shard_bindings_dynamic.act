@@ -558,6 +558,94 @@ verb verify_rename_failure(
     };
 }
 
+verb verify_previous_generation_preserved(
+    abs staged: Path,
+    abs active: Path,
+    abs payload: Buffer,
+    abs bindings: Buffer,
+    erg shard_id: u32,
+    erg first_column_index: u32,
+    erg column_count: u32
+) -> Int {
+    erg stale_active = remove_file(path: abs active);
+    case dat stale_active {
+        Result.Ok(_) => {},
+        Result.Err(_) => {},
+    };
+    erg stale_staged = remove_file(path: abs staged);
+    case dat stale_staged {
+        Result.Ok(_) => {},
+        Result.Err(_) => {},
+    };
+    erg written = write_dynamic_shard_with_bindings(
+        path: abs active,
+        shard_id: erg shard_id,
+        first_column_index: erg first_column_index,
+        column_count: erg column_count,
+        payload: abs payload,
+        bindings: abs bindings
+    );
+    return case dat written {
+        Result.Err(error) => binding_io_error_status(dat error),
+        Result.Ok(_) => {
+            erg staged_directory = create_dir(path: abs staged);
+            return case dat staged_directory {
+                Result.Err(error) => binding_io_error_status(dat error),
+                Result.Ok(_) => {
+                    erg attempted = rename(from: abs staged, to: abs active);
+                    return case dat attempted {
+                        Result.Ok(_) => 18,
+                        Result.Err(error) => {
+                            erg status: Int = binding_io_error_status(dat error);
+                            erg loaded = read_to_bytes(path: abs active);
+                            return case dat loaded {
+                                Result.Err(read_error) => binding_io_error_status(dat read_error),
+                                Result.Ok(bytes) => {
+                                    erg valid = validate_dynamic_shard_with_bindings_bytes(
+                                        bytes: dat bytes,
+                                        expected_shard_id: erg shard_id,
+                                        expected_first_column_index: erg first_column_index,
+                                        expected_column_count: erg column_count
+                                    );
+                                    return case dat valid {
+                                        Result.Err(validation_error) => binding_io_error_status(
+                                            dat validation_error
+                                        ),
+                                        Result.Ok(_) => {
+                                            erg removed_staged = remove_dir(path: abs staged);
+                                            return case dat removed_staged {
+                                                Result.Err(cleanup_error) => binding_io_error_status(
+                                                    dat cleanup_error
+                                                ),
+                                                Result.Ok(_) => {
+                                                    erg removed_active = remove_file(path: abs active);
+                                                    return case dat removed_active {
+                                                        Result.Err(cleanup_error) => binding_io_error_status(
+                                                            dat cleanup_error
+                                                        ),
+                                                        Result.Ok(_) => {
+                                                            if status == 11 {
+                                                                erg message: String = "AIE_BINDING_STAGE previous_generation_preserved";
+                                                                println(text: abs message);
+                                                                return 0;
+                                                            }
+                                                            return status;
+                                                        },
+                                                    };
+                                                },
+                                            };
+                                        },
+                                    };
+                                },
+                            };
+                        },
+                    };
+                },
+            };
+        },
+    };
+}
+
 meta limitless("verb")
 verb run(dat path: Path, dat staged: Path) -> Int {
     erg payload: Buffer = make_payload();
@@ -623,6 +711,18 @@ verb run(dat path: Path, dat staged: Path) -> Int {
     if rename_status != 0 {
         return rename_status;
     }
+    erg preserved_status: Int = verify_previous_generation_preserved(
+        staged: abs staged,
+        active: abs path,
+        payload: abs payload,
+        bindings: abs bindings,
+        shard_id: erg shard_id,
+        first_column_index: erg first_column,
+        column_count: erg column_count
+    );
+    if preserved_status != 0 {
+        return preserved_status;
+    }
     erg invalid_status: Int = verify_corrupt_staged_rejected(
         staged: abs staged,
         shard_id: erg shard_id,
@@ -665,6 +765,8 @@ verb run(dat path: Path, dat staged: Path) -> Int {
                 Result.Ok(_) => {
                     erg validate_message: String = "AIE_BINDING_STAGE validate_ok";
                     println(text: abs validate_message);
+                    erg publication_message: String = "AIE_BINDING_STAGE publication_ok";
+                    println(text: abs publication_message);
                     erg section_message: String = "AIE_BINDING_STAGE payload_bindings_checksum_metadata_ok";
                     println(text: abs section_message);
                     erg shard_copy_result = read_to_bytes(path: abs request.active);

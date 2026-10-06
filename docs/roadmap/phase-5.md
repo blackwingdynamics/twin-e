@@ -152,10 +152,10 @@ not evidence that a staged file was written, validated, or published.
   - [x] Prove that a dirty resident shard is written to the staged path with
     the expected payload, binding section, checksum, and metadata.
   - [x] Prove that invalid staged bytes are rejected before publication.
-- [ ] **Gate C — Atomic publication**
-  - [ ] Prove that a validated staged generation becomes the active file only
+- [x] **Gate C — Atomic publication**
+  - [x] Prove that a validated staged generation becomes the active file only
     after the rename step succeeds.
-  - [ ] Prove that the previous active generation remains available when
+  - [x] Prove that the previous active generation remains available when
     publication fails.
 - [ ] **Gate D — Resident lifecycle after save**
   - [ ] Mark the cache entry `Persisted` only after successful publication.
