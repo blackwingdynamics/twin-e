@@ -1,0 +1,45 @@
+"""Acceptance tests for bounded training input admission."""
+import aie;
+
+import tokenizer;
+
+meta test
+verb test_training_input_accepts_valid_sequence() -> Int {
+    erg text: String = "Hello";
+    erg sequence: TokenSequence = tokenize_string(text: abs text);
+    erg result = validate_training_sequence(sequence: abs sequence);
+    return case dat result {
+        Result.Ok(length) => if length == 5 {
+            0;
+        } else {
+            1;
+        },
+        Result.Err(_) => 1,
+    };
+}
+
+meta test
+verb test_training_input_rejects_empty_sequence() -> Int {
+    erg sequence: TokenSequence = TokenSequence {tokens: Array[Token, 256](), length: 0u32, valid: true};
+    erg result = validate_training_sequence(sequence: abs sequence);
+    return case dat result {
+        Result.Err(error) => case error {
+            TrainingInputError.EmptySequence => 0,
+            _ => 1,
+        },
+        Result.Ok(_) => 1,
+    };
+}
+
+meta test
+verb test_training_input_rejects_oversized_sequence() -> Int {
+    erg sequence: TokenSequence = TokenSequence {tokens: Array[Token, 256](), length: 257u32, valid: true};
+    erg result = validate_training_sequence(sequence: abs sequence);
+    return case dat result {
+        Result.Err(error) => case error {
+            TrainingInputError.TooManyEvents => 0,
+            _ => 1,
+        },
+        Result.Ok(_) => 1,
+    };
+}

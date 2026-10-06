@@ -189,7 +189,7 @@ not evidence that a staged file was written, validated, or published.
 
 ## P5.3 — Training and learning workflow
 
-- [ ] Define a bounded training input API for tokenized sequences.
+- [x] Define a bounded training input API for tokenized sequences.
 - [ ] Create context-bound bindings from consecutive token events.
 - [ ] Reinforce the observed successor path through myelination updates.
 - [ ] Handle competing successors deterministically using the generation

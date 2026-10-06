@@ -109,6 +109,19 @@ documented wherever multiple valid choices exist.
 
 ### 6. Artifact and event contracts
 
+### 6.1 Bounded training input admission
+
+The learning runtime accepts an already tokenized `TokenSequence` through the
+public `validate_training_sequence` boundary. The boundary rejects invalid
+tokenizer output, empty sequences, and sequences above the configured bounded
+token capacity before any fabric or binding mutation occurs. It returns a
+typed `TrainingInputError` and performs no allocation or filesystem I/O.
+
+Later training operations must call this admission boundary before creating
+context bindings, reinforcing successors, or allocating columns. This keeps
+the event limit at the tokenizer contract and prevents an unbounded training
+loop from being hidden inside the engine.
+
 The tokenizer artifact must contain enough versioned vocabulary and merge-rule
 metadata to reproduce encode and decode behavior after restart. The loader
 must reject incompatible or oversized artifacts before replacing the active

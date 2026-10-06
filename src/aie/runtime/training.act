@@ -1,0 +1,33 @@
+"""Bounded token-sequence admission for the learning runtime."""
+import config;
+
+import tokenizer;
+
+open tokenizer;
+
+"""Reasons a tokenized sequence cannot enter the training pipeline."""
+open enum TrainingInputError {
+    EmptySequence,
+    InvalidSequence,
+    TooManyEvents,
+}
+
+"""Validate one bounded tokenizer result before training mutates the fabric.
+
+The sequence is read through `abs` and is not copied or modified. A valid
+sequence must contain at least one event, must be marked valid by the
+tokenizer, and must stay within the fixed tokenizer event capacity. The
+operation performs no allocation, mutation, or filesystem I/O.
+"""
+open verb validate_training_sequence(abs sequence: TokenSequence) -> Result[Int, TrainingInputError] {
+    if !sequence.valid {
+        return Result[Int, TrainingInputError].Err(TrainingInputError.InvalidSequence);
+    }
+    if sequence.length == 0u32 {
+        return Result[Int, TrainingInputError].Err(TrainingInputError.EmptySequence);
+    }
+    if sequence.length > BPE_MAX_TOKENS {
+        return Result[Int, TrainingInputError].Err(TrainingInputError.TooManyEvents);
+    }
+    return Result[Int, TrainingInputError].Ok(sequence.length as Int);
+}
