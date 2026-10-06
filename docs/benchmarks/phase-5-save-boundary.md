@@ -83,6 +83,12 @@ Gates A through D are closed by the benchmark output above. The previous active
 generation and failed-publication recovery are recorded by the
 `previous_generation_preserved` marker.
 
+ADR-0006 defines the committed flush order: write and validate shard payload
+and shard-local bindings, publish the shard generation, then publish compatible
+manifest metadata and mark the resident entry persisted. The dynamic shard
+recovery benchmark confirms that incomplete generations are rejected and the
+newest complete manifest generation is selected after restart.
+
 ## Gate E executable evidence
 
 The save-boundary executable was built and run with:

@@ -112,13 +112,13 @@ first; persistence is a later operation with an explicit lifecycle.
   atomically.
 - [x] Add an explicit `save` or commit-boundary API for mission completion,
   text completion, and caller-requested persistence.
-- [ ] Define flush ordering for shard data, binding data, and manifest metadata
+- [x] Define flush ordering for shard data, binding data, and manifest metadata
   so a committed generation is internally consistent.
-- [ ] Preserve the previous valid generation if a flush, rename, or process
+- [x] Preserve the previous valid generation if a flush, rename, or process
   interruption fails.
-- [ ] Verify that a failed flush leaves the resident dirty shard and live fabric
+- [x] Verify that a failed flush leaves the resident dirty shard and live fabric
   usable for continued inference.
-- [ ] Verify that a restart loads the newest complete generation and does not
+- [x] Verify that a restart loads the newest complete generation and does not
   expose a partially written shard.
 - [ ] Add a benchmark that compares inference and neurogenesis latency with
   clean resident shards versus dirty resident shards.
