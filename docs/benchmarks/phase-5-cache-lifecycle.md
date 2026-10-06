@@ -10,14 +10,14 @@ latency claim.
 - Command: `actus build --strict --emit exe -o /tmp/twin-e-cache-pressure.aie benchmarks/aie_cache.act`
 - Run: `/tmp/twin-e-cache-pressure.aie`
 - Profile: strict native executable
-- Compiler binary digest: `df742fd2611d83aa9705522b9f7c1ea4b14ed98c7c485d8d07b18409597c7634`
+- Compiler binary digest: `ef3114b46e4bcba51267874dbe7852d6af271e4e9431a4a5eac71b2819081353`
 - Floating point: native IR verification reported no floating-point instructions
 - Cache capacity: four metadata entries
 
 ## Captured result
 
 ```text
-built `/tmp/twin-e-cache-lifecycle-final.aie` (strict)
+built `/tmp/twin-e-cache-pressure.aie` (strict)
 verified generated native IR: no floating-point instructions
 AIE_CACHE capacity=4 working_set=4 dirty_rejected=1 pinned_rejected=1 clean_evicted=1 replacement=1 full_pressure_rejected=1
 ```
@@ -56,5 +56,5 @@ The strict test command produced:
 
 ```text
 test result: ok
-17 passed; 0 failed
+18 passed; 0 failed
 ```

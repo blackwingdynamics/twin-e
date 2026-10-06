@@ -105,7 +105,7 @@ first; persistence is a later operation with an explicit lifecycle.
   inference, forwarding, or neurogenesis call path.
 - [x] Make shard growth bounded by configured resident capacity and return an
   explicit resource error when no safe expansion or eviction is possible.
-- [ ] Reject eviction of dirty or pinned shards unless an explicit flush policy
+- [x] Reject eviction of dirty or pinned shards unless an explicit flush policy
   has made them safe to evict.
 - [ ] Add a background or caller-driven flush operation that writes dirty
   shards to a temporary generation file, validates them, and publishes them
