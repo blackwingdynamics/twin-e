@@ -53,6 +53,7 @@ AIE_BINDING_STAGE rename_failed error=IoError.Failed status=11
 AIE_BINDING_STAGE validation_rejected error=IoError.InvalidData status=13
 AIE_BINDING_STAGE write_ok
 AIE_BINDING_STAGE validate_ok
+AIE_BINDING_STAGE payload_bindings_checksum_metadata_ok
 AIE_SHARD_BINDINGS_DYNAMIC columns=2 bindings=2 stride=24 validated=1
 exit_status=0
 ```
@@ -65,7 +66,9 @@ validation fixture writes one invalid byte. Their typed results are preserved as
 active file was then created at `/tmp/twin-e-binding-shard.brain`, and the staged
 file was consumed by publication. The final markers prove the successful write,
 validation, and publication path for one two-column shard with two local
-bindings.
+bindings. `payload_bindings_checksum_metadata_ok` is emitted only after the
+validator has checked the expected payload section, shard-local binding section,
+compatibility metadata, total length, and checksum.
 
 ## Remaining evidence after Gate A
 

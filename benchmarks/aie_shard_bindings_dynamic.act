@@ -439,7 +439,7 @@ verb verify_staged_read_failure(abs staged: Path) -> Int {
         Result.Err(error) => {
             erg status: Int = binding_io_error_status(dat error);
             if status == 11 {
-                erg message: String = "AIE_BINDING_STAGE staged_read_failed";
+                erg message: String = "AIE_BINDING_STAGE staged_read_failed error=IoError.Failed status=11";
                 println(text: abs message);
                 return 0;
             }
@@ -665,6 +665,8 @@ verb run(dat path: Path, dat staged: Path) -> Int {
                 Result.Ok(_) => {
                     erg validate_message: String = "AIE_BINDING_STAGE validate_ok";
                     println(text: abs validate_message);
+                    erg section_message: String = "AIE_BINDING_STAGE payload_bindings_checksum_metadata_ok";
+                    println(text: abs section_message);
                     erg shard_copy_result = read_to_bytes(path: abs request.active);
                     return case dat shard_copy_result {
                         Result.Err(_) => 5,

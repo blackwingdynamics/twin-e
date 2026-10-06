@@ -148,8 +148,8 @@ not evidence that a staged file was written, validated, or published.
     benchmark output without weakening the public `IoError` contract.
   - [x] Record the failing stage and complete typed error in the evidence
     document.
-- [ ] **Gate B — Staged write and validation**
-  - [ ] Prove that a dirty resident shard is written to the staged path with
+- [x] **Gate B — Staged write and validation**
+  - [x] Prove that a dirty resident shard is written to the staged path with
     the expected payload, binding section, checksum, and metadata.
   - [x] Prove that invalid staged bytes are rejected before publication.
 - [ ] **Gate C — Atomic publication**
