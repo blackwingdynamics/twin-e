@@ -143,15 +143,15 @@ These gates decompose the caller-driven save contract into independently
 observable steps. They must be completed in order; a passing strict compile is
 not evidence that a staged file was written, validated, or published.
 
-- [ ] **Gate A — Typed save-stage diagnostics**
-  - [ ] Distinguish write, staged-read, validation, and rename failures in the
+- [x] **Gate A — Typed save-stage diagnostics**
+  - [x] Distinguish write, staged-read, validation, and rename failures in the
     benchmark output without weakening the public `IoError` contract.
-  - [ ] Record the failing stage and complete typed error in the evidence
+  - [x] Record the failing stage and complete typed error in the evidence
     document.
 - [ ] **Gate B — Staged write and validation**
   - [ ] Prove that a dirty resident shard is written to the staged path with
     the expected payload, binding section, checksum, and metadata.
-  - [ ] Prove that invalid staged bytes are rejected before publication.
+  - [x] Prove that invalid staged bytes are rejected before publication.
 - [ ] **Gate C — Atomic publication**
   - [ ] Prove that a validated staged generation becomes the active file only
     after the rename step succeeds.

@@ -47,25 +47,36 @@ benchmarks/aie_shard_bindings_dynamic.act is formatted
 built `/tmp/twin-e-shard-bindings-save.aie` (strict)
 verified generated native IR: no floating-point instructions
 AIE_BINDING_STAGE start
+AIE_BINDING_STAGE staged_read_failed error=IoError.Failed status=11
+AIE_BINDING_STAGE write_failed error=IoError.Failed status=11
+AIE_BINDING_STAGE rename_failed error=IoError.Failed status=11
+AIE_BINDING_STAGE validation_rejected error=IoError.InvalidData status=13
 AIE_BINDING_STAGE write_ok
 AIE_BINDING_STAGE validate_ok
 AIE_SHARD_BINDINGS_DYNAMIC columns=2 bindings=2 stride=24 validated=1
 exit_status=0
 ```
 
-The active file was created at `/tmp/twin-e-binding-shard.brain` and the staged
-file was consumed by publication. This proves the successful write, validation,
-and publication path for one two-column shard with two local bindings.
+The four failure markers are deterministic fixtures. The read fixture removes
+the staged file before reading it; the write fixture turns the staged path into
+a directory; the rename fixture makes the active path a directory; and the
+validation fixture writes one invalid byte. Their typed results are preserved as
+`IoError.Failed` or `IoError.InvalidData` with status codes 11 and 13. The
+active file was then created at `/tmp/twin-e-binding-shard.brain`, and the staged
+file was consumed by publication. The final markers prove the successful write,
+validation, and publication path for one two-column shard with two local
+bindings.
 
-## Remaining evidence for Gate A
+## Remaining evidence after Gate A
 
-The following failure fixtures are still required before Gate A can close:
+Gate A is closed by the benchmark output above. The following evidence remains
+for the later gates:
 
-- force a staged write failure and record the typed `IoError`;
-- force a staged read failure after the write step;
-- corrupt staged bytes and record validation rejection before publication;
-- force rename failure and prove that the previous active generation remains;
-- record each exit status and filesystem state in this document.
+- prove that a previous active generation remains available when publication
+  fails;
+- prove that the resident cache entry remains dirty and usable after a failed
+  save;
+- record restart selection of the newest complete generation.
 
 ## Regression baseline
 

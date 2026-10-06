@@ -299,11 +299,11 @@ verb binding_io_error_status(dat error: IoError) -> Int {
 
 verb print_binding_stage(erg stage: u8) {
     erg message: String = case stage {
-        1 => "AIE_BINDING_STAGE write_failed",
-        2 => "AIE_BINDING_STAGE staged_read_failed",
-        3 => "AIE_BINDING_STAGE validation_failed",
-        5 => "AIE_BINDING_STAGE path_probe_failed",
-        _ => "AIE_BINDING_STAGE staged_cleanup_failed",
+        1 => "AIE_BINDING_STAGE write_failed error=IoError.Failed status=11",
+        2 => "AIE_BINDING_STAGE staged_read_failed error=IoError.Failed status=11",
+        3 => "AIE_BINDING_STAGE validation_failed error=IoError.InvalidData status=13",
+        5 => "AIE_BINDING_STAGE path_probe_failed error=IoError.Failed status=11",
+        _ => "AIE_BINDING_STAGE staged_cleanup_failed error=IoError.Failed status=11",
     };
     println(text: abs message);
 }
@@ -384,6 +384,180 @@ verb diagnose_staged_save(
     };
 }
 
+verb verify_corrupt_staged_rejected(
+    abs staged: Path,
+    erg shard_id: u32,
+    erg first_column_index: u32,
+    erg column_count: u32
+) -> Int {
+    erg invalid: Buffer = Buffer[0];
+    append(invalid, 0u8);
+    erg written = write_file(path: abs staged, contents: abs invalid);
+    return case dat written {
+        Result.Err(error) => binding_io_error_status(dat error),
+        Result.Ok(_) => {
+            erg loaded = read_to_bytes(path: abs staged);
+            return case dat loaded {
+                Result.Err(error) => binding_io_error_status(dat error),
+                Result.Ok(bytes) => {
+                    erg validation = validate_dynamic_shard_with_bindings_bytes(
+                        bytes: dat bytes,
+                        expected_shard_id: erg shard_id,
+                        expected_first_column_index: erg first_column_index,
+                        expected_column_count: erg column_count
+                    );
+                    return case dat validation {
+                        Result.Err(error) => {
+                            erg status: Int = binding_io_error_status(dat error);
+                            if status == 13 {
+                                erg message: String = "AIE_BINDING_STAGE validation_rejected error=IoError.InvalidData status=13";
+                                println(text: abs message);
+                                erg removed = remove_file(path: abs staged);
+                                return case dat removed {
+                                    Result.Ok(_) => 0,
+                                    Result.Err(cleanup_error) => binding_io_error_status(dat cleanup_error),
+                                };
+                            }
+                            return status;
+                        },
+                        Result.Ok(_) => 14,
+                    };
+                },
+            };
+        },
+    };
+}
+
+verb verify_staged_read_failure(abs staged: Path) -> Int {
+    erg stale = remove_file(path: abs staged);
+    case dat stale {
+        Result.Ok(_) => {},
+        Result.Err(_) => {},
+    };
+    erg loaded = read_to_bytes(path: abs staged);
+    return case dat loaded {
+        Result.Err(error) => {
+            erg status: Int = binding_io_error_status(dat error);
+            if status == 11 {
+                erg message: String = "AIE_BINDING_STAGE staged_read_failed";
+                println(text: abs message);
+                return 0;
+            }
+            return status;
+        },
+        Result.Ok(bytes) => {
+            drop(bytes);
+            return 15;
+        },
+    };
+}
+
+verb verify_staged_write_failure(abs staged: Path) -> Int {
+    erg created = create_dir(path: abs staged);
+    return case dat created {
+        Result.Err(error) => binding_io_error_status(dat error),
+        Result.Ok(_) => {
+            erg contents: Buffer = Buffer[0];
+            append(contents, 1u8);
+            erg written = write_file(path: abs staged, contents: abs contents);
+            return case dat written {
+                Result.Err(error) => {
+                    erg status: Int = binding_io_error_status(dat error);
+                    erg removed = remove_dir(path: abs staged);
+                    return case dat removed {
+                        Result.Err(cleanup_error) => binding_io_error_status(dat cleanup_error),
+                        Result.Ok(_) => {
+                            if status == 11 {
+                                erg message: String = "AIE_BINDING_STAGE write_failed error=IoError.Failed status=11";
+                                println(text: abs message);
+                                return 0;
+                            }
+                            return status;
+                        },
+                    };
+                },
+                Result.Ok(_) => {
+                    erg removed = remove_file(path: abs staged);
+                    return case dat removed {
+                        Result.Ok(_) => 16,
+                        Result.Err(error) => binding_io_error_status(dat error),
+                    };
+                },
+            };
+        },
+    };
+}
+
+verb verify_rename_failure(
+    abs staged: Path,
+    abs active: Path,
+    abs payload: Buffer,
+    abs bindings: Buffer,
+    erg shard_id: u32,
+    erg first_column_index: u32,
+    erg column_count: u32
+) -> Int {
+    erg created = create_dir(path: abs active);
+    return case dat created {
+        Result.Err(error) => binding_io_error_status(dat error),
+        Result.Ok(_) => {
+            erg written = write_dynamic_shard_with_bindings(
+                path: abs staged,
+                shard_id: erg shard_id,
+                first_column_index: erg first_column_index,
+                column_count: erg column_count,
+                payload: abs payload,
+                bindings: abs bindings
+            );
+            return case dat written {
+                Result.Err(error) => {
+                    erg status: Int = binding_io_error_status(dat error);
+                    erg removed = remove_dir(path: abs active);
+                    return case dat removed {
+                        Result.Ok(_) => status,
+                        Result.Err(cleanup_error) => binding_io_error_status(dat cleanup_error),
+                    };
+                },
+                Result.Ok(_) => {
+                    erg published = publish_dynamic_shard_with_bindings(
+                        staged: abs staged,
+                        active: abs active,
+                        expected_shard_id: erg shard_id,
+                        expected_first_column_index: erg first_column_index,
+                        expected_column_count: erg column_count
+                    );
+                    return case dat published {
+                        Result.Err(error) => {
+                            erg status: Int = binding_io_error_status(dat error);
+                            erg removed_staged = remove_file(path: abs staged);
+                            erg staged_cleanup_status: Int = case dat removed_staged {
+                                Result.Err(cleanup_error) => binding_io_error_status(dat cleanup_error),
+                                Result.Ok(_) => 0,
+                            };
+                            if staged_cleanup_status != 0 {
+                                return staged_cleanup_status;
+                            }
+                            erg removed_active = remove_dir(path: abs active);
+                            return case dat removed_active {
+                                Result.Err(cleanup_error) => binding_io_error_status(dat cleanup_error),
+                                Result.Ok(_) => {
+                                    if status == 11 {
+                                        erg message: String = "AIE_BINDING_STAGE rename_failed error=IoError.Failed status=11";
+                                        println(text: abs message);
+                                        return 0;
+                                    }
+                                    return status;
+                                },
+                            };
+                        },
+                        Result.Ok(_) => 17,
+                    };
+                },
+            };
+        },
+    };
+}
+
 meta limitless("verb")
 verb run(dat path: Path, dat staged: Path) -> Int {
     erg payload: Buffer = make_payload();
@@ -428,6 +602,35 @@ verb run(dat path: Path, dat staged: Path) -> Int {
     );
     if diagnostic_status != 0 {
         return diagnostic_status;
+    }
+    erg read_status: Int = verify_staged_read_failure(staged: abs staged);
+    if read_status != 0 {
+        return read_status;
+    }
+    erg staged_write_status: Int = verify_staged_write_failure(staged: abs staged);
+    if staged_write_status != 0 {
+        return staged_write_status;
+    }
+    erg rename_status: Int = verify_rename_failure(
+        staged: abs staged,
+        active: abs path,
+        payload: abs payload,
+        bindings: abs bindings,
+        shard_id: erg shard_id,
+        first_column_index: erg first_column,
+        column_count: erg column_count
+    );
+    if rename_status != 0 {
+        return rename_status;
+    }
+    erg invalid_status: Int = verify_corrupt_staged_rejected(
+        staged: abs staged,
+        shard_id: erg shard_id,
+        first_column_index: erg first_column,
+        column_count: erg column_count
+    );
+    if invalid_status != 0 {
+        return invalid_status;
     }
     erg request: ShardSaveRequest = ShardSaveRequest {staged: staged, active: path, shard_id: shard_id, first_column_index: first_column, column_count: column_count, payload: payload, bindings: bindings};
     erg expected_shard_id: u32 = request.shard_id;
