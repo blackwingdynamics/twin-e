@@ -1,0 +1,243 @@
+"""Human-readable learning, context selection, and forgetting demonstration."""
+import aie;
+
+import config;
+
+import std::io;
+
+import std::string;
+
+import tokenizer;
+
+open tokenizer;
+
+verb fill_demo_vocabulary(ins records: Array[BpeTokenRecord, 256]) {
+    records[0u32].token_id = 1000u32;
+    records[0u32].byte_length = 6u8;
+    records[0u32].bytes[0u32] = 71u8;
+    records[0u32].bytes[1u32] = 105u8;
+    records[0u32].bytes[2u32] = 111u8;
+    records[0u32].bytes[3u32] = 114u8;
+    records[0u32].bytes[4u32] = 103u8;
+    records[0u32].bytes[5u32] = 105u8;
+    records[1u32].token_id = 1001u32;
+    records[1u32].byte_length = 6u8;
+    records[1u32].bytes[0u32] = 104u8;
+    records[1u32].bytes[1u32] = 117u8;
+    records[1u32].bytes[2u32] = 110u8;
+    records[1u32].bytes[3u32] = 103u8;
+    records[1u32].bytes[4u32] = 114u8;
+    records[1u32].bytes[5u32] = 121u8;
+}
+
+verb fill_demo_vocabulary_tail(ins records: Array[BpeTokenRecord, 256]) {
+    records[2u32].token_id = 1002u32;
+    records[2u32].byte_length = 5u8;
+    records[2u32].bytes[0u32] = 116u8;
+    records[2u32].bytes[1u32] = 105u8;
+    records[2u32].bytes[2u32] = 114u8;
+    records[2u32].bytes[3u32] = 101u8;
+    records[2u32].bytes[4u32] = 100u8;
+    records[3u32].token_id = 1003u32;
+    records[3u32].byte_length = 5u8;
+    records[3u32].bytes[0u32] = 97u8;
+    records[3u32].bytes[1u32] = 112u8;
+    records[3u32].bytes[2u32] = 112u8;
+    records[3u32].bytes[3u32] = 108u8;
+    records[3u32].bytes[4u32] = 101u8;
+    records[4u32].token_id = 1004u32;
+    records[4u32].byte_length = 4u8;
+    records[4u32].bytes[0u32] = 104u8;
+    records[4u32].bytes[1u32] = 111u8;
+    records[4u32].bytes[2u32] = 109u8;
+    records[4u32].bytes[3u32] = 101u8;
+}
+
+verb demo_vocabulary() -> BpeVocabulary {
+    erg rules: Array[BpeMergeRule,128] = Array[BpeMergeRule, 128]();
+    erg records: Array[BpeTokenRecord,256] = Array[BpeTokenRecord, 256]();
+    fill_demo_vocabulary(records: ins records);
+    fill_demo_vocabulary_tail(records: ins records);
+    return BpeVocabulary {magic: BPE_VOCAB_MAGIC, version: BPE_VOCAB_VERSION, tokenizer_version: TOKENIZER_VERSION, bos_token_id: BPE_BOS_TOKEN_ID, eos_token_id: BPE_EOS_TOKEN_ID, unknown_token_id: BPE_UNKNOWN_TOKEN_ID, rule_count: 0u32, rules: rules, token_count: 5u32, tokens: records};
+}
+
+verb demo_prompt(abs first: u32, abs second: u32) -> TokenSequence {
+    erg tokens: Array[Token,256] = Array[Token, 256]();
+    erg first_id: u32 = 0u32;
+    erg second_id: u32 = 0u32;
+    first_id = first;
+    second_id = second;
+    tokens[0u32] = Token {id: first_id, byte_offset: 0u32, byte_length: 0u16, tokenizer_version: TOKENIZER_VERSION};
+    tokens[1u32] = Token {id: second_id, byte_offset: 1u32, byte_length: 0u16, tokenizer_version: TOKENIZER_VERSION};
+    return TokenSequence {tokens: tokens, length: 2u32, valid: true};
+}
+
+verb demo_fact(abs first: u32, abs second: u32, abs third: u32) -> TokenSequence {
+    erg tokens: Array[Token,256] = Array[Token, 256]();
+    erg first_id: u32 = 0u32;
+    erg second_id: u32 = 0u32;
+    erg third_id: u32 = 0u32;
+    first_id = first;
+    second_id = second;
+    third_id = third;
+    tokens[0u32] = Token {id: first_id, byte_offset: 0u32, byte_length: 0u16, tokenizer_version: TOKENIZER_VERSION};
+    tokens[1u32] = Token {id: second_id, byte_offset: 1u32, byte_length: 0u16, tokenizer_version: TOKENIZER_VERSION};
+    tokens[2u32] = Token {id: third_id, byte_offset: 2u32, byte_length: 0u16, tokenizer_version: TOKENIZER_VERSION};
+    return TokenSequence {tokens: tokens, length: 3u32, valid: true};
+}
+
+verb emit_decoded_answer(dat storage: Buffer) -> Bool {
+    erg restored = utf8_from_buffer(storage: dat storage);
+    return case dat restored {
+        Result.Err(_) => false,
+        Result.Ok(text) => {
+            printlnb(text: abs text.storage);
+            true;
+        },
+    };
+}
+
+verb emit_recalled_answer(
+    abs generated: GenerationResult,
+    abs vocabulary: BpeVocabulary
+) -> Bool {
+    erg storage: Buffer = Buffer[0];
+    erg decoded = bpe_decode_bytes(
+        sequence: abs generated.tokens,
+        vocabulary: abs vocabulary,
+        storage: ins storage
+    );
+    erg decode_ok: Bool = case dat decoded {
+        Result.Err(_) => false,
+        Result.Ok(_) => true,
+    };
+    if !decode_ok {
+        return false;
+    }
+    return emit_decoded_answer(storage: dat storage);
+}
+
+verb train_fact(
+    ins fabric: CorticalFabric[64],
+    ins bindings: Array[TokenBinding, 64],
+    abs fact: TokenSequence
+) -> Bool {
+    erg trained = train_token_sequence(
+        fabric: ins fabric,
+        bindings: ins bindings,
+        sequence: abs fact
+    );
+    return case dat trained {
+        Result.Err(_) => false,
+        Result.Ok(_) => true,
+    };
+}
+
+verb age_weak_memory(ins fabric: CorticalFabric[64]) {
+    erg index: u32 = 0u32;
+    loop {
+        if index >= BRAIN_BINDING_COUNT {
+            break;
+        }
+        if (fabric.columns[index].flags & FLAG_ACTIVE) != 0u8 {
+            fabric.columns[index].idle_ticks = DECAY_IDLE_LIMIT - 1u8;
+            fabric.columns[index].myelination = 0u8;
+        }
+        index += 1u32;
+    }
+    engine_clock_step(fabric: ins fabric);
+}
+
+verb no_memory_answer(abs result: GenerationResult) -> Bool {
+    return result.generated_count == 0u32;
+}
+
+meta limitless("verb")
+verb main() -> Int {
+    erg fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](), free_list_head: 0u32, active_count: 0u32};
+    erg bindings: Array[TokenBinding,64] = Array[TokenBinding, 64]();
+    erg vocabulary: BpeVocabulary = demo_vocabulary();
+    fabric_init(fabric: ins fabric);
+    erg giorgi_token_id: u32 = 1000u32;
+    erg hungry_token_id: u32 = 1001u32;
+    erg tired_token_id: u32 = 1002u32;
+    erg apple_token_id: u32 = 1003u32;
+    erg home_token_id: u32 = 1004u32;
+    erg hungry_prompt: TokenSequence = demo_prompt(first: abs giorgi_token_id, second: abs hungry_token_id);
+    erg tired_prompt: TokenSequence = demo_prompt(first: abs giorgi_token_id, second: abs tired_token_id);
+    erg before_limit: u32 = 32u32;
+    erg before_learning: GenerationResult = generate_associative(
+        fabric: ins fabric,
+        bindings: abs bindings,
+        prompt: abs hungry_prompt,
+        vocabulary: abs vocabulary,
+        max_tokens: erg before_limit
+    );
+    if !no_memory_answer(result: abs before_learning) {
+        return 1;
+    }
+    erg before_count: Int = before_learning.generated_count as Int;
+    print_int(value: erg before_count);
+    erg fact_hungry: TokenSequence = demo_fact(
+        first: abs giorgi_token_id,
+        second: abs hungry_token_id,
+        third: abs apple_token_id
+    );
+    erg fact_tired: TokenSequence = demo_fact(
+        first: abs giorgi_token_id,
+        second: abs tired_token_id,
+        third: abs home_token_id
+    );
+    if !train_fact(
+        fabric: ins fabric,
+        bindings: ins bindings,
+        fact: abs fact_hungry
+    ) || !train_fact(
+        fabric: ins fabric,
+        bindings: ins bindings,
+        fact: abs fact_tired
+    ) {
+        return 2;
+    }
+    erg learned_count: Int = fabric.active_count as Int;
+    print_int(value: erg learned_count);
+    erg hungry_limit: u32 = 32u32;
+    erg hungry_result: GenerationResult = generate_associative(
+        fabric: ins fabric,
+        bindings: abs bindings,
+        prompt: abs hungry_prompt,
+        vocabulary: abs vocabulary,
+        max_tokens: erg hungry_limit
+    );
+    if hungry_result.generated_count == 0u32 || !emit_recalled_answer(generated: abs hungry_result, vocabulary: abs vocabulary) {
+        return 3;
+    }
+    erg tired_limit: u32 = 32u32;
+    erg tired_result: GenerationResult = generate_associative(
+        fabric: ins fabric,
+        bindings: abs bindings,
+        prompt: abs tired_prompt,
+        vocabulary: abs vocabulary,
+        max_tokens: erg tired_limit
+    );
+    if tired_result.generated_count == 0u32 || !emit_recalled_answer(generated: abs tired_result, vocabulary: abs vocabulary) {
+        return 4;
+    }
+    age_weak_memory(fabric: ins fabric);
+    erg forgotten_limit: u32 = 32u32;
+    erg after_forgetting: GenerationResult = generate_associative(
+        fabric: ins fabric,
+        bindings: abs bindings,
+        prompt: abs hungry_prompt,
+        vocabulary: abs vocabulary,
+        max_tokens: erg forgotten_limit
+    );
+    if !no_memory_answer(result: abs after_forgetting) {
+        return 5;
+    }
+    erg remaining_count: Int = fabric.active_count as Int;
+    erg forgotten_count: Int = after_forgetting.generated_count as Int;
+    print_int(value: erg remaining_count);
+    print_int(value: erg forgotten_count);
+    return 0;
+}

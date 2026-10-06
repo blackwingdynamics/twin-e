@@ -176,12 +176,24 @@ verb main() -> Int {
     if recalled != phrase_length || fabric.active_count != ARENA_COLUMNS {
         return 1;
     }
-    erg training_message: String = "AIE_STRING_HELLO arena=1000 recalled=12/12";
-    println(text: abs training_message);
+    erg title_message: String = "TWIN-E HUMAN DEMO";
+    println(text: abs title_message);
+    erg learned_message: String = "I learned this phrase:";
+    println(text: abs learned_message);
+    erg phrase_message: String = "Hello Giorgi";
+    println(text: abs phrase_message);
+    erg answer_message: String = "I was asked to recall it. My answer is:";
+    println(text: abs answer_message);
     emit_recalled_text(storage: dat recalled_bytes);
+    erg result_message: String = "Result: 12 of 12 characters recalled correctly.";
+    println(text: abs result_message);
     erg training_nanos: Int = (trained_at - started) as Int;
     erg recall_nanos: Int = (finished - trained_at) as Int;
+    erg training_time_message: String = "Training time in nanoseconds:";
+    println(text: abs training_time_message);
     print_int(value: erg training_nanos);
+    erg recall_time_message: String = "Recall time in nanoseconds:";
+    println(text: abs recall_time_message);
     print_int(value: erg recall_nanos);
     return 0;
 }
