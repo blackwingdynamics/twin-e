@@ -190,11 +190,11 @@ not evidence that a staged file was written, validated, or published.
 ## P5.3 — Training and learning workflow
 
 - [x] Define a bounded training input API for tokenized sequences.
-- [ ] Create context-bound bindings from consecutive token events.
-- [ ] Reinforce the observed successor path through myelination updates.
+- [x] Create context-bound bindings from consecutive token events.
+- [x] Reinforce the observed successor path through myelination updates.
 - [ ] Handle competing successors deterministically using the generation
   selection policy.
-- [ ] Add bounded training limits for sequence length, events, and arena size.
+- [x] Add bounded training limits for sequence length, events, and arena size.
 - [ ] Verify that training changes recall behavior after a save and reload.
 - [ ] Add a small text-learning benchmark with repeatable expected output.
 - [ ] Measure training time, allocated columns, active bindings, and snapshot

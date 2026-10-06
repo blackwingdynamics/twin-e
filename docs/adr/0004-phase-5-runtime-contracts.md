@@ -122,6 +122,14 @@ context bindings, reinforcing successors, or allocating columns. This keeps
 the event limit at the tokenizer contract and prevents an unbounded training
 loop from being hidden inside the engine.
 
+The resident training operation then processes the admitted sequence in order.
+It derives one context key from each previous/current token pair, reuses an
+existing binding when that pair is known, and otherwise allocates one bounded
+column with the context code. The observed source-to-target axon is linked or
+reinforced with saturating integer myelination. The arena capacity and fixed
+binding count remain the admission limits; allocation failure returns a typed
+training error and does not perform persistence I/O.
+
 The tokenizer artifact must contain enough versioned vocabulary and merge-rule
 metadata to reproduce encode and decode behavior after restart. The loader
 must reject incompatible or oversized artifacts before replacing the active

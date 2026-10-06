@@ -1,0 +1,6 @@
+"""Public facade for bounded token-sequence training."""
+open input;
+
+open helpers;
+
+open sequence;

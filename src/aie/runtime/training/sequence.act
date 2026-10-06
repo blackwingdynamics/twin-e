@@ -1,0 +1,178 @@
+import config;
+
+import tokenizer;
+
+open tokenizer;
+
+open input;
+
+verb train_sequence_position(
+    ins fabric: CorticalFabric[64],
+    ins bindings: Array[TokenBinding, 64],
+    abs sequence: TokenSequence,
+    erg position: u32,
+    erg source_idx: u32,
+    erg previous_token_id: u32
+) -> Result[TrainingEventResult, TrainingError] {
+    erg token_id: u32 = sequence.tokens[position].id;
+    return train_sequence_event(
+        fabric: ins fabric,
+        bindings: ins bindings,
+        source_idx: erg source_idx,
+        previous_token_id: erg previous_token_id,
+        token_id: erg token_id
+    );
+}
+
+struct TrainingCursor {
+    erg source_idx: u32,
+    erg previous_token_id: u32,
+    erg position: u32,
+    erg allocated_columns: u32,
+    erg reinforced_transitions: u32,
+}
+
+verb update_training_cursor(
+    ins cursor: TrainingCursor,
+    abs sequence: TokenSequence,
+    abs event: TrainingEventResult
+) {
+    if event.allocated {
+        cursor.allocated_columns += 1u32;
+    }
+    cursor.reinforced_transitions += 1u32;
+    cursor.source_idx = event.index;
+    cursor.previous_token_id = sequence.tokens[cursor.position].id;
+    cursor.position += 1u32;
+}
+
+verb run_training_cursor(
+    ins cursor: TrainingCursor,
+    ins fabric: CorticalFabric[64],
+    ins bindings: Array[TokenBinding, 64],
+    abs sequence: TokenSequence
+) -> Result[Int, TrainingError] {
+    loop {
+        if cursor.position >= sequence.length {
+            break;
+        }
+        erg advanced = advance_training_cursor(
+            cursor: ins cursor,
+            fabric: ins fabric,
+            bindings: ins bindings,
+            sequence: abs sequence
+        );
+        case dat advanced {
+            Result.Err(error) => {
+                return Result[Int, TrainingError].Err(error);
+            },
+            Result.Ok(_) => {},
+        };
+    }
+    return Result[Int, TrainingError].Ok(0);
+}
+
+verb commit_training_event(
+    ins cursor: TrainingCursor,
+    abs sequence: TokenSequence,
+    abs event: TrainingEventResult
+) -> Result[Int, TrainingError] {
+    update_training_cursor(
+        cursor: ins cursor,
+        sequence: abs sequence,
+        event: abs event
+    );
+    return Result[Int, TrainingError].Ok(0);
+}
+
+verb advance_training_cursor(
+    ins cursor: TrainingCursor,
+    ins fabric: CorticalFabric[64],
+    ins bindings: Array[TokenBinding, 64],
+    abs sequence: TokenSequence
+) -> Result[Int, TrainingError] {
+    erg position: u32 = cursor.position;
+    erg source_idx: u32 = cursor.source_idx;
+    erg previous_token_id: u32 = cursor.previous_token_id;
+    erg event = train_sequence_position(
+        fabric: ins fabric,
+        bindings: ins bindings,
+        sequence: abs sequence,
+        position: erg position,
+        source_idx: erg source_idx,
+        previous_token_id: erg previous_token_id
+    );
+    return case dat event {
+        Result.Err(error) => Result[Int, TrainingError].Err(error),
+        Result.Ok(value) => commit_training_event(
+            cursor: ins cursor,
+            sequence: abs sequence,
+            event: abs value
+        ),
+    };
+}
+
+verb train_sequence_events(
+    ins fabric: CorticalFabric[64],
+    ins bindings: Array[TokenBinding, 64],
+    abs sequence: TokenSequence,
+    erg root_idx: u32
+) -> Result[TrainingMetrics, TrainingError] {
+    erg cursor: TrainingCursor = TrainingCursor {source_idx: root_idx, previous_token_id: BPE_BOS_TOKEN_ID, position: 0u32, allocated_columns: 0u32, reinforced_transitions: 0u32};
+    erg completed = run_training_cursor(
+        cursor: ins cursor,
+        fabric: ins fabric,
+        bindings: ins bindings,
+        sequence: abs sequence
+    );
+    case dat completed {
+        Result.Err(error) => {
+            return Result[TrainingMetrics, TrainingError].Err(error);
+        },
+        Result.Ok(_) => {},
+    };
+    erg event_count: u32 = sequence.length;
+    erg allocated_count: u32 = cursor.allocated_columns;
+    erg reinforced_count: u32 = cursor.reinforced_transitions;
+    erg metrics: TrainingMetrics = make_training_metrics(
+        bindings: abs bindings,
+        event_count: erg event_count,
+        allocated_columns: erg allocated_count,
+        reinforced_transitions: erg reinforced_count
+    );
+    return Result[TrainingMetrics, TrainingError].Ok(metrics);
+}
+
+"""Train one bounded token sequence entirely in resident memory.
+
+The sequence is admitted before mutation. Each event combines the previous
+token and current token into a versioned context key. Existing bindings are
+reused; missing bindings allocate one bounded minicolumn and attach its token
+metadata. The observed source-to-successor transition is linked or reinforced
+with saturating myelination. No persistence operation is performed.
+"""
+open verb train_token_sequence(
+    ins fabric: CorticalFabric[64],
+    ins bindings: Array[TokenBinding, 64],
+    abs sequence: TokenSequence
+) -> Result[TrainingMetrics, TrainingError] {
+    erg admitted = validate_training_sequence(sequence: abs sequence);
+    case dat admitted {
+        Result.Err(error) => {
+            erg input_error: TrainingInputError = error;
+            erg mapped: TrainingError = training_error_from_input(error: erg input_error);
+            return Result[TrainingMetrics, TrainingError].Err(mapped);
+        },
+        Result.Ok(_) => {},
+    };
+    erg root_idx: u32 = allocate_column_index(fabric: ins fabric);
+    if root_idx == null_index() {
+        return Result[TrainingMetrics, TrainingError].Err(TrainingError.NoRootColumn);
+    }
+    return train_sequence_events(
+        fabric: ins fabric,
+        bindings: ins bindings,
+        sequence: abs sequence,
+        root_idx: erg root_idx
+    );
+}

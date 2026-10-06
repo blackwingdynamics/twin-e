@@ -1,0 +1,245 @@
+import config;
+
+import tokenizer;
+
+open tokenizer;
+
+open input;
+
+verb reinforce_target[N: Usize](
+    ins fabric: CorticalFabric[N],
+    erg target_idx: u32
+) {
+    if fabric.columns[target_idx].myelination < MAX_U8 {
+        fabric.columns[target_idx].myelination += 1u8;
+    }
+}
+
+verb find_transition_slot[N: Usize](
+    abs fabric: CorticalFabric[N],
+    erg source_idx: u32,
+    erg target_idx: u32
+) -> u32 {
+    erg slot: u32 = 0u32;
+    loop {
+        if slot >= 8u32 {
+            break;
+        }
+        erg current_target: u32 = fabric.columns[source_idx].axons[slot];
+        if current_target == target_idx || current_target == null_index() {
+            return slot;
+        }
+        slot += 1u32;
+    }
+    return 8u32;
+}
+
+verb reinforce_transition[N: Usize](
+    ins fabric: CorticalFabric[N],
+    erg source_idx: u32,
+    erg target_idx: u32
+) -> Result[Int, TrainingError] {
+    if source_idx >= (N as u32) || target_idx >= (N as u32) {
+        return Result[Int, TrainingError].Err(TrainingError.NoAxon);
+    }
+    erg slot: u32 = find_transition_slot(
+        fabric: abs fabric,
+        source_idx: erg source_idx,
+        target_idx: erg target_idx
+    );
+    if slot >= 8u32 {
+        return Result[Int, TrainingError].Err(TrainingError.NoAxon);
+    }
+    if fabric.columns[source_idx].axons[slot] == null_index() {
+        link_axon(
+            fabric: ins fabric,
+            source: erg source_idx,
+            slot: erg slot,
+            target: erg target_idx
+        );
+    }
+    reinforce_target(fabric: ins fabric, target_idx: erg target_idx);
+    return Result[Int, TrainingError].Ok(0);
+}
+
+verb count_active_bindings(abs bindings: Array[TokenBinding, 64]) -> u32 {
+    erg count: u32 = 0u32;
+    for erg slot: u32 in 0u32 .. BRAIN_BINDING_COUNT {
+        if bindings[slot].binding_flags == BINDING_ACTIVE_FLAG {
+            count += 1u32;
+        }
+    }
+    return count;
+}
+
+verb make_training_metrics(
+    abs bindings: Array[TokenBinding, 64],
+    erg event_count: u32,
+    erg allocated_columns: u32,
+    erg reinforced_transitions: u32
+) -> TrainingMetrics {
+    return TrainingMetrics {processed_events: event_count, allocated_columns: allocated_columns, reinforced_transitions: reinforced_transitions, active_bindings: count_active_bindings(
+        bindings: abs bindings
+    )};
+}
+
+struct TrainingEventResult {
+    erg index: u32,
+    erg allocated: Bool,
+}
+
+verb create_training_target(
+    ins fabric: CorticalFabric[64],
+    ins bindings: Array[TokenBinding, 64],
+    erg source_idx: u32,
+    erg token_id: u32,
+    erg context: u64
+) -> Option[u32] {
+    erg code: TokenCode = encode_context_key(context_key: erg context);
+    erg wave: Wavefront = Wavefront {mask_low: code.mask_low, mask_high: code.mask_high, energy: 1u8};
+    erg created = neurogenesis_with_binding(
+        fabric: ins fabric,
+        bindings: ins bindings,
+        wave: abs wave,
+        source_idx: erg source_idx,
+        token_id: erg token_id,
+        context_key: erg context
+    );
+    return case dat created {
+        Option.None => Option[u32].None,
+        Option.Some(index) => mark_training_target(fabric: ins fabric, index: erg index),
+    };
+}
+
+verb mark_training_target(ins fabric: CorticalFabric[64], erg index: u32) -> Option[u32] {
+    fabric.columns[index].threshold = TOKEN_CODE_ACTIVE_BITS;
+    return Option[u32].Some(index);
+}
+
+verb resolve_training_target(
+    ins fabric: CorticalFabric[64],
+    ins bindings: Array[TokenBinding, 64],
+    erg source_idx: u32,
+    erg token_id: u32,
+    erg context: u64
+) -> Option[TrainingEventResult] {
+    erg found = lookup_token_context(
+        bindings: abs bindings,
+        token_id: erg token_id,
+        context_key: erg context
+    );
+    case dat found {
+        Option.Some(index) => {
+            return Option[TrainingEventResult].Some(TrainingEventResult {index: index, allocated: false});
+        },
+        Option.None => {},
+    };
+    erg created = create_training_target(
+        fabric: ins fabric,
+        bindings: ins bindings,
+        source_idx: erg source_idx,
+        token_id: erg token_id,
+        context: erg context
+    );
+    return case dat created {
+        Option.None => Option[TrainingEventResult].None,
+        Option.Some(index) => Option[TrainingEventResult].Some(TrainingEventResult {index: index, allocated: true}),
+    };
+}
+
+verb require_training_target(
+    ins fabric: CorticalFabric[64],
+    ins bindings: Array[TokenBinding, 64],
+    erg source_idx: u32,
+    erg token_id: u32,
+    erg context: u64
+) -> Result[TrainingEventResult, TrainingError] {
+    erg target = resolve_training_target(
+        fabric: ins fabric,
+        bindings: ins bindings,
+        source_idx: erg source_idx,
+        token_id: erg token_id,
+        context: erg context
+    );
+    return case dat target {
+        Option.None => Result[TrainingEventResult, TrainingError].Err(TrainingError.NoColumn),
+        Option.Some(value) => Result[TrainingEventResult, TrainingError].Ok(value),
+    };
+}
+
+verb reinforce_training_target(
+    ins fabric: CorticalFabric[64],
+    erg source_idx: u32,
+    erg target_idx: u32
+) -> Result[Int, TrainingError] {
+    return reinforce_transition(
+        fabric: ins fabric,
+        source_idx: erg source_idx,
+        target_idx: erg target_idx
+    );
+}
+
+verb reinforce_resolved_event(
+    ins fabric: CorticalFabric[64],
+    erg source_idx: u32,
+    abs event: TrainingEventResult
+) -> Bool {
+    erg target_idx: u32 = event.index;
+    erg reinforced = reinforce_training_target(
+        fabric: ins fabric,
+        source_idx: erg source_idx,
+        target_idx: erg target_idx
+    );
+    return case dat reinforced {
+        Result.Err(_) => false,
+        Result.Ok(_) => true,
+    };
+}
+
+verb resolve_and_reinforce_event(
+    ins fabric: CorticalFabric[64],
+    ins bindings: Array[TokenBinding, 64],
+    erg source_idx: u32,
+    erg token_id: u32,
+    erg context: u64
+) -> Result[TrainingEventResult, TrainingError] {
+    erg target = require_training_target(
+        fabric: ins fabric,
+        bindings: ins bindings,
+        source_idx: erg source_idx,
+        token_id: erg token_id,
+        context: erg context
+    );
+    return case dat target {
+        Result.Err(error) => Result[TrainingEventResult, TrainingError].Err(error),
+        Result.Ok(event) => {
+            erg event_index: u32 = event.index;
+            erg reinforced = reinforce_resolved_event(
+                fabric: ins fabric,
+                source_idx: erg source_idx,
+                event: abs event
+            );
+            if !reinforced {
+                return Result[TrainingEventResult, TrainingError].Err(TrainingError.NoAxon);
+            }
+            return Result[TrainingEventResult, TrainingError].Ok(TrainingEventResult {index: event_index, allocated: event.allocated});
+        },
+    };
+}
+
+verb train_sequence_event(
+    ins fabric: CorticalFabric[64],
+    ins bindings: Array[TokenBinding, 64],
+    erg source_idx: u32,
+    erg previous_token_id: u32,
+    erg token_id: u32
+) -> Result[TrainingEventResult, TrainingError] {
+    erg context: u64 = context_key(previous_token_id: erg previous_token_id, token_id: erg token_id);
+    return resolve_and_reinforce_event(
+        fabric: ins fabric,
+        bindings: ins bindings,
+        source_idx: erg source_idx,
+        token_id: erg token_id,
+        context: erg context
+    );
+}

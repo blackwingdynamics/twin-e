@@ -12,6 +12,24 @@ open enum TrainingInputError {
     TooManyEvents,
 }
 
+"""Failure categories returned by the bounded training transaction."""
+open enum TrainingError {
+    EmptySequence,
+    InvalidSequence,
+    TooManyEvents,
+    NoRootColumn,
+    NoColumn,
+    NoAxon,
+}
+
+"""Counters returned after one accepted in-memory training sequence."""
+open struct TrainingMetrics {
+    erg processed_events: u32,
+    erg allocated_columns: u32,
+    erg reinforced_transitions: u32,
+    erg active_bindings: u32,
+}
+
 """Validate one bounded tokenizer result before training mutates the fabric.
 
 The sequence is read through `abs` and is not copied or modified. A valid
@@ -30,4 +48,12 @@ open verb validate_training_sequence(abs sequence: TokenSequence) -> Result[Int,
         return Result[Int, TrainingInputError].Err(TrainingInputError.TooManyEvents);
     }
     return Result[Int, TrainingInputError].Ok(sequence.length as Int);
+}
+
+verb training_error_from_input(erg error: TrainingInputError) -> TrainingError {
+    return case error {
+        TrainingInputError.EmptySequence => TrainingError.EmptySequence,
+        TrainingInputError.InvalidSequence => TrainingError.InvalidSequence,
+        TrainingInputError.TooManyEvents => TrainingError.TooManyEvents,
+    };
 }
