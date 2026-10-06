@@ -213,14 +213,14 @@ The training benchmark and captured output are recorded in
 
 ## P5.4 — Modality-neutral observation events
 
-- [ ] Define a modality-neutral event structure for bounded observations.
-- [ ] Support event categories such as obstacle, distance, person, motion,
+- [x] Define a modality-neutral event structure for bounded observations.
+- [x] Support event categories such as obstacle, distance, person, motion,
   and direction.
-- [ ] Encode an observation into a deterministic sparse code without using
+- [x] Encode an observation into a deterministic sparse code without using
   floating-point instructions.
 - [ ] Bind an observation to its temporal context in the same way as text
   tokens.
-- [ ] Reject malformed, unknown, or over-sized observation events.
+- [x] Reject malformed, unknown, or over-sized observation events.
 - [ ] Add an observation round-trip benchmark and serialized fixture.
 
 ## P5.5 — Sensor and action routing

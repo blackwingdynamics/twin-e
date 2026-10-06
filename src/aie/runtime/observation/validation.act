@@ -1,0 +1,17 @@
+import config;
+
+open types;
+
+"""Validate one observation without allocation, mutation, or device access."""
+open verb validate_observation(abs event: ObservationEvent) -> Result[Int, ObservationError] {
+    if !event.valid {
+        return Result[Int, ObservationError].Err(ObservationError.InvalidEvent);
+    }
+    if event.version != OBSERVATION_VERSION {
+        return Result[Int, ObservationError].Err(ObservationError.UnsupportedVersion);
+    }
+    if event.primary_value > OBSERVATION_MAX_VALUE || event.secondary_value > OBSERVATION_MAX_VALUE {
+        return Result[Int, ObservationError].Err(ObservationError.ValueOutOfBounds);
+    }
+    return Result[Int, ObservationError].Ok(event.sequence as Int);
+}

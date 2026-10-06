@@ -1,0 +1,28 @@
+"""Bounded observation values independent of sensors or device drivers."""
+import config;
+
+"""Stable categories accepted by the observation boundary."""
+open enum ObservationKind {
+    Obstacle,
+    Distance,
+    Person,
+    Motion,
+    Direction,
+}
+
+"""One validated-capable observation event with integer-only fields."""
+open struct ObservationEvent {
+    erg kind: ObservationKind,
+    erg primary_value: u16,
+    erg secondary_value: u16,
+    erg sequence: u32,
+    erg version: u16,
+    erg valid: Bool,
+}
+
+"""Typed rejection reasons for malformed observation input."""
+open enum ObservationError {
+    InvalidEvent,
+    UnsupportedVersion,
+    ValueOutOfBounds,
+}

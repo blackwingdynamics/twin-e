@@ -175,6 +175,18 @@ open const CONTEXT_SEED: u64 = 1099511628211u64;
 open const CONTEXT_MULTIPLIER: u64 = 1099511628211u64;
 
 
+"""Version marker for the bounded modality-neutral observation contract."""
+open const OBSERVATION_VERSION: u16 = 1u16;
+
+
+"""Maximum integer magnitude accepted in one observation value field."""
+open const OBSERVATION_MAX_VALUE: u16 = 4095u16;
+
+
+"""Initial integer seed for deterministic observation encoding."""
+open const OBSERVATION_SEED: u64 = 1469598103934665603u64;
+
+
 """Maximum number of generated token ids retained for loop guards."""
 open const GENERATION_HISTORY_LIMIT: u32 = 8u32;
 

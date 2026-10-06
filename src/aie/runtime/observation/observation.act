@@ -1,0 +1,6 @@
+"""Public facade for bounded, modality-neutral observation encoding."""
+open types;
+
+open validation;
+
+open encoding;

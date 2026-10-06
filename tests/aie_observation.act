@@ -1,0 +1,46 @@
+"""Acceptance tests for bounded modality-neutral observations."""
+import aie;
+
+import config;
+
+meta test
+verb test_observation_encoding_is_deterministic() -> Int {
+    erg event: ObservationEvent = ObservationEvent {kind: ObservationKind.Obstacle, primary_value: 3u16, secondary_value: 1u16, sequence: 7u32, version: OBSERVATION_VERSION, valid: true};
+    erg first = encode_observation(event: abs event);
+    erg second = encode_observation(event: abs event);
+    erg first_code: TokenCode = TokenCode {mask_low: 0u64, mask_high: 0u64, active_bits: 0u8, version: 0u16};
+    erg second_code: TokenCode = TokenCode {mask_low: 0u64, mask_high: 0u64, active_bits: 0u8, version: 0u16};
+    erg first_ok: Bool = false;
+    erg second_ok: Bool = false;
+    case dat first {
+        Result.Err(_) => {},
+        Result.Ok(code) => {
+            first_code = code;
+            first_ok = true;
+        },
+    };
+    case dat second {
+        Result.Err(_) => {},
+        Result.Ok(code) => {
+            second_code = code;
+            second_ok = true;
+        },
+    };
+    if first_ok && second_ok && first_code.mask_low == second_code.mask_low && first_code.mask_high == second_code.mask_high && first_code.active_bits == TOKEN_CODE_ACTIVE_BITS {
+        return 0;
+    }
+    return 1;
+}
+
+meta test
+verb test_observation_validation_rejects_unsupported_values() -> Int {
+    erg event: ObservationEvent = ObservationEvent {kind: ObservationKind.Distance, primary_value: OBSERVATION_MAX_VALUE + 1u16, secondary_value: 0u16, sequence: 1u32, version: OBSERVATION_VERSION, valid: true};
+    erg result = validate_observation(event: abs event);
+    return case dat result {
+        Result.Err(error) => case error {
+            ObservationError.ValueOutOfBounds => 0,
+            _ => 1,
+        },
+        Result.Ok(_) => 1,
+    };
+}

@@ -1,0 +1,53 @@
+import config;
+
+import encoding;
+
+open encoding;
+
+open types;
+
+open validation;
+
+"""Map an observation category to a stable integer discriminator."""
+verb observation_kind_code(abs kind: ObservationKind) -> u64 {
+    return case kind {
+        ObservationKind.Obstacle => 1u64,
+        ObservationKind.Distance => 2u64,
+        ObservationKind.Person => 3u64,
+        ObservationKind.Motion => 4u64,
+        ObservationKind.Direction => 5u64,
+    };
+}
+
+"""Compose one bounded observation event into a versioned integer key."""
+verb observation_key(abs event: ObservationEvent) -> u64 {
+    erg state: u64 = OBSERVATION_SEED;
+    state ^= OBSERVATION_VERSION as u64;
+    state *= CONTEXT_MULTIPLIER;
+    state ^= observation_kind_code(kind: abs event.kind);
+    state *= CONTEXT_MULTIPLIER;
+    state ^= event.primary_value as u64;
+    state *= CONTEXT_MULTIPLIER;
+    state ^= event.secondary_value as u64;
+    state *= CONTEXT_MULTIPLIER;
+    state ^= event.sequence as u64;
+    return state;
+}
+
+"""Validate and encode one observation as the engine's 128-bit sparse code."""
+open verb encode_observation(abs event: ObservationEvent) -> Result[TokenCode, ObservationError] {
+    erg admission = validate_observation(event: abs event);
+    erg result: Result[TokenCode,ObservationError] = Result[TokenCode, ObservationError].Err(
+        ObservationError.InvalidEvent
+    );
+    case dat admission {
+        Result.Err(error) => {
+            result = Result[TokenCode, ObservationError].Err(error);
+        },
+        Result.Ok(_) => {
+            erg key: u64 = observation_key(event: abs event);
+            result = Result[TokenCode, ObservationError].Ok(encode_context_key(context_key: erg key));
+        },
+    };
+    return result;
+}
