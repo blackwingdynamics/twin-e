@@ -1,0 +1,69 @@
+"""Measure large logical minicolumn capacity through a bounded Region window.
+
+This benchmark validates the storage boundary used for large arenas. It opens
+the same one-element resident window at several logical capacities, reads one
+fully sized Minicolumn, and closes the Region. It does not materialize an
+inline CorticalFabric for the logical capacity.
+"""
+import aie;
+import std::io;
+import std::region;
+
+"""Open, read, and close one logical Region capacity.
+
+The backing buffer is owned by the Region with `dat`. The read uses an
+immutable Region view and an exclusive destination buffer. The Region is
+closed on the successful open path before the result is returned. No file or
+device I/O is performed.
+"""
+verb verify_region_capacity(erg logical_length: u64) -> Int {
+    erg backing: Buffer = Buffer[64];
+    erg window_start: u64 = 0u64;
+    erg window_count: u64 = 1u64;
+    erg opened: Result[Region[Minicolumn], RegionError] = region_open[Minicolumn](
+        backing: dat backing,
+        logical_length: erg logical_length,
+        window_start: erg window_start,
+        window_count: erg window_count
+    );
+    return case dat opened {
+        Result.Err(_) => 1,
+        Result.Ok(region) => {
+            erg destination: Buffer = Buffer[64];
+            erg index: u64 = 0u64;
+            erg read_result: Result[Int, RegionError] = region_read[Minicolumn](
+                region: abs region,
+                index: erg index,
+                destination: ins destination
+            );
+            region_close[Minicolumn](region: ins region);
+            return case dat read_result {
+                Result.Err(_) => 2,
+                Result.Ok(_) => 0,
+            };
+        },
+    };
+}
+
+"""Run the bounded Region capacity checks and print their status codes."""
+verb main() -> Int {
+    erg logical_4096: u64 = 4096u64;
+    erg logical_65536: u64 = 65536u64;
+    erg logical_1048576: u64 = 1048576u64;
+    erg result_4096: Int = verify_region_capacity(logical_length: erg logical_4096);
+    erg result_65536: Int = verify_region_capacity(logical_length: erg logical_65536);
+    erg result_1048576: Int = verify_region_capacity(logical_length: erg logical_1048576);
+    erg label_4096: String = "AIE_REGION_SCALE logical=4096 status=";
+    erg label_65536: String = "AIE_REGION_SCALE logical=65536 status=";
+    erg label_1048576: String = "AIE_REGION_SCALE logical=1048576 status=";
+    print(text: abs label_4096);
+    print_int(value: erg result_4096);
+    print(text: abs label_65536);
+    print_int(value: erg result_65536);
+    print(text: abs label_1048576);
+    print_int(value: erg result_1048576);
+    if result_4096 != 0 || result_65536 != 0 || result_1048576 != 0 {
+        return 1;
+    }
+    return 0;
+}

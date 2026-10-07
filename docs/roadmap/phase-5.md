@@ -253,25 +253,43 @@ P5.5 evidence 2026-10-06:
 
 ## P5.6 — Hardware and scale validation
 
-- [ ] Select a target CPU or embedded board for the first hardware profile.
-- [ ] Measure resident memory, storage throughput, cache working set, and
+- [x] Select the hosted x86-64 target as the first reproducible baseline
+  profile; embedded target selection remains open.
+- [x] Measure resident memory, storage throughput, cache working set, and
   restart time on the target hardware.
-- [ ] Measure coincidence evaluation, forwarding, training, and generation
+- [x] Measure coincidence evaluation, forwarding, training, and generation
   latency on the target hardware.
-- [ ] Verify that the generated native artifact contains no floating-point
+- [x] Verify that the generated native artifact contains no floating-point
   instructions for the integer profile.
-- [ ] Test persistence interruption and recovery on the target filesystem.
-- [ ] Record the maximum tested logical columns, resident columns, shard count,
+- [x] Test persistence interruption and recovery on the selected hosted
+  filesystem profile.
+- [x] Record the tested logical columns, resident columns, shard count,
   and cache capacity.
-- [ ] Document the difference between tested limits and theoretical scale.
+- [x] Document the difference between tested limits and theoretical scale.
+
+P5.6 hosted baseline evidence is recorded in
+`docs/benchmarks/phase-5-6-host-baseline.md`. It covers 64 arena columns,
+10,000 core iterations, 32 training events, two generated tokens, and a
+generic 64/256/1024-column scale sweep on the host debug profile. These are
+tested fixture sizes and bounded workloads, not theoretical or production
+limits. The current x86-64 host measurement and the handoff procedure for
+future boards are recorded there. It does not close the embedded hardware
+gates.
+
+The hosted measurement slice is complete on the selected x86-64 target. The
+embedded target measurements remain a separate, explicitly open follow-up.
+The current compiler rerun and resident, storage, and cache evidence are
+recorded in the benchmark document under the current compiler section.
 
 ## P5.7 — Release acceptance
 
-- [ ] All `.brain` save/load and corruption tests pass in strict mode.
-- [ ] Multi-merge BPE encode/decode and artifact compatibility tests pass.
-- [ ] Training changes recall behavior and survives restart.
-- [ ] Observation encoding and action routing pass deterministic fixtures.
-- [ ] Target hardware benchmarks are recorded with reproducible commands.
+- [x] All `.brain` save/load and corruption tests pass in strict mode.
+- [x] Multi-merge BPE encode/decode and artifact compatibility tests pass.
+- [x] Training changes recall behavior and survives restart.
+- [x] Observation encoding and action routing pass deterministic fixtures.
+- [~] Target hardware benchmarks are deferred until an Actus native backend
+      and runtime provider exist for the selected chip. Hosted x86-64 evidence
+      is complete; no chip result is claimed from it.
 - [ ] The phase has no unverified claims about intelligence, scale, latency,
   or hardware support.
 - [ ] Update the project status and publish the final Phase 5 evidence report.
@@ -282,3 +300,7 @@ Phase 5 is complete when the runtime can save and restore a trained
 context-aware model, process a bounded production vocabulary, accept
 modality-neutral observations, emit validated actions, and provide measured
 hardware evidence for the supported profile.
+
+The hosted computer-validation portion is complete. Chip validation is
+explicitly deferred to Phase 6, where the compiler backend, freestanding
+runtime provider, firmware build, and hardware evidence are defined.
