@@ -283,8 +283,8 @@ recorded in the benchmark document under the current compiler section.
 
 ## P5.7 — Release acceptance
 
-- [ ] All `.brain` save/load and corruption tests pass in strict mode.
-- [ ] Multi-merge BPE encode/decode and artifact compatibility tests pass.
+- [x] All `.brain` save/load and corruption tests pass in strict mode.
+- [x] Multi-merge BPE encode/decode and artifact compatibility tests pass.
 - [ ] Training changes recall behavior and survives restart.
 - [ ] Observation encoding and action routing pass deterministic fixtures.
 - [ ] Target hardware benchmarks are recorded with reproducible commands.
