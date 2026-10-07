@@ -1772,6 +1772,85 @@ a mutable runtime binding and cannot be assigned, borrowed, or transferred.
 Case-guard access must remain deterministic across direct and transitively
 specialized generic verbs.
 
+#### Native enum results across generic calls
+
+`Option[T]` and `Result[T, E]` may cross nested generic calls and be matched by
+the caller. Use the ordinary constructors and `case` expression; do not inspect
+or manufacture a discriminant manually:
+
+```act
+verb read_value[N: Usize](ins storage: Storage[N]) -> Result[u32, Int] {
+    if 0u32 < (N as u32) {
+        return Result[u32, Int].Ok(42u32);
+    }
+    return Result[u32, Int].Err(1);
+}
+
+verb main() -> Int {
+    erg storage: Storage[4] = Storage[4] {
+        values: Array[u32, 4](),
+    };
+    erg result: Result[u32, Int] = read_value(storage: ins storage);
+    return case result {
+        Ok(value) => value as Int,
+        Err(error) => error,
+    };
+}
+```
+
+The compiler preserves the discriminant, payload layout, ownership state, and
+cleanup contract through specialization, native return lowering, and the
+caller's `case`. Aggregate payloads remain caller-owned values or addresses as
+required by their type. Valid enum states must be handled by a case branch;
+they must not reach an unreachable or trap-only default path. Invalid native
+states remain fail-closed.
+
+#### Runtime-backed logical regions
+
+Use `Array[T, N]` when the complete bounded storage is part of the value. Use
+`std::region` when logical capacity is larger than the resident window and the
+program must manage checked access explicitly. A region is not an implicit
+array conversion, a garbage-collected heap, or a filesystem handle.
+
+```act
+import std::region;
+
+verb read_first(dat backing: Buffer) -> Result[Int, RegionError] {
+    erg region_result: Result[Region[u32], RegionError] = region_open[u32](
+        backing: dat backing,
+        logical_length: 1048576u64,
+        window_start: 0u64,
+        window_count: 16u64
+    );
+    return case region_result {
+        Ok(region) => {
+            erg destination: Buffer = Buffer[4];
+            erg read_result: Result[Int, RegionError] = region_read[u32](
+                region: abs region,
+                index: 0u64,
+                destination: ins destination
+            );
+            region_close[u32](region: ins region);
+            read_result
+        },
+        Err(error) => Err(error),
+    };
+}
+```
+
+`region_open` consumes the backing `Buffer` with `dat`; the logical length may
+exceed resident storage, but the resident window is fixed and checked. The
+element type must be fully sized so `size_of[T]()` has a deterministic stride.
+`region_read` uses `abs` for the region and `ins` for the exact-size destination;
+`region_write` uses `ins` for the region and `abs` for the source. Access outside
+the resident window, overflowed offsets, invalid handles, stale generations,
+wrong buffer sizes, and exhausted capabilities return `RegionError` values.
+
+`region_publish` advances the published generation, while `region_cancel`
+restores the last published resident bytes. These operations do not perform
+implicit filesystem I/O. `region_close` releases the capability exactly once;
+lexical cleanup must not release a successfully closed region a second time.
+
 #### Array return ABI
 
 Returning `Array[T, N]` uses the same caller-owned return-slot ABI as other

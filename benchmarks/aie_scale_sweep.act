@@ -51,14 +51,14 @@ verb measure_scale[N: Usize]() -> u64 {
 }
 
 verb main() -> Int {
-    erg elapsed_64: u64 = measure_scale[64]();
-    erg elapsed_256: u64 = measure_scale[256]();
-    erg elapsed_1024: u64 = measure_scale[1024]();
-    erg columns_64: u32 = 64u32;
-    erg columns_256: u32 = 256u32;
-    erg columns_1024: u32 = 1024u32;
-    emit_scale(columns: erg columns_64, elapsed: erg elapsed_64);
-    emit_scale(columns: erg columns_256, elapsed: erg elapsed_256);
-    emit_scale(columns: erg columns_1024, elapsed: erg elapsed_1024);
+    erg elapsed_4096: u64 = measure_scale[4096]();
+    erg elapsed_65536: u64 = measure_scale[65536]();
+    erg elapsed_1048576: u64 = measure_scale[1048576]();
+    erg columns_4096: u32 = 4096u32;
+    erg columns_65536: u32 = 65536u32;
+    erg columns_1048576: u32 = 1048576u32;
+    emit_scale(columns: erg columns_4096, elapsed: erg elapsed_4096);
+    emit_scale(columns: erg columns_65536, elapsed: erg elapsed_65536);
+    emit_scale(columns: erg columns_1048576, elapsed: erg elapsed_1048576);
     return 0;
 }
