@@ -73,16 +73,14 @@ Observed output:
 built `/tmp/twin-e-hot-path-resident.aie` (strict)
 verified generated native IR: no floating-point instructions
 AIE_HOT_PATH_RESIDENT_LOOKUP iterations=10000 filesystem_calls=0
-AIE_HOT_PATH_RESIDENT_LOOKUP clean_ns=335675 dirty_ns=340868
+AIE_HOT_PATH_RESIDENT_LOOKUP clean_ns=407107
+ dirty_ns=202965
 ```
 
 This compares bounded resident cache lookup with clean and dirty lifecycle
 metadata. The fixture imports no filesystem module and reports the explicit
-memory-only boundary. It is not a full neural neurogenesis latency result. An
-earlier broader standalone neurogenesis fixture reached strict native build but
-terminated with host exit status 132, so the full clean-versus-dirty
-neurogenesis gate remains open until that runtime path is isolated and
-reproduced.
+memory-only boundary. It is a cache lookup measurement, not a full neural
+neurogenesis latency result.
 
 ## Additional hot-path evidence
 
@@ -116,10 +114,10 @@ Observed output:
 built `/tmp/twin-e-hot-path-clean-dirty.aie` (strict)
 verified generated native IR: no floating-point instructions
 AIE_HOT_PATH samples=64 filesystem_writes=0
- inference_clean_ns=17444
- inference_dirty_ns=17349
- neurogenesis_clean_ns=36744
- neurogenesis_dirty_ns=39681
+ inference_clean_ns=13840
+ inference_dirty_ns=9953
+ neurogenesis_clean_ns=27363
+ neurogenesis_dirty_ns=23245
 ```
 
 The benchmark creates a fresh bounded fabric and resident cache for each of 64
