@@ -137,3 +137,20 @@ The recorded host fixtures cover 64 arena columns, 10,000 core iterations,
 32 training events, three dynamic shard files, four cache entries, and 128
 dynamic payload bytes. These are tested fixture sizes, not theoretical or
 production limits.
+
+## Hosted process restart timing
+
+The fixed `.brain` restart fixture was built once for the writer and reader,
+then each executable was run in ten separate processes. The measurement wraps
+the complete process with the host monotonic clock, so it includes process
+startup and should not be interpreted as raw filesystem throughput.
+
+```text
+writer_runs=10 writer_min_ns=1075878 writer_median_ns=1679171 writer_max_ns=2689142
+reader_runs=10 reader_min_ns=1042084 reader_median_ns=1263094 reader_max_ns=2186530
+snapshot_bytes=5702
+```
+
+This closes the hosted restart timing observation. Resident memory, cache
+working set, and isolated storage throughput still require a dedicated profile
+and remain open.
