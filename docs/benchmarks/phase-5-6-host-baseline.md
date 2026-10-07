@@ -182,6 +182,47 @@ evidence that the bounded representation and native ABI remain executable as
 the resident arena grows. It is not a claim that the full arena is scanned on
 every impulse, nor a hardware or maximum-capacity measurement.
 
+## Current host hardware measurement
+
+The current development computer was measured as the hosted Phase 5.6 target
+on 2026-10-07. CPU frequency scaling was enabled, so these values are
+repeatable observations for this machine and profile rather than fixed timing
+guarantees.
+
+```text
+OS=Linux 7.2.7-arch1-1
+architecture=x86_64
+cpu=Intel(R) Core(TM) i7-14700KF
+logical_cpus=28
+compiler_sha256=f8f3a659e3b8a589018a833559ead567b2ad5dd0742192b656c1bf5d69dc0430
+
+AIE_SCALE columns=64 elapsed_ns=470344
+AIE_SCALE columns=256 elapsed_ns=462497
+AIE_SCALE columns=1024 elapsed_ns=480865
+AIE_HOT_PATH samples=64 filesystem_writes=0
+ inference_clean_ns=10500
+ inference_dirty_ns=9902
+ neurogenesis_clean_ns=21149
+ neurogenesis_dirty_ns=22333
+AIE_HOT_PATH_RESIDENT_LOOKUP iterations=10000 filesystem_calls=0
+ clean_ns=199820
+ dirty_ns=212370
+```
+
+These are host-native debug-profile measurements. They do not close the
+embedded target gate and must not be presented as ESP32, STM32, Nucleo, or
+other board timings.
+
+## Future hardware handoff
+
+For every additional target, retain the same benchmark sources and record the
+board, MCU, clock configuration, compiler digest, optimization profile,
+toolchain, power state, sample count, and complete output. Repeat the scale,
+resident hot-path, persistence, and zero-float checks without changing the
+workload. Add a separate dated subsection for each target; do not overwrite
+this host baseline or compare values across targets until clock and build
+profiles are normalized.
+
 ## Hosted process restart timing
 
 The fixed `.brain` restart fixture was built once for the writer and reader,

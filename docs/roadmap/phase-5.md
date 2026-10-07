@@ -272,7 +272,9 @@ P5.6 hosted baseline evidence is recorded in
 10,000 core iterations, 32 training events, two generated tokens, and a
 generic 64/256/1024-column scale sweep on the host debug profile. These are
 tested fixture sizes and bounded workloads, not theoretical or production
-limits. It does not close the embedded hardware gates.
+limits. The current x86-64 host measurement and the handoff procedure for
+future boards are recorded there. It does not close the embedded hardware
+gates.
 
 ## P5.7 — Release acceptance
 
