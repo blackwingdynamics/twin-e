@@ -48,3 +48,20 @@ All five executables exited with status `0`. The evidence covers the combined
 vocabulary persistence, artifact compatibility, shard-local state, and
 cross-shard links. It is hosted evidence and does not claim embedded storage
 durability or board performance.
+
+## Training, restart, observation, and action evidence
+
+Additional strict executions with the same compiler produced:
+
+```text
+AIE_TRAINING events=32 recall_profile=AB bounded=1
+AIE_TRAINING training_ns=12917 allocated_columns=3 active_bindings=3 snapshot_bytes=5702
+AIE_P5_RESTART save=1 bytes=5702 process=writer
+AIE_P5_RESTART reload=1 recalled=1 process=reader
+AIE_OBSERVATION_ROUNDTRIP bytes=20 code_roundtrip=1 active_bits=8
+```
+
+`actus test --strict` also passed the deterministic action, conflict, safety,
+observation, and training fixtures: 34 passed, 0 failed. These results close
+the hosted training/restart and deterministic observation/action acceptance
+slice. Target-board evidence remains separate.
