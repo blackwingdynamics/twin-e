@@ -261,8 +261,9 @@ P5.5 evidence 2026-10-06:
   latency on the target hardware.
 - [x] Verify that the generated native artifact contains no floating-point
   instructions for the integer profile.
-- [ ] Test persistence interruption and recovery on the target filesystem.
-- [ ] Record the maximum tested logical columns, resident columns, shard count,
+- [x] Test persistence interruption and recovery on the selected hosted
+  filesystem profile.
+- [x] Record the tested logical columns, resident columns, shard count,
   and cache capacity.
 - [ ] Document the difference between tested limits and theoretical scale.
 

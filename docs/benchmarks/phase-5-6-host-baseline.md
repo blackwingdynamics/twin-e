@@ -94,5 +94,46 @@ AIE_GENERATION generation_ns=26709
 
 The hosted baseline closes the reproducible host measurement slice of Phase
 5.6. Target-board selection, hardware cache measurements, sensor timing,
-filesystem interruption tests, and maximum scale claims remain open until a
-specific target and test procedure are approved.
+embedded filesystem interruption tests, and maximum scale claims remain open
+until a specific target and test procedure are approved.
+
+## Hosted persistence recovery
+
+The host filesystem recovery fixtures were also executed under the same strict
+compiler profile:
+
+```sh
+actus fmt --check benchmarks/aie_shard_bindings_dynamic.act
+actus build --strict --emit exe \
+  -o /tmp/twin-e-p5-6-save.aie \
+  benchmarks/aie_shard_bindings_dynamic.act
+/tmp/twin-e-p5-6-save.aie
+
+actus fmt --check benchmarks/aie_shards_dynamic.act
+actus build --strict --emit exe \
+  -o /tmp/twin-e-p5-6-recovery.aie \
+  benchmarks/aie_shards_dynamic.act
+/tmp/twin-e-p5-6-recovery.aie
+```
+
+Observed output:
+
+```text
+AIE_BINDING_STAGE previous_generation_preserved
+AIE_BINDING_STAGE dirty_after_failed_save
+AIE_BINDING_STAGE validation_rejected error=IoError.InvalidData status=13
+AIE_BINDING_STAGE persisted_after_successful_save
+AIE_BINDING_STAGE payload_bindings_checksum_metadata_ok
+AIE_SHARDS_DYNAMIC files=3 generated=1 staged_shard=1 validated=3 manifest_bound=2 swapped_rejected=1 dynamic_loaded=1 dynamic_collection=3 manifest_selected=1 dynamic_failed_unchanged=1 free_chain=5-2-0-null reallocated=2 payload_bytes=128
+```
+
+This proves the staged publication and incomplete-generation recovery contract
+on the host filesystem. It does not prove power-loss atomicity, filesystem
+durability barriers, or embedded storage behavior.
+
+## Tested bounds
+
+The recorded host fixtures cover 64 arena columns, 10,000 core iterations,
+32 training events, three dynamic shard files, four cache entries, and 128
+dynamic payload bytes. These are tested fixture sizes, not theoretical or
+production limits.
