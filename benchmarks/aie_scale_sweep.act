@@ -1,0 +1,64 @@
+"""Measure one bounded wavefront workload at several arena capacities."""
+import aie;
+
+import std::io;
+
+import std::time;
+
+const BENCH_ITERATIONS: u32 = 1000u32;
+
+
+verb emit_scale(erg columns: u32, erg elapsed: u64) -> Int {
+    erg columns_label: String = "AIE_SCALE columns=";
+    print(text: abs columns_label);
+    erg column_value: Int = columns as Int;
+    print_int(value: erg column_value);
+    erg elapsed_label: String = " elapsed_ns=";
+    print(text: abs elapsed_label);
+    erg elapsed_value: Int = elapsed as Int;
+    print_int(value: erg elapsed_value);
+    return 0;
+}
+
+verb configure_scale[N: Usize](ins fabric: CorticalFabric[N]) {
+    fabric_init(fabric: ins fabric);
+    erg index: u32 = allocate_column_index(fabric: ins fabric);
+    fabric.columns[index].threshold = 1u8;
+    fabric.columns[index].coincidence_low = 1u64;
+    fabric.columns[index].payload = 1u8;
+    for erg slot: u32 in 0u32 .. 8u32 {
+        erg target: u32 = allocate_column_index(fabric: ins fabric);
+        fabric.columns[index].axons[slot] = target;
+        fabric.columns[target].threshold = 1u8;
+        fabric.columns[target].coincidence_low = 1u64;
+    }
+}
+
+verb measure_scale[N: Usize]() -> u64 {
+    erg fabric: CorticalFabric[N] = CorticalFabric[N] {columns: Array[Minicolumn, N](), free_list_head: 0u32, active_count: 0u32};
+    configure_scale[N](fabric: ins fabric);
+    erg wave: Wavefront = Wavefront {mask_low: 1u64, mask_high: 0u64, energy: 1u8};
+    erg started: u64 = monotonic_nanos();
+    for erg iteration: u32 in 0u32 .. BENCH_ITERATIONS {
+        erg source_idx: u32 = 0u32;
+        step_wavefront(
+            fabric: ins fabric,
+            wave: abs wave,
+            source_idx: erg source_idx
+        );
+    }
+    return monotonic_nanos() - started;
+}
+
+verb main() -> Int {
+    erg elapsed_64: u64 = measure_scale[64]();
+    erg elapsed_256: u64 = measure_scale[256]();
+    erg elapsed_1024: u64 = measure_scale[1024]();
+    erg columns_64: u32 = 64u32;
+    erg columns_256: u32 = 256u32;
+    erg columns_1024: u32 = 1024u32;
+    emit_scale(columns: erg columns_64, elapsed: erg elapsed_64);
+    emit_scale(columns: erg columns_256, elapsed: erg elapsed_256);
+    emit_scale(columns: erg columns_1024, elapsed: erg elapsed_1024);
+    return 0;
+}

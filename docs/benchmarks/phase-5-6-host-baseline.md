@@ -138,6 +138,50 @@ The recorded host fixtures cover 64 arena columns, 10,000 core iterations,
 dynamic payload bytes. These are tested fixture sizes, not theoretical or
 production limits.
 
+## Const-generic scale sweep
+
+The scale fixture uses one generic implementation of the same wavefront
+workload and specializes it for 64, 256, and 1024 arena columns. It passes a
+pack-backed `CorticalFabric[N]` through an `ins` parameter and is built with
+the Actus native lowering fix recorded in ADR-0072.
+
+```sh
+actus fmt --check benchmarks/aie_scale_sweep.act
+actus check --strict benchmarks/aie_scale_sweep.act
+actus build --strict --emit exe benchmarks/aie_scale_sweep.act \
+  -o /tmp/twin-e-scale-sweep.aie
+/tmp/twin-e-scale-sweep.aie
+```
+
+Compiler digest:
+
+```text
+f8f3a659e3b8a589018a833559ead567b2ad5dd0742192b656c1bf5d69dc0430
+```
+
+The earlier core, training, generation, persistence, and restart measurements
+in this document retain their original compiler digest above the baseline
+section. The scale sweep was rerun after the compiler lowering fix, so its
+digest is recorded separately here.
+
+Observed host output from one run (the current `std::io` integer printer emits
+each value on its own line):
+
+```text
+verified generated native IR: no floating-point instructions
+AIE_SCALE columns=64
+ elapsed_ns=720423
+AIE_SCALE columns=256
+ elapsed_ns=710475
+AIE_SCALE columns=1024
+ elapsed_ns=701248
+```
+
+The workload touches one source and eight destinations, so this result is
+evidence that the bounded representation and native ABI remain executable as
+the resident arena grows. It is not a claim that the full arena is scanned on
+every impulse, nor a hardware or maximum-capacity measurement.
+
 ## Hosted process restart timing
 
 The fixed `.brain` restart fixture was built once for the writer and reader,

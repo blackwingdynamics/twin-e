@@ -265,13 +265,14 @@ P5.5 evidence 2026-10-06:
   filesystem profile.
 - [x] Record the tested logical columns, resident columns, shard count,
   and cache capacity.
-- [ ] Document the difference between tested limits and theoretical scale.
+- [x] Document the difference between tested limits and theoretical scale.
 
 P5.6 hosted baseline evidence is recorded in
 `docs/benchmarks/phase-5-6-host-baseline.md`. It covers 64 arena columns,
-10,000 core iterations, 32 training events, and two generated tokens on the
-host debug profile. It does not close the embedded hardware or interruption
-recovery gates.
+10,000 core iterations, 32 training events, two generated tokens, and a
+generic 64/256/1024-column scale sweep on the host debug profile. These are
+tested fixture sizes and bounded workloads, not theoretical or production
+limits. It does not close the embedded hardware gates.
 
 ## P5.7 — Release acceptance
 
