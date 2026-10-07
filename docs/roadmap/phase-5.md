@@ -255,9 +255,9 @@ P5.5 evidence 2026-10-06:
 
 - [x] Select the hosted x86-64 target as the first reproducible baseline
   profile; embedded target selection remains open.
-- [ ] Measure resident memory, storage throughput, cache working set, and
+- [x] Measure resident memory, storage throughput, cache working set, and
   restart time on the target hardware.
-- [ ] Measure coincidence evaluation, forwarding, training, and generation
+- [x] Measure coincidence evaluation, forwarding, training, and generation
   latency on the target hardware.
 - [x] Verify that the generated native artifact contains no floating-point
   instructions for the integer profile.
@@ -275,6 +275,11 @@ tested fixture sizes and bounded workloads, not theoretical or production
 limits. The current x86-64 host measurement and the handoff procedure for
 future boards are recorded there. It does not close the embedded hardware
 gates.
+
+The hosted measurement slice is complete on the selected x86-64 target. The
+embedded target measurements remain a separate, explicitly open follow-up.
+The current compiler rerun and resident, storage, and cache evidence are
+recorded in the benchmark document under the current compiler section.
 
 ## P5.7 — Release acceptance
 

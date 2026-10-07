@@ -236,6 +236,48 @@ reader_runs=10 reader_min_ns=1042084 reader_median_ns=1263094 reader_max_ns=2186
 snapshot_bytes=5702
 ```
 
-This closes the hosted restart timing observation. Resident memory, cache
-working set, and isolated storage throughput still require a dedicated profile
-and remain open.
+This closes the hosted restart timing observation.
+
+## Current compiler hosted rerun — 2026-10-07
+
+The following measurements were repeated after installing the current Actus
+compiler from the verified compiler branch.
+
+```text
+compiler_sha256=14181544766f3b8af67bc48b73170a339ff857cadcb2a1ff9c75bc6732d7fdb2
+target=host
+profile=debug
+
+AIE_BENCH iterations=10000 arena_columns=64
+AIE_BENCH coincidence_ns=687733
+AIE_BENCH forwarding_8axon_ns=3825425
+AIE_BENCH free_list_ns=147404
+AIE_BENCH full_step_ns=4445861
+AIE_TRAINING events=32 recall_profile=AB bounded=1
+AIE_TRAINING training_ns=13078
+AIE_TRAINING allocated_columns=3 active_bindings=3 snapshot_bytes=5702
+AIE_GENERATION generated=2 decoded_bytes=1 termination=eos cycle_generated=3
+loop_guard=1 selected=highest_myelination
+AIE_GENERATION generation_ns=45934
+AIE_HOT_PATH_RESIDENT_LOOKUP iterations=10000 filesystem_calls=0
+AIE_HOT_PATH_RESIDENT_LOOKUP clean_ns=307346 dirty_ns=215276
+AIE_CACHE capacity=4 working_set=4 dirty_rejected=1 pinned_rejected=1
+clean_evicted=1 replacement=1 full_pressure_rejected=1
+AIE_SCALE small_write_ns=41308 medium_write_ns=21869 large_write_ns=52917
+sequential_ns=20050 random_lookup_ns=4233 selective_load_ns=2553
+flush_ns=20819 restart_validation_ns=4841 files=3 max_profile_columns=32
+```
+
+Each executable was launched as a separate process and monitored with a
+5 ms process and descendant RSS sampler. Observed peak resident sets were 88
+KiB for the hot-path fixture, 88 KiB for the cache fixture, and 96 KiB for the
+persistence fixture. The corresponding strict executable sizes were 7,673,272,
+7,662,688, and 7,739,536 bytes. All exits were zero and every build reported
+that no floating-point instructions were generated.
+
+Storage throughput is represented by the bounded write profiles above. The
+payload sizes are 128 bytes, 512 bytes, and 2,048 bytes for the small, medium,
+and large profiles; the flush profile rewrites the 512-byte medium shard.
+The benchmark also verifies three files, selective loading, checksum lookup,
+and restart validation. These are host debug-profile observations and do not
+close embedded board or filesystem durability gates.
