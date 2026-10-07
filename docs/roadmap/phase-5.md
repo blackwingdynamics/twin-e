@@ -253,17 +253,24 @@ P5.5 evidence 2026-10-06:
 
 ## P5.6 — Hardware and scale validation
 
-- [ ] Select a target CPU or embedded board for the first hardware profile.
+- [x] Select the hosted x86-64 target as the first reproducible baseline
+  profile; embedded target selection remains open.
 - [ ] Measure resident memory, storage throughput, cache working set, and
   restart time on the target hardware.
 - [ ] Measure coincidence evaluation, forwarding, training, and generation
   latency on the target hardware.
-- [ ] Verify that the generated native artifact contains no floating-point
+- [x] Verify that the generated native artifact contains no floating-point
   instructions for the integer profile.
 - [ ] Test persistence interruption and recovery on the target filesystem.
 - [ ] Record the maximum tested logical columns, resident columns, shard count,
   and cache capacity.
 - [ ] Document the difference between tested limits and theoretical scale.
+
+P5.6 hosted baseline evidence is recorded in
+`docs/benchmarks/phase-5-6-host-baseline.md`. It covers 64 arena columns,
+10,000 core iterations, 32 training events, and two generated tokens on the
+host debug profile. It does not close the embedded hardware or interruption
+recovery gates.
 
 ## P5.7 — Release acceptance
 
