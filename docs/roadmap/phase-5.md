@@ -287,7 +287,9 @@ recorded in the benchmark document under the current compiler section.
 - [x] Multi-merge BPE encode/decode and artifact compatibility tests pass.
 - [x] Training changes recall behavior and survives restart.
 - [x] Observation encoding and action routing pass deterministic fixtures.
-- [ ] Target hardware benchmarks are recorded with reproducible commands.
+- [~] Target hardware benchmarks are deferred until an Actus native backend
+      and runtime provider exist for the selected chip. Hosted x86-64 evidence
+      is complete; no chip result is claimed from it.
 - [ ] The phase has no unverified claims about intelligence, scale, latency,
   or hardware support.
 - [ ] Update the project status and publish the final Phase 5 evidence report.
@@ -298,3 +300,7 @@ Phase 5 is complete when the runtime can save and restore a trained
 context-aware model, process a bounded production vocabulary, accept
 modality-neutral observations, emit validated actions, and provide measured
 hardware evidence for the supported profile.
+
+The hosted computer-validation portion is complete. Chip validation is
+explicitly deferred to Phase 6, where the compiler backend, freestanding
+runtime provider, firmware build, and hardware evidence are defined.
