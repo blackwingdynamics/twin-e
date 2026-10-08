@@ -165,3 +165,40 @@ floating-point instructions. This closes the exact-duplicate measurement for
 the 50,000-entry sequential token-ID fixture only. The 500,000-entry,
 1,000,000-entry, and 5,000,000-entry populations, vocabulary-backed input,
 and overlap/candidate workload evidence remain open.
+
+## Phase 5.8.1 — 500,000-entry streaming cardinality fixture
+
+The 500,000-entry run is intentionally streaming. It generates every code and
+checks active-bit cardinality and profile version without materializing a
+500,000-slot duplicate table. It also records a deterministic XOR fingerprint
+of the generated masks. The fingerprint is reproducibility evidence; it is not
+an exact collision detector.
+
+Command:
+
+```sh
+actus build --strict --emit exe \
+  -o /tmp/twin-e-codebook-generation-500000.aie \
+  benchmarks/aie_codebook_generation_500000.act
+/tmp/twin-e-codebook-generation-500000.aie
+```
+
+This fixture therefore measures generation/cardinality scale only. Exact
+duplicate detection at 500,000 entries remains open until a bounded resident
+storage strategy can retain the required identity table without hidden
+allocation or an unverified provider assumption.
+
+Observed output:
+
+```text
+AIE_CODEBOOK_STREAM population=token_ids size=500000 codebook_version=1 active_bits=8 seed=11400714819323198485 generation=sequential_u32
+AIE_CODEBOOK_STREAM invalid_code_count=0
+AIE_CODEBOOK_STREAM fingerprint_low=2013059615
+AIE_CODEBOOK_STREAM fingerprint_high=718036136
+AIE_CODEBOOK_STREAM elapsed_ns=26249071
+```
+
+The strict build verified that the generated native IR contains no
+floating-point instructions. The result proves that all 500,000 generated
+codes satisfied the configured eight-bit cardinality and version checks. It
+does not prove zero exact duplicates for that population.
