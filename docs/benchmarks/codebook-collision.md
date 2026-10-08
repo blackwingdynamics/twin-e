@@ -124,3 +124,44 @@ The strict build again verified that the generated native IR contains no
 floating-point instructions. This rerun confirms the initial 5,000-token
 profile and does not close the larger-population, vocabulary-backed, noisy
 input, or ambiguous-candidate requirements of Phase 5.8.1.
+
+## Phase 5.8.1 — 50,000-entry exact-duplicate stress fixture
+
+The first larger population uses a fixed open-address table with 131,072
+slots and a bounded index derived from the generated code. It measures exact
+duplicate admission without allocating a dynamic collection. This fixture is
+intentionally narrower than the full Gate 5.8.1 contract: overlap
+distributions and workload-level candidate rates remain separate
+measurements.
+
+Command:
+
+```sh
+actus build --strict --emit exe \
+  -o /tmp/twin-e-codebook-population-50000.aie \
+  benchmarks/aie_codebook_population_50000.act
+/tmp/twin-e-codebook-population-50000.aie
+```
+
+The fixture records the population profile, occupied slots, exact duplicate
+count, first duplicate position, table exhaustion, elapsed time, and the
+strict native zero-floating-point result. Its acceptance condition is that all
+50,000 identities occupy distinct codewords and the bounded table does not
+exhaust.
+
+Observed output:
+
+```text
+AIE_CODEBOOK_STRESS population=token_ids size=50000 codebook_version=1 active_bits=8 seed=11400714819323198485 generation=sequential_u32
+AIE_CODEBOOK_STRESS occupied_slots=50000
+AIE_CODEBOOK_STRESS exact_duplicate_count=0
+AIE_CODEBOOK_STRESS first_duplicate_token=50000
+AIE_CODEBOOK_STRESS table_exhausted=false
+AIE_CODEBOOK_STRESS elapsed_ns=568926417
+```
+
+The strict build verified that the generated native IR contains no
+floating-point instructions. This closes the exact-duplicate measurement for
+the 50,000-entry sequential token-ID fixture only. The 500,000-entry,
+1,000,000-entry, and 5,000,000-entry populations, vocabulary-backed input,
+and overlap/candidate workload evidence remain open.

@@ -1,0 +1,106 @@
+"""Bounded 50,000-entry exact-duplicate stress measurement."""
+import config;
+
+import encoding;
+
+import std::io;
+
+import std::time;
+
+const POPULATION_SIZE: u32 = 50000u32;
+
+
+const TABLE_SIZE: u32 = 131072u32;
+
+
+const TABLE_MASK: u32 = 131071u32;
+
+
+struct CodeSlot {
+    erg mask_low: u64,
+    erg mask_high: u64,
+    erg token_id: u32,
+    erg occupied: u8,
+}
+
+meta limitless("verb")
+verb main() -> Int {
+    erg table: Array[CodeSlot,131072] = Array[CodeSlot, 131072]();
+    erg started: u64 = monotonic_nanos();
+    erg duplicate_count: u32 = 0u32;
+    erg first_duplicate: u32 = POPULATION_SIZE;
+    erg occupied_count: u32 = 0u32;
+    erg probe_exhausted: Bool = false;
+    erg token_id: u32 = 0u32;
+    loop {
+        if token_id >= POPULATION_SIZE || probe_exhausted {
+            break;
+        }
+        erg code: TokenCode = encode_token_id(token_id: erg token_id);
+        erg code_low: u64 = code.mask_low;
+        erg code_high: u64 = code.mask_high;
+        erg bounded_slot: u64 = code_low & TABLE_MASK as u64;
+        erg slot_index: u32 = bounded_slot as u32;
+        erg probe_count: u32 = 0u32;
+        erg inserted: Bool = false;
+        loop {
+            if probe_count >= TABLE_SIZE {
+                probe_exhausted = true;
+                break;
+            }
+            if table[slot_index].occupied == 0u8 {
+                table[slot_index].mask_low = code_low;
+                table[slot_index].mask_high = code_high;
+                table[slot_index].token_id = token_id;
+                table[slot_index].occupied = 1u8;
+                occupied_count += 1u32;
+                inserted = true;
+                break;
+            }
+            if table[slot_index].mask_low == code_low && table[slot_index].mask_high == code_high {
+                duplicate_count += 1u32;
+                if first_duplicate == POPULATION_SIZE {
+                    first_duplicate = token_id;
+                }
+                inserted = true;
+                break;
+            }
+            slot_index = (slot_index + 1u32) & TABLE_MASK;
+            probe_count += 1u32;
+        }
+        if !inserted && !probe_exhausted {
+            probe_exhausted = true;
+        }
+        token_id += 1u32;
+    }
+    erg finished: u64 = monotonic_nanos();
+    erg heading: String = "AIE_CODEBOOK_STRESS population=token_ids size=50000 codebook_version=1 active_bits=8 seed=11400714819323198485 generation=sequential_u32";
+    println(text: abs heading);
+    erg occupied_label: String = "AIE_CODEBOOK_STRESS occupied_slots=";
+    print(text: abs occupied_label);
+    erg occupied_value: Int = occupied_count as Int;
+    print_int(value: erg occupied_value);
+    erg duplicate_label: String = "AIE_CODEBOOK_STRESS exact_duplicate_count=";
+    print(text: abs duplicate_label);
+    erg duplicate_value: Int = duplicate_count as Int;
+    print_int(value: erg duplicate_value);
+    erg first_duplicate_label: String = "AIE_CODEBOOK_STRESS first_duplicate_token=";
+    print(text: abs first_duplicate_label);
+    erg first_duplicate_value: Int = first_duplicate as Int;
+    print_int(value: erg first_duplicate_value);
+    erg exhausted_label: String = "AIE_CODEBOOK_STRESS table_exhausted=";
+    print(text: abs exhausted_label);
+    erg exhausted_value: String = "false";
+    if probe_exhausted {
+        exhausted_value = "true";
+    }
+    println(text: abs exhausted_value);
+    erg elapsed_label: String = "AIE_CODEBOOK_STRESS elapsed_ns=";
+    print(text: abs elapsed_label);
+    erg elapsed_value: Int = (finished - started) as Int;
+    print_int(value: erg elapsed_value);
+    if occupied_count != POPULATION_SIZE || duplicate_count != 0u32 || probe_exhausted {
+        return 1;
+    }
+    return 0;
+}
