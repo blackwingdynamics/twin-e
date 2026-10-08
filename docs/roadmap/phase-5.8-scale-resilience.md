@@ -59,6 +59,14 @@ The executable stress measurements and regression evidence remain open below.
       missing or flipped active bits.
 - [ ] Record memory, runtime, and artifact size for every completed population.
 
+The 500,000-entry streaming fixture passed cardinality and version checks, but
+its XOR fingerprint does not measure exact duplicates. A separate exact-table
+attempt compiled with strict zero-floating-point verification and failed at
+runtime with hosted `EXIT_CODE=139` because its inline identity table exceeded
+the process stack budget. This leaves the exact-duplicate item open until an
+explicit bounded large-storage or runtime-backed window implementation is
+available.
+
 ### Correctness design
 
 - [ ] Specify a two-stage lookup contract: sparse bit matching produces

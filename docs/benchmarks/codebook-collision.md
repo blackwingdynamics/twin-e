@@ -77,7 +77,7 @@ Environment:
 - Seed: `11400714819323198485`
 - Compiler: `/home/magradze/.cargo/bin/actus`
 - Compiler SHA-256:
-  `94ca52990794a8897e58de4af07d1805268876c07bbeee2c7bf6595e188409b2`
+  `2392d84b813973d7bc33d67ebc191a3bee5c55a7f5604564529eae52e28e87c9`
 - Target/profile: hosted x86-64 / debug
 
 Command:
@@ -117,7 +117,7 @@ AIE_CODEBOOK noise=one_active_bit_removed
 AIE_CODEBOOK exact_query_candidates_theta=8 count=1
 AIE_CODEBOOK noisy_query_candidates_theta=8 count=0
 AIE_CODEBOOK noisy_query_candidates_theta=7 count=1
-AIE_CODEBOOK elapsed_ns=95762111
+AIE_CODEBOOK elapsed_ns=91887120
 ```
 
 The strict build again verified that the generated native IR contains no
@@ -157,7 +157,7 @@ AIE_CODEBOOK_STRESS occupied_slots=50000
 AIE_CODEBOOK_STRESS exact_duplicate_count=0
 AIE_CODEBOOK_STRESS first_duplicate_token=50000
 AIE_CODEBOOK_STRESS table_exhausted=false
-AIE_CODEBOOK_STRESS elapsed_ns=568926417
+AIE_CODEBOOK_STRESS elapsed_ns=515952685
 ```
 
 The strict build verified that the generated native IR contains no
@@ -195,10 +195,29 @@ AIE_CODEBOOK_STREAM population=token_ids size=500000 codebook_version=1 active_b
 AIE_CODEBOOK_STREAM invalid_code_count=0
 AIE_CODEBOOK_STREAM fingerprint_low=2013059615
 AIE_CODEBOOK_STREAM fingerprint_high=718036136
-AIE_CODEBOOK_STREAM elapsed_ns=26249071
+AIE_CODEBOOK_STREAM elapsed_ns=22076607
 ```
 
 The strict build verified that the generated native IR contains no
 floating-point instructions. The result proves that all 500,000 generated
 codes satisfied the configured eight-bit cardinality and version checks. It
 does not prove zero exact duplicates for that population.
+
+## Phase 5.8.1 — 500,000-entry exact-duplicate storage boundary
+
+An exact-duplicate fixture was attempted with a fixed open-address table of
+1,048,576 `CodeSlot` values. The table stores both 64-bit code masks and an
+occupancy marker, so the measurement compares complete generated codewords
+against previously admitted codewords rather than comparing a fingerprint.
+
+The source passed formatting and strict compilation, including the native
+zero-floating-point verification. The hosted executable then terminated with
+`EXIT_CODE=139` before producing measurements. The table is an inline local
+aggregate whose resident size exceeds the hosted process stack budget. This is
+a storage-capacity failure, not evidence for or against a code collision.
+
+The exact-duplicate gate therefore remains open. The next implementation must
+provide an explicit bounded large-storage path, such as a supported
+runtime-backed logical region with checked window access. It must not replace
+the identity table with an XOR fingerprint or claim zero duplicates from the
+streaming result.
