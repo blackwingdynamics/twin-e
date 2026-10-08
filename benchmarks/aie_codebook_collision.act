@@ -91,8 +91,7 @@ verb main() -> Int {
         }
         left_index += 1u32;
     }
-    erg finished: u64 = monotonic_nanos();
-    erg heading: String = "AIE_CODEBOOK tokens=5000 active_bits=8";
+    erg heading: String = "AIE_CODEBOOK population=token_ids size=5000 codebook_version=1 active_bits=8 seed=11400714819323198485 generation=sequential_u32";
     println(text: abs heading);
     erg overlap_label: String = "AIE_CODEBOOK max_different_overlap=";
     print(text: abs overlap_label);
@@ -147,6 +146,65 @@ verb main() -> Int {
         print_int(value: erg false_pair_value);
         threshold += 1u32;
     }
+    erg target_code: TokenCode = codes[0u32];
+    erg noisy_low: u64 = target_code.mask_low;
+    erg noisy_high: u64 = target_code.mask_high;
+    if noisy_low != 0u64 {
+        noisy_low &= noisy_low - 1u64;
+    } else {
+        noisy_high &= noisy_high - 1u64;
+    }
+    erg exact_candidate_count: u32 = 0u32;
+    erg noisy_exact_candidate_count: u32 = 0u32;
+    erg noisy_relaxed_candidate_count: u32 = 0u32;
+    erg target_low: u64 = target_code.mask_low;
+    erg target_high: u64 = target_code.mask_high;
+    erg query_index: u32 = 0u32;
+    loop {
+        if query_index >= CODEBOOK_SIZE {
+            break;
+        }
+        erg query_code: TokenCode = codes[query_index];
+        erg query_low: u64 = query_code.mask_low;
+        erg query_high: u64 = query_code.mask_high;
+        erg exact_overlap: u32 = overlap(
+            left_low: erg target_low,
+            left_high: erg target_high,
+            right_low: erg query_low,
+            right_high: erg query_high
+        );
+        if exact_overlap >= TOKEN_CODE_ACTIVE_BITS as u32 {
+            exact_candidate_count += 1u32;
+        }
+        erg noisy_overlap: u32 = overlap(
+            left_low: erg noisy_low,
+            left_high: erg noisy_high,
+            right_low: erg query_low,
+            right_high: erg query_high
+        );
+        if noisy_overlap >= TOKEN_CODE_ACTIVE_BITS as u32 {
+            noisy_exact_candidate_count += 1u32;
+        }
+        if noisy_overlap >= (TOKEN_CODE_ACTIVE_BITS as u32 - 1u32) {
+            noisy_relaxed_candidate_count += 1u32;
+        }
+        query_index += 1u32;
+    }
+    erg noise_heading: String = "AIE_CODEBOOK noise=one_active_bit_removed";
+    println(text: abs noise_heading);
+    erg exact_candidates_label: String = "AIE_CODEBOOK exact_query_candidates_theta=8 count=";
+    print(text: abs exact_candidates_label);
+    erg exact_candidates_value: Int = exact_candidate_count as Int;
+    print_int(value: erg exact_candidates_value);
+    erg noisy_exact_label: String = "AIE_CODEBOOK noisy_query_candidates_theta=8 count=";
+    print(text: abs noisy_exact_label);
+    erg noisy_exact_value: Int = noisy_exact_candidate_count as Int;
+    print_int(value: erg noisy_exact_value);
+    erg noisy_relaxed_label: String = "AIE_CODEBOOK noisy_query_candidates_theta=7 count=";
+    print(text: abs noisy_relaxed_label);
+    erg noisy_relaxed_value: Int = noisy_relaxed_candidate_count as Int;
+    print_int(value: erg noisy_relaxed_value);
+    erg finished: u64 = monotonic_nanos();
     erg elapsed_label: String = "AIE_CODEBOOK elapsed_ns=";
     print(text: abs elapsed_label);
     erg elapsed_value: Int = (finished - started) as Int;

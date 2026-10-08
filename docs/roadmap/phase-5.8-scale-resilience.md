@@ -34,13 +34,17 @@ model.
 
 ### Contract
 
-- [ ] Define the population under test: token IDs, context keys, or both.
-- [ ] Define whether a collision means an exact 128-bit duplicate, an
+- [x] Define the population under test: token IDs and bounded context keys.
+- [x] Define whether a collision means an exact 128-bit duplicate, an
       above-threshold overlap, an ambiguous candidate set, or all three.
-- [ ] Record the active-bit count, codebook version, seed/profile, and input
-      generation method in every result.
-- [ ] Define the acceptance policy for a duplicate or ambiguous code before
+- [x] Record the active-bit count, codebook version, seed/profile, and input
+      generation method in every result definition.
+- [x] Define the acceptance policy for a duplicate or ambiguous code before
       changing runtime behavior.
+
+The collision taxonomy, two-stage lookup contract, initial profile policy, and
+noise evidence boundary are defined in `docs/adr/0009-codebook-collision-and-noise-contract.md`.
+The executable stress measurements and regression evidence remain open below.
 
 ### Stress measurements
 

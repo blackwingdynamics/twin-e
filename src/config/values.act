@@ -159,6 +159,10 @@ open const TOKEN_CODE_VERSION: u16 = 1u16;
 open const TOKEN_CODE_ACTIVE_BITS: u8 = 8u8;
 
 
+"""Integer seed used by deterministic sparse token-code generation."""
+open const TOKEN_CODE_SEED: u64 = 11400714819323198485u64;
+
+
 """Version marker for previous-token context binding."""
 open const CONTEXT_VERSION: u16 = 1u16;
 
