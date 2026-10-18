@@ -325,3 +325,59 @@ process runtime was 4.528 s. This result closes the five-million-entry
 measurement as evidence of a current codebook collision, while overlap
 distribution, candidate retrieval, noisy-input rates, and the complete memory
 envelope remain open.
+
+## Phase 5.8.1 — 12-bit profile rerun
+
+The active-bit configuration was changed from eight to twelve while retaining
+codebook version `1`, as permitted for the `0.1.0` pre-release with no trained
+`.brain` artifacts in service. The same bounded fixtures were rerun against the
+new profile.
+
+Observed one-million-entry output:
+
+```text
+AIE_CODEBOOK_REGION population=token_ids size=1000000 codebook_version=1 active_bits=12 seed=11400714819323198485 generation=sequential_u32
+AIE_CODEBOOK_REGION occupied_slots=1000000
+AIE_CODEBOOK_REGION exact_duplicate_count=0
+AIE_CODEBOOK_REGION first_duplicate_token=1000000
+AIE_CODEBOOK_REGION table_exhausted=false
+AIE_CODEBOOK_REGION elapsed_ms=313
+0.68s user 0.01s system 99% cpu 0.695 total
+```
+
+Observed five-million-entry output:
+
+```text
+AIE_CODEBOOK_REGION population=token_ids size=5000000 codebook_version=1 active_bits=12 seed=11400714819323198485 generation=sequential_u32
+AIE_CODEBOOK_REGION occupied_slots=5000000
+AIE_CODEBOOK_REGION exact_duplicate_count=0
+AIE_CODEBOOK_REGION first_duplicate_token=5000000
+AIE_CODEBOOK_REGION table_exhausted=false
+AIE_CODEBOOK_REGION elapsed_ms=1547
+4.54s user 0.04s system 99% cpu 4.596 total
+```
+
+Both strict release builds verified no floating-point instructions and both
+executables returned exit code `0`. The 12-bit profile therefore closes the
+exact-duplicate measurement for the tested one-million and five-million token
+populations. It does not yet close overlap-distribution, candidate-retrieval,
+noise-rate, or complete memory-envelope evidence.
+
+The 5,000-token pairwise and noise fixture was also rerun with the current
+profile:
+
+```text
+AIE_CODEBOOK population=token_ids size=5000 codebook_version=1 active_bits=12 seed=11400714819323198485 generation=sequential_u32
+AIE_CODEBOOK max_different_overlap=8
+AIE_CODEBOOK duplicate_pairs=0
+AIE_CODEBOOK invalid_code_count=0
+AIE_CODEBOOK false_pairs_theta=12 count=0
+AIE_CODEBOOK noise=one_active_bit_removed
+AIE_CODEBOOK exact_query_candidates_theta=12 count=1
+AIE_CODEBOOK noisy_query_candidates_theta=12 count=0
+AIE_CODEBOOK noisy_query_candidates_theta=11 count=1
+```
+
+The relaxed `theta=11` result is the intended one-bit-removal recovery
+measurement; it remains candidate retrieval evidence and does not authorize
+lowering the final firing threshold without exact identity validation.

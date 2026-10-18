@@ -91,7 +91,7 @@ verb main() -> Int {
         }
         left_index += 1u32;
     }
-    erg heading: String = "AIE_CODEBOOK population=token_ids size=5000 codebook_version=1 active_bits=8 seed=11400714819323198485 generation=sequential_u32";
+    erg heading: String = "AIE_CODEBOOK population=token_ids size=5000 codebook_version=1 active_bits=12 seed=11400714819323198485 generation=sequential_u32";
     println(text: abs heading);
     erg overlap_label: String = "AIE_CODEBOOK max_different_overlap=";
     print(text: abs overlap_label);
@@ -192,15 +192,15 @@ verb main() -> Int {
     }
     erg noise_heading: String = "AIE_CODEBOOK noise=one_active_bit_removed";
     println(text: abs noise_heading);
-    erg exact_candidates_label: String = "AIE_CODEBOOK exact_query_candidates_theta=8 count=";
+    erg exact_candidates_label: String = "AIE_CODEBOOK exact_query_candidates_theta=12 count=";
     print(text: abs exact_candidates_label);
     erg exact_candidates_value: Int = exact_candidate_count as Int;
     print_int(value: erg exact_candidates_value);
-    erg noisy_exact_label: String = "AIE_CODEBOOK noisy_query_candidates_theta=8 count=";
+    erg noisy_exact_label: String = "AIE_CODEBOOK noisy_query_candidates_theta=12 count=";
     print(text: abs noisy_exact_label);
     erg noisy_exact_value: Int = noisy_exact_candidate_count as Int;
     print_int(value: erg noisy_exact_value);
-    erg noisy_relaxed_label: String = "AIE_CODEBOOK noisy_query_candidates_theta=7 count=";
+    erg noisy_relaxed_label: String = "AIE_CODEBOOK noisy_query_candidates_theta=11 count=";
     print(text: abs noisy_relaxed_label);
     erg noisy_relaxed_value: Int = noisy_relaxed_candidate_count as Int;
     print_int(value: erg noisy_relaxed_value);

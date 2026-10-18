@@ -178,7 +178,7 @@ verb main() -> Int {
                             chunk_failed = true;
                         }
                     }
-                    erg heading: String = "AIE_CODEBOOK_REGION population=token_ids size=1000000 codebook_version=1 active_bits=8 seed=11400714819323198485 generation=sequential_u32";
+                    erg heading: String = "AIE_CODEBOOK_REGION population=token_ids size=1000000 codebook_version=1 active_bits=12 seed=11400714819323198485 generation=sequential_u32";
                     erg occupied_label: String = "AIE_CODEBOOK_REGION occupied_slots=";
                     erg duplicate_label: String = "AIE_CODEBOOK_REGION exact_duplicate_count=";
                     erg first_duplicate_label: String = "AIE_CODEBOOK_REGION first_duplicate_token=";

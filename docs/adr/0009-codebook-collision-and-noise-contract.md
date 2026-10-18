@@ -9,8 +9,8 @@
 ## Context
 
 Twin-e encodes token IDs and bounded context keys as sparse 128-bit integer
-codes. The current profile uses eight active bits and exact coincidence at
-`theta = 8`. The existing 5,000-code fixture is useful initial evidence, but
+codes. The current profile uses twelve active bits and exact coincidence at
+`theta = 12`. The existing 5,000-code fixture is useful initial evidence, but
 it does not establish the operating envelope for larger populations, noisy
 wavefronts, or context-heavy workloads.
 
@@ -70,9 +70,9 @@ it must not hide an identity collision.
 The current profile remains unchanged for this phase:
 
 - representation: two `u64` masks forming a 128-bit code;
-- active-bit count: `8`;
+- active-bit count: `12`;
 - codebook version: the configured version `1`;
-- matching policy: exact eight-bit recognition for the current profile;
+- matching policy: exact twelve-bit recognition for the current profile;
 - arithmetic: integer-only and allocation-free in the encoder and matcher.
 
 ### Pre-release profile update policy
@@ -80,9 +80,9 @@ The current profile remains unchanged for this phase:
 Twin-e is currently a `0.1.0` unreleased prototype and no trained `.brain`
 artifacts are in service. Therefore, changing the active-bit count during this
 pre-release stage does not require a codebook-version increment or a migration
-path for old brain files. The planned change from eight to twelve active bits
-is recorded as an update to the current codebook version `1`; benchmarks and
-documentation must record the new active-bit count. Once persisted trained
+path for old brain files. The implemented change from eight to twelve active
+bits is recorded as an update to the current codebook version `1`; benchmarks
+and documentation record the new active-bit count. Once persisted trained
 artifacts are treated as compatible data, any change to the codebook semantics
 must again require an explicit compatibility decision.
 

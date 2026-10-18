@@ -46,7 +46,7 @@ verb main() -> Int {
         token_id += 1u32;
     }
     erg finished: u64 = monotonic_nanos();
-    erg heading: String = "AIE_CODEBOOK_STREAM population=token_ids size=500000 codebook_version=1 active_bits=8 seed=11400714819323198485 generation=sequential_u32";
+    erg heading: String = "AIE_CODEBOOK_STREAM population=token_ids size=500000 codebook_version=1 active_bits=12 seed=11400714819323198485 generation=sequential_u32";
     println(text: abs heading);
     erg invalid_label: String = "AIE_CODEBOOK_STREAM invalid_code_count=";
     print(text: abs invalid_label);

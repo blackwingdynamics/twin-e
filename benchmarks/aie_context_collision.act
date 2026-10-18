@@ -87,7 +87,7 @@ verb main() -> Int {
         }
         left_index += 1u32;
     }
-    erg heading: String = "AIE_CONTEXT_CODEBOOK contexts=5000 active_bits=8";
+    erg heading: String = "AIE_CONTEXT_CODEBOOK contexts=5000 active_bits=12";
     println(text: abs heading);
     erg overlap_label: String = "AIE_CONTEXT_CODEBOOK max_different_overlap=";
     print(text: abs overlap_label);

@@ -77,6 +77,13 @@ lookup interval was `1417 ms` and the complete hosted process runtime was
 `4.528 s`. The fixture returned exit code `1` because this is an intentional
 duplicate-detection failure. This result exposes a collision in the current
 codebook profile and does not close the population gate.
+After the pre-release profile changed from eight to twelve active bits without
+incrementing codebook version `1`, the one-million and five-million fixtures
+were rerun. Both reported zero exact duplicates and no table exhaustion; the
+lookup intervals were `313 ms` and `1547 ms`, with complete hosted runtimes of
+`0.695 s` and `4.596 s`, respectively. This removes the observed exact
+collision for the tested five-million population, but the remaining overlap,
+candidate, noise, and memory evidence is still open.
 
 ### Correctness design
 

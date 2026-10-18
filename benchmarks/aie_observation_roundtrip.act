@@ -55,7 +55,7 @@ verb main() -> Int {
     if first_code.mask_low != second_code.mask_low || first_code.mask_high != second_code.mask_high || first_code.active_bits != second_code.active_bits {
         return 5;
     }
-    erg heading: String = "AIE_OBSERVATION_ROUNDTRIP bytes=20 code_roundtrip=1 active_bits=8";
+    erg heading: String = "AIE_OBSERVATION_ROUNDTRIP bytes=20 code_roundtrip=1 active_bits=12";
     println(text: abs heading);
     return 0;
 }
