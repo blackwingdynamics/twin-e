@@ -120,90 +120,168 @@ verb main() -> Int {
         print_int(value: erg histogram_value);
         histogram_index += 1u32;
     }
-    erg threshold: u32 = 1u32;
+    erg total_exact_candidates: u64 = 0u64;
+    erg max_exact_candidates: u32 = 0u32;
+    erg ambiguous_exact_queries: u32 = 0u32;
+    erg total_relaxed_candidates: u64 = 0u64;
+    erg max_relaxed_candidates: u32 = 0u32;
+    erg ambiguous_relaxed_queries: u32 = 0u32;
+    erg missing_exact_missed_queries: u32 = 0u32;
+    erg missing_exact_false_queries: u32 = 0u32;
+    erg missing_exact_false_candidates: u64 = 0u64;
+    erg missing_relaxed_missed_queries: u32 = 0u32;
+    erg missing_relaxed_false_queries: u32 = 0u32;
+    erg missing_relaxed_false_candidates: u64 = 0u64;
+    erg candidate_target_index: u32 = 0u32;
     loop {
-        if threshold > TOKEN_CODE_ACTIVE_BITS as u32 {
+        if candidate_target_index >= CODEBOOK_SIZE {
             break;
         }
-        erg false_pair_count: u32 = 0u32;
-        erg bucket: u32 = 0u32;
+        erg candidate_target_low: u64 = codes[candidate_target_index].mask_low;
+        erg candidate_target_high: u64 = codes[candidate_target_index].mask_high;
+        erg exact_candidates_for_query: u32 = 0u32;
+        erg relaxed_candidates_for_query: u32 = 0u32;
+        erg candidate_query_index: u32 = 0u32;
         loop {
-            if bucket >= HISTOGRAM_SIZE {
+            if candidate_query_index >= CODEBOOK_SIZE {
                 break;
             }
-            if bucket >= threshold {
-                false_pair_count += overlap_histogram[bucket as Usize];
+            erg candidate_query_low: u64 = codes[candidate_query_index].mask_low;
+            erg candidate_query_high: u64 = codes[candidate_query_index].mask_high;
+            erg candidate_overlap: u32 = overlap(
+                left_low: erg candidate_target_low,
+                left_high: erg candidate_target_high,
+                right_low: erg candidate_query_low,
+                right_high: erg candidate_query_high
+            );
+            if candidate_overlap >= TOKEN_CODE_ACTIVE_BITS as u32 {
+                exact_candidates_for_query += 1u32;
             }
-            bucket += 1u32;
+            if candidate_overlap >= (TOKEN_CODE_ACTIVE_BITS as u32 - 1u32) {
+                relaxed_candidates_for_query += 1u32;
+            }
+            candidate_query_index += 1u32;
         }
-        erg threshold_label: String = "AIE_CODEBOOK false_pairs_theta=";
-        print(text: abs threshold_label);
-        erg threshold_value: Int = threshold as Int;
-        print_int(value: erg threshold_value);
-        erg threshold_separator: String = " count=";
-        print(text: abs threshold_separator);
-        erg false_pair_value: Int = false_pair_count as Int;
-        print_int(value: erg false_pair_value);
-        threshold += 1u32;
+        total_exact_candidates += exact_candidates_for_query as u64;
+        if exact_candidates_for_query > max_exact_candidates {
+            max_exact_candidates = exact_candidates_for_query;
+        }
+        if exact_candidates_for_query > 1u32 {
+            ambiguous_exact_queries += 1u32;
+        }
+        total_relaxed_candidates += relaxed_candidates_for_query as u64;
+        if relaxed_candidates_for_query > max_relaxed_candidates {
+            max_relaxed_candidates = relaxed_candidates_for_query;
+        }
+        if relaxed_candidates_for_query > 1u32 {
+            ambiguous_relaxed_queries += 1u32;
+        }
+        erg missing_low: u64 = candidate_target_low;
+        erg missing_high: u64 = candidate_target_high;
+        if missing_low != 0u64 {
+            missing_low &= missing_low - 1u64;
+        } else {
+            missing_high &= missing_high - 1u64;
+        }
+        erg missing_exact_count: u32 = 0u32;
+        erg missing_relaxed_count: u32 = 0u32;
+        erg missing_exact_target_found: Bool = false;
+        erg missing_relaxed_target_found: Bool = false;
+        erg missing_query_index: u32 = 0u32;
+        loop {
+            if missing_query_index >= CODEBOOK_SIZE {
+                break;
+            }
+            erg missing_query_low: u64 = codes[missing_query_index].mask_low;
+            erg missing_query_high: u64 = codes[missing_query_index].mask_high;
+            erg missing_overlap: u32 = overlap(
+                left_low: erg missing_low,
+                left_high: erg missing_high,
+                right_low: erg missing_query_low,
+                right_high: erg missing_query_high
+            );
+            if missing_overlap >= TOKEN_CODE_ACTIVE_BITS as u32 {
+                missing_exact_count += 1u32;
+                if missing_query_index == candidate_target_index {
+                    missing_exact_target_found = true;
+                }
+            }
+            if missing_overlap >= (TOKEN_CODE_ACTIVE_BITS as u32 - 1u32) {
+                missing_relaxed_count += 1u32;
+                if missing_query_index == candidate_target_index {
+                    missing_relaxed_target_found = true;
+                }
+            }
+            missing_query_index += 1u32;
+        }
+        if !missing_exact_target_found {
+            missing_exact_missed_queries += 1u32;
+        }
+        if missing_exact_count > 0u32 {
+            missing_exact_false_queries += 1u32;
+            missing_exact_false_candidates += missing_exact_count as u64;
+        }
+        if !missing_relaxed_target_found {
+            missing_relaxed_missed_queries += 1u32;
+        }
+        if missing_relaxed_count > 1u32 {
+            missing_relaxed_false_queries += 1u32;
+            missing_relaxed_false_candidates += (missing_relaxed_count - 1u32) as u64;
+        }
+        candidate_target_index += 1u32;
     }
-    erg target_code: TokenCode = codes[0u32];
-    erg noisy_low: u64 = target_code.mask_low;
-    erg noisy_high: u64 = target_code.mask_high;
-    if noisy_low != 0u64 {
-        noisy_low &= noisy_low - 1u64;
-    } else {
-        noisy_high &= noisy_high - 1u64;
-    }
-    erg exact_candidate_count: u32 = 0u32;
-    erg noisy_exact_candidate_count: u32 = 0u32;
-    erg noisy_relaxed_candidate_count: u32 = 0u32;
-    erg target_low: u64 = target_code.mask_low;
-    erg target_high: u64 = target_code.mask_high;
-    erg query_index: u32 = 0u32;
-    loop {
-        if query_index >= CODEBOOK_SIZE {
-            break;
-        }
-        erg query_code: TokenCode = codes[query_index];
-        erg query_low: u64 = query_code.mask_low;
-        erg query_high: u64 = query_code.mask_high;
-        erg exact_overlap: u32 = overlap(
-            left_low: erg target_low,
-            left_high: erg target_high,
-            right_low: erg query_low,
-            right_high: erg query_high
-        );
-        if exact_overlap >= TOKEN_CODE_ACTIVE_BITS as u32 {
-            exact_candidate_count += 1u32;
-        }
-        erg noisy_overlap: u32 = overlap(
-            left_low: erg noisy_low,
-            left_high: erg noisy_high,
-            right_low: erg query_low,
-            right_high: erg query_high
-        );
-        if noisy_overlap >= TOKEN_CODE_ACTIVE_BITS as u32 {
-            noisy_exact_candidate_count += 1u32;
-        }
-        if noisy_overlap >= (TOKEN_CODE_ACTIVE_BITS as u32 - 1u32) {
-            noisy_relaxed_candidate_count += 1u32;
-        }
-        query_index += 1u32;
-    }
-    erg noise_heading: String = "AIE_CODEBOOK noise=one_active_bit_removed";
+    erg candidate_heading: String = "AIE_CODEBOOK candidate_retrieval_queries=5000";
+    println(text: abs candidate_heading);
+    erg exact_total_label: String = "AIE_CODEBOOK candidate_exact_theta=12 total=";
+    print(text: abs exact_total_label);
+    erg exact_total_value: Int = total_exact_candidates as Int;
+    print_int(value: erg exact_total_value);
+    erg exact_max_label: String = "AIE_CODEBOOK candidate_exact_theta=12 max_per_query=";
+    print(text: abs exact_max_label);
+    erg exact_max_value: Int = max_exact_candidates as Int;
+    print_int(value: erg exact_max_value);
+    erg exact_ambiguous_label: String = "AIE_CODEBOOK candidate_exact_theta=12 ambiguous_queries=";
+    print(text: abs exact_ambiguous_label);
+    erg exact_ambiguous_value: Int = ambiguous_exact_queries as Int;
+    print_int(value: erg exact_ambiguous_value);
+    erg relaxed_total_label: String = "AIE_CODEBOOK candidate_relaxed_theta=11 total=";
+    print(text: abs relaxed_total_label);
+    erg relaxed_total_value: Int = total_relaxed_candidates as Int;
+    print_int(value: erg relaxed_total_value);
+    erg relaxed_max_label: String = "AIE_CODEBOOK candidate_relaxed_theta=11 max_per_query=";
+    print(text: abs relaxed_max_label);
+    erg relaxed_max_value: Int = max_relaxed_candidates as Int;
+    print_int(value: erg relaxed_max_value);
+    erg relaxed_ambiguous_label: String = "AIE_CODEBOOK candidate_relaxed_theta=11 ambiguous_queries=";
+    print(text: abs relaxed_ambiguous_label);
+    erg relaxed_ambiguous_value: Int = ambiguous_relaxed_queries as Int;
+    print_int(value: erg relaxed_ambiguous_value);
+    erg noise_heading: String = "AIE_CODEBOOK missing_bit_queries=5000";
     println(text: abs noise_heading);
-    erg exact_candidates_label: String = "AIE_CODEBOOK exact_query_candidates_theta=12 count=";
-    print(text: abs exact_candidates_label);
-    erg exact_candidates_value: Int = exact_candidate_count as Int;
-    print_int(value: erg exact_candidates_value);
-    erg noisy_exact_label: String = "AIE_CODEBOOK noisy_query_candidates_theta=12 count=";
-    print(text: abs noisy_exact_label);
-    erg noisy_exact_value: Int = noisy_exact_candidate_count as Int;
-    print_int(value: erg noisy_exact_value);
-    erg noisy_relaxed_label: String = "AIE_CODEBOOK noisy_query_candidates_theta=11 count=";
-    print(text: abs noisy_relaxed_label);
-    erg noisy_relaxed_value: Int = noisy_relaxed_candidate_count as Int;
-    print_int(value: erg noisy_relaxed_value);
+    erg missing_exact_missed_label: String = "AIE_CODEBOOK missing_exact_theta=12 missed_queries=";
+    print(text: abs missing_exact_missed_label);
+    erg missing_exact_missed_value: Int = missing_exact_missed_queries as Int;
+    print_int(value: erg missing_exact_missed_value);
+    erg missing_exact_false_label: String = "AIE_CODEBOOK missing_exact_theta=12 false_queries=";
+    print(text: abs missing_exact_false_label);
+    erg missing_exact_false_value: Int = missing_exact_false_queries as Int;
+    print_int(value: erg missing_exact_false_value);
+    erg missing_exact_false_candidates_label: String = "AIE_CODEBOOK missing_exact_theta=12 false_candidates=";
+    print(text: abs missing_exact_false_candidates_label);
+    erg missing_exact_false_candidates_value: Int = missing_exact_false_candidates as Int;
+    print_int(value: erg missing_exact_false_candidates_value);
+    erg missing_relaxed_missed_label: String = "AIE_CODEBOOK missing_relaxed_theta=11 missed_queries=";
+    print(text: abs missing_relaxed_missed_label);
+    erg missing_relaxed_missed_value: Int = missing_relaxed_missed_queries as Int;
+    print_int(value: erg missing_relaxed_missed_value);
+    erg missing_relaxed_false_label: String = "AIE_CODEBOOK missing_relaxed_theta=11 false_queries=";
+    print(text: abs missing_relaxed_false_label);
+    erg missing_relaxed_false_value: Int = missing_relaxed_false_queries as Int;
+    print_int(value: erg missing_relaxed_false_value);
+    erg missing_relaxed_false_candidates_label: String = "AIE_CODEBOOK missing_relaxed_theta=11 false_candidates=";
+    print(text: abs missing_relaxed_false_candidates_label);
+    erg missing_relaxed_false_candidates_value: Int = missing_relaxed_false_candidates as Int;
+    print_int(value: erg missing_relaxed_false_candidates_value);
     erg finished: u64 = monotonic_nanos();
     erg elapsed_label: String = "AIE_CODEBOOK elapsed_ns=";
     print(text: abs elapsed_label);

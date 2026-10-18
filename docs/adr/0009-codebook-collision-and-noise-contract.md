@@ -65,6 +65,13 @@ Deterministic tie-breaking is allowed only among candidates that have already
 passed exact identity validation. Myelination may rank validated candidates;
 it must not hide an identity collision.
 
+For the current implementation, the exact identity is supplied by the
+position-independent `TokenBinding` sidecar associated with the candidate
+arena slot. Its `token_id`, `context_key`, tokenizer version, and context
+version are compared after sparse candidate retrieval. The sparse `TokenCode`
+and `Wavefront` remain fixed 128-bit representations; identity metadata is not
+packed into the coincidence mask.
+
 ### 4. Initial profile policy
 
 The current profile remains unchanged for this phase:

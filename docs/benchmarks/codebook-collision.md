@@ -371,12 +371,56 @@ AIE_CODEBOOK population=token_ids size=5000 codebook_version=1 active_bits=12 se
 AIE_CODEBOOK max_different_overlap=8
 AIE_CODEBOOK duplicate_pairs=0
 AIE_CODEBOOK invalid_code_count=0
-AIE_CODEBOOK false_pairs_theta=12 count=0
-AIE_CODEBOOK noise=one_active_bit_removed
-AIE_CODEBOOK exact_query_candidates_theta=12 count=1
-AIE_CODEBOOK noisy_query_candidates_theta=12 count=0
-AIE_CODEBOOK noisy_query_candidates_theta=11 count=1
+AIE_CODEBOOK candidate_retrieval_queries=5000
+AIE_CODEBOOK candidate_exact_theta=12 total=5000
+AIE_CODEBOOK candidate_exact_theta=12 max_per_query=1
+AIE_CODEBOOK candidate_exact_theta=12 ambiguous_queries=0
+AIE_CODEBOOK candidate_relaxed_theta=11 total=5000
+AIE_CODEBOOK candidate_relaxed_theta=11 max_per_query=1
+AIE_CODEBOOK candidate_relaxed_theta=11 ambiguous_queries=0
+AIE_CODEBOOK missing_bit_queries=5000
+AIE_CODEBOOK missing_exact_theta=12 missed_queries=5000
+AIE_CODEBOOK missing_exact_theta=12 false_queries=0
+AIE_CODEBOOK missing_exact_theta=12 false_candidates=0
+AIE_CODEBOOK missing_relaxed_theta=11 missed_queries=0
+AIE_CODEBOOK missing_relaxed_theta=11 false_queries=0
+AIE_CODEBOOK missing_relaxed_theta=11 false_candidates=0
 ```
+
+The complete pairwise overlap histogram for the same 5,000-token population
+reported a maximum different-code overlap of `8`. The high-overlap buckets
+were: overlap `6` = `1,748` pairs, overlap `7` = `97` pairs, and overlap `8` =
+`2` pairs. No different-code pair reached the exact threshold `12`.
+
+Candidate retrieval was then evaluated for all 5,000 token queries. At exact
+`theta=12`, the fixture returned `5,000` total candidates, a maximum of `1`
+candidate per query, and `0` ambiguous queries. At relaxed `theta=11`, it
+returned the same counts for this population.
+
+The same all-query fixture removed one active bit from each target code. At
+exact `theta=12`, all `5,000` intended queries were missed, with `0` false
+queries and `0` false candidates. At relaxed `theta=11`, `0` intended queries
+were missed and `0` false queries or false candidates were observed in this
+population. This measures one-bit removal only; flipped-bit and multi-bit
+corruption remain open.
+
+### Hosted resource envelope
+
+The current 12-bit fixtures were measured on hosted Linux x86-64. Peak RSS
+was sampled while each executable ran, and artifact size is the emitted strict
+release executable:
+
+| Population | Runtime | Peak RSS | Artifact |
+|---:|---:|---:|---:|
+| 5,000 pairwise/noise | 0.565 s | 2,872 KiB | 5,828,408 bytes |
+| 50,000 exact duplicate | 0.342 s | 5,412 KiB | 5,819,480 bytes |
+| 500,000 exact duplicate | 0.329 s | 51,792 KiB | 5,824,160 bytes |
+| 1,000,000 exact duplicate | 0.695 s | 96,756 KiB | 5,824,160 bytes |
+| 5,000,000 exact duplicate | 4.596 s | 789,556 KiB | 5,824,160 bytes |
+
+The 5,000-token runtime is the benchmark's measured interval; the larger
+fixtures use the complete process runtime from the shell `time` measurement.
+Peak RSS sampling is host evidence, not a hardware-performance claim.
 
 The relaxed `theta=11` result is the intended one-bit-removal recovery
 measurement; it remains candidate retrieval evidence and does not authorize

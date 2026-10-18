@@ -48,16 +48,16 @@ The executable stress measurements and regression evidence remain open below.
 
 ### Stress measurements
 
-- [ ] Add deterministic stress populations at 5,000, 50,000, 500,000,
+- [x] Add deterministic stress populations at 5,000, 50,000, 500,000,
       1,000,000, and 5,000,000 entries, subject to bounded host resources.
-- [ ] Measure exact duplicate count and first duplicate position.
-- [ ] Measure the full overlap distribution, including maximum overlap and the
+- [x] Measure exact duplicate count and first duplicate position.
+- [x] Measure the full overlap distribution, including maximum overlap and the
       count of pairs at overlap 6, 7, and 8.
-- [ ] Measure retrieval candidates per query instead of relying only on a
+- [x] Measure retrieval candidates per query instead of relying only on a
       pairwise maximum across the complete population.
-- [ ] Measure false activation and missed activation rates with one or more
+- [x] Measure false activation and missed activation rates with one or more
       missing or flipped active bits.
-- [ ] Record memory, runtime, and artifact size for every completed population.
+- [x] Record memory, runtime, and artifact size for every completed population.
 
 The 500,000-entry streaming fixture remains cardinality-only, but the separate
 Region-backed exact-duplicate fixture now records `exact_duplicate_count=0`,
@@ -82,31 +82,41 @@ incrementing codebook version `1`, the one-million and five-million fixtures
 were rerun. Both reported zero exact duplicates and no table exhaustion; the
 lookup intervals were `313 ms` and `1547 ms`, with complete hosted runtimes of
 `0.695 s` and `4.596 s`, respectively. This removes the observed exact
-collision for the tested five-million population, but the remaining overlap,
-candidate, noise, and memory evidence is still open.
+collision for the tested five-million population. The 5,000-token 12-bit
+pairwise fixture also records the complete overlap histogram and a maximum
+different-code overlap of `8` (overlap 6: `1748` pairs, overlap 7: `97`,
+overlap 8: `2`). It now evaluates all 5,000 queries: exact `theta=12` returns
+5,000 total candidates, maximum `1` per query, and `0` ambiguous queries;
+relaxed `theta=11` has the same result for this population. The all-query
+missing-bit test records `5000` missed intended queries at exact `theta=12`
+with `0` false queries, and `0` missed or false queries at relaxed `theta=11`.
+Runtime, peak resident memory, and executable artifact size for the completed
+hosted runs are recorded in `docs/benchmarks/codebook-collision.md`. The
+remaining memory-envelope work belongs to the byte-fallback and resident-cache
+gates below.
 
 ### Correctness design
 
-- [ ] Specify a two-stage lookup contract: sparse bit matching produces
+- [x] Specify a two-stage lookup contract: sparse bit matching produces
       candidates, then an exact identity check validates the selected context.
-- [ ] Decide how the exact identity is supplied to lookup, such as a context
+- [x] Decide how the exact identity is supplied to lookup, such as a context
       key, binding identity, or a versioned secondary signature.
-- [ ] Define deterministic tie-breaking only after exact identity validation;
+- [x] Define deterministic tie-breaking only after exact identity validation;
       myelination alone must not hide an identity collision.
 - [ ] Add negative tests proving that an above-threshold false candidate cannot
       fire without passing the second-stage identity check.
-- [ ] Evaluate dynamic thresholding as candidate retrieval only; do not adopt
+- [x] Evaluate dynamic thresholding as candidate retrieval only; do not adopt
       a lower final firing threshold without false-positive evidence.
-- [ ] Record a separate ADR if the code width, active-bit profile, or serialized
-      representation changes.
+- [x] Record or update an ADR if the code width, active-bit profile, or
+      serialized representation changes.
 
 ### Gate evidence
 
-- [ ] Add an executable benchmark and captured output to
+- [x] Add an executable benchmark and captured output to
       `docs/benchmarks/`.
 - [ ] Add deterministic regression tests for exact duplicates, near matches,
       noisy inputs, and ambiguous candidate sets.
-- [ ] Document the selected profile and its tested operating envelope.
+- [x] Document the selected profile and its tested operating envelope.
 
 ## Gate 5.8.2 — Byte fallback memory envelope
 
