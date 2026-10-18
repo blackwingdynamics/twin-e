@@ -114,7 +114,7 @@ gates below.
 
 - [x] Add an executable benchmark and captured output to
       `docs/benchmarks/`.
-- [ ] Add deterministic regression tests for exact duplicates, near matches,
+- [x] Add deterministic regression tests for exact duplicates, near matches,
       noisy inputs, and ambiguous candidate sets.
 - [x] Document the selected profile and its tested operating envelope.
 

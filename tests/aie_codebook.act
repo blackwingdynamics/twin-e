@@ -1,0 +1,91 @@
+"""Deterministic regression tests for the 12-bit sparse codebook contract."""
+import config;
+
+import encoding;
+
+meta limitless("verb")
+verb popcount(erg value: u64) -> u32 {
+    erg count: u32 = 0u32;
+    loop {
+        if value == 0u64 {
+            break;
+        }
+        value &= value - 1u64;
+        count += 1u32;
+    }
+    return count;
+}
+
+verb overlap(abs left: TokenCode, abs right: TokenCode) -> u32 {
+    erg shared_low: u64 = left.mask_low & right.mask_low;
+    erg shared_high: u64 = left.mask_high & right.mask_high;
+    return popcount(value: erg shared_low) + popcount(value: erg shared_high);
+}
+
+meta test
+verb test_codebook_identity_is_deterministic() -> Int {
+    erg first_id: u32 = 717u32;
+    erg different_id: u32 = 2093u32;
+    erg first: TokenCode = encode_token_id(token_id: erg first_id);
+    erg repeated: TokenCode = encode_token_id(token_id: erg first_id);
+    erg different: TokenCode = encode_token_id(token_id: erg different_id);
+    if first.mask_low != repeated.mask_low || first.mask_high != repeated.mask_high {
+        return 1;
+    }
+    if first.mask_low == different.mask_low && first.mask_high == different.mask_high {
+        return 1;
+    }
+    return 0;
+}
+
+meta test
+verb test_codebook_near_match_is_not_exact_identity() -> Int {
+    erg first_id: u32 = 717u32;
+    erg second_id: u32 = 2093u32;
+    erg first: TokenCode = encode_token_id(token_id: erg first_id);
+    erg second: TokenCode = encode_token_id(token_id: erg second_id);
+    erg shared_bits: u32 = overlap(left: abs first, right: abs second);
+    if shared_bits != 8u32 {
+        return 1;
+    }
+    if first.mask_low == second.mask_low && first.mask_high == second.mask_high {
+        return 1;
+    }
+    return 0;
+}
+
+meta test
+verb test_codebook_missing_bit_requires_relaxed_threshold() -> Int {
+    erg token_id: u32 = 0u32;
+    erg code: TokenCode = encode_token_id(token_id: erg token_id);
+    erg noisy_low: u64 = code.mask_low;
+    erg noisy_high: u64 = code.mask_high;
+    if noisy_low != 0u64 {
+        noisy_low &= noisy_low - 1u64;
+    } else {
+        noisy_high &= noisy_high - 1u64;
+    }
+    erg noisy_code: TokenCode = TokenCode {mask_low: noisy_low, mask_high: noisy_high, active_bits: code.active_bits, version: code.version};
+    erg shared_bits: u32 = overlap(left: abs code, right: abs noisy_code);
+    if shared_bits != TOKEN_CODE_ACTIVE_BITS as u32 - 1u32 {
+        return 1;
+    }
+    return 0;
+}
+
+meta test
+verb test_codebook_ambiguous_sparse_candidates_require_identity() -> Int {
+    erg target_id: u32 = 717u32;
+    erg near_candidate_id: u32 = 2093u32;
+    erg target: TokenCode = encode_token_id(token_id: erg target_id);
+    erg near_candidate: TokenCode = encode_token_id(token_id: erg near_candidate_id);
+    erg target_overlap: u32 = overlap(left: abs target, right: abs target);
+    erg candidate_overlap: u32 = overlap(left: abs target, right: abs near_candidate);
+    if target_overlap != TOKEN_CODE_ACTIVE_BITS as u32 || candidate_overlap != 8u32 {
+        return 1;
+    }
+    if target.mask_low == near_candidate.mask_low && target.mask_high == near_candidate.mask_high {
+        return 1;
+    }
+    return 0;
+}
