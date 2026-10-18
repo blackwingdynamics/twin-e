@@ -22,4 +22,6 @@ AIE_TOKEN_CORPUS byte_tokens=55
 ```
 
 The result is a bounded fixture measurement, not a claim about a trained
-production vocabulary or arbitrary natural-language compression.
+production vocabulary or arbitrary natural-language compression. The strict
+release build verified that the generated native IR contains no floating-point
+instructions.
