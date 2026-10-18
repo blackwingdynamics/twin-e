@@ -59,13 +59,15 @@ The executable stress measurements and regression evidence remain open below.
       missing or flipped active bits.
 - [ ] Record memory, runtime, and artifact size for every completed population.
 
-The 500,000-entry streaming fixture passed cardinality and version checks, but
-its XOR fingerprint does not measure exact duplicates. A separate exact-table
-attempt compiled with strict zero-floating-point verification and failed at
-runtime with hosted `EXIT_CODE=139` because its inline identity table exceeded
-the process stack budget. This leaves the exact-duplicate item open until an
-explicit bounded large-storage or runtime-backed window implementation is
-available.
+The 500,000-entry streaming fixture remains cardinality-only, but the separate
+Region-backed exact-duplicate fixture now records `exact_duplicate_count=0`,
+`first_duplicate_token=500000`, `table_exhausted=false`, and a strict release
+runtime of `133 ms` on hosted Linux x86-64. This closes only the 500,000-entry
+exact-duplicate measurement slice. The complete population matrix, overlap and
+candidate evidence, noisy-input rates, and memory/artifact envelope remain
+open. The fixture's Region operations cover bounded bulk staging and
+publication; they do not yet prove window-remapped lookup for every identity
+probe.
 
 ### Correctness design
 

@@ -205,19 +205,45 @@ does not prove zero exact duplicates for that population.
 
 ## Phase 5.8.1 — 500,000-entry exact-duplicate storage boundary
 
-An exact-duplicate fixture was attempted with a fixed open-address table of
-1,048,576 `CodeSlot` values. The table stores both 64-bit code masks and an
-occupancy marker, so the measurement compares complete generated codewords
-against previously admitted codewords rather than comparing a fingerprint.
+The exact-duplicate fixture now uses a bounded byte buffer for a
+1,048,576-slot open-address table and a runtime-backed Region publication
+boundary. Each slot stores both 64-bit code masks, so the measurement compares
+complete generated codewords against previously admitted codewords rather
+than comparing a fingerprint. Slot placement uses an integer mixing step over
+both masks; using the sparse low mask directly caused severe clustering at the
+500,000-entry population.
 
-The source passed formatting and strict compilation, including the native
-zero-floating-point verification. The hosted executable then terminated with
-`EXIT_CODE=139` before producing measurements. The table is an inline local
-aggregate whose resident size exceeds the hosted process stack budget. This is
-a storage-capacity failure, not evidence for or against a code collision.
+Command:
 
-The exact-duplicate gate therefore remains open. The next implementation must
-provide an explicit bounded large-storage path, such as a supported
-runtime-backed logical region with checked window access. It must not replace
-the identity table with an XOR fingerprint or claim zero duplicates from the
-streaming result.
+```sh
+actus fmt --check benchmarks/aie_codebook_population_500000.act
+actus build --strict --release --emit exe \
+  benchmarks/aie_codebook_population_500000.act \
+  -o /tmp/twin-e-codebook-500000-region-release.aie
+/tmp/twin-e-codebook-500000-region-release.aie
+```
+
+Environment:
+
+- target: hosted Linux x86-64;
+- profile: strict release executable;
+- compiler SHA-256: `e6293f8075d7982b95c1ec8b54eb18d97d1c2ec98f5cf9a8c70120522e38feda`;
+- native IR: verified no floating-point instructions.
+
+Observed output:
+
+```text
+AIE_CODEBOOK_REGION population=token_ids size=500000 codebook_version=1 active_bits=8 seed=11400714819323198485 generation=sequential_u32
+AIE_CODEBOOK_REGION occupied_slots=500000
+AIE_CODEBOOK_REGION exact_duplicate_count=0
+AIE_CODEBOOK_REGION first_duplicate_token=500000
+AIE_CODEBOOK_REGION table_exhausted=false
+AIE_CODEBOOK_REGION elapsed_ms=133
+```
+
+This closes the hosted 500,000-entry exact-duplicate measurement slice. It
+does not close the complete Phase 5.8.1 gate: larger populations, overlap
+distribution, candidate retrieval, noisy-input rates, and a complete memory
+envelope remain open. The fixture's lookup table is bounded resident storage;
+the Region path validates bulk staging and publication but is not evidence of
+window-remapped lookup during every table probe.
