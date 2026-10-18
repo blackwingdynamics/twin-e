@@ -113,8 +113,12 @@ bits cannot reach a threshold of `20`. Token code density and coincidence
 threshold therefore belong to one tested encoding profile.
 
 The encoder may use a deterministic integer hash and a fixed codebook, but it
-must not silently change a token's code when the process restarts. Codebook
-changes require a new version and a migration or retraining decision.
+must not silently change a token's code when the process restarts. For the
+current `0.1.0` pre-release, while no trained `.brain` artifacts are in
+service, an intentional codebook profile change may remain under version `1`
+when it is recorded in the ADRs and benchmark documentation. After persisted
+trained artifacts become compatible data, codebook changes require a new
+version and an explicit migration or retraining decision.
 
 ### 3. AIE training contract
 

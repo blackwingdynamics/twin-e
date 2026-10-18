@@ -75,6 +75,17 @@ The current profile remains unchanged for this phase:
 - matching policy: exact eight-bit recognition for the current profile;
 - arithmetic: integer-only and allocation-free in the encoder and matcher.
 
+### Pre-release profile update policy
+
+Twin-e is currently a `0.1.0` unreleased prototype and no trained `.brain`
+artifacts are in service. Therefore, changing the active-bit count during this
+pre-release stage does not require a codebook-version increment or a migration
+path for old brain files. The planned change from eight to twelve active bits
+is recorded as an update to the current codebook version `1`; benchmarks and
+documentation must record the new active-bit count. Once persisted trained
+artifacts are treated as compatible data, any change to the codebook semantics
+must again require an explicit compatibility decision.
+
 This ADR does not approve a lower final firing threshold, a wider code, a new
 hash profile, or a serialized representation change. Dynamic thresholding may
 be measured as a candidate-retrieval experiment, but it cannot become the
@@ -93,6 +104,23 @@ wavefront. The report must distinguish:
 
 The benchmark must state whether a noisy query is expected to be rejected or
 recovered. No noise-tolerance behavior is accepted implicitly.
+
+Noise tolerance means that a code can still be recognized when its sparse
+wavefront is incomplete or contains a controlled bit error. For example, a
+12-bit code with one active bit removed has an 11/12 overlap with the intended
+code. An exact threshold of `12` correctly rejects that damaged input; a
+threshold of `11` could recover it, but it also admits a larger false-candidate
+risk. The same distinction applies to a flipped bit: one active bit is lost
+and one previously inactive bit is added.
+
+The current token-ID path does not need noise tolerance because a digital token
+ID is either present or absent. This policy is primarily for future image,
+audio, sensor, transmission, or other modality adapters where an observation
+may be partial or corrupted. If noise tolerance is enabled, sparse matching
+may only produce bounded candidates. A second-stage exact token or context
+identity check must reject false candidates before firing, successor
+selection, training, or action routing. Lowering the sparse threshold alone is
+not an accepted noise-tolerance implementation.
 
 ### 6. Stress populations
 
