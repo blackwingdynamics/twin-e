@@ -103,7 +103,7 @@ gates below.
       key, binding identity, or a versioned secondary signature.
 - [x] Define deterministic tie-breaking only after exact identity validation;
       myelination alone must not hide an identity collision.
-- [ ] Add negative tests proving that an above-threshold false candidate cannot
+- [x] Add negative tests proving that an above-threshold false candidate cannot
       fire without passing the second-stage identity check.
 - [x] Evaluate dynamic thresholding as candidate retrieval only; do not adopt
       a lower final firing threshold without false-positive evidence.
