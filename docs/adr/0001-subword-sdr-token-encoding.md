@@ -71,6 +71,15 @@ The tokenizer artifact must be persisted with the vocabulary, merge rules,
 normalization version, fallback policy, and codebook version. A network state
 must not be loaded with an incompatible tokenizer artifact.
 
+The pre-release byte fallback is a bounded raw-byte adapter behind the same
+tokenizer facade. It maps each input byte one-to-one to its byte token ID and
+preserves the source offset, including for malformed UTF-8. It does not decode
+Unicode scalars, aggregate bytes into wider tokens, allocate, or perform
+filesystem I/O. The declared input length must be no greater than the fixed
+`TOKENIZER_MAX_BYTES` bound; otherwise the sequence is invalid and empty.
+This policy is intentionally separate from BPE unknown-token decoding and
+remains subject to the Gate 5.8.2 training and persistence measurements.
+
 ### 2. Sparse codebook contract
 
 The encoder maps each token ID to:

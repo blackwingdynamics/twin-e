@@ -1,0 +1,74 @@
+"""Measure bounded raw-byte fallback classes and rejection envelope."""
+import tokenizer;
+
+import std::io;
+
+meta limitless("verb")
+verb main() -> Int {
+    erg repeated: Buffer = Buffer[64];
+    erg repeated_index: u32 = 0u32;
+    loop {
+        if repeated_index >= 64u32 {
+            break;
+        }
+        repeated[repeated_index as Usize] = 65u8;
+        repeated_index += 1u32;
+    }
+    erg repeated_length: u32 = 64u32;
+    erg repeated_sequence: TokenSequence = tokenize_bytes(input: abs repeated, input_length: erg repeated_length);
+    erg unique: Buffer = Buffer[64];
+    erg unique_index: u32 = 0u32;
+    loop {
+        if unique_index >= 64u32 {
+            break;
+        }
+        unique[unique_index as Usize] = unique_index as u8;
+        unique_index += 1u32;
+    }
+    erg unique_length: u32 = 64u32;
+    erg unique_sequence: TokenSequence = tokenize_bytes(input: abs unique, input_length: erg unique_length);
+    erg utf8: Buffer = Buffer[2];
+    utf8[0u32] = 195u8;
+    utf8[1u32] = 169u8;
+    erg utf8_length: u32 = 2u32;
+    erg utf8_sequence: TokenSequence = tokenize_bytes(input: abs utf8, input_length: erg utf8_length);
+    erg malformed: Buffer = Buffer[2];
+    malformed[0u32] = 195u8;
+    malformed[1u32] = 40u8;
+    erg malformed_length: u32 = 2u32;
+    erg malformed_sequence: TokenSequence = tokenize_bytes(input: abs malformed, input_length: erg malformed_length);
+    erg oversized: Buffer = Buffer[256];
+    erg oversized_length: u32 = 257u32;
+    erg oversized_sequence: TokenSequence = tokenize_bytes(input: abs oversized, input_length: erg oversized_length);
+    if !repeated_sequence.valid || !unique_sequence.valid || !utf8_sequence.valid || !malformed_sequence.valid || oversized_sequence.valid {
+        erg envelope_error: String = "AIE_BYTE_FALLBACK_ERROR invalid_envelope_result";
+        println(text: abs envelope_error);
+        return 1;
+    }
+    if repeated_sequence.length != 64u32 || unique_sequence.length != 64u32 || utf8_sequence.length != 2u32 || malformed_sequence.length != 2u32 || oversized_sequence.length != 0u32 {
+        erg length_error: String = "AIE_BYTE_FALLBACK_ERROR unexpected_sequence_length";
+        println(text: abs length_error);
+        return 1;
+    }
+    erg heading: String = "AIE_BYTE_FALLBACK max_input_bytes=256 fixed_token_capacity=256 repeated_bytes=";
+    erg unique_label: String = " unique_bytes=";
+    erg utf8_label: String = " utf8_raw_bytes=";
+    erg malformed_label: String = " malformed_raw_bytes=";
+    erg oversized_label: String = " oversized_valid=";
+    erg false_value: String = "false";
+    erg repeated_value: Int = repeated_sequence.length as Int;
+    erg unique_value: Int = unique_sequence.length as Int;
+    erg utf8_value: Int = utf8_sequence.length as Int;
+    erg malformed_value: Int = malformed_sequence.length as Int;
+    print(text: abs heading);
+    print_int(value: erg repeated_value);
+    print(text: abs unique_label);
+    print_int(value: erg unique_value);
+    print(text: abs utf8_label);
+    print_int(value: erg utf8_value);
+    print(text: abs malformed_label);
+    print_int(value: erg malformed_value);
+    print(text: abs oversized_label);
+    println(text: abs false_value);
+    return 0;
+}

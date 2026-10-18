@@ -1,7 +1,11 @@
 """Byte-token transition adapter used before subword vocabulary support."""
 import config;
 
+import std::io;
+
 import std::string;
+
+open io;
 
 """One bounded tokenizer output with source position metadata."""
 open struct Token {
@@ -89,6 +93,38 @@ open verb tokenize_string(abs text: String) -> TokenSequence {
             return sequence;
         }
         sequence.tokens[position as Usize] = token;
+        sequence.length = position + 1u32;
+        position += 1u32;
+    }
+    return sequence;
+}
+
+"""Tokenize caller-owned raw bytes through the bounded byte fallback.
+
+The input buffer and declared length are read through `abs`; every byte,
+including non-UTF-8 values, receives its one-to-one byte token identity and
+source offset. A length beyond the configured input or buffer capacity returns
+an invalid sequence without reading outside the buffer. The operation uses
+only the fixed `TokenSequence` storage and performs no allocation or I/O.
+"""
+open verb tokenize_bytes(abs input: Buffer, erg input_length: u32) -> TokenSequence {
+    erg sequence: TokenSequence = TokenSequence {tokens: Array[Token, 256](), length: 0u32, valid: true};
+    erg available_result = buffer_size(buffer: abs input);
+    erg available: u32 = case dat available_result {
+        Result.Ok(value) => value as u32,
+        Result.Err(_) => 0u32,
+    };
+    if input_length > TOKENIZER_MAX_BYTES || input_length > available {
+        sequence.valid = false;
+        return sequence;
+    }
+    erg position: u32 = 0u32;
+    loop {
+        if position >= input_length {
+            break;
+        }
+        erg byte_value: u8 = input[position as Usize];
+        sequence.tokens[position as Usize] = byte_token(value: erg byte_value, offset: erg position);
         sequence.length = position + 1u32;
         position += 1u32;
     }

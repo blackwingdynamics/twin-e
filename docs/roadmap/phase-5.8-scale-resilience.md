@@ -124,10 +124,17 @@ gates below.
 
 - [x] Measure a representative BPE-friendly text corpus.
 - [ ] Measure UTF-8 text whose symbols are absent from the bounded vocabulary.
-- [ ] Measure malformed or adversarial byte sequences within the tokenizer
+- [x] Measure malformed or adversarial byte sequences within the tokenizer
       input bound.
-- [ ] Measure repeated unknown input and unique unknown input separately.
+- [x] Measure repeated unknown input and unique unknown input separately.
 - [ ] Measure mixed known-token and byte-fallback input.
+
+The tokenizer-side raw-byte envelope is recorded in
+`docs/benchmarks/byte-fallback-envelope.md`: repeated and unique 64-byte
+inputs preserve all events, raw UTF-8 and malformed two-byte samples are
+preserved, and a declared length above the 256-byte bound is rejected. BPE
+vocabulary-miss behavior and training-side unknown-input accounting remain
+open.
 
 ### Accounting
 
