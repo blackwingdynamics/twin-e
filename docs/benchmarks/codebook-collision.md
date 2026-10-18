@@ -247,3 +247,81 @@ distribution, candidate retrieval, noisy-input rates, and a complete memory
 envelope remain open. The fixture's lookup table is bounded resident storage;
 the Region path validates bulk staging and publication but is not evidence of
 window-remapped lookup during every table probe.
+
+## Phase 5.8.1 — 1,000,000-entry exact-duplicate measurement
+
+The same bounded Region-backed fixture was scaled to a 2,097,152-slot table
+for one million sequential token IDs. The complete generated codewords were
+checked with the same mixed slot hash and exact two-mask comparison.
+
+Command:
+
+```sh
+actus fmt --check benchmarks/aie_codebook_population_1000000.act
+actus build --strict --release --emit exe \
+  benchmarks/aie_codebook_population_1000000.act \
+  -o /tmp/twin-e-codebook-1000000-region-release.aie
+time /tmp/twin-e-codebook-1000000-region-release.aie
+```
+
+Observed output:
+
+```text
+AIE_CODEBOOK_REGION population=token_ids size=1000000 codebook_version=1 active_bits=8 seed=11400714819323198485 generation=sequential_u32
+AIE_CODEBOOK_REGION occupied_slots=1000000
+AIE_CODEBOOK_REGION exact_duplicate_count=0
+AIE_CODEBOOK_REGION first_duplicate_token=1000000
+AIE_CODEBOOK_REGION table_exhausted=false
+AIE_CODEBOOK_REGION elapsed_ms=304
+0.69s user 0.01s system 99% cpu 0.701 total
+```
+
+The strict native build again verified no floating-point instructions. This
+closes the hosted one-million-entry exact-duplicate measurement slice only;
+the five-million population, overlap distribution, candidate retrieval,
+noisy-input rates, and complete memory envelope remain open.
+
+## Phase 5.8.1 — 5,000,000-entry exact-duplicate measurement
+
+The Region-backed fixture was scaled to a 16,777,216-slot table for five
+million sequential token IDs. The bounded table completed without exhaustion,
+but the exact identity comparison found duplicate generated codewords. This is
+an observed collision in the current deterministic codebook profile, not a
+passing zero-duplicate result.
+
+Command:
+
+```sh
+actus fmt --check benchmarks/aie_codebook_population_5000000.act
+actus build --strict --release --emit exe \
+  benchmarks/aie_codebook_population_5000000.act \
+  -o /tmp/twin-e-codebook-population-5000000-region-release.aie
+time /tmp/twin-e-codebook-population-5000000-region-release.aie
+```
+
+Environment:
+
+- target: hosted Linux x86-64;
+- profile: strict release executable;
+- compiler SHA-256: `e6293f8075d7982b95c1ec8b54eb18d97d1c2ec98f5cf9a8c70120522e38feda`;
+- resident buffers: 2 × 256 MiB;
+- native IR: verified no floating-point instructions.
+
+Observed output:
+
+```text
+AIE_CODEBOOK_REGION population=token_ids size=5000000 codebook_version=1 active_bits=8 seed=11400714819323198485 generation=sequential_u32
+AIE_CODEBOOK_REGION occupied_slots=4999986
+AIE_CODEBOOK_REGION exact_duplicate_count=14
+AIE_CODEBOOK_REGION first_duplicate_token=1409529
+AIE_CODEBOOK_REGION table_exhausted=false
+AIE_CODEBOOK_REGION elapsed_ms=1417
+4.48s user 0.04s system 99% cpu 4.528 total
+```
+
+The executable returned exit code `1`, as required by the fixture when an
+exact duplicate is found. The lookup interval was 1,417 ms; the complete
+process runtime was 4.528 s. This result closes the five-million-entry
+measurement as evidence of a current codebook collision, while overlap
+distribution, candidate retrieval, noisy-input rates, and the complete memory
+envelope remain open.

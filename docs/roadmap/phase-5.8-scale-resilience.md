@@ -67,7 +67,16 @@ exact-duplicate measurement slice. The complete population matrix, overlap and
 candidate evidence, noisy-input rates, and memory/artifact envelope remain
 open. The fixture's Region operations cover bounded bulk staging and
 publication; they do not yet prove window-remapped lookup for every identity
-probe.
+probe. A scaled one-million-entry run also completed with
+`exact_duplicate_count=0`, `first_duplicate_token=1000000`,
+`table_exhausted=false`, and a strict release runtime of `304 ms`; the same
+evidence boundary applies.
+The five-million-entry run completed without table exhaustion but found
+`exact_duplicate_count=14`, with the first duplicate at token `1409529`; its
+lookup interval was `1417 ms` and the complete hosted process runtime was
+`4.528 s`. The fixture returned exit code `1` because this is an intentional
+duplicate-detection failure. This result exposes a collision in the current
+codebook profile and does not close the population gate.
 
 ### Correctness design
 
