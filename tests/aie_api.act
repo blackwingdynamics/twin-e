@@ -152,3 +152,68 @@ verb test_resident_neurogenesis_reports_capacity_error() -> Int {
     }
     return 1;
 }
+
+verb prepare_resident_recall(ins fabric: CorticalFabric[3], ins cache: ShardCache) -> u32 {
+    fabric_init(fabric: ins fabric);
+    shard_cache_init(cache: ins cache);
+    erg source_idx: u32 = allocate_column_index(fabric: ins fabric);
+    erg target_idx: u32 = allocate_column_index(fabric: ins fabric);
+    fabric.columns[source_idx].threshold = 1u8;
+    fabric.columns[source_idx].coincidence_low = 1u64;
+    fabric.columns[source_idx].payload = 41u8;
+    fabric.columns[source_idx].axons[0u32] = target_idx;
+    fabric.columns[target_idx].threshold = 1u8;
+    fabric.columns[target_idx].coincidence_low = 1u64;
+    return source_idx;
+}
+
+verb reject_resident_admission(
+    ins fabric: CorticalFabric[3],
+    ins cache: ShardCache,
+    abs wave: Wavefront,
+    erg source_idx: u32
+) -> Result[u32, ResidentNeurogenesisError] {
+    erg requested: u32 = 24u32;
+    erg generation: u64 = requested as u64;
+    return neurogenesis_with_resident_cache_result(
+        fabric: ins fabric,
+        cache: ins cache,
+        wave: abs wave,
+        source_idx: erg source_idx,
+        shard_id: erg requested,
+        generation: erg generation,
+        checksum: erg generation
+    );
+}
+
+meta test
+verb test_resident_recall_survives_capacity_rejection() -> Int {
+    erg fabric: CorticalFabric[3] = CorticalFabric[3] {columns: Array[Minicolumn, 3](), free_list_head: 0u32, active_count: 0u32};
+    erg cache: ShardCache = ShardCache {entries: Array[ShardCacheEntry, 4](), clock: 0u64};
+    erg source_idx: u32 = prepare_resident_recall(fabric: ins fabric, cache: ins cache);
+    fill_dirty_cache_for_test(cache: ins cache);
+    erg wave: Wavefront = Wavefront {mask_low: 1u64, mask_high: 0u64, energy: 1u8};
+    erg capacity = reject_resident_admission(
+        fabric: ins fabric,
+        cache: ins cache,
+        wave: abs wave,
+        source_idx: erg source_idx
+    );
+    erg after: ImpulseStepResult = step_wavefront(
+        fabric: ins fabric,
+        wave: abs wave,
+        source_idx: erg source_idx
+    );
+    return case dat capacity {
+        Result.Err(error) => case error {
+            ResidentNeurogenesisError.NoResidentCapacity => {
+                if after.destination_0 == 1u32 && fabric.active_count == 2u32 && fabric.columns[source_idx].axons[0u32] == 1u32 {
+                    return 0;
+                }
+                return 1;
+            },
+            _ => 1,
+        },
+        Result.Ok(_) => 1,
+    };
+}

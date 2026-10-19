@@ -198,8 +198,9 @@ task.
 - [x] Define behavior when all resident slots are dirty or pinned. The cache
       returns `NoEvictable` and preserves the existing entries; see
       `docs/benchmarks/phase-5-cache-lifecycle.md`.
-- [ ] Guarantee that recall of already resident state can continue when a new
-      mutation or shard admission is refused.
+- [x] Guarantee that recall of already resident state can continue when a new
+      mutation or shard admission is refused. See
+      `tests/aie_api.act::test_resident_recall_survives_capacity_rejection`.
 - [ ] Return a typed, observable capacity result without discarding the live
       fabric or dirty resident state.
 - [ ] Define whether admission may retry, defer, or require an explicit flush
