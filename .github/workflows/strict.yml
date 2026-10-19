@@ -1,0 +1,56 @@
+name: Strict package validation
+
+on:
+  push:
+    branches:
+      - main
+      - 'phase-*'
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: strict-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package:
+    name: Lock, format, check, test, and native build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout Twin-e
+        uses: actions/checkout@v4
+
+      - name: Setup pinned Actus compiler
+        uses: ./.github/actions/setup-actus
+
+      - name: Validate lockfile
+        run: ${ACTUS} lock --check
+
+      - name: Check every Actus source file
+        shell: bash
+        run: |
+          set -euo pipefail
+          find src tests benchmarks -type f -name '*.act' -print0 |
+            while IFS= read -r -d '' file; do
+              "${ACTUS}" fmt --check "${file}"
+            done
+
+      - name: Strict package check
+        run: ${ACTUS} check --strict
+
+      - name: Strict test suite
+        run: ${ACTUS} test --strict
+
+      - name: Strict native build and zero-float verification
+        run: ${ACTUS} build --strict --emit exe -o /tmp/twin-e-engine.aie
+
+      - name: Upload strict executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: twin-e-strict-engine
+          path: /tmp/twin-e-engine.aie
+          if-no-files-found: error

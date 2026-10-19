@@ -1,0 +1,57 @@
+name: Repository policy
+
+on:
+  push:
+    branches:
+      - main
+      - 'phase-*'
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: policy-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  policy:
+    name: Diff, source, and hot-path policy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout Twin-e
+        uses: actions/checkout@v4
+
+      - name: Check whitespace errors
+        run: git diff --check
+
+      - name: Reject foreign implementation syntax in Actus sources
+        shell: bash
+        run: |
+          if rg -n '(^|[[:space:]])(f32|f64|unsafe|struct[[:space:]]+impl|fn[[:space:]])([[:space:]]|$)' src tests benchmarks; then
+            echo 'Foreign syntax or floating-point state found in Actus sources.'
+            exit 1
+          fi
+
+      - name: Reject filesystem calls in resident hot-path source
+        shell: bash
+        run: |
+          if rg -n 'write_file|read_to_bytes|remove_file|rename|create_dir' src/aie/resident.act src/aie/runtime src/aie/layout 2>/dev/null; then
+            echo 'Filesystem I/O found in resident hot-path source.'
+            exit 1
+          fi
+
+      - name: Check source-size policy
+        shell: bash
+        run: |
+          failed=0
+          while IFS= read -r file; do
+            lines=$(wc -l < "${file}")
+            if [ "${lines}" -gt 500 ] && ! rg -q '^meta limitless\("file"\)' "${file}"; then
+              echo "Source exceeds the hard limit without documented file metadata: ${file} (${lines} lines)"
+              failed=1
+            fi
+          done < <(find src tests benchmarks -type f -name '*.act')
+          exit "${failed}"
