@@ -10,7 +10,7 @@ latency claim.
 - Command: `actus build --strict --emit exe -o /tmp/twin-e-cache-pressure.aie benchmarks/aie_cache.act`
 - Run: `/tmp/twin-e-cache-pressure.aie`
 - Profile: strict native executable
-- Compiler binary digest: `ef3114b46e4bcba51267874dbe7852d6af271e4e9431a4a5eac71b2819081353`
+- Compiler binary digest: `322711227604bc52452f2ad015748f17df7facee1a9233c114a2bc4bdc6817bb`
 - Floating point: native IR verification reported no floating-point instructions
 - Cache capacity: four metadata entries
 
@@ -47,7 +47,7 @@ publication is implemented; those remain later P5.1A gates.
 - Source: `benchmarks/aie_shards_dynamic.act`
 - Command: `actus build --strict --emit exe -o /tmp/twin-e-dynamic-flush.aie benchmarks/aie_shards_dynamic.act`
 - Run: `/tmp/twin-e-dynamic-flush.aie`
-- Compiler binary digest: `ef3114b46e4bcba51267874dbe7852d6af271e4e9431a4a5eac71b2819081353`
+- Compiler binary digest: `322711227604bc52452f2ad015748f17df7facee1a9233c114a2bc4bdc6817bb`
 
 ```text
 built `/tmp/twin-e-dynamic-flush.aie` (strict)
