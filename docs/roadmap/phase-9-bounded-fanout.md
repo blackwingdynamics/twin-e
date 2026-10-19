@@ -71,10 +71,10 @@ the sidecar count remains zero, and no auxiliary marker or record is created.
 
 ### Step 6 — Persistence and recovery
 
-- [ ] Serialize auxiliary descriptors and records position-independently.
-- [ ] Validate bounds, indexes, counts, and checksums before publication.
+- [x] Serialize auxiliary descriptors and records position-independently.
+- [x] Validate bounds, indexes, counts, and checksums before publication.
 - [ ] Reject truncated or corrupted auxiliary state without live mutation.
-- [ ] Prove snapshot round-trip and recovery after reclamation.
+- [x] Prove snapshot round-trip and recovery after reclamation.
 
 ### Step 7 — Performance and acceptance
 
@@ -86,15 +86,18 @@ the sidecar count remains zero, and no auxiliary marker or record is created.
 
 ## Current evidence
 
-The strict suite passes with `121 passed; 0 failed`. The fan-out tests verify
+The strict suite passes with `124 passed; 0 failed`. The fan-out tests verify
 the unchanged eight-slot inline contract, reach one auxiliary successor
 through the gated forwarding path, reject the ninth auxiliary record without
 mutating the table, and reclaim a record while clearing `FLAG_HAS_AUX`. The
 auxiliary snapshot validator now rejects active-count mismatches and validates
 the source-map count, record bounds, and a deterministic payload checksum. The
 snapshot restore path validates before mutating the destination table, and a
-corrupted snapshot leaves live state unchanged. Exact free-list coverage,
-publication, and on-disk round-trip recovery remain open for the next steps.
+corrupted snapshot leaves live state unchanged. Exact free-list coverage now
+rejects detached-record omissions and free-list cycles, and a reclaimed table
+round-trips with its free-list intact. Auxiliary serialization is currently a
+fixed-size in-memory snapshot contract; rejection of a separately framed,
+truncated on-disk payload and publication remain open for the next steps.
 
 ## Out of scope
 

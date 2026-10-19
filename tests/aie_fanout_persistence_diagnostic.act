@@ -36,6 +36,17 @@ verb diagnostic_attached_snapshot() -> AuxiliarySnapshot {
     return snapshot;
 }
 
+verb diagnostic_snapshot_checksum(abs snapshot: AuxiliarySnapshot) -> u64 {
+    erg checksum: u64 = 0u64;
+    for erg index: u32 in 0u32 .. 128u32 {
+        checksum += (snapshot.source_to_record[index] as u64) * (index as u64 + 1u64);
+    }
+    for erg index: u32 in 0u32 .. 320u32 {
+        checksum += (snapshot.records[index] as u64) * (index as u64 + 129u64);
+    }
+    return checksum;
+}
+
 meta test
 verb test_aux_snapshot_struct_construction_only() -> Int {
     erg snapshot = empty_diagnostic_snapshot();
@@ -191,12 +202,17 @@ verb test_aux_snapshot_roundtrip_restores_reclaimed_state() -> Int {
     erg source_table: AuxAxonTable[64] = AuxAxonTable[64] {source_to_record: Array[u16, 64](
     ), records: Array[AuxAxonRecord, 8](), free_list_head: 0u32, active_count: 0u32};
     initialize_diagnostic_auxiliary_table(table: ins source_table);
+    erg source: u32 = 3u32;
+    release_aux_record(table: ins source_table, source: erg source);
     erg snapshot = empty_diagnostic_snapshot();
     serialize_auxiliary_snapshot(snapshot: ins snapshot, table: abs source_table);
     erg restored_table: AuxAxonTable[64] = AuxAxonTable[64] {source_to_record: Array[u16, 64](
     ), records: Array[AuxAxonRecord, 8](), free_list_head: 0u32, active_count: 0u32};
     aux_table_init(table: ins restored_table);
     if !restore_auxiliary_snapshot(table: ins restored_table, snapshot: abs snapshot) {
+        return 1;
+    }
+    if restored_table.active_count != 0u32 || restored_table.free_list_head != 0u32 || restored_table.source_to_record[3u32] != AUX_AXON_INVALID_ID {
         return 1;
     }
     return 0;
@@ -272,6 +288,20 @@ verb test_aux_snapshot_rejection_preserves_live_state() -> Int {
         return 1;
     }
     if live_table.active_count != 0u32 || live_table.free_list_head != 0u32 || live_table.source_to_record[3u32] != AUX_AXON_INVALID_ID {
+        return 1;
+    }
+    return 0;
+}
+
+meta test
+verb test_aux_snapshot_validation_rejects_free_list_cycle() -> Int {
+    erg snapshot = diagnostic_attached_snapshot();
+    snapshot.records[76u32] = 1u8;
+    snapshot.records[77u32] = 0u8;
+    snapshot.records[78u32] = 0u8;
+    snapshot.records[79u32] = 0u8;
+    snapshot.checksum = diagnostic_snapshot_checksum(snapshot: abs snapshot);
+    if auxiliary_snapshot_is_valid(snapshot: abs snapshot) {
         return 1;
     }
     return 0;
