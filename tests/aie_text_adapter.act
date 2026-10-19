@@ -1,0 +1,112 @@
+"""Acceptance tests for the bounded text modality adapter."""
+import adapters;
+
+import config;
+
+import tokenizer;
+
+meta test
+verb test_text_adapter_preserves_byte_identity_and_offsets() -> Int {
+    erg text: String = "Ab!";
+    erg result = adapt_text(text: abs text);
+    return case dat result {
+        Result.Err(_) => 1,
+        Result.Ok(envelope) => if envelope.event_count == 3u16 && envelope.source_length == 3u32 && envelope.events[1u32].identity == 98u32 && envelope.events[2u32].source_offset == 2u32 {
+            0;
+        } else {
+            1;
+        },
+    };
+}
+
+meta test
+verb test_text_adapter_rejects_empty_input() -> Int {
+    erg text: String = "";
+    erg result = adapt_text(text: abs text);
+    return case dat result {
+        Result.Err(error) => case error {
+            AdapterError.EmptyInput => 0,
+            _ => 1,
+        },
+        Result.Ok(_) => 1,
+    };
+}
+
+meta test
+verb test_text_adapter_preserves_malformed_bytes_and_repeated_input() -> Int {
+    erg input: Buffer = Buffer[3];
+    input[0u32] = 195u8;
+    input[1u32] = 40u8;
+    input[2u32] = 40u8;
+    erg input_length: u32 = 3u32;
+    erg result = adapt_text_bytes(input: abs input, input_length: erg input_length);
+    return case dat result {
+        Result.Err(_) => 1,
+        Result.Ok(envelope) => if envelope.event_count == 3u16 && envelope.events[0u32].identity == 195u32 && envelope.events[1u32].identity == 40u32 && envelope.events[2u32].identity == 40u32 {
+            0;
+        } else {
+            1;
+        },
+    };
+}
+
+meta test
+verb test_text_adapter_rejects_oversized_bytes() -> Int {
+    erg input: Buffer = Buffer[256];
+    erg input_length: u32 = 257u32;
+    erg result = adapt_text_bytes(input: abs input, input_length: erg input_length);
+    return case dat result {
+        Result.Err(error) => case error {
+            AdapterError.MalformedInput => 0,
+            _ => 1,
+        },
+        Result.Ok(_) => 1,
+    };
+}
+
+meta test
+verb test_text_adapter_bpe_preserves_merged_span() -> Int {
+    erg rules: Array[BpeMergeRule,128] = Array[BpeMergeRule, 128]();
+    rules[0u32] = BpeMergeRule {left_id: 65u32, right_id: 66u32, merged_id: 1000u32, rank: 0u32};
+    erg text: String = "AB";
+    erg rule_count: u32 = 1u32;
+    erg result = adapt_text_bpe(
+        text: abs text,
+        rules: abs rules,
+        rule_count: erg rule_count
+    );
+    return case dat result {
+        Result.Err(_) => 1,
+        Result.Ok(envelope) => if envelope.event_count == 1u16 && envelope.source_length == 2u32 && envelope.events[0u32].feature_kind == ADAPTER_TEXT_BPE_FEATURE && envelope.events[0u32].identity == 1000u32 && envelope.events[0u32].payload_length == 2u16 {
+            0;
+        } else {
+            1;
+        },
+    };
+}
+
+meta test
+verb test_text_adapter_output_is_deterministic() -> Int {
+    erg text: String = "same";
+    erg first = adapt_text(text: abs text);
+    erg second = adapt_text(text: abs text);
+    erg first_valid: Bool = false;
+    erg first_count: u16 = 0u16;
+    erg first_identity: u32 = 0u32;
+    case dat first {
+        Result.Err(_) => {},
+        Result.Ok(envelope) => {
+            first_valid = true;
+            first_count = envelope.event_count;
+            first_identity = envelope.events[3u32].identity;
+        },
+    };
+    return case dat second {
+        Result.Err(_) => 1,
+        Result.Ok(envelope) => if first_valid && first_count == envelope.event_count && first_identity == envelope.events[3u32].identity {
+            0;
+        } else {
+            1;
+        },
+    };
+}

@@ -197,23 +197,46 @@ only; modality conversion remains open under Gates 7.4–7.7.
 
 ## Gate 7.4 — Implement the text adapter
 
-- [ ] Accept bounded text input using the existing byte tokenizer and BPE
+- [x] Accept bounded text input using the existing byte tokenizer and BPE
       contracts.
-- [ ] Preserve source byte offsets and malformed/non-UTF-8 behavior defined
+- [x] Preserve source byte offsets and malformed/non-UTF-8 behavior defined
       by the byte fallback contract.
-- [ ] Produce the common adapter representation without duplicating token or
+- [x] Produce the common adapter representation without duplicating token or
       context-generation logic.
-- [ ] Define empty-input, maximum-length, repeated-byte, and mixed-BPE
+- [x] Define empty-input, maximum-length, repeated-byte, and mixed-BPE
       behavior.
-- [ ] Prove deterministic output for repeated runs and equivalent input.
-- [ ] Verify that the adapter performs no filesystem or network I/O.
+- [x] Prove deterministic output for repeated runs and equivalent input.
+- [x] Verify that the adapter performs no filesystem or network I/O.
 
 ### Gate evidence
 
-- [ ] Valid text, empty text, oversized text, malformed bytes, repeated bytes,
+- [x] Valid text, empty text, oversized text, malformed bytes, repeated bytes,
       and mixed BPE fixtures pass.
-- [ ] Text adapter output can be consumed through the canonical facade.
-- [ ] Existing tokenizer and fallback tests remain green.
+- [x] Text adapter output can be consumed through the canonical facade.
+- [x] Existing tokenizer and fallback tests remain green.
+
+### Gate 7.4 test evidence
+
+`src/adapters/text.act` exposes `adapt_text`, `adapt_text_bytes`, and
+`adapt_text_bpe` through `src/adapters/adapters.act`. The implementation
+delegates tokenization and BPE merging to the existing tokenizer facade,
+preserves token identity and source spans, and validates the common envelope
+before returning it. It does not access filesystem or network APIs.
+
+`tests/aie_text_adapter.act` covers valid byte text, empty input, oversized
+raw input, malformed/non-UTF-8 bytes, repeated bytes, one deterministic BPE
+merge with its two-byte source span, and repeated-run determinism. Existing
+byte-fallback tests remain part of the same strict suite.
+
+Commands, using the pinned Actus compiler from the earlier compiler evidence
+(`cf1cbda75bf4e14d1ad6c9f1bbf7a12c57f808eb`):
+
+```sh
+actus check --strict
+actus test --strict
+```
+
+Result: `60 passed; 0 failed`.
 
 ## Gate 7.5 — Implement structured and binary adapters
 

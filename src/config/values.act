@@ -215,6 +215,14 @@ open const ADAPTER_CONTRACT_VERSION: u16 = 1u16;
 open const ADAPTER_MAX_EVENTS: u32 = 256u32;
 
 
+"""Feature discriminator for one byte-token text event."""
+open const ADAPTER_TEXT_BYTE_FEATURE: u16 = 1u16;
+
+
+"""Feature discriminator for one merged BPE text event."""
+open const ADAPTER_TEXT_BPE_FEATURE: u16 = 2u16;
+
+
 """Maximum number of generated token ids retained for loop guards."""
 open const GENERATION_HISTORY_LIMIT: u32 = 8u32;
 

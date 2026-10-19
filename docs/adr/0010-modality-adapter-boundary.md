@@ -126,6 +126,13 @@ return a self-contained bounded result. The result may be passed to existing
 public facades, but it must not expose private arena, binding, shard, or
 persistence fields.
 
+The text adapter is the first implemented modality. `adapter::text` delegates
+byte tokenization and bounded BPE merging to the existing `tokenizer` facade,
+preserves token identities and source byte spans, and exposes String and raw
+byte-fallback entry points. The envelope is validated before it is returned;
+empty, malformed, and oversized input is rejected without engine-state
+mutation.
+
 ### 4. Boundary and ownership
 
 Adapters are translation boundaries, not a second AIE runtime. They may reject
