@@ -1,0 +1,3 @@
+"""Public text adapter namespace; bounded encoding is implemented later."""
+open const ADAPTER_TEXT_NAMESPACE_VERSION: u16 = 1u16;
+

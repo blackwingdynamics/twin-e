@@ -1,0 +1,3 @@
+"""Public structured-data adapter namespace; validation is implemented later."""
+open const ADAPTER_STRUCTURED_NAMESPACE_VERSION: u16 = 1u16;
+

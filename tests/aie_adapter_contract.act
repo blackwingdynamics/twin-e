@@ -12,6 +12,14 @@ verb valid_envelope() -> AdapterEnvelope {
 }
 
 meta test
+verb test_adapter_facade_imports_all_public_namespaces() -> Int {
+    if ADAPTER_TEXT_NAMESPACE_VERSION != 1u16 || ADAPTER_IMAGE_NAMESPACE_VERSION != 1u16 || ADAPTER_AUDIO_NAMESPACE_VERSION != 1u16 || ADAPTER_VIDEO_NAMESPACE_VERSION != 1u16 || ADAPTER_STRUCTURED_NAMESPACE_VERSION != 1u16 || ADAPTER_BINARY_NAMESPACE_VERSION != 1u16 {
+        return 1;
+    }
+    return 0;
+}
+
+meta test
 verb test_adapter_contract_accepts_ordered_events() -> Int {
     erg envelope: AdapterEnvelope = valid_envelope();
     erg result = validate_adapter_envelope(envelope: abs envelope);

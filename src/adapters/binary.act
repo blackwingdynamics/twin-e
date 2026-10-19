@@ -1,0 +1,3 @@
+"""Public binary adapter namespace; bounded byte conversion is implemented later."""
+open const ADAPTER_BINARY_NAMESPACE_VERSION: u16 = 1u16;
+

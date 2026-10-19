@@ -1,0 +1,3 @@
+"""Public image adapter namespace; bounded feature encoding is implemented later."""
+open const ADAPTER_IMAGE_NAMESPACE_VERSION: u16 = 1u16;
+

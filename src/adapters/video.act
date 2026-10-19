@@ -1,0 +1,3 @@
+"""Public video adapter namespace; bounded feature encoding is implemented later."""
+open const ADAPTER_VIDEO_NAMESPACE_VERSION: u16 = 1u16;
+

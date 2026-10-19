@@ -168,22 +168,32 @@ any AIE state API is called; adapter facade integration remains a later Gate
 
 ## Gate 7.3 — Create the canonical facade
 
-- [ ] Create the `src/adapters/` module root and canonical facade only after
+- [x] Create the `src/adapters/` module root and canonical facade only after
       Gate 7.1 is accepted.
-- [ ] Expose `adapter::contract` through the facade.
-- [ ] Add public child-module paths for every planned modality without
+- [x] Expose `adapter::contract` through the facade.
+- [x] Add public child-module paths for every planned modality without
       exposing private implementation helpers.
-- [ ] Add regression coverage for each public import path.
-- [ ] Keep the facade free of provider, transport, filesystem, and UI logic.
-- [ ] Keep the new modules below the repository source-size limits by
+- [x] Add regression coverage for each public import path.
+- [x] Keep the facade free of provider, transport, filesystem, and UI logic.
+- [x] Keep the new modules below the repository source-size limits by
       responsibility-based decomposition.
 
 ### Gate evidence
 
-- [ ] Strict package checking accepts the facade and all public imports.
-- [ ] A facade-level test proves that private modality modules are not used
+- [x] Strict package checking accepts the facade and all public imports.
+- [x] A facade-level test proves that private modality modules are not used
       as public entry points.
-- [ ] No existing public API or serialized layout changes incidentally.
+- [x] No existing public API or serialized layout changes incidentally.
+
+### Gate 7.3 test evidence
+
+`tests/aie_adapter_contract.act::test_adapter_facade_imports_all_public_namespaces`
+checks the six public namespace markers through the canonical `adapters`
+facade. The strict package and full test commands were run with the pinned
+Actus compiler from the Gate 7.2 evidence.
+
+Result: `54 passed; 0 failed`. The child modules contain namespace markers
+only; modality conversion remains open under Gates 7.4–7.7.
 
 ## Gate 7.4 — Implement the text adapter
 
