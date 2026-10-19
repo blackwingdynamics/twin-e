@@ -80,8 +80,8 @@ the sidecar count remains zero, and no auxiliary marker or record is created.
 
 - [x] Benchmark inline-only forwarding separately from overflow forwarding.
 - [x] Record memory usage, capacity, traversal order, and failure metrics.
-- [ ] Run formatter, lock, strict check, strict tests, and native build.
-- [ ] Verify generated native IR remains free of floating-point instructions.
+- [x] Run formatter, lock, strict check, strict tests, and native build.
+- [x] Verify generated native IR remains free of floating-point instructions.
 - [ ] Update ADR-0014 and close the phase only after all gates are green.
 
 ## Current evidence
@@ -104,6 +104,11 @@ The forwarding benchmark measures 10,000 inline-only and overflow calls
 separately. The recorded hosted result is `1,414,118 ns` inline-only versus
 `1,581,395 ns` with one auxiliary target, approximately `11.8%` additional
 time in this fixture. This is not a hardware-performance claim.
+
+The final strict hosted executable build produced `/tmp/twin-e-phase-9-engine.aie`;
+Actus verified that the generated native IR contains no floating-point
+instructions, and the executable completed the firing, neurogenesis, and decay
+demo stages successfully.
 
 ## Out of scope
 
