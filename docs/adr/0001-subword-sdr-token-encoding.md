@@ -71,6 +71,15 @@ The tokenizer artifact must be persisted with the vocabulary, merge rules,
 normalization version, fallback policy, and codebook version. A network state
 must not be loaded with an incompatible tokenizer artifact.
 
+The pre-release byte fallback is a bounded raw-byte adapter behind the same
+tokenizer facade. It maps each input byte one-to-one to its byte token ID and
+preserves the source offset, including for malformed UTF-8. It does not decode
+Unicode scalars, aggregate bytes into wider tokens, allocate, or perform
+filesystem I/O. The declared input length must be no greater than the fixed
+`TOKENIZER_MAX_BYTES` bound; otherwise the sequence is invalid and empty.
+This policy is intentionally separate from BPE unknown-token decoding and
+remains subject to the Gate 5.8.2 training and persistence measurements.
+
 ### 2. Sparse codebook contract
 
 The encoder maps each token ID to:
@@ -113,8 +122,12 @@ bits cannot reach a threshold of `20`. Token code density and coincidence
 threshold therefore belong to one tested encoding profile.
 
 The encoder may use a deterministic integer hash and a fixed codebook, but it
-must not silently change a token's code when the process restarts. Codebook
-changes require a new version and a migration or retraining decision.
+must not silently change a token's code when the process restarts. For the
+current `0.1.0` pre-release, while no trained `.brain` artifacts are in
+service, an intentional codebook profile change may remain under version `1`
+when it is recorded in the ADRs and benchmark documentation. After persisted
+trained artifacts become compatible data, codebook changes require a new
+version and an explicit migration or retraining decision.
 
 ### 3. AIE training contract
 

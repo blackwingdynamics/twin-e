@@ -1,0 +1,50 @@
+"""Report the fixed storage accounting for one bounded dynamic shard."""
+import config;
+
+import std::io;
+
+open io;
+
+verb emit_u32(erg value: u32) {
+    erg display: Int = value as Int;
+    print_int(value: erg display);
+}
+
+meta limitless("verb")
+verb main() -> Int {
+    erg column_count: u32 = 2u32;
+    erg column_payload_bytes: u32 = column_count * BRAIN_SHARD_COLUMN_STRIDE_BYTES as u32;
+    erg binding_metadata_bytes: u32 = column_count * BRAIN_SHARD_BINDING_STRIDE_BYTES as u32;
+    erg shard_header_bytes: u32 = BRAIN_SHARD_HEADER_BYTES as u32;
+    erg shard_file_bytes: u32 = shard_header_bytes + column_payload_bytes + binding_metadata_bytes;
+    erg manifest_header_bytes: u32 = BRAIN_MANIFEST_HEADER_BYTES as u32;
+    erg manifest_descriptor_bytes: u32 = BRAIN_MANIFEST_DESCRIPTOR_BYTES as u32;
+    erg manifest_bytes: u32 = manifest_header_bytes + manifest_descriptor_bytes;
+    erg heading: String = "AIE_STORAGE_ACCOUNTING column_payload_bytes=";
+    print(text: abs heading);
+    emit_u32(value: erg column_payload_bytes);
+    erg storage_label: String = " column_storage_bytes=";
+    print(text: abs storage_label);
+    emit_u32(value: erg column_payload_bytes);
+    erg binding_label: String = " binding_metadata_bytes=";
+    print(text: abs binding_label);
+    emit_u32(value: erg binding_metadata_bytes);
+    erg header_label: String = " shard_header_bytes=";
+    print(text: abs header_label);
+    emit_u32(value: erg shard_header_bytes);
+    erg file_label: String = " shard_file_bytes=";
+    print(text: abs file_label);
+    emit_u32(value: erg shard_file_bytes);
+    erg manifest_header_label: String = " manifest_header_bytes=";
+    print(text: abs manifest_header_label);
+    emit_u32(value: erg manifest_header_bytes);
+    erg descriptor_label: String = " manifest_descriptor_bytes=";
+    print(text: abs descriptor_label);
+    emit_u32(value: erg manifest_descriptor_bytes);
+    erg manifest_label: String = " manifest_bytes_for_one_shard=";
+    print(text: abs manifest_label);
+    emit_u32(value: erg manifest_bytes);
+    erg alignment_label: String = " alignment_bytes=0";
+    println(text: abs alignment_label);
+    return 0;
+}

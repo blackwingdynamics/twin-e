@@ -1,0 +1,50 @@
+name: Evidence benchmarks
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: benchmarks-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  benchmark:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: codebook-5m
+            source: benchmarks/aie_codebook_population_5000000.act
+            output: /tmp/twin-e-codebook-5m.aie
+          - name: fallback-persistence
+            source: benchmarks/aie_fallback_persistence.act
+            output: /tmp/twin-e-fallback-persistence.aie
+          - name: cache-pressure
+            source: benchmarks/aie_cache.act
+            output: /tmp/twin-e-cache-pressure.aie
+          - name: shard-generation-recovery
+            source: benchmarks/aie_shards_dynamic.act
+            output: /tmp/twin-e-shard-generation-recovery.aie
+
+    steps:
+      - name: Checkout Twin-e
+        uses: actions/checkout@v4
+
+      - name: Setup pinned Actus compiler
+        uses: ./.github/actions/setup-actus
+
+      - name: Format benchmark
+        run: ${ACTUS} fmt --check ${{ matrix.source }}
+
+      - name: Build strict benchmark
+        run: ${ACTUS} build --strict --emit exe -o ${{ matrix.output }} ${{ matrix.source }}
+
+      - name: Run benchmark
+        run: ${{ matrix.output }}

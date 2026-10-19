@@ -237,3 +237,79 @@ verb test_training_competing_successors_use_lowest_index_on_tie() -> Int {
     }
     return 1;
 }
+
+verb bind_false_identity_successor(
+    ins bindings: Array[TokenBinding, 64],
+    erg source: u32,
+    erg false_candidate: u32,
+    erg valid_candidate: u32
+) -> Bool {
+    erg bos: u32 = BPE_BOS_TOKEN_ID;
+    erg current: u32 = 65u32;
+    erg false_token: u32 = 66u32;
+    erg valid_token: u32 = 67u32;
+    erg wrong_previous: u32 = 999u32;
+    return bind_competing_token(
+        bindings: ins bindings,
+        slot: erg source,
+        previous_token_id: erg bos,
+        token_id: erg current
+    ) && bind_competing_token(
+        bindings: ins bindings,
+        slot: erg false_candidate,
+        previous_token_id: erg wrong_previous,
+        token_id: erg false_token
+    ) && bind_competing_token(
+        bindings: ins bindings,
+        slot: erg valid_candidate,
+        previous_token_id: erg current,
+        token_id: erg valid_token
+    );
+}
+
+verb prepare_false_identity_successor(
+    ins fabric: CorticalFabric[64],
+    ins bindings: Array[TokenBinding, 64]
+) -> Bool {
+    erg source: u32 = allocate_column_index(fabric: ins fabric);
+    erg false_candidate: u32 = allocate_column_index(fabric: ins fabric);
+    erg valid_candidate: u32 = allocate_column_index(fabric: ins fabric);
+    if source == NULL_INDEX || false_candidate == NULL_INDEX || valid_candidate == NULL_INDEX {
+        return false;
+    }
+    fabric.columns[source].axons[0u32] = false_candidate;
+    fabric.columns[source].axons[1u32] = valid_candidate;
+    fabric.columns[false_candidate].myelination = 9u8;
+    fabric.columns[valid_candidate].myelination = 3u8;
+    return bind_false_identity_successor(
+        bindings: ins bindings,
+        source: erg source,
+        false_candidate: erg false_candidate,
+        valid_candidate: erg valid_candidate
+    );
+}
+
+meta test
+verb test_training_rejects_stronger_false_identity_candidate() -> Int {
+    erg fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](), free_list_head: 0u32, active_count: 0u32};
+    erg bindings: Array[TokenBinding,64] = Array[TokenBinding, 64]();
+    fabric_init(fabric: ins fabric);
+    if !prepare_false_identity_successor(fabric: ins fabric, bindings: ins bindings) {
+        return 1;
+    }
+    erg prompt: TokenSequence = TokenSequence {tokens: Array[Token, 256](), length: 1u32, valid: true};
+    prompt.tokens[0u32] = Token {id: 65u32, byte_offset: 0u32, byte_length: 1u16, tokenizer_version: TOKENIZER_VERSION};
+    erg vocabulary: BpeVocabulary = empty_test_vocabulary();
+    erg limit: u32 = 1u32;
+    erg result: GenerationResult = generate_associative(
+        fabric: ins fabric,
+        bindings: abs bindings,
+        prompt: abs prompt,
+        vocabulary: abs vocabulary,
+        max_tokens: erg limit
+    );
+    if result.generated_count == 1u32 && result.tokens.tokens[0u32].id == 67u32 {
+        return 0;
+    }
+    return 1;
+}

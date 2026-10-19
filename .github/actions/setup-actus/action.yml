@@ -1,0 +1,28 @@
+name: Setup pinned Actus compiler
+description: Build the pinned Actus compiler used by Twin-e CI
+inputs:
+  actus-ref:
+    description: Actus repository commit or tag
+    required: false
+    default: cf1cbda75bf4e14d1ad6c9f1bbf7a12c57f808eb
+runs:
+  using: composite
+  steps:
+    - name: Checkout Actus compiler
+      uses: actions/checkout@v4
+      with:
+        repository: actus-lang/actus
+        ref: ${{ inputs.actus-ref }}
+        path: .ci/actus
+        fetch-depth: 1
+
+    - name: Install stable Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Build Actus compiler
+      shell: bash
+      run: cargo build --locked --release --bin actus --manifest-path .ci/actus/Cargo.toml
+
+    - name: Export compiler path
+      shell: bash
+      run: echo "ACTUS=${GITHUB_WORKSPACE}/.ci/actus/target/release/actus" >> "${GITHUB_ENV}"

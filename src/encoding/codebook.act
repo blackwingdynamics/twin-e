@@ -59,7 +59,7 @@ mapped to a 128-bit integer mask with the configured active-bit count. The
 operation allocates no memory and performs no floating-point work.
 """
 open verb encode_token_id(erg token_id: u32) -> TokenCode {
-    erg state: u64 = (token_id as u64) ^ 11400714819323198485u64;
+    erg state: u64 = (token_id as u64) ^ TOKEN_CODE_SEED;
     return encode_state(erg state);
 }
 
@@ -70,6 +70,6 @@ keeps the configured active-bit count and codebook version, with no allocation,
 pointer, or floating-point dependency.
 """
 open verb encode_context_key(erg context_key: u64) -> TokenCode {
-    erg state: u64 = context_key ^ 11400714819323198485u64;
+    erg state: u64 = context_key ^ TOKEN_CODE_SEED;
     return encode_state(erg state);
 }

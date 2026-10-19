@@ -10,7 +10,7 @@ latency claim.
 - Command: `actus build --strict --emit exe -o /tmp/twin-e-cache-pressure.aie benchmarks/aie_cache.act`
 - Run: `/tmp/twin-e-cache-pressure.aie`
 - Profile: strict native executable
-- Compiler binary digest: `ef3114b46e4bcba51267874dbe7852d6af271e4e9431a4a5eac71b2819081353`
+- Compiler binary digest: `322711227604bc52452f2ad015748f17df7facee1a9233c114a2bc4bdc6817bb`
 - Floating point: native IR verification reported no floating-point instructions
 - Cache capacity: four metadata entries
 
@@ -19,7 +19,7 @@ latency claim.
 ```text
 built `/tmp/twin-e-cache-pressure.aie` (strict)
 verified generated native IR: no floating-point instructions
-AIE_CACHE capacity=4 working_set=4 dirty_rejected=1 pinned_rejected=1 clean_evicted=1 replacement=1 full_pressure_rejected=1
+AIE_CACHE capacity=4 working_set=4 dirty_rejected=1 pinned_rejected=1 clean_evicted=1 replacement=1 full_pressure_rejected=1 high_watermark=3 dirty_before_signal=2 dirty_at_signal=3 flush_requested=1
 ```
 
 ## Meaning
@@ -32,6 +32,8 @@ AIE_CACHE capacity=4 working_set=4 dirty_rejected=1 pinned_rejected=1 clean_evic
   clean entry and installs the new resident entry.
 - When all four entries are dirty, insertion returns the bounded resource
   failure and the requested shard is not published into the cache.
+- The caller-driven flush signal remains off at two dirty entries and turns on
+  at the configured high-watermark of three dirty entries.
 - The cache now stores an explicit `ShardLifecycle` value instead of separate
   `loaded` and `dirty` booleans. The lifecycle enum includes the states needed
   by the later load, flush, publish, and failure gates.
@@ -47,17 +49,20 @@ publication is implemented; those remain later P5.1A gates.
 - Source: `benchmarks/aie_shards_dynamic.act`
 - Command: `actus build --strict --emit exe -o /tmp/twin-e-dynamic-flush.aie benchmarks/aie_shards_dynamic.act`
 - Run: `/tmp/twin-e-dynamic-flush.aie`
-- Compiler binary digest: `ef3114b46e4bcba51267874dbe7852d6af271e4e9431a4a5eac71b2819081353`
+- Compiler binary digest: `322711227604bc52452f2ad015748f17df7facee1a9233c114a2bc4bdc6817bb`
 
 ```text
 built `/tmp/twin-e-dynamic-flush.aie` (strict)
 verified generated native IR: no floating-point instructions
-AIE_SHARDS_DYNAMIC files=3 generated=1 staged_shard=1 validated=3 manifest_bound=2 swapped_rejected=1 dynamic_loaded=1 dynamic_collection=3 manifest_selected=1 dynamic_failed_unchanged=1 free_chain=5-2-0-null reallocated=2 payload_bytes=128
+AIE_SHARDS_DYNAMIC files=3 generated=1 staged_shard=1 validated=3 partial_rejected=1 truncated_rejected=1 active_unchanged=1 manifest_bound=2 swapped_rejected=1 dynamic_loaded=1 dynamic_collection=3 manifest_selected=1 dynamic_failed_unchanged=1 free_chain=5-2-0-null reallocated=2 payload_bytes=128
 ```
 
 The benchmark now exercises the public `flush_dynamic_shard` boundary. The
 operation writes a staged payload, validates it, and publishes it atomically;
-the hot-path runtime does not call this operation.
+the hot-path runtime does not call this operation. It also corrupts a staged
+checksum before publication and records `partial_rejected=1` with
+`active_unchanged=1`, and also rejects a truncated staged file with
+`truncated_rejected=1`. Both failures leave the active generation valid.
 
 ## Resident neurogenesis API evidence
 

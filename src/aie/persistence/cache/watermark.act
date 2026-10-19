@@ -1,0 +1,36 @@
+"""Caller-visible dirty high-watermark signals for the bounded shard cache."""
+import config;
+
+open lifecycle;
+
+open operations;
+
+"""Count resident entries that still require persistence.
+
+The bounded scan is allocation-free and performs no filesystem I/O. Dirty and
+currently flushing entries are both counted because both retain unpersisted
+state until publication completes.
+"""
+open verb shard_cache_dirty_count(abs cache: ShardCache) -> u8 {
+    erg count: u8 = 0u8;
+    erg index: u8 = 0u8;
+    loop {
+        if index >= BRAIN_CACHE_CAPACITY {
+            break;
+        }
+        if cache_entry_is_dirty(entry: abs cache.entries[index as Usize]) {
+            count += 1u8;
+        }
+        index += 1u8;
+    }
+    return count;
+}
+
+"""Report whether caller-driven flush should start before capacity is exhausted.
+
+The result becomes true at the configured dirty high-watermark. This is only a
+signal for the caller; it does not enqueue work or perform synchronous I/O.
+"""
+open verb shard_cache_flush_requested(abs cache: ShardCache) -> Bool {
+    return shard_cache_dirty_count(cache: abs cache) >= BRAIN_CACHE_DIRTY_HIGH_WATERMARK;
+}

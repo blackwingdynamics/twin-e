@@ -1,0 +1,36 @@
+"""Measure bounded BPE merging alongside raw-byte fallback tokens."""
+import tokenizer;
+
+import std::io;
+
+meta limitless("verb")
+verb main() -> Int {
+    erg input: Buffer = Buffer[4];
+    input[0u32] = 65u8;
+    input[1u32] = 66u8;
+    input[2u32] = 195u8;
+    input[3u32] = 40u8;
+    erg input_length: u32 = 4u32;
+    erg byte_sequence: TokenSequence = tokenize_bytes(input: abs input, input_length: erg input_length);
+    erg rules: Array[BpeMergeRule,128] = Array[BpeMergeRule, 128]();
+    rules[0u32] = BpeMergeRule {left_id: 65u32, right_id: 66u32, merged_id: 1000u32, rank: 0u32};
+    erg rule_count: u32 = 1u32;
+    erg mixed_sequence: TokenSequence = bpe_encode(
+        input: abs byte_sequence,
+        rules: abs rules,
+        rule_count: erg rule_count
+    );
+    if !byte_sequence.valid || !mixed_sequence.valid || mixed_sequence.length != 3u32 {
+        erg error: String = "AIE_MIXED_BPE_FALLBACK_ERROR invalid_mixed_result";
+        println(text: abs error);
+        return 1;
+    }
+    if mixed_sequence.tokens[0u32].id != 1000u32 || mixed_sequence.tokens[1u32].id != 195u32 || mixed_sequence.tokens[2u32].id != 40u32 {
+        erg token_error: String = "AIE_MIXED_BPE_FALLBACK_ERROR fallback_bytes_changed";
+        println(text: abs token_error);
+        return 1;
+    }
+    erg heading: String = "AIE_MIXED_BPE_FALLBACK input_bytes=4 emitted_tokens=3 merged_known_pairs=1 fallback_bytes=2 malformed_preserved=true";
+    println(text: abs heading);
+    return 0;
+}

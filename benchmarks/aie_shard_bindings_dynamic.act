@@ -311,6 +311,26 @@ verb benchmark_cache_entry_is_persisted(abs cache: ShardCache, erg slot: u8) -> 
     };
 }
 
+verb benchmark_cache_entry_is_usable(
+    ins cache: ShardCache,
+    erg slot: u8,
+    erg shard_id: u32
+) -> Bool {
+    erg found = shard_cache_find(cache: abs cache, shard_id: erg shard_id);
+    erg found_slot: u8 = case dat found {
+        Option.None => BRAIN_CACHE_CAPACITY,
+        Option.Some(value) => value,
+    };
+    if found_slot != slot {
+        return false;
+    }
+    erg touched = shard_cache_touch(cache: ins cache, slot: abs slot);
+    return case dat touched {
+        Result.Err(_) => false,
+        Result.Ok(_) => benchmark_cache_entry_is_dirty(cache: abs cache, slot: erg slot),
+    };
+}
+
 verb verify_failed_save_stays_dirty() -> Int {
     erg path_result = binding_path();
     return case dat path_result {
@@ -393,6 +413,20 @@ verb verify_failed_save_stays_dirty() -> Int {
                                 };
                                 return 25;
                             }
+                            erg persisted_shard_id: u32 = request.shard_id;
+                            if !benchmark_cache_entry_is_usable(
+                                cache: ins cache,
+                                slot: erg slot,
+                                shard_id: erg persisted_shard_id
+                            ) {
+                                erg removed_active_usable_check = remove_dir(path: abs request.active);
+                                drop(request);
+                                case dat removed_active_usable_check {
+                                    Result.Ok(_) => {},
+                                    Result.Err(_) => {},
+                                };
+                                return 28;
+                            }
                             erg removed_staged = remove_file(path: abs request.staged);
                             erg removed_active_final = remove_dir(path: abs request.active);
                             drop(request);
@@ -410,7 +444,7 @@ verb verify_failed_save_stays_dirty() -> Int {
                             if active_cleanup_status != 0 {
                                 return active_cleanup_status;
                             }
-                            erg message: String = "AIE_BINDING_STAGE dirty_after_failed_save";
+                            erg message: String = "AIE_BINDING_STAGE dirty_after_failed_save resident_usable_after_failed_save";
                             println(text: abs message);
                             return 0;
                         },
@@ -926,10 +960,98 @@ verb run(dat path: Path, dat staged: Path) -> Int {
     };
 }
 
+verb verify_capacity_recovery_after_flush() -> Int {
+    erg path_result = binding_path();
+    return case dat path_result {
+        Result.Err(_) => 31,
+        Result.Ok(path) => {
+            erg staged_result = binding_staged_path();
+            return case dat staged_result {
+                Result.Err(_) => {
+                    drop(path);
+                    return 32;
+                },
+                Result.Ok(staged) => {
+                    erg cache: ShardCache = ShardCache {entries: Array[ShardCacheEntry, 4](), clock: 0u64};
+                    shard_cache_init(cache: ins cache);
+                    erg generation: u64 = 1u64;
+                    erg checksum: u64 = 0u64;
+                    erg index: u32 = 0u32;
+                    loop {
+                        if index >= 4u32 {
+                            break;
+                        }
+                        erg shard_id: u32 = index + 0u32;
+                        erg inserted = shard_cache_insert(
+                            cache: ins cache,
+                            shard_id: erg shard_id,
+                            generation: erg generation,
+                            checksum: erg checksum
+                        );
+                        erg slot: u8 = case dat inserted {
+                            Result.Err(_) => 4u8,
+                            Result.Ok(value) => value,
+                        };
+                        if slot >= BRAIN_CACHE_CAPACITY {
+                            drop(path);
+                            drop(staged);
+                            return 33;
+                        }
+                        shard_cache_mark_dirty(cache: ins cache, slot: erg slot);
+                        index += 1u32;
+                    }
+                    erg payload: Buffer = make_payload();
+                    erg bindings: Buffer = make_bindings();
+                    erg zero_id: u32 = 0u32;
+                    erg first_column: u32 = 0u32;
+                    erg column_count: u32 = 2u32;
+                    erg saved_slot: u8 = 0u8;
+                    erg request: ShardSaveRequest = ShardSaveRequest {staged: staged, active: path, shard_id: zero_id, first_column_index: first_column, column_count: column_count, payload: payload, bindings: bindings};
+                    erg saved = save_dynamic_shard_with_bindings(
+                        cache: ins cache,
+                        slot: erg saved_slot,
+                        request: abs request
+                    );
+                    erg persisted: Bool = case dat saved {
+                        Result.Err(_) => false,
+                        Result.Ok(_) => benchmark_cache_entry_is_persisted(cache: abs cache, slot: erg saved_slot),
+                    };
+                    erg next_id: u32 = 4u32;
+                    erg next_generation: u64 = 2u64;
+                    erg next_checksum: u64 = 0u64;
+                    erg admitted = shard_cache_insert(
+                        cache: ins cache,
+                        shard_id: erg next_id,
+                        generation: erg next_generation,
+                        checksum: erg next_checksum
+                    );
+                    erg admission_ok: Bool = case dat admitted {
+                        Result.Err(_) => false,
+                        Result.Ok(_) => true,
+                    };
+                    remove_file(path: abs request.active);
+                    remove_file(path: abs request.staged);
+                    drop(request);
+                    if persisted && admission_ok {
+                        erg message: String = "AIE_BINDING_STAGE capacity_recovered_after_flush";
+                        println(text: abs message);
+                        return 0;
+                    }
+                    return 34;
+                },
+            };
+        },
+    };
+}
+
 verb emit(dat path: Path, dat staged: Path) -> Int {
     erg status: Int = run(path: dat path, staged: dat staged);
     if status != 0 {
         return status;
+    }
+    erg recovery_status: Int = verify_capacity_recovery_after_flush();
+    if recovery_status != 0 {
+        return recovery_status;
     }
     erg message: String = "AIE_SHARD_BINDINGS_DYNAMIC columns=2 bindings=2 stride=24 validated=1";
     println(text: abs message);

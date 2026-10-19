@@ -1,0 +1,319 @@
+import aie;
+
+import std::fs;
+
+import std::path;
+
+verb invalid_path() -> Result[Path, PathError] {
+    erg raw = Buffer[0];
+    append(raw, 47u8);
+    append(raw, 116u8);
+    append(raw, 109u8);
+    append(raw, 112u8);
+    append(raw, 0u8);
+    return path_from_ascii(storage: dat raw);
+}
+
+verb append_normal_prefix(ins raw: Buffer) {
+    erg prefix: Array[u8,11] = Array[u8, 11]();
+    prefix[0u32] = 47u8;
+    prefix[1u32] = 116u8;
+    prefix[2u32] = 109u8;
+    prefix[3u32] = 112u8;
+    prefix[4u32] = 47u8;
+    prefix[5u32] = 116u8;
+    prefix[6u32] = 119u8;
+    prefix[7u32] = 105u8;
+    prefix[8u32] = 110u8;
+    prefix[9u32] = 45u8;
+    prefix[10u32] = 101u8;
+    for erg index: u32 in 0u32 .. 11u32 {
+        append(raw, prefix[index]);
+    }
+}
+
+verb append_normal_suffix_left(ins raw: Buffer) {
+    append(raw, 45u8);
+    append(raw, 102u8);
+    append(raw, 97u8);
+    append(raw, 108u8);
+    append(raw, 108u8);
+    append(raw, 98u8);
+    append(raw, 97u8);
+    append(raw, 99u8);
+    append(raw, 107u8);
+    append(raw, 45u8);
+    append(raw, 112u8);
+    append(raw, 114u8);
+    append(raw, 111u8);
+}
+
+verb append_normal_suffix_right(ins raw: Buffer) {
+    append(raw, 102u8);
+    append(raw, 46u8);
+    append(raw, 98u8);
+    append(raw, 114u8);
+    append(raw, 97u8);
+    append(raw, 105u8);
+    append(raw, 110u8);
+    append(raw, 0u8);
+}
+
+verb make_path() -> Result[Path, PathError] {
+    erg raw = Buffer[0];
+    append_normal_prefix(raw: ins raw);
+    append_normal_suffix_left(raw: ins raw);
+    append_normal_suffix_right(raw: ins raw);
+    return path_from_ascii(storage: dat raw);
+}
+
+verb fallback_sequence() -> TokenSequence {
+    erg input = Buffer[62];
+    erg input_length: u32 = 62u32;
+    for erg index: u32 in 0u32 .. 62u32 {
+        input[index] = (index + 1u32) as u8;
+    }
+    return tokenize_bytes(input: abs input, input_length: erg input_length);
+}
+
+verb train_fallback_state(
+    ins fabric: CorticalFabric[64],
+    ins bindings: Array[TokenBinding, 64]
+) -> Bool {
+    erg sequence: TokenSequence = fallback_sequence();
+    erg trained = train_token_sequence(
+        fabric: ins fabric,
+        bindings: ins bindings,
+        sequence: abs sequence
+    );
+    return case dat trained {
+        Result.Err(_) => false,
+        Result.Ok(metrics) => metrics.processed_events == 62u32 && metrics.active_bindings == 62u32 && metrics.allocated_columns == 62u32 && fabric.active_count == 63u32,
+    };
+}
+
+verb repeat_fallback_state(
+    ins fabric: CorticalFabric[64],
+    ins bindings: Array[TokenBinding, 64]
+) -> Bool {
+    erg sequence: TokenSequence = fallback_sequence();
+    erg trained = train_token_sequence(
+        fabric: ins fabric,
+        bindings: ins bindings,
+        sequence: abs sequence
+    );
+    return case dat trained {
+        Result.Err(_) => false,
+        Result.Ok(metrics) => metrics.processed_events == 62u32 && metrics.active_bindings == 62u32 && metrics.allocated_columns == 0u32 && fabric.active_count == 64u32,
+    };
+}
+
+verb fresh_fabric() -> CorticalFabric[64] {
+    erg fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](), free_list_head: 0u32, active_count: 0u32};
+    fabric_init(fabric: ins fabric);
+    return fabric;
+}
+
+verb save_state(
+    abs path: Path,
+    abs fabric: CorticalFabric[64],
+    abs bindings: Array[TokenBinding, 64]
+) -> Bool {
+    erg saved = write_text_brain(
+        path: abs path,
+        fabric: abs fabric,
+        bindings: abs bindings
+    );
+    return case dat saved {
+        Result.Ok(_) => true,
+        Result.Err(_) => false,
+    };
+}
+
+verb file_size(abs path: Path) -> Int {
+    erg loaded = read_to_bytes(path: abs path);
+    return case dat loaded {
+        Result.Err(_) => -1,
+        Result.Ok(bytes) => {
+            erg size = buffer_size(buffer: abs bytes);
+            drop(bytes);
+            return case dat size {
+                Result.Err(_) => -1,
+                Result.Ok(value) => value,
+            };
+        },
+    };
+}
+
+verb make_oversized(abs path: Path) -> Bool {
+    erg loaded = read_to_bytes(path: abs path);
+    return case dat loaded {
+        Result.Err(_) => false,
+        Result.Ok(bytes) => {
+            append(bytes, 0u8);
+            erg written = write_file(path: abs path, contents: abs bytes);
+            drop(bytes);
+            return case dat written {
+                Result.Err(_) => false,
+                Result.Ok(_) => true,
+            };
+        },
+    };
+}
+
+verb state_is_unchanged(
+    abs fabric: CorticalFabric[64],
+    abs bindings: Array[TokenBinding, 64],
+    erg active_count: u32,
+    erg token_id: u32
+) -> Bool {
+    return fabric.active_count == active_count && bindings[0u32].token_id == token_id;
+}
+
+verb verify_oversized_rejection(abs path: Path) -> Bool {
+    erg fabric: CorticalFabric[64] = fresh_fabric();
+    erg bindings: Array[TokenBinding,64] = Array[TokenBinding, 64]();
+    erg expected_active: u32 = 0u32;
+    erg expected_token: u32 = 6001u32;
+    fabric.columns[0u32].payload = 201u8;
+    bindings[0u32].token_id = expected_token;
+    erg loaded = read_text_brain(
+        fabric: ins fabric,
+        bindings: ins bindings,
+        path: abs path
+    );
+    return case dat loaded {
+        Result.Ok(_) => false,
+        Result.Err(_) => state_is_unchanged(
+            fabric: abs fabric,
+            bindings: abs bindings,
+            active_count: erg expected_active,
+            token_id: erg expected_token
+        ),
+    };
+}
+
+verb verify_failed_save(
+    abs path: Path,
+    abs fabric: CorticalFabric[64],
+    abs bindings: Array[TokenBinding, 64]
+) -> Bool {
+    erg before_active: u32 = fabric.active_count;
+    erg before_token: u32 = bindings[0u32].token_id;
+    erg saved = save_state(
+        path: abs path,
+        fabric: abs fabric,
+        bindings: abs bindings
+    );
+    return !saved && state_is_unchanged(
+        fabric: abs fabric,
+        bindings: abs bindings,
+        active_count: before_active,
+        token_id: before_token
+    );
+}
+
+verb prepare_persistence(
+    abs path: Path,
+    ins fabric: CorticalFabric[64],
+    ins bindings: Array[TokenBinding, 64]
+) -> Int {
+    if !train_fallback_state(fabric: ins fabric, bindings: ins bindings) || !save_state(
+        path: abs path,
+        fabric: abs fabric,
+        bindings: abs bindings
+    ) {
+        return 3;
+    }
+    if !repeat_fallback_state(fabric: ins fabric, bindings: ins bindings) {
+        return 4;
+    }
+    erg first_size: Int = file_size(path: abs path);
+    if !save_state(
+        path: abs path,
+        fabric: abs fabric,
+        bindings: abs bindings
+    ) {
+        return 5;
+    }
+    return first_size;
+}
+
+verb verify_persistence(
+    abs path: Path,
+    abs invalid_path: Path,
+    abs fabric: CorticalFabric[64],
+    abs bindings: Array[TokenBinding, 64],
+    erg first_size: Int
+) -> Int {
+    erg repeated_size: Int = file_size(path: abs path);
+    if first_size != repeated_size {
+        return 1;
+    }
+    if !make_oversized(path: abs path) {
+        return 2;
+    }
+    if !verify_oversized_rejection(path: abs path) {
+        return 3;
+    }
+    if !verify_failed_save(
+        path: abs invalid_path,
+        fabric: abs fabric,
+        bindings: abs bindings
+    ) {
+        return 4;
+    }
+    emit_sizes(first_size: first_size, repeated_size: repeated_size);
+    return 0;
+}
+
+verb emit_sizes(erg first_size: Int, erg repeated_size: Int) {
+    erg first_label: String = "AIE_FALLBACK_PERSISTENCE first_brain_bytes=";
+    print(text: abs first_label);
+    print_int(value: first_size);
+    erg repeated_label: String = " repeated_brain_bytes=";
+    print(text: abs repeated_label);
+    print_int(value: repeated_size);
+}
+
+verb run_persistence(abs path: Path, abs invalid_path: Path) -> Int {
+    erg fabric: CorticalFabric[64] = fresh_fabric();
+    erg bindings: Array[TokenBinding,64] = Array[TokenBinding, 64]();
+    erg first_size: Int = prepare_persistence(
+        path: abs path,
+        fabric: ins fabric,
+        bindings: ins bindings
+    );
+    erg verification: Int = verify_persistence(
+        path: abs path,
+        invalid_path: abs invalid_path,
+        fabric: abs fabric,
+        bindings: abs bindings,
+        first_size: first_size
+    );
+    if first_size < 0 {
+        return 20;
+    }
+    if verification != 0 {
+        return 30 + verification;
+    }
+    erg summary: String = "AIE_FALLBACK_PERSISTENCE training_passes=2 events=62 active_bindings=62 active_columns=64 shard_columns=64 binding_slots=64";
+    erg checks: String = " growth_bytes=0 oversized_rejected=1 unchanged=1 failed_save_unchanged=1";
+    println(text: abs summary);
+    println(text: abs checks);
+    return 0;
+}
+
+verb main() -> Int {
+    erg path_result = make_path();
+    return case dat path_result {
+        Result.Err(_) => 1,
+        Result.Ok(path) => {
+            erg invalid_result = invalid_path();
+            return case dat invalid_result {
+                Result.Err(_) => 2,
+                Result.Ok(invalid_path) => run_persistence(path: abs path, invalid_path: abs invalid_path),
+            };
+        },
+    };
+}
