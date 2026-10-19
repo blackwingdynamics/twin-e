@@ -205,8 +205,11 @@ task.
       fabric or dirty resident state. `NoResidentCapacity` is asserted together
       with resident recall, unchanged fabric links, and unchanged dirty cache
       entries in `tests/aie_api.act::test_resident_recall_survives_capacity_rejection`.
-- [ ] Define whether admission may retry, defer, or require an explicit flush
-      boundary; no implicit synchronous disk write may be introduced.
+- [x] Define whether admission may retry, defer, or require an explicit flush
+      boundary; admission returns a final typed error for the current request,
+      with retry allowed only after caller-driven explicit flush. No implicit
+      synchronous disk write or hidden deferred queue is permitted. See
+      ADR-0012, "Flush boundary".
 
 ### Flush scheduling
 

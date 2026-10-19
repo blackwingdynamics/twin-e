@@ -49,6 +49,13 @@ Because the queue capacity is zero, no implicit deferred work is stored in the
 runtime. A caller may flush before retrying admission; without that explicit
 boundary, the bounded capacity error remains the result.
 
+The admission contract is therefore explicit: a rejected admission is not
+retried or deferred inside the current call. The caller receives the typed
+capacity error, decides whether a flush is safe, performs that flush at its
+own boundary, and may then issue a new admission request. If the caller does
+not establish that boundary, the live fabric and dirty resident state remain
+unchanged and the capacity error is final for that request.
+
 ### Pinning
 
 Pinning protects a resident shard for the lifetime of its active user. A pin
