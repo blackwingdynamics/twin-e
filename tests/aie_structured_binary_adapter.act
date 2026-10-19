@@ -1,0 +1,138 @@
+"""Acceptance tests for structured and opaque binary adapters."""
+import adapters;
+
+import config;
+
+verb test_schema() -> StructuredSchema {
+    erg keys: Array[u16,32] = Array[u16, 32]();
+    keys[0u32] = 10u16;
+    keys[1u32] = 20u16;
+    return StructuredSchema {version: ADAPTER_CONTRACT_VERSION, key_count: 2u16, keys: keys};
+}
+
+verb test_record() -> StructuredRecord {
+    erg fields: Array[StructuredField,32] = Array[StructuredField, 32]();
+    fields[0u32] = StructuredField {key: 10u16, value: 100u16, source_offset: 0u32};
+    fields[1u32] = StructuredField {key: 20u16, value: 200u16, source_offset: 2u32};
+    return StructuredRecord {version: ADAPTER_CONTRACT_VERSION, field_count: 2u16, source_length: 3u32, fields: fields, valid: true};
+}
+
+meta test
+verb test_structured_adapter_accepts_ordered_required_fields() -> Int {
+    erg record: StructuredRecord = test_record();
+    erg schema: StructuredSchema = test_schema();
+    erg result = adapt_structured(record: abs record, schema: abs schema);
+    return case dat result {
+        Result.Err(_) => 1,
+        Result.Ok(envelope) => if envelope.event_count == 2u16 && envelope.events[0u32].identity == 10u32 && envelope.events[1u32].source_offset == 2u32 && envelope.events[1u32].value_primary == 200u16 {
+            0;
+        } else {
+            1;
+        },
+    };
+}
+
+meta test
+verb test_structured_adapter_rejects_unknown_field() -> Int {
+    erg record: StructuredRecord = test_record();
+    erg schema: StructuredSchema = test_schema();
+    record.fields[1u32].key = 30u16;
+    erg result = adapt_structured(record: abs record, schema: abs schema);
+    return case dat result {
+        Result.Err(error) => case error {
+            AdapterError.UnknownField => 0,
+            _ => 1,
+        },
+        Result.Ok(_) => 1,
+    };
+}
+
+meta test
+verb test_structured_adapter_rejects_duplicate_field() -> Int {
+    erg record: StructuredRecord = test_record();
+    erg schema: StructuredSchema = test_schema();
+    record.fields[1u32].key = 10u16;
+    erg result = adapt_structured(record: abs record, schema: abs schema);
+    return case dat result {
+        Result.Err(error) => case error {
+            AdapterError.DuplicateField => 0,
+            _ => 1,
+        },
+        Result.Ok(_) => 1,
+    };
+}
+
+meta test
+verb test_structured_adapter_rejects_missing_field() -> Int {
+    erg record: StructuredRecord = test_record();
+    erg schema: StructuredSchema = test_schema();
+    record.field_count = 1u16;
+    erg result = adapt_structured(record: abs record, schema: abs schema);
+    return case dat result {
+        Result.Err(error) => case error {
+            AdapterError.MissingField => 0,
+            _ => 1,
+        },
+        Result.Ok(_) => 1,
+    };
+}
+
+meta test
+verb test_structured_adapter_rejects_oversized_value() -> Int {
+    erg record: StructuredRecord = test_record();
+    erg schema: StructuredSchema = test_schema();
+    record.fields[0u32].value = OBSERVATION_MAX_VALUE + 1u16;
+    erg result = adapt_structured(record: abs record, schema: abs schema);
+    return case dat result {
+        Result.Err(error) => case error {
+            AdapterError.NormalizedValueOutOfBounds => 0,
+            _ => 1,
+        },
+        Result.Ok(_) => 1,
+    };
+}
+
+meta test
+verb test_binary_adapter_preserves_exact_bytes() -> Int {
+    erg input: Buffer = Buffer[3];
+    input[0u32] = 0u8;
+    input[1u32] = 255u8;
+    input[2u32] = 255u8;
+    erg input_length: u32 = 3u32;
+    erg result = adapt_binary(input: abs input, input_length: abs input_length);
+    return case dat result {
+        Result.Err(_) => 1,
+        Result.Ok(envelope) => if envelope.event_count == 3u16 && envelope.events[0u32].identity == 0u32 && envelope.events[1u32].identity == 255u32 && envelope.events[2u32].source_offset == 2u32 {
+            0;
+        } else {
+            1;
+        },
+    };
+}
+
+meta test
+verb test_binary_adapter_rejects_empty_and_oversized_input() -> Int {
+    erg input: Buffer = Buffer[2];
+    erg empty_length: u32 = 0u32;
+    erg empty_result = adapt_binary(input: abs input, input_length: abs empty_length);
+    erg oversized_length: u32 = 3u32;
+    erg oversized_result = adapt_binary(input: abs input, input_length: abs oversized_length);
+    erg empty_ok: Bool = case dat empty_result {
+        Result.Err(error) => case error {
+            AdapterError.EmptyInput => true,
+            _ => false,
+        },
+        Result.Ok(_) => false,
+    };
+    return case dat oversized_result {
+        Result.Err(error) => case error {
+            AdapterError.MalformedInput => if empty_ok {
+                0;
+            } else {
+                1;
+            },
+            _ => 1,
+        },
+        Result.Ok(_) => 1,
+    };
+}

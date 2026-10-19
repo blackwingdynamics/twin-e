@@ -223,6 +223,18 @@ open const ADAPTER_TEXT_BYTE_FEATURE: u16 = 1u16;
 open const ADAPTER_TEXT_BPE_FEATURE: u16 = 2u16;
 
 
+"""Feature discriminator for one structured integer field event."""
+open const ADAPTER_STRUCTURED_FIELD_FEATURE: u16 = 3u16;
+
+
+"""Feature discriminator for one opaque binary byte event."""
+open const ADAPTER_BINARY_BYTE_FEATURE: u16 = 4u16;
+
+
+"""Maximum number of fields in one structured adapter record."""
+open const ADAPTER_STRUCTURED_MAX_FIELDS: u32 = 32u32;
+
+
 """Maximum number of generated token ids retained for loop guards."""
 open const GENERATION_HISTORY_LIMIT: u32 = 8u32;
 

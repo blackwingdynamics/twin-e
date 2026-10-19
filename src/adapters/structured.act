@@ -1,3 +1,201 @@
-"""Public structured-data adapter namespace; validation is implemented later."""
+"""Bounded integer structured-record adapter."""
+import config;
+
+open contract;
+
+"""Version marker for the public structured adapter namespace."""
 open const ADAPTER_STRUCTURED_NAMESPACE_VERSION: u16 = 1u16;
 
+
+"""One bounded integer field with an explicit source position."""
+open struct StructuredField {
+    erg key: u16,
+    erg value: u16,
+    erg source_offset: u32,
+}
+
+"""Schema describing the ordered, required keys of one record."""
+open struct StructuredSchema {
+    erg version: u16,
+    erg key_count: u16,
+    erg keys: Array[u16, 32],
+}
+
+"""Fixed-capacity structured input record owned by the caller."""
+open struct StructuredRecord {
+    erg version: u16,
+    erg field_count: u16,
+    erg source_length: u32,
+    erg fields: Array[StructuredField, 32],
+    erg valid: Bool,
+}
+
+verb schema_contains_key(abs schema: StructuredSchema, abs key: u16) -> Bool {
+    for erg index: u32 in 0u32 .. ADAPTER_STRUCTURED_MAX_FIELDS {
+        if index >= schema.key_count as u32 {
+            break;
+        }
+        if schema.keys[index as Usize] == key {
+            return true;
+        }
+    }
+    return false;
+}
+
+verb record_has_duplicate_key(abs record: StructuredRecord, erg field_index: u32) -> Bool {
+    erg key: u16 = record.fields[field_index as Usize].key;
+    for erg index: u32 in 0u32 .. ADAPTER_STRUCTURED_MAX_FIELDS {
+        if index >= field_index {
+            break;
+        }
+        if record.fields[index as Usize].key == key {
+            return true;
+        }
+    }
+    return false;
+}
+
+verb schema_has_all_record_fields(
+    abs record: StructuredRecord,
+    abs schema: StructuredSchema
+) -> Bool {
+    for erg index: u32 in 0u32 .. ADAPTER_STRUCTURED_MAX_FIELDS {
+        if index >= schema.key_count as u32 {
+            break;
+        }
+        erg found: Bool = false;
+        for erg field_index: u32 in 0u32 .. ADAPTER_STRUCTURED_MAX_FIELDS {
+            if field_index >= record.field_count as u32 {
+                break;
+            }
+            if record.fields[field_index as Usize].key == schema.keys[index as Usize] {
+                found = true;
+                break;
+            }
+        }
+        if !found {
+            return false;
+        }
+    }
+    return true;
+}
+
+verb validate_structured_header(
+    abs record: StructuredRecord,
+    abs schema: StructuredSchema
+) -> Result[Int, AdapterError] {
+    if !record.valid || record.source_length == 0u32 || record.field_count == 0u16 {
+        return Result[Int, AdapterError].Err(AdapterError.MalformedInput);
+    }
+    if record.version != schema.version || schema.version != ADAPTER_CONTRACT_VERSION {
+        return Result[Int, AdapterError].Err(AdapterError.UnsupportedContractVersion);
+    }
+    if record.field_count as u32 > ADAPTER_STRUCTURED_MAX_FIELDS || schema.key_count as u32 > ADAPTER_STRUCTURED_MAX_FIELDS {
+        return Result[Int, AdapterError].Err(AdapterError.EventCountExceeded);
+    }
+    if record.field_count as u32 > schema.key_count as u32 {
+        return Result[Int, AdapterError].Err(AdapterError.UnknownField);
+    }
+    return Result[Int, AdapterError].Ok(record.field_count as Int);
+}
+
+verb validate_structured_fields(
+    abs record: StructuredRecord,
+    abs schema: StructuredSchema
+) -> Result[Int, AdapterError] {
+    for erg index: u32 in 0u32 .. ADAPTER_STRUCTURED_MAX_FIELDS {
+        if index >= record.field_count as u32 {
+            break;
+        }
+        erg field: StructuredField = record.fields[index as Usize];
+        if field.key == 0u16 || !schema_contains_key(schema: abs schema, key: abs field.key) {
+            return Result[Int, AdapterError].Err(AdapterError.UnknownField);
+        }
+        if record_has_duplicate_key(record: abs record, field_index: erg index) {
+            return Result[Int, AdapterError].Err(AdapterError.DuplicateField);
+        }
+        if field.source_offset >= record.source_length {
+            return Result[Int, AdapterError].Err(AdapterError.SourceOffsetOutOfBounds);
+        }
+        if field.value > OBSERVATION_MAX_VALUE {
+            return Result[Int, AdapterError].Err(AdapterError.NormalizedValueOutOfBounds);
+        }
+    }
+    if !schema_has_all_record_fields(record: abs record, schema: abs schema) {
+        return Result[Int, AdapterError].Err(AdapterError.MissingField);
+    }
+    return Result[Int, AdapterError].Ok(record.field_count as Int);
+}
+
+verb validate_structured_record(
+    abs record: StructuredRecord,
+    abs schema: StructuredSchema
+) -> Result[Int, AdapterError] {
+    erg header = validate_structured_header(record: abs record, schema: abs schema);
+    case dat header {
+        Result.Err(error) => {
+            return Result[Int, AdapterError].Err(error);
+        },
+        Result.Ok(_) => {},
+    };
+    return validate_structured_fields(record: abs record, schema: abs schema);
+}
+
+verb structured_record_to_envelope(abs record: StructuredRecord) -> AdapterEnvelope {
+    erg envelope: AdapterEnvelope = AdapterEnvelope {contract_version: ADAPTER_CONTRACT_VERSION, modality: AdapterModality.Structured, event_count: record.field_count, source_length: record.source_length, events: Array[AdapterEvent, 256](
+    ), valid: true};
+    for erg index: u32 in 0u32 .. ADAPTER_STRUCTURED_MAX_FIELDS {
+        if index >= record.field_count as u32 {
+            break;
+        }
+        erg field: StructuredField = record.fields[index as Usize];
+        envelope.events[index as Usize] = AdapterEvent {source_offset: field.source_offset, feature_kind: ADAPTER_STRUCTURED_FIELD_FEATURE, identity: field.key as u32, value_primary: field.value, value_secondary: 0u16, payload_length: 1u16, flags: 0u8};
+    }
+    return envelope;
+}
+
+verb finalize_structured_envelope(erg envelope: AdapterEnvelope) -> Result[AdapterEnvelope, AdapterError] {
+    erg validation = validate_adapter_envelope(envelope: abs envelope);
+    erg accepted: Bool = false;
+    erg validation_error: AdapterError = AdapterError.InvalidEnvelope;
+    case dat validation {
+        Result.Err(error) => {
+            validation_error = error;
+        },
+        Result.Ok(_) => {
+            accepted = true;
+        },
+    };
+    if accepted {
+        return Result[AdapterEnvelope, AdapterError].Ok(envelope);
+    }
+    return Result[AdapterEnvelope, AdapterError].Err(validation_error);
+}
+
+"""Convert a schema-validated integer record to the common envelope.
+
+All keys must be known and unique, every schema key is required, values are
+bounded integers, and source offsets are explicit. Validation completes before
+the envelope is returned; no engine state or external I/O is touched.
+"""
+open verb adapt_structured(
+    abs record: StructuredRecord,
+    abs schema: StructuredSchema
+) -> Result[AdapterEnvelope, AdapterError] {
+    erg admission = validate_structured_record(record: abs record, schema: abs schema);
+    erg admitted: Bool = false;
+    erg admission_error: AdapterError = AdapterError.InvalidEnvelope;
+    case dat admission {
+        Result.Err(error) => {
+            admission_error = error;
+        },
+        Result.Ok(_) => {
+            admitted = true;
+        },
+    };
+    if !admitted {
+        return Result[AdapterEnvelope, AdapterError].Err(admission_error);
+    }
+    erg envelope: AdapterEnvelope = structured_record_to_envelope(record: abs record);
+    return finalize_structured_envelope(envelope: erg envelope);
+}

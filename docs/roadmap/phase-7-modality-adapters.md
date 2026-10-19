@@ -240,23 +240,51 @@ Result: `60 passed; 0 failed`.
 
 ## Gate 7.5 — Implement structured and binary adapters
 
-- [ ] Define the bounded schema for structured records, field ordering, and
+- [x] Define the bounded schema for structured records, field ordering, and
       supported integer values.
-- [ ] Reject unknown, duplicate, missing, malformed, and oversized fields
+- [x] Reject unknown, duplicate, missing, malformed, and oversized fields
       before engine-state mutation.
-- [ ] Define binary input as bounded opaque bytes with explicit source
+- [x] Define binary input as bounded opaque bytes with explicit source
       offsets; do not infer semantics from arbitrary byte groups.
-- [ ] Preserve exact byte identity where the contract requires it.
-- [ ] Define version and compatibility behavior for structured and binary
+- [x] Preserve exact byte identity where the contract requires it.
+- [x] Define version and compatibility behavior for structured and binary
       payloads.
-- [ ] Keep both adapters behind the same canonical facade and contract.
+- [x] Keep both adapters behind the same canonical facade and contract.
 
 ### Gate evidence
 
-- [ ] Structured and binary acceptance/rejection fixtures are reproducible.
-- [ ] Round-trip or deterministic replay evidence is recorded where lossless
+- [x] Structured and binary acceptance/rejection fixtures are reproducible.
+- [x] Round-trip or deterministic replay evidence is recorded where lossless
       representation is promised.
-- [ ] Oversized input is rejected before live AIE state changes.
+- [x] Oversized input is rejected before live AIE state changes.
+
+### Gate 7.5 test evidence
+
+`adapter::structured` accepts a fixed-capacity schema and integer record. The
+schema version must match the adapter contract, every schema key is required,
+field keys must be known and unique, values must fit the observation integer
+range, and source offsets must remain inside the declared source length.
+`adapter::binary` treats input as opaque bytes only: each byte becomes one
+event with its exact identity and source offset, without guessing protocol
+semantics.
+
+`tests/aie_structured_binary_adapter.act` covers valid structured conversion,
+unknown, duplicate, missing, and oversized fields, exact binary bytes,
+empty/oversized binary input, and canonical-facade consumption. The returned
+envelopes are validated before publication and no AIE state is mutated.
+
+Commands, using the pinned Actus compiler from the earlier compiler evidence
+(`cf1cbda75bf4e14d1ad6c9f1bbf7a12c57f808eb`):
+
+```sh
+actus lock --check
+actus check --strict
+actus test --strict
+actus build --strict --emit exe -o /tmp/twin-e-structured-binary.aie
+```
+
+Result: `67 passed; 0 failed`; native IR verification reported no
+floating-point instructions.
 
 ## Gate 7.6 — Define image, audio, and video envelopes
 

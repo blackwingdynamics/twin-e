@@ -133,6 +133,13 @@ byte-fallback entry points. The envelope is validated before it is returned;
 empty, malformed, and oversized input is rejected without engine-state
 mutation.
 
+The structured adapter uses a fixed 32-key schema and fixed 32-field record;
+all schema keys are required, ordered source offsets are explicit, keys must be
+known and unique, values are bounded integers, and schema/record versions must
+match the adapter contract. The binary adapter is intentionally opaque: it
+preserves each byte's exact identity and offset and performs no protocol
+inference.
+
 ### 4. Boundary and ownership
 
 Adapters are translation boundaries, not a second AIE runtime. They may reject

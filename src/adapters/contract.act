@@ -44,6 +44,10 @@ open enum AdapterError {
     NormalizedValueOutOfBounds,
     UnsupportedEncoding,
     MalformedInput,
+    UnknownField,
+    DuplicateField,
+    MissingField,
+    InvalidSchema,
 }
 
 """Validate one adapter envelope without allocation, I/O, or engine mutation.
