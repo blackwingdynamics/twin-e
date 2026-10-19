@@ -40,11 +40,13 @@ unbounded deployment capacity and must be recorded with future measurements.
    resident payloads. Recall and inference for already resident state remain
    available.
 
-### Flush boundary
+### Flush scheduling boundary
 
-The current scheduler is caller-driven. Reaching the dirty high-watermark is
-an observable request to schedule or perform an explicit flush, not permission
-for cache insertion, inference, forwarding, or neurogenesis to write to disk.
+The current scheduler boundary is caller-driven: the runtime reports the dirty
+high-watermark, and the owning caller decides when to schedule or perform an
+explicit flush. There is no runtime maintenance loop in this profile. Reaching
+the high-watermark is an observable request, not permission for cache
+insertion, inference, forwarding, or neurogenesis to write to disk.
 Because the queue capacity is zero, no implicit deferred work is stored in the
 runtime. A caller may flush before retrying admission; without that explicit
 boundary, the bounded capacity error remains the result.

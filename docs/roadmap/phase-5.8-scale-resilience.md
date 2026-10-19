@@ -213,8 +213,10 @@ task.
 
 ### Flush scheduling
 
-- [ ] Choose and document caller-driven flush, a runtime maintenance loop, or
-      another scheduler boundary.
+- [x] Choose and document caller-driven flush, a runtime maintenance loop, or
+      another scheduler boundary. The selected boundary is caller-driven;
+      there is no runtime maintenance loop or implicit queue in the current
+      profile. See ADR-0012, "Flush scheduling boundary".
 - [ ] Start flush work at the configured high-watermark before capacity is
       exhausted.
 - [ ] Bound the amount of work and memory held by the flush queue.
