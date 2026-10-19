@@ -179,6 +179,14 @@ open const CONTEXT_SEED: u64 = 1099511628211u64;
 open const CONTEXT_MULTIPLIER: u64 = 1099511628211u64;
 
 
+"""Version marker for the bounded teaching request contract."""
+open const TEACHING_CONTRACT_VERSION: u16 = 1u16;
+
+
+"""Maximum replay passes accepted by one teaching request."""
+open const TEACHING_MAX_REPLAY_PASSES: u16 = 16u16;
+
+
 """Version marker for the bounded modality-neutral observation contract."""
 open const OBSERVATION_VERSION: u16 = 1u16;
 

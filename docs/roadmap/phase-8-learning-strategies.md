@@ -73,16 +73,29 @@ standard library or an approved host bridge.
 
 ## Gate 8.1 — Define the learning unit and public boundary
 
-- [ ] Define the bounded learning-example representation above
+- [x] Define the bounded learning-example representation above
       `AdapterEnvelope` and existing `TokenSequence` APIs.
-- [ ] Define ownership, modality metadata, ordering, and rejection behavior.
-- [ ] Define the caller contract for submitting one example to training.
-- [ ] Confirm that teacher/chat/provider concerns stay outside the AIE core.
+- [x] Define ownership, modality metadata, ordering, and rejection behavior.
+- [x] Define the caller contract for submitting one example to training.
+- [x] Confirm that teacher/chat/provider concerns stay outside the AIE core.
 
 ### Required evidence
 
-- [ ] ADR-0013 and a compiler-valid contract fixture agree on the boundary.
-- [ ] Invalid, empty, and oversized examples are rejected before mutation.
+- [x] ADR-0013 and a compiler-valid contract fixture agree on the boundary.
+- [x] Invalid, empty, and oversized examples are rejected before mutation.
+
+### Gate 8.1 evidence
+
+`src/teaching/contract.act` defines the bounded `TeachingRequest`, policy mode,
+typed rejection reasons, and result metrics. `src/teaching/admission.act`
+validates the teaching version, replay bound, and nested adapter envelope
+before any AIE state API is reachable. The canonical public facade is
+`src/teaching/teaching.act`.
+
+`tests/teaching_contract.act` is the compiler-valid contract fixture. It covers
+valid adapter output, invalid request state, empty envelope, oversized
+envelope, and oversized replay input. The fixture performs no fabric mutation,
+filesystem I/O, network I/O, or persistence operation.
 
 ## Gate 8.2 — Baseline single-example teaching
 

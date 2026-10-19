@@ -1,0 +1,93 @@
+"""Acceptance tests for the bounded teaching request contract."""
+import adapters;
+
+import config;
+
+import teaching;
+
+verb valid_teaching_request() -> TeachingRequest {
+    erg input: Buffer = Buffer[1];
+    input[0u32] = 65u8;
+    erg input_length: u32 = 1u32;
+    erg adapted = adapt_text_bytes(input: abs input, input_length: erg input_length);
+    erg envelope: AdapterEnvelope = AdapterEnvelope {contract_version: ADAPTER_CONTRACT_VERSION, modality: AdapterModality.Text, event_count: 0u16, source_length: 0u32, events: Array[AdapterEvent, 256](
+    ), valid: false};
+    case dat adapted {
+        Result.Err(_) => {},
+        Result.Ok(value) => {
+            envelope = value;
+        },
+    };
+    erg envelope_valid: Bool = envelope.valid;
+    return TeachingRequest {contract_version: TEACHING_CONTRACT_VERSION, mode: TeachingMode.Direct, envelope: envelope, replay_passes: 1u16, valid: envelope_valid};
+}
+
+meta test
+verb test_teaching_contract_accepts_valid_adapter_output() -> Int {
+    erg request: TeachingRequest = valid_teaching_request();
+    erg result = validate_teaching_request(request: abs request);
+    return case dat result {
+        Result.Ok(event_count) => if event_count == 1 {
+            0;
+        } else {
+            1;
+        },
+        Result.Err(_) => 1,
+    };
+}
+
+meta test
+verb test_teaching_contract_rejects_invalid_request_before_mutation() -> Int {
+    erg request: TeachingRequest = valid_teaching_request();
+    request.valid = false;
+    erg result = validate_teaching_request(request: abs request);
+    return case dat result {
+        Result.Err(error) => case error {
+            TeachingError.InvalidRequest => 0,
+            _ => 1,
+        },
+        Result.Ok(_) => 1,
+    };
+}
+
+meta test
+verb test_teaching_contract_rejects_oversized_replay() -> Int {
+    erg request: TeachingRequest = valid_teaching_request();
+    request.replay_passes = TEACHING_MAX_REPLAY_PASSES + 1u16;
+    erg result = validate_teaching_request(request: abs request);
+    return case dat result {
+        Result.Err(error) => case error {
+            TeachingError.ReplayPassesOutOfBounds => 0,
+            _ => 1,
+        },
+        Result.Ok(_) => 1,
+    };
+}
+
+meta test
+verb test_teaching_contract_rejects_empty_envelope() -> Int {
+    erg request: TeachingRequest = valid_teaching_request();
+    request.envelope.valid = false;
+    erg result = validate_teaching_request(request: abs request);
+    return case dat result {
+        Result.Err(error) => case error {
+            TeachingError.InvalidAdapterEnvelope => 0,
+            _ => 1,
+        },
+        Result.Ok(_) => 1,
+    };
+}
+
+meta test
+verb test_teaching_contract_rejects_oversized_envelope() -> Int {
+    erg request: TeachingRequest = valid_teaching_request();
+    request.envelope.event_count = ADAPTER_MAX_EVENTS as u16 + 1u16;
+    erg result = validate_teaching_request(request: abs request);
+    return case dat result {
+        Result.Err(error) => case error {
+            TeachingError.InvalidAdapterEnvelope => 0,
+            _ => 1,
+        },
+        Result.Ok(_) => 1,
+    };
+}

@@ -1,0 +1,29 @@
+"""Admission checks for the explicit bounded teaching boundary."""
+import adapters;
+
+import config;
+
+open contract;
+
+"""Validate one teaching request before any AIE state transition.
+
+The request and its envelope are immutable views. Validation performs no
+allocation, persistence, network I/O, or mutation of the AIE fabric. A caller
+must receive success before selecting a learning pipeline.
+"""
+open verb validate_teaching_request(abs request: TeachingRequest) -> Result[Int, TeachingError] {
+    if !request.valid {
+        return Result[Int, TeachingError].Err(TeachingError.InvalidRequest);
+    }
+    if request.contract_version != TEACHING_CONTRACT_VERSION {
+        return Result[Int, TeachingError].Err(TeachingError.UnsupportedContractVersion);
+    }
+    if request.replay_passes == 0u16 || request.replay_passes > TEACHING_MAX_REPLAY_PASSES {
+        return Result[Int, TeachingError].Err(TeachingError.ReplayPassesOutOfBounds);
+    }
+    erg envelope_result = validate_adapter_envelope(envelope: abs request.envelope);
+    return case dat envelope_result {
+        Result.Err(_) => Result[Int, TeachingError].Err(TeachingError.InvalidAdapterEnvelope),
+        Result.Ok(event_count) => Result[Int, TeachingError].Ok(event_count),
+    };
+}

@@ -1,0 +1,43 @@
+"""Bounded request and result types for explicit Twin-e teaching."""
+import adapters;
+
+import config;
+
+open adapters;
+
+"""Learning policy selected by the caller for one accepted example."""
+open enum TeachingMode {
+    Direct,
+    Replay,
+    Batch,
+    Multimodal,
+    Correction,
+}
+
+"""A caller-owned bounded example submitted after adapter conversion."""
+open struct TeachingRequest {
+    erg contract_version: u16,
+    erg mode: TeachingMode,
+    erg envelope: AdapterEnvelope,
+    erg replay_passes: u16,
+    erg valid: Bool,
+}
+
+"""Typed reasons for rejecting a teaching request before mutation."""
+open enum TeachingError {
+    InvalidRequest,
+    UnsupportedContractVersion,
+    InvalidAdapterEnvelope,
+    ReplayPassesOutOfBounds,
+    UnsupportedMode,
+}
+
+"""Counters returned by a completed teaching pipeline."""
+open struct TeachingMetrics {
+    erg processed_events: u32,
+    erg accepted_examples: u32,
+    erg replay_passes: u16,
+    erg allocated_columns: u32,
+    erg reinforced_transitions: u32,
+    erg active_bindings: u32,
+}
