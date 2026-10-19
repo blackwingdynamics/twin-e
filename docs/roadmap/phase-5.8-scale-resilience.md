@@ -234,7 +234,10 @@ task.
       publish it, then stage/validate the manifest and publish the manifest
       last. See ADR-0012, "Publication ordering". Integrated multi-artifact
       publication remains an implementation/recovery gate.
-- [ ] Prove that a flush cannot publish a partially validated generation.
+- [x] Prove that a flush cannot publish a partially validated generation. The
+      dynamic flush benchmark corrupts the staged checksum, observes
+      `partial_rejected=1`, and verifies `active_unchanged=1` before any rename;
+      see `docs/benchmarks/phase-5-cache-lifecycle.md`.
 
 ### Failure and recovery
 

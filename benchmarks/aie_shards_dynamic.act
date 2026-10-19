@@ -163,6 +163,68 @@ verb verify_staged_shard_publication(abs active_path: Path) -> Int {
     };
 }
 
+verb verify_partial_generation_is_unpublished(abs active_path: Path) -> Int {
+    erg staged_suffix: u8 = 52u8;
+    erg staged_result = make_path(suffix: erg staged_suffix);
+    return case dat staged_result {
+        Result.Err(_) => 30,
+        Result.Ok(staged_path) => {
+            erg marker: u8 = 99u8;
+            erg payload: Buffer = make_payload(marker: erg marker);
+            erg shard_id: u32 = 0u32;
+            erg first_column: u32 = 0u32;
+            erg column_count: u32 = 2u32;
+            erg staged = write_dynamic_shard(
+                path: abs staged_path,
+                shard_id: erg shard_id,
+                first_column_index: erg first_column,
+                column_count: erg column_count,
+                payload: abs payload
+            );
+            case dat staged {
+                Result.Err(_) => 31,
+                Result.Ok(_) => {
+                    erg loaded = read_to_bytes(path: abs staged_path);
+                    case dat loaded {
+                        Result.Err(_) => 32,
+                        Result.Ok(bytes) => {
+                            erg checksum_offset: u32 = 40u32;
+                            bytes[checksum_offset] = bytes[checksum_offset] + 1u8;
+                            erg rewritten = write_file(path: abs staged_path, contents: abs bytes);
+                            case dat rewritten {
+                                Result.Err(_) => 33,
+                                Result.Ok(_) => {
+                                    erg published = publish_dynamic_shard(
+                                        staged: abs staged_path,
+                                        active: abs active_path,
+                                        expected_shard_id: erg shard_id,
+                                        expected_first_column_index: erg first_column,
+                                        expected_column_count: erg column_count
+                                    );
+                                    erg rejected: Bool = case dat published {
+                                        Result.Err(_) => true,
+                                        Result.Ok(_) => false,
+                                    };
+                                    erg active_status: Int = validate_status(
+                                        path: abs active_path,
+                                        shard_id: erg shard_id,
+                                        first_column: erg first_column
+                                    );
+                                    remove_file(path: abs staged_path);
+                                    if rejected && active_status == 0 {
+                                        return 0;
+                                    }
+                                    return 34;
+                                },
+                            };
+                        },
+                    };
+                },
+            };
+        },
+    };
+}
+
 verb validate_all(
     abs path_zero: Path,
     abs path_one: Path,
@@ -773,6 +835,10 @@ verb run_paths(
     if staged_status != 0 {
         return staged_status;
     }
+    erg partial_status: Int = verify_partial_generation_is_unpublished(active_path: abs path_zero);
+    if partial_status != 0 {
+        return partial_status;
+    }
     erg zero_id: u32 = 0u32;
     erg one_id: u32 = 1u32;
     erg two_id: u32 = 2u32;
@@ -822,7 +888,7 @@ verb run_paths(
     if cycle_status != 0 {
         return cycle_status;
     }
-    erg message: String = "AIE_SHARDS_DYNAMIC files=3 generated=1 staged_shard=1 validated=3 manifest_bound=2 swapped_rejected=1 dynamic_loaded=1 dynamic_collection=3 manifest_selected=1 dynamic_failed_unchanged=1 free_chain=5-2-0-null reallocated=2 payload_bytes=128";
+    erg message: String = "AIE_SHARDS_DYNAMIC files=3 generated=1 staged_shard=1 validated=3 partial_rejected=1 active_unchanged=1 manifest_bound=2 swapped_rejected=1 dynamic_loaded=1 dynamic_collection=3 manifest_selected=1 dynamic_failed_unchanged=1 free_chain=5-2-0-null reallocated=2 payload_bytes=128";
     println(text: abs message);
     return 0;
 }

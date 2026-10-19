@@ -98,6 +98,10 @@ validation. The current shard and manifest APIs expose these boundaries
 separately, so this ordering is the contract and not a claim that one
 multi-artifact transaction is already implemented.
 
+The dynamic flush benchmark provides the shard-level failure evidence: a
+corrupted staged checksum is rejected and the pre-existing active shard remains
+valid (`partial_rejected=1`, `active_unchanged=1`).
+
 ### Pinning
 
 Pinning protects a resident shard for the lifetime of its active user. A pin
