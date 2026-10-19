@@ -187,6 +187,9 @@ open const TEACHING_CONTRACT_VERSION: u16 = 1u16;
 open const TEACHING_MAX_REPLAY_PASSES: u16 = 16u16;
 
 
+open const TEACHING_MAX_BATCH_ITEMS: u16 = 8u16;
+
+
 """Version marker for the bounded modality-neutral observation contract."""
 open const OBSERVATION_VERSION: u16 = 1u16;
 

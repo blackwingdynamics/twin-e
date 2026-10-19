@@ -37,6 +37,30 @@ verb training_metrics_to_teaching(abs metrics: TrainingMetrics) -> TeachingMetri
     return TeachingMetrics {processed_events: metrics.processed_events, accepted_examples: 1u32, replay_passes: 1u16, allocated_columns: metrics.allocated_columns, reinforced_transitions: metrics.reinforced_transitions, active_bindings: metrics.active_bindings};
 }
 
+open verb teach_text_envelope_direct(
+    ins fabric: CorticalFabric[64],
+    ins bindings: Array[TokenBinding, 64],
+    abs envelope: AdapterEnvelope
+) -> Result[TeachingMetrics, TeachingError] {
+    erg sequence_result = text_envelope_to_sequence(envelope: abs envelope);
+    return case dat sequence_result {
+        Result.Err(error) => Result[TeachingMetrics, TeachingError].Err(error),
+        Result.Ok(sequence) => {
+            erg trained = train_token_sequence(
+                fabric: ins fabric,
+                bindings: ins bindings,
+                sequence: abs sequence
+            );
+            return case dat trained {
+                Result.Err(_) => Result[TeachingMetrics, TeachingError].Err(TeachingError.TrainingRejected),
+                Result.Ok(metrics) => Result[TeachingMetrics, TeachingError].Ok(training_metrics_to_teaching(
+                    metrics: abs metrics
+                )),
+            };
+        },
+    };
+}
+
 """Teach one text value directly in resident memory.
 
 The caller owns the input String. The text adapter produces a validated
@@ -52,24 +76,10 @@ open verb teach_text_direct(
     erg adapted = adapt_text(text: abs text);
     return case dat adapted {
         Result.Err(_) => Result[TeachingMetrics, TeachingError].Err(TeachingError.InvalidAdapterEnvelope),
-        Result.Ok(envelope) => {
-            erg sequence_result = text_envelope_to_sequence(envelope: abs envelope);
-            case dat sequence_result {
-                Result.Err(error) => Result[TeachingMetrics, TeachingError].Err(error),
-                Result.Ok(sequence) => {
-                    erg trained = train_token_sequence(
-                        fabric: ins fabric,
-                        bindings: ins bindings,
-                        sequence: abs sequence
-                    );
-                    return case dat trained {
-                        Result.Err(_) => Result[TeachingMetrics, TeachingError].Err(TeachingError.TrainingRejected),
-                        Result.Ok(metrics) => Result[TeachingMetrics, TeachingError].Ok(training_metrics_to_teaching(
-                            metrics: abs metrics
-                        )),
-                    };
-                },
-            };
-        },
+        Result.Ok(envelope) => teach_text_envelope_direct(
+            fabric: ins fabric,
+            bindings: ins bindings,
+            envelope: abs envelope
+        ),
     };
 }

@@ -183,14 +183,26 @@ the training pipeline.
 
 ## Gate 8.5 — Bounded curriculum batches
 
-- [ ] Define finite caller-driven batches and per-example result reporting.
-- [ ] Bound batch size, resident work, and failure handling.
-- [ ] Define whether processing stops, skips, or quarantines a rejected item.
+- [x] Define finite caller-driven batches and per-example result reporting.
+- [x] Bound batch size, resident work, and failure handling.
+- [x] Define whether processing stops, skips, or quarantines a rejected item.
 
 ### Required evidence
 
-- [ ] Batch tests cover mixed valid/invalid input and deterministic ordering.
-- [ ] No unbounded queue or hidden allocation is introduced.
+- [x] Batch tests cover mixed valid/invalid input and deterministic ordering.
+- [x] No unbounded queue or hidden allocation is introduced.
+
+### Gate 8.5 evidence
+
+The batch pipeline accepts a caller-owned fixed array with a maximum of eight
+active requests. It processes the active prefix in order and returns one
+bounded item result for each request. Invalid or unsupported items are skipped
+and counted; a runtime training failure stops processing after earlier accepted
+items, with no queue, retry loop, filesystem I/O, or hidden allocation.
+
+The batch tests prove mixed valid/invalid ordering, per-item acceptance
+results, deterministic accepted/rejected counts, and rejection of an oversized
+batch before fabric mutation.
 
 ## Gate 8.6 — Correction and competition policy
 

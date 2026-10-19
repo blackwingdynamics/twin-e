@@ -1,0 +1,127 @@
+"""Bounded caller-driven batch teaching for accepted adapter envelopes."""
+import adapters;
+
+import aie;
+
+import config;
+
+open contract;
+
+verb empty_batch_result() -> TeachingBatchMetrics {
+    return TeachingBatchMetrics {item_count: 0u16, accepted_count: 0u16, rejected_count: 0u16, stopped_on_training_error: false, items: Array[TeachingBatchItemResult, 8](
+    )};
+}
+
+verb record_batch_item(
+    ins metrics: TeachingBatchMetrics,
+    erg index: u16,
+    abs result: TeachingMetrics
+) {
+    metrics.items[index as Usize] = TeachingBatchItemResult {accepted: true, processed_events: result.processed_events, allocated_columns: result.allocated_columns, reinforced_transitions: result.reinforced_transitions};
+    metrics.accepted_count += 1u16;
+}
+
+verb reject_batch_item(ins metrics: TeachingBatchMetrics, erg index: u16) {
+    metrics.items[index as Usize] = TeachingBatchItemResult {accepted: false, processed_events: 0u32, allocated_columns: 0u32, reinforced_transitions: 0u32};
+    metrics.rejected_count += 1u16;
+}
+
+verb request_is_direct(abs request: TeachingRequest) -> Bool {
+    return case request.mode {
+        TeachingMode.Direct => true,
+        _ => false,
+    };
+}
+
+verb request_has_text(abs request: TeachingRequest) -> Bool {
+    return case request.envelope.modality {
+        AdapterModality.Text => true,
+        _ => false,
+    };
+}
+
+verb train_batch_item(
+    ins fabric: CorticalFabric[64],
+    ins bindings: Array[TokenBinding, 64],
+    ins metrics: TeachingBatchMetrics,
+    abs request: TeachingRequest,
+    erg index: u16
+) -> Result[Int, TeachingError] {
+    erg taught = teach_text_envelope_direct(
+        fabric: ins fabric,
+        bindings: ins bindings,
+        envelope: abs request.envelope
+    );
+    return case dat taught {
+        Result.Err(_) => {
+            metrics.stopped_on_training_error = true;
+            Result[Int, TeachingError].Err(TeachingError.TrainingRejected);
+        },
+        Result.Ok(result) => {
+            record_batch_item(
+                metrics: ins metrics,
+                index: erg index,
+                result: abs result
+            );
+            Result[Int, TeachingError].Ok(0);
+        },
+    };
+}
+
+verb process_batch_item(
+    ins fabric: CorticalFabric[64],
+    ins bindings: Array[TokenBinding, 64],
+    ins metrics: TeachingBatchMetrics,
+    abs request: TeachingRequest,
+    erg index: u16
+) -> Result[Int, TeachingError] {
+    if !request.valid || !request_is_direct(request: abs request) || !request_has_text(request: abs request) {
+        reject_batch_item(metrics: ins metrics, index: erg index);
+        return Result[Int, TeachingError].Ok(0);
+    }
+    return train_batch_item(
+        fabric: ins fabric,
+        bindings: ins bindings,
+        metrics: ins metrics,
+        request: abs request,
+        index: erg index
+    );
+}
+
+"""Teach a finite batch in caller order.
+
+Only direct text envelopes are supported in this first batch boundary. Invalid
+or unsupported items are skipped and reported per item. A training failure
+stops the batch after preserving all earlier accepted items; no queue or
+filesystem work is created.
+"""
+open verb teach_batch(
+    ins fabric: CorticalFabric[64],
+    ins bindings: Array[TokenBinding, 64],
+    abs batch: TeachingBatch
+) -> Result[TeachingBatchMetrics, TeachingError] {
+    if !batch.valid || batch.count == 0u16 || batch.count > TEACHING_MAX_BATCH_ITEMS {
+        return Result[TeachingBatchMetrics, TeachingError].Err(TeachingError.InvalidRequest);
+    }
+    erg metrics: TeachingBatchMetrics = empty_batch_result();
+    metrics.item_count = batch.count;
+    for erg index: u16 in 0u16 .. TEACHING_MAX_BATCH_ITEMS {
+        if index >= batch.count {
+            return Result[TeachingBatchMetrics, TeachingError].Ok(metrics);
+        }
+        erg processed = process_batch_item(
+            fabric: ins fabric,
+            bindings: ins bindings,
+            metrics: ins metrics,
+            request: abs batch.requests[index as Usize],
+            index: erg index
+        );
+        case dat processed {
+            Result.Err(_) => {
+                return Result[TeachingBatchMetrics, TeachingError].Err(TeachingError.TrainingRejected);
+            },
+            Result.Ok(_) => {},
+        };
+    }
+    return Result[TeachingBatchMetrics, TeachingError].Ok(metrics);
+}
