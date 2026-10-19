@@ -1,3 +1,207 @@
-"""Public video adapter namespace; bounded feature encoding is implemented later."""
+"""Bounded sparse integer video-feature adapter."""
+import config;
+
+open contract;
+
+"""Version marker for the public video adapter namespace."""
 open const ADAPTER_VIDEO_NAMESPACE_VERSION: u16 = 1u16;
 
+
+"""One caller-provided sparse video feature with frame coordinates."""
+open struct VideoFeature {
+    erg frame_id: u16,
+    erg row: u16,
+    erg column: u16,
+    erg channel: u8,
+    erg value: u16,
+}
+
+verb video_source_offset(
+    abs feature: VideoFeature,
+    abs width: u16,
+    abs height: u16,
+    abs channels: u8
+) -> u32 {
+    return ((((feature.frame_id as u32 * height as u32) + feature.row as u32) * width as u32) + feature.column as u32) * channels as u32 + feature.channel as u32;
+}
+
+verb validate_video_header(
+    abs feature_count: u16,
+    abs frame_count: u16,
+    abs width: u16,
+    abs height: u16,
+    abs channels: u8
+) -> Result[Int, AdapterError] {
+    if feature_count == 0u16 || frame_count == 0u16 || width == 0u16 || height == 0u16 {
+        return Result[Int, AdapterError].Err(AdapterError.EmptyInput);
+    }
+    if feature_count as u32 > ADAPTER_MAX_EVENTS || frame_count > ADAPTER_VIDEO_MAX_FRAMES || width > ADAPTER_VIDEO_MAX_WIDTH || height > ADAPTER_VIDEO_MAX_HEIGHT || channels == 0u8 || channels > ADAPTER_VIDEO_MAX_CHANNELS {
+        return Result[Int, AdapterError].Err(AdapterError.EventCountExceeded);
+    }
+    return Result[Int, AdapterError].Ok(feature_count as Int);
+}
+
+verb validate_video_features(
+    abs features: Array[VideoFeature, 256],
+    abs feature_count: u16,
+    abs frame_count: u16,
+    abs width: u16,
+    abs height: u16,
+    abs channels: u8
+) -> Result[Int, AdapterError] {
+    erg previous_offset: u32 = 0u32;
+    for erg index: u32 in 0u32 .. ADAPTER_MAX_EVENTS {
+        if index >= feature_count as u32 {
+            break;
+        }
+        erg feature: VideoFeature = features[index as Usize];
+        if feature.frame_id >= frame_count || feature.row >= height || feature.column >= width || feature.channel >= channels || feature.value > OBSERVATION_MAX_VALUE {
+            return Result[Int, AdapterError].Err(AdapterError.MalformedInput);
+        }
+        erg offset: u32 = video_source_offset(
+            feature: abs feature,
+            width: abs width,
+            height: abs height,
+            channels: abs channels
+        );
+        if index > 0u32 && offset <= previous_offset {
+            return Result[Int, AdapterError].Err(AdapterError.InvalidSourceOrdering);
+        }
+        previous_offset = offset;
+    }
+    return Result[Int, AdapterError].Ok(feature_count as Int);
+}
+
+verb video_to_envelope(
+    abs features: Array[VideoFeature, 256],
+    abs feature_count: u16,
+    abs frame_count: u16,
+    abs width: u16,
+    abs height: u16,
+    abs channels: u8
+) -> AdapterEnvelope {
+    erg event_count_copy: u16 = feature_count + 0u16;
+    erg source_length: u32 = frame_count as u32 * width as u32 * height as u32 * channels as u32;
+    erg loop_limit: u32 = feature_count as u32;
+    erg envelope: AdapterEnvelope = AdapterEnvelope {contract_version: ADAPTER_CONTRACT_VERSION, modality: AdapterModality.Video, event_count: event_count_copy, source_length: source_length, events: Array[AdapterEvent, 256](
+    ), valid: true};
+    for erg index: u32 in 0u32 .. ADAPTER_MAX_EVENTS {
+        if index >= loop_limit {
+            break;
+        }
+        erg feature: VideoFeature = features[index as Usize];
+        erg offset: u32 = video_source_offset(
+            feature: abs feature,
+            width: abs width,
+            height: abs height,
+            channels: abs channels
+        );
+        erg event_slot: u32 = index + 0u32;
+        erg event_identity: u32 = offset + 0u32;
+        envelope.events[event_slot as Usize] = AdapterEvent {source_offset: offset, feature_kind: ADAPTER_VIDEO_FEATURE, identity: event_identity, value_primary: feature.value, value_secondary: feature.channel as u16, payload_length: 1u16, flags: 0u8};
+    }
+    return envelope;
+}
+
+verb finalize_video_envelope(erg envelope: AdapterEnvelope) -> Result[AdapterEnvelope, AdapterError] {
+    erg validation = validate_adapter_envelope(envelope: abs envelope);
+    erg accepted: Bool = false;
+    erg validation_error: AdapterError = AdapterError.InvalidEnvelope;
+    case dat validation {
+        Result.Err(error) => {
+            validation_error = error;
+        },
+        Result.Ok(_) => {
+            accepted = true;
+        },
+    };
+    if accepted {
+        return Result[AdapterEnvelope, AdapterError].Ok(envelope);
+    }
+    return Result[AdapterEnvelope, AdapterError].Err(validation_error);
+}
+
+verb validate_video_input(
+    abs features: Array[VideoFeature, 256],
+    abs feature_count: u16,
+    abs frame_count: u16,
+    abs width: u16,
+    abs height: u16,
+    abs channels: u8
+) -> Result[Int, AdapterError] {
+    erg header = validate_video_header(
+        feature_count: abs feature_count,
+        frame_count: abs frame_count,
+        width: abs width,
+        height: abs height,
+        channels: abs channels
+    );
+    case dat header {
+        Result.Err(error) => {
+            return Result[Int, AdapterError].Err(error);
+        },
+        Result.Ok(_) => {},
+    };
+    return validate_video_features(
+        features: abs features,
+        feature_count: abs feature_count,
+        frame_count: abs frame_count,
+        width: abs width,
+        height: abs height,
+        channels: abs channels
+    );
+}
+
+verb video_build_and_finalize(
+    abs features: Array[VideoFeature, 256],
+    abs feature_count: u16,
+    abs frame_count: u16,
+    abs width: u16,
+    abs height: u16,
+    abs channels: u8
+) -> Result[AdapterEnvelope, AdapterError] {
+    erg envelope: AdapterEnvelope = video_to_envelope(
+        features: abs features,
+        feature_count: abs feature_count,
+        frame_count: abs frame_count,
+        width: abs width,
+        height: abs height,
+        channels: abs channels
+    );
+    return finalize_video_envelope(envelope: erg envelope);
+}
+
+"""Convert ordered sparse integer video features into common events.
+
+The caller supplies decoded integer features. The adapter validates frame
+identity, coordinates, temporal order, and resource limits without decoding
+containers, allocating, or performing external I/O.
+"""
+open verb adapt_video(
+    abs features: Array[VideoFeature, 256],
+    abs feature_count: u16,
+    abs frame_count: u16,
+    abs width: u16,
+    abs height: u16,
+    abs channels: u8
+) -> Result[AdapterEnvelope, AdapterError] {
+    erg admission = validate_video_input(
+        features: abs features,
+        feature_count: abs feature_count,
+        frame_count: abs frame_count,
+        width: abs width,
+        height: abs height,
+        channels: abs channels
+    );
+    return case dat admission {
+        Result.Err(error) => Result[AdapterEnvelope, AdapterError].Err(error),
+        Result.Ok(_) => video_build_and_finalize(
+            features: abs features,
+            feature_count: abs feature_count,
+            frame_count: abs frame_count,
+            width: abs width,
+            height: abs height,
+            channels: abs channels
+        ),
+    };
+}

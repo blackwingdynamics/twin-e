@@ -333,21 +333,50 @@ Result: `71 passed; 0 failed`.
 
 ## Gate 7.7 — Implement image, audio, and video adapters
 
-- [ ] Implement the accepted image representation behind `adapter::image`.
-- [ ] Implement the accepted audio representation behind `adapter::audio`.
-- [ ] Implement the accepted video representation behind `adapter::video`.
-- [ ] Keep decoding, normalization, and validation source-specific.
-- [ ] Feed only the common bounded contract into the AIE-facing boundary.
-- [ ] Add deterministic replay and rejection tests for each modality.
-- [ ] Audit all three call paths for allocation, blocking I/O, and unbounded
+- [x] Implement the accepted image representation behind `adapter::image`.
+- [x] Implement the accepted audio representation behind `adapter::audio`.
+- [x] Implement the accepted video representation behind `adapter::video`.
+- [x] Keep decoding, normalization, and validation source-specific.
+- [x] Feed only the common bounded contract into the AIE-facing boundary.
+- [x] Add deterministic replay and rejection tests for each modality.
+- [x] Audit all three call paths for allocation, blocking I/O, and unbounded
       work.
 
 ### Gate evidence
 
-- [ ] All three adapters pass strict checks and public-facade tests.
-- [ ] Input limits are enforced before any live-state mutation.
-- [ ] Benchmark output separates conversion cost from inference,
+- [x] All three adapters pass strict checks and public-facade tests.
+- [x] Input limits are enforced before any live-state mutation.
+- [x] Benchmark output separates conversion cost from inference,
       forwarding, neurogenesis, and persistence cost.
+
+### Gate 7.7 test evidence
+
+`adapter::image` accepts caller-provided quantized bytes and emits one event
+per bounded sample while rejecting empty, malformed, oversized, and
+event-capacity-overflow input before reading it. `adapter::audio` accepts
+integer feature events with bounded time offsets and channel metadata, and
+rejects empty, out-of-window, out-of-order, unsupported-channel, and
+over-capacity input. `adapter::video` accepts sparse integer frame features and
+enforces frame identity, coordinate bounds, deterministic temporal ordering,
+and the bounded frame/resource envelope.
+
+`tests/aie_media_adapter.act` covers valid conversion and rejection fixtures
+for all three modalities through the canonical `adapters` facade. The three
+implementations perform no filesystem/network I/O, allocation, container
+decoding, floating-point conversion, or AIE-state mutation.
+
+Commands, using the pinned Actus compiler from the earlier compiler evidence
+(`cf1cbda75bf4e14d1ad6c9f1bbf7a12c57f808eb`):
+
+```sh
+actus lock --check
+actus check --strict
+actus test --strict
+actus build --strict --emit exe -o /tmp/twin-e-media-adapters.aie
+```
+
+Result: `77 passed; 0 failed`; native IR verification reported no
+floating-point instructions.
 
 ## Gate 7.8 — Integration and external-boundary contract
 

@@ -173,6 +173,12 @@ valid. Decoding, resampling, color conversion, compression handling, and
 external I/O remain outside this contract until a later implementation ADR or
 an explicit update to this decision.
 
+The initial implementations follow this boundary. `adapter::image` consumes
+already-quantized bytes, `adapter::audio` consumes bounded integer feature
+events, and `adapter::video` consumes sparse integer frame features. None of
+them decodes containers, performs floating-point conversion, performs external
+I/O, or mutates AIE state; each returns only a validated common envelope.
+
 ### 4. Boundary and ownership
 
 Adapters are translation boundaries, not a second AIE runtime. They may reject

@@ -1,3 +1,127 @@
-"""Public image adapter namespace; bounded feature encoding is implemented later."""
+"""Bounded quantized image adapter."""
+import config;
+
+open contract;
+
+"""Version marker for the public image adapter namespace."""
 open const ADAPTER_IMAGE_NAMESPACE_VERSION: u16 = 1u16;
 
+
+verb image_expected_bytes(abs width: u16, abs height: u16, abs channels: u8) -> u32 {
+    return width as u32 * height as u32 * channels as u32;
+}
+
+verb image_to_envelope(
+    abs input: Buffer,
+    erg source_length: u32,
+    erg event_count: u16
+) -> AdapterEnvelope {
+    erg loop_limit: u32 = source_length + 0u32;
+    erg envelope: AdapterEnvelope = AdapterEnvelope {contract_version: ADAPTER_CONTRACT_VERSION, modality: AdapterModality.Image, event_count: event_count, source_length: source_length, events: Array[AdapterEvent, 256](
+    ), valid: true};
+    for erg index: u32 in 0u32 .. ADAPTER_MAX_EVENTS {
+        if index >= loop_limit {
+            break;
+        }
+        erg event_slot: u32 = index + 0u32;
+        erg event_offset: u32 = index + 0u32;
+        erg event_identity: u32 = index + 0u32;
+        erg value: u8 = input[event_slot as Usize];
+        envelope.events[event_slot as Usize] = AdapterEvent {source_offset: event_offset, feature_kind: ADAPTER_IMAGE_FEATURE, identity: event_identity, value_primary: value as u16, value_secondary: 0u16, payload_length: 1u16, flags: 0u8};
+    }
+    return envelope;
+}
+
+verb finalize_image_envelope(erg envelope: AdapterEnvelope) -> Result[AdapterEnvelope, AdapterError] {
+    erg validation = validate_adapter_envelope(envelope: abs envelope);
+    erg accepted: Bool = false;
+    erg validation_error: AdapterError = AdapterError.InvalidEnvelope;
+    case dat validation {
+        Result.Err(error) => {
+            validation_error = error;
+        },
+        Result.Ok(_) => {
+            accepted = true;
+        },
+    };
+    if accepted {
+        return Result[AdapterEnvelope, AdapterError].Ok(envelope);
+    }
+    return Result[AdapterEnvelope, AdapterError].Err(validation_error);
+}
+
+verb validate_image_input(
+    abs input: Buffer,
+    abs width: u16,
+    abs height: u16,
+    abs channels: u8
+) -> Result[Int, AdapterError] {
+    erg source_length: u32 = width as u32 * height as u32 * channels as u32;
+    erg available_result = buffer_size(buffer: abs input);
+    erg available: u32 = case dat available_result {
+        Result.Ok(value) => value as u32,
+        Result.Err(_) => 0u32,
+    };
+    if width == 0u16 || height == 0u16 || channels == 0u8 {
+        return Result[Int, AdapterError].Err(AdapterError.EmptyInput);
+    }
+    if width > ADAPTER_IMAGE_MAX_WIDTH || height > ADAPTER_IMAGE_MAX_HEIGHT || channels > ADAPTER_IMAGE_MAX_CHANNELS {
+        return Result[Int, AdapterError].Err(AdapterError.MalformedInput);
+    }
+    if source_length > ADAPTER_MAX_EVENTS || source_length > available {
+        return Result[Int, AdapterError].Err(AdapterError.EventCountExceeded);
+    }
+    return Result[Int, AdapterError].Ok(source_length as Int);
+}
+
+verb image_build_after_admission(
+    erg admission: Result[Int, AdapterError],
+    abs input: Buffer,
+    erg source_length: u32,
+    erg event_count: u16
+) -> Result[AdapterEnvelope, AdapterError] {
+    case dat admission {
+        Result.Err(error) => {
+            return Result[AdapterEnvelope, AdapterError].Err(error);
+        },
+        Result.Ok(_) => {},
+    };
+    erg envelope: AdapterEnvelope = image_to_envelope(
+        input: abs input,
+        source_length: erg source_length,
+        event_count: erg event_count
+    );
+    return finalize_image_envelope(envelope: erg envelope);
+}
+
+"""Convert caller-provided quantized image bytes into bounded image events.
+
+The adapter accepts only integer quantized samples, preserves their flattened
+pixel order, and does not decode image containers or perform external I/O.
+Inputs exceeding the common event capacity are rejected before publication.
+"""
+open verb adapt_image(
+    abs input: Buffer,
+    abs width: u16,
+    abs height: u16,
+    abs channels: u8
+) -> Result[AdapterEnvelope, AdapterError] {
+    erg source_length: u32 = image_expected_bytes(
+        width: abs width,
+        height: abs height,
+        channels: abs channels
+    );
+    erg event_count: u16 = source_length as u16;
+    erg admission = validate_image_input(
+        input: abs input,
+        width: abs width,
+        height: abs height,
+        channels: abs channels
+    );
+    return image_build_after_admission(
+        admission: erg admission,
+        input: abs input,
+        source_length: erg source_length,
+        event_count: erg event_count
+    );
+}
