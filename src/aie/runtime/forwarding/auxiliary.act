@@ -26,6 +26,13 @@ open struct AuxAxonTable[N: Usize] {
     erg active_count: u32,
 }
 
+open enum AuxLinkError {
+    InvalidIndex,
+    Capacity,
+    Duplicate,
+    Full,
+}
+
 verb reset_aux_record(ins record: AuxAxonRecord, erg next_free: u32) {
     for erg index: u32 in 0u32 .. AUX_AXON_TARGET_CAPACITY {
         record.targets[index] = NULL_INDEX;
@@ -112,4 +119,79 @@ open verb release_aux_record[N: Usize](
         table.active_count -= 1u32;
     }
     return true;
+}
+
+verb find_aux_free_slot(abs record: AuxAxonRecord) -> u32 {
+    for erg slot: u32 in 0u32 .. AUX_AXON_TARGET_CAPACITY {
+        if record.targets[slot] == NULL_INDEX {
+            return slot;
+        }
+    }
+    return AUX_AXON_TARGET_CAPACITY;
+}
+
+"""Append one bounded target to an already allocated auxiliary record."""
+verb append_aux_target(ins record: AuxAxonRecord, erg target: u32) -> Result[Int, AuxLinkError] {
+    for erg index: u32 in 0u32 .. AUX_AXON_TARGET_CAPACITY {
+        if record.targets[index] == target {
+            return Result[Int, AuxLinkError].Err(AuxLinkError.Duplicate);
+        }
+    }
+    erg slot: u32 = find_aux_free_slot(record: abs record);
+    if slot >= AUX_AXON_TARGET_CAPACITY {
+        return Result[Int, AuxLinkError].Err(AuxLinkError.Full);
+    }
+    record.targets[slot] = target;
+    record.used_count += 1u8;
+    return Result[Int, AuxLinkError].Ok(0);
+}
+
+"""Link one target through the bounded auxiliary sidecar.
+
+The source receives one record at most and is marked with `FLAG_HAS_AUX` only
+after the target is successfully stored. Capacity or duplicate errors leave
+the fabric and table unchanged.
+"""
+verb acquire_aux_record[N: Usize](ins table: AuxAxonTable[N], erg source: u32) -> Result[u32, AuxLinkError] {
+    if table.source_to_record[source] != AUX_AXON_INVALID_ID {
+        return Result[u32, AuxLinkError].Ok(table.source_to_record[source] as u32);
+    }
+    erg allocated = allocate_aux_record(table: ins table);
+    erg record_index: u32 = case dat allocated {
+        Option.None => NULL_INDEX,
+        Option.Some(value) => value,
+    };
+    if record_index == NULL_INDEX || !attach_aux_record(
+        table: ins table,
+        source: erg source,
+        record_index: erg record_index
+    ) {
+        return Result[u32, AuxLinkError].Err(AuxLinkError.Capacity);
+    }
+    return Result[u32, AuxLinkError].Ok(record_index);
+}
+
+open verb link_aux_axon[N: Usize](
+    ins fabric: CorticalFabric[N],
+    ins table: AuxAxonTable[N],
+    erg source: u32,
+    erg target: u32
+) -> Result[Int, AuxLinkError] {
+    if source >= (N as u32) || target >= (N as u32) {
+        return Result[Int, AuxLinkError].Err(AuxLinkError.InvalidIndex);
+    }
+    erg acquired = acquire_aux_record(table: ins table, source: erg source);
+    return case dat acquired {
+        Result.Err(error) => Result[Int, AuxLinkError].Err(error),
+        Result.Ok(record_index) => {
+            erg linked = append_aux_target(record: ins table.records[record_index], target: erg target);
+            case dat linked {
+                Result.Err(error) => Result[Int, AuxLinkError].Err(error),
+                Result.Ok(value) => {
+                    fabric.columns[source].flags |= FLAG_HAS_AUX;
+                    Result[Int, AuxLinkError].Ok(value);
+                },
+            };
+        },
+    };
 }

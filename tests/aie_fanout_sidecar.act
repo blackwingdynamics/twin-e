@@ -73,3 +73,82 @@ verb test_aux_table_allocates_attaches_and_reclaims() -> Int {
     aux_table_init(table: ins table);
     return auxiliary_lifecycle_result(table: ins table);
 }
+
+verb link_one_gated_target(
+    ins fabric: CorticalFabric[16],
+    ins table: AuxAxonTable[16],
+    erg source: u32,
+    erg index: u32
+) -> Bool {
+    erg target: u32 = allocate_column_index(fabric: ins fabric);
+    fabric.columns[target].threshold = 1u8;
+    fabric.columns[target].coincidence_low = 1u64;
+    if index < 8u32 {
+        link_axon(
+            fabric: ins fabric,
+            source: erg source,
+            slot: erg index,
+            target: erg target
+        );
+        return true;
+    }
+    erg linked = link_aux_axon(
+        fabric: ins fabric,
+        table: ins table,
+        source: erg source,
+        target: erg target
+    );
+    return case dat linked {
+        Result.Err(_) => false,
+        Result.Ok(_) => true,
+    };
+}
+
+verb populate_gated_targets(
+    ins fabric: CorticalFabric[16],
+    ins table: AuxAxonTable[16],
+    erg source: u32
+) -> Bool {
+    for erg index: u32 in 0u32 .. 9u32 {
+        if !link_one_gated_target(
+            fabric: ins fabric,
+            table: ins table,
+            source: erg source,
+            index: erg index
+        ) {
+            return false;
+        }
+    }
+    return true;
+}
+
+meta test
+verb test_gated_auxiliary_step_reaches_extra_target() -> Int {
+    erg fabric: CorticalFabric[16] = CorticalFabric[16] {columns: Array[Minicolumn, 16](), free_list_head: 0u32, active_count: 0u32};
+    erg table: AuxAxonTable[16] = AuxAxonTable[16] {source_to_record: Array[u16, 16](), records: Array[AuxAxonRecord, 8](
+    ), free_list_head: 0u32, active_count: 0u32};
+    fabric_init(fabric: ins fabric);
+    aux_table_init(table: ins table);
+    allocate_column_index(fabric: ins fabric);
+    erg source: u32 = 0u32;
+    if !populate_gated_targets(
+        fabric: ins fabric,
+        table: ins table,
+        source: erg source
+    ) {
+        return 1;
+    }
+    fabric.columns[source].threshold = 1u8;
+    fabric.columns[source].coincidence_low = 1u64;
+    erg wave: Wavefront = Wavefront {mask_low: 1u64, mask_high: 0u64, energy: 1u8};
+    erg result = step_wavefront_with_aux(
+        fabric: ins fabric,
+        table: abs table,
+        wave: abs wave,
+        source_idx: erg source
+    );
+    if !result.base.source_fired || result.auxiliary_count != 1u8 || result.auxiliary[0u32] == NULL_INDEX {
+        return 1;
+    }
+    return 0;
+}

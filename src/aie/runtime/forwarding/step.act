@@ -3,6 +3,13 @@ import config;
 
 open slots;
 
+"""Result of one gated step with fixed inline and auxiliary destinations."""
+open struct ExtendedImpulseStepResult {
+    erg base: ImpulseStepResult,
+    erg auxiliary: Array[u32, 8],
+    erg auxiliary_count: u8,
+}
+
 """Submit one wavefront to an active source and propagate one bounded impulse.
 
 The caller keeps ownership of `fabric` through the exclusive `ins` loan. The
@@ -91,4 +98,62 @@ verb forward_step_destinations[N: Usize](
         );
     }
     return fired;
+}
+
+verb empty_auxiliary_destinations() -> Array[u32, 8] {
+    erg fired: Array[u32,8] = Array[u32, 8]();
+    for erg index: u32 in 0u32 .. 8u32 {
+        fired[index] = NULL_INDEX;
+    }
+    return fired;
+}
+
+verb forward_auxiliary_destinations[N: Usize](
+    ins fabric: CorticalFabric[N],
+    abs table: AuxAxonTable[N],
+    abs wave: Wavefront,
+    erg source_idx: u32
+) -> Array[u32, 8] {
+    erg fired: Array[u32,8] = empty_auxiliary_destinations();
+    erg record_index: u32 = table.source_to_record[source_idx] as u32;
+    erg used_count: u8 = table.records[record_index].used_count;
+    for erg index: u32 in 0u32 .. 8u32 {
+        if index >= used_count as u32 {
+            break;
+        }
+        erg target: u32 = table.records[record_index].targets[index];
+        fired[index] = forward_one(
+            fabric: ins fabric,
+            wave: abs wave,
+            target: erg target
+        );
+    }
+    return fired;
+}
+
+"""Run the existing inline step and gate sidecar forwarding by `FLAG_HAS_AUX`."""
+open verb step_wavefront_with_aux[N: Usize](
+    ins fabric: CorticalFabric[N],
+    abs table: AuxAxonTable[N],
+    abs wave: Wavefront,
+    erg source_idx: u32
+) -> ExtendedImpulseStepResult {
+    erg base: ImpulseStepResult = step_wavefront(
+        fabric: ins fabric,
+        wave: abs wave,
+        source_idx: erg source_idx
+    );
+    erg auxiliary: Array[u32,8] = empty_auxiliary_destinations();
+    erg auxiliary_count: u8 = 0u8;
+    if base.source_fired && (fabric.columns[source_idx].flags & FLAG_HAS_AUX) != 0u8 {
+        auxiliary = forward_auxiliary_destinations(
+            fabric: ins fabric,
+            table: abs table,
+            wave: abs wave,
+            source_idx: erg source_idx
+        );
+        erg record_index: u32 = table.source_to_record[source_idx] as u32;
+        auxiliary_count = table.records[record_index].used_count;
+    }
+    return ExtendedImpulseStepResult {base: base, auxiliary: auxiliary, auxiliary_count: auxiliary_count};
 }
