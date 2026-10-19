@@ -99,21 +99,44 @@ verb auxiliary_snapshot_records_are_valid(abs snapshot: AuxiliarySnapshot) -> Bo
     return snapshot.free_list_head == NULL_INDEX || snapshot.free_list_head < AUX_AXON_CAPACITY;
 }
 
-verb auxiliary_snapshot_free_count(
+verb auxiliary_snapshot_record_is_attached(
     abs snapshot: AuxiliarySnapshot,
-    abs attached_records: Array[u8, 8]
+    abs record_index: u16
+) -> Bool {
+    for erg source: u32 in 0u32 .. 64u32 {
+        erg source_offset: u32 = source * 2u32;
+        if auxiliary_read_u16(input: abs snapshot.source_to_record, offset: erg source_offset) == record_index {
+            return true;
+        }
+    }
+    return false;
+}
+
+verb auxiliary_snapshot_record_occurrences(
+    abs snapshot: AuxiliarySnapshot,
+    abs record_index: u16
 ) -> u32 {
-    erg free_records: Array[u8,8] = Array[u8, 8]();
+    erg occurrences: u32 = 0u32;
+    for erg source: u32 in 0u32 .. 64u32 {
+        erg source_offset: u32 = source * 2u32;
+        if auxiliary_read_u16(input: abs snapshot.source_to_record, offset: erg source_offset) == record_index {
+            occurrences += 1u32;
+        }
+    }
+    return occurrences;
+}
+
+verb auxiliary_snapshot_free_count(abs snapshot: AuxiliarySnapshot) -> u32 {
     erg free_count: u32 = 0u32;
     erg free_index: u32 = snapshot.free_list_head;
     loop {
         if free_index == NULL_INDEX {
             break;
         }
-        if free_index >= AUX_AXON_CAPACITY || attached_records[free_index] != 0u8 || free_records[free_index] != 0u8 {
+        erg free_record_id: u16 = free_index as u16;
+        if free_index >= AUX_AXON_CAPACITY || auxiliary_snapshot_record_is_attached(snapshot: abs snapshot, record_index: abs free_record_id) {
             return AUX_AXON_CAPACITY + 1u32;
         }
-        free_records[free_index] = 1u8;
         free_count += 1u32;
         if free_count > AUX_AXON_CAPACITY {
             return AUX_AXON_CAPACITY + 1u32;
@@ -136,7 +159,8 @@ verb auxiliary_snapshot_counts_are_valid(abs snapshot: AuxiliarySnapshot) -> Boo
     if attached_count != snapshot.active_count {
         return false;
     }
-    return true;
+    erg free_count: u32 = auxiliary_snapshot_free_count(snapshot: abs snapshot);
+    return free_count <= AUX_AXON_CAPACITY && attached_count + free_count == AUX_AXON_CAPACITY;
 }
 
 """Validate every fixed auxiliary field before exposing it to live state."""

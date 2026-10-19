@@ -237,6 +237,27 @@ verb test_aux_snapshot_attached_source_bytes() -> Int {
 }
 
 meta test
+verb test_aux_snapshot_attached_free_head() -> Int {
+    erg snapshot = diagnostic_attached_snapshot();
+    if snapshot.free_list_head != 1u32 {
+        return 1;
+    }
+    return 0;
+}
+
+meta test
+verb test_aux_snapshot_attached_free_link_bytes() -> Int {
+    erg snapshot = diagnostic_attached_snapshot();
+    if snapshot.records[76u32] != 2u8 || snapshot.records[77u32] != 0u8 || snapshot.records[78u32] != 0u8 || snapshot.records[79u32] != 0u8 {
+        return 1;
+    }
+    if snapshot.records[316u32] != 255u8 || snapshot.records[317u32] != 255u8 || snapshot.records[318u32] != 255u8 || snapshot.records[319u32] != 255u8 {
+        return 1;
+    }
+    return 0;
+}
+
+meta test
 verb test_aux_snapshot_rejection_preserves_live_state() -> Int {
     erg source_table: AuxAxonTable[64] = AuxAxonTable[64] {source_to_record: Array[u16, 64](
     ), records: Array[AuxAxonRecord, 8](), free_list_head: 0u32, active_count: 0u32};
