@@ -52,6 +52,7 @@ AIE_BINDING_STAGE write_failed error=IoError.Failed status=11
 AIE_BINDING_STAGE rename_failed error=IoError.Failed status=11
 AIE_BINDING_STAGE previous_generation_preserved
 AIE_BINDING_STAGE dirty_after_failed_save
+AIE_BINDING_STAGE resident_usable_after_failed_save
 AIE_BINDING_STAGE validation_rejected error=IoError.InvalidData status=13
 AIE_BINDING_STAGE persisted_after_successful_save
 AIE_BINDING_STAGE write_ok
@@ -74,8 +75,9 @@ bindings. `publication_ok` is emitted after the published active file is read
 and validated. `payload_bindings_checksum_metadata_ok` is emitted only after the
 validator has checked the expected payload section, shard-local binding section,
 compatibility metadata, total length, and checksum. The lifecycle markers prove
-that the public save API leaves a failed resident save dirty and changes the
-same entry to persisted only after successful publication.
+that the public save API leaves a failed resident save dirty and usable for a
+subsequent cache lookup/touch, and changes the same entry to persisted only
+after successful publication.
 
 ## Remaining evidence after Gate D
 

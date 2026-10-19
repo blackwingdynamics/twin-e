@@ -258,7 +258,9 @@ task.
       a new caller-driven save request after failure, and mutation-compatible
       for already resident state. No automatic recovery write or retry is
       allowed. See ADR-0012, "Recovery policy".
-- [ ] Verify that failed flush leaves the dirty resident shard usable.
+- [x] Verify that failed flush leaves the dirty resident shard usable. The save
+      benchmark reports `dirty_after_failed_save` and
+      `resident_usable_after_failed_save` after a failed publication.
 - [ ] Verify that capacity recovery after a successful flush permits the
       deferred admission or neurogenesis operation.
 - [ ] Verify that recovery never silently accepts a stale generation or a
