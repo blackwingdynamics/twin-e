@@ -1,0 +1,185 @@
+import std::io;
+
+open io;
+
+struct DynamicManifestDescriptorFields {
+    erg descriptor_id: u32,
+    erg first_column: u32,
+    erg column_count: u32,
+    erg column_payload: u32,
+    erg binding_offset: u32,
+    erg binding_payload: u32,
+    erg auxiliary_offset: u32,
+    erg auxiliary_payload: u32,
+    erg state: u32,
+}
+
+struct DynamicManifestDescriptorLayout {
+    erg descriptor_id: u32,
+    erg first_column: u32,
+    erg column_count: u32,
+    erg column_payload: u32,
+    erg binding_offset: u32,
+    erg binding_payload: u32,
+}
+
+struct DynamicManifestDescriptorAuxiliary {
+    erg auxiliary_offset: u32,
+    erg auxiliary_payload: u32,
+    erg state: u32,
+}
+
+verb read_dynamic_manifest_descriptor_field(
+    abs bytes: Buffer,
+    erg descriptor_offset: u32,
+    erg field_offset: u32
+) -> u32 {
+    erg absolute_offset: u32 = descriptor_offset + field_offset;
+    return read_manifest_u32(input: abs bytes, offset: abs absolute_offset);
+}
+
+verb read_dynamic_manifest_descriptor_id(
+    abs bytes: Buffer,
+    erg descriptor_offset: u32
+) -> u32 {
+    erg field_offset: u32 = 0u32;
+    return read_dynamic_manifest_descriptor_field(
+        bytes: abs bytes,
+        descriptor_offset: erg descriptor_offset,
+        field_offset: erg field_offset
+    );
+}
+
+verb read_dynamic_manifest_first_column(
+    abs bytes: Buffer,
+    erg descriptor_offset: u32
+) -> u32 {
+    erg field_offset: u32 = 4u32;
+    return read_dynamic_manifest_descriptor_field(
+        bytes: abs bytes,
+        descriptor_offset: erg descriptor_offset,
+        field_offset: erg field_offset
+    );
+}
+
+verb read_dynamic_manifest_column_count(
+    abs bytes: Buffer,
+    erg descriptor_offset: u32
+) -> u32 {
+    erg field_offset: u32 = 8u32;
+    return read_dynamic_manifest_descriptor_field(
+        bytes: abs bytes,
+        descriptor_offset: erg descriptor_offset,
+        field_offset: erg field_offset
+    );
+}
+
+verb read_dynamic_manifest_column_payload(
+    abs bytes: Buffer,
+    erg descriptor_offset: u32
+) -> u32 {
+    erg field_offset: u32 = 16u32;
+    return read_dynamic_manifest_descriptor_field(
+        bytes: abs bytes,
+        descriptor_offset: erg descriptor_offset,
+        field_offset: erg field_offset
+    );
+}
+
+verb read_dynamic_manifest_binding_offset(
+    abs bytes: Buffer,
+    erg descriptor_offset: u32
+) -> u32 {
+    erg field_offset: u32 = 20u32;
+    return read_dynamic_manifest_descriptor_field(
+        bytes: abs bytes,
+        descriptor_offset: erg descriptor_offset,
+        field_offset: erg field_offset
+    );
+}
+
+verb read_dynamic_manifest_binding_payload(
+    abs bytes: Buffer,
+    erg descriptor_offset: u32
+) -> u32 {
+    erg field_offset: u32 = 24u32;
+    return read_dynamic_manifest_descriptor_field(
+        bytes: abs bytes,
+        descriptor_offset: erg descriptor_offset,
+        field_offset: erg field_offset
+    );
+}
+
+verb read_dynamic_manifest_auxiliary_offset(
+    abs bytes: Buffer,
+    erg descriptor_offset: u32
+) -> u32 {
+    erg field_offset: u32 = 28u32;
+    return read_dynamic_manifest_descriptor_field(
+        bytes: abs bytes,
+        descriptor_offset: erg descriptor_offset,
+        field_offset: erg field_offset
+    );
+}
+
+verb read_dynamic_manifest_auxiliary_payload(
+    abs bytes: Buffer,
+    erg descriptor_offset: u32
+) -> u32 {
+    erg field_offset: u32 = 32u32;
+    return read_dynamic_manifest_descriptor_field(
+        bytes: abs bytes,
+        descriptor_offset: erg descriptor_offset,
+        field_offset: erg field_offset
+    );
+}
+
+verb read_dynamic_manifest_state(abs bytes: Buffer, erg descriptor_offset: u32) -> u32 {
+    erg field_offset: u32 = 44u32;
+    return read_dynamic_manifest_descriptor_field(
+        bytes: abs bytes,
+        descriptor_offset: erg descriptor_offset,
+        field_offset: erg field_offset
+    );
+}
+
+verb read_dynamic_manifest_descriptor_layout(
+    abs bytes: Buffer,
+    erg descriptor_offset: u32
+) -> DynamicManifestDescriptorLayout {
+    return DynamicManifestDescriptorLayout {descriptor_id: read_dynamic_manifest_descriptor_id(
+        bytes: abs bytes,
+        descriptor_offset: erg descriptor_offset
+    ), first_column: read_dynamic_manifest_first_column(bytes: abs bytes, descriptor_offset: erg descriptor_offset), column_count: read_dynamic_manifest_column_count(
+        bytes: abs bytes,
+        descriptor_offset: erg descriptor_offset
+    ), column_payload: read_dynamic_manifest_column_payload(bytes: abs bytes, descriptor_offset: erg descriptor_offset), binding_offset: read_dynamic_manifest_binding_offset(
+        bytes: abs bytes,
+        descriptor_offset: erg descriptor_offset
+    ), binding_payload: read_dynamic_manifest_binding_payload(bytes: abs bytes, descriptor_offset: erg descriptor_offset)};
+}
+
+verb read_dynamic_manifest_descriptor_auxiliary(
+    abs bytes: Buffer,
+    erg descriptor_offset: u32
+) -> DynamicManifestDescriptorAuxiliary {
+    return DynamicManifestDescriptorAuxiliary {auxiliary_offset: read_dynamic_manifest_auxiliary_offset(
+        bytes: abs bytes,
+        descriptor_offset: erg descriptor_offset
+    ), auxiliary_payload: read_dynamic_manifest_auxiliary_payload(bytes: abs bytes, descriptor_offset: erg descriptor_offset), state: read_dynamic_manifest_state(
+        bytes: abs bytes,
+        descriptor_offset: erg descriptor_offset
+    )};
+}
+
+verb read_dynamic_manifest_descriptor_fields(
+    abs bytes: Buffer,
+    erg descriptor_offset: u32
+) -> DynamicManifestDescriptorFields {
+    erg layout: DynamicManifestDescriptorLayout = read_dynamic_manifest_descriptor_layout(bytes: abs bytes, descriptor_offset: erg descriptor_offset);
+    erg auxiliary: DynamicManifestDescriptorAuxiliary = read_dynamic_manifest_descriptor_auxiliary(
+        bytes: abs bytes,
+        descriptor_offset: erg descriptor_offset
+    );
+    return DynamicManifestDescriptorFields {descriptor_id: layout.descriptor_id, first_column: layout.first_column, column_count: layout.column_count, column_payload: layout.column_payload, binding_offset: layout.binding_offset, binding_payload: layout.binding_payload, auxiliary_offset: auxiliary.auxiliary_offset, auxiliary_payload: auxiliary.auxiliary_payload, state: auxiliary.state};
+}

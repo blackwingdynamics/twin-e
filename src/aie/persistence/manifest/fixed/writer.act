@@ -130,6 +130,8 @@ verb append_fixed_manifest_descriptor(
     append_manifest_u32(output: ins output, value: abs payload_bytes);
     append_manifest_u32(output: ins output, value: abs zero);
     append_manifest_u32(output: ins output, value: abs zero);
+    append_manifest_u32(output: ins output, value: abs zero);
+    append_manifest_u32(output: ins output, value: abs zero);
     append_manifest_u64(output: ins output, value: abs checksum);
     append_manifest_u32(output: ins output, value: abs state);
 }

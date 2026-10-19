@@ -96,8 +96,10 @@ verb read_fixed_manifest_descriptor(abs bytes: Buffer, erg offset: u32) -> Manif
     erg payload_bytes_offset: u32 = offset + 16u32;
     erg binding_offset_offset: u32 = offset + 20u32;
     erg binding_bytes_offset: u32 = offset + 24u32;
-    erg descriptor_checksum_offset: u32 = offset + 28u32;
-    erg state_offset: u32 = offset + 36u32;
+    erg auxiliary_offset_offset: u32 = offset + 28u32;
+    erg auxiliary_bytes_offset: u32 = offset + 32u32;
+    erg descriptor_checksum_offset: u32 = offset + 36u32;
+    erg state_offset: u32 = offset + 44u32;
     return ManifestDescriptor {shard_id: read_manifest_u32(input: abs bytes, offset: abs offset), first_column_index: read_manifest_u32(
         input: abs bytes,
         offset: abs first_column_offset
@@ -107,7 +109,10 @@ verb read_fixed_manifest_descriptor(abs bytes: Buffer, erg offset: u32) -> Manif
     ), payload_bytes: read_manifest_u32(input: abs bytes, offset: abs payload_bytes_offset), binding_offset: read_manifest_u32(
         input: abs bytes,
         offset: abs binding_offset_offset
-    ), binding_bytes: read_manifest_u32(input: abs bytes, offset: abs binding_bytes_offset), checksum: read_manifest_u64(
+    ), binding_bytes: read_manifest_u32(input: abs bytes, offset: abs binding_bytes_offset), auxiliary_offset: read_manifest_u32(
+        input: abs bytes,
+        offset: abs auxiliary_offset_offset
+    ), auxiliary_bytes: read_manifest_u32(input: abs bytes, offset: abs auxiliary_bytes_offset), checksum: read_manifest_u64(
         input: abs bytes,
         offset: abs descriptor_checksum_offset
     ), state: read_manifest_u32(input: abs bytes, offset: abs state_offset)};
@@ -122,7 +127,7 @@ Failure behavior: Returns false or InvalidData/InvalidInput according to the pub
 """
 verb fixed_manifest_descriptors_are_valid(abs bytes: Buffer) -> Bool {
     erg descriptor_zero_offset: u32 = 64u32;
-    erg descriptor_one_offset: u32 = 104u32;
+    erg descriptor_one_offset: u32 = 112u32;
     erg expected_zero: u32 = 0u32;
     erg expected_one: u32 = 1u32;
     erg zero: ManifestDescriptor = read_fixed_manifest_descriptor(bytes: abs bytes, offset: erg descriptor_zero_offset);

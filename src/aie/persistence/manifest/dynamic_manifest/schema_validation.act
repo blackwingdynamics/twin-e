@@ -2,6 +2,8 @@ import std::io;
 
 open io;
 
+open descriptor_fields;
+
 """
 Purpose: Compute the position-independent checksum while excluding the stored checksum field.
 Inputs: The manifest bytes and typed indexes or metadata declared by the signature.
@@ -51,6 +53,8 @@ verb manifest_dynamic_descriptor_is_safe(
     abs column_payload: u32,
     abs binding_offset: u32,
     abs binding_payload: u32,
+    abs auxiliary_offset: u32,
+    abs auxiliary_payload: u32,
     abs state: u32,
     abs expected_first: u32
 ) -> Bool {
@@ -60,9 +64,9 @@ verb manifest_dynamic_descriptor_is_safe(
         return false;
     }
     if binding_payload == 0u32 {
-        return binding_offset == 0u32;
+        return binding_offset == 0u32 && auxiliary_offset == BRAIN_SHARD_HEADER_BYTES as u32 + expected_column_payload && auxiliary_payload == 0u32;
     }
-    return binding_offset == BRAIN_SHARD_HEADER_BYTES as u32 + expected_column_payload && binding_payload == expected_binding_payload;
+    return binding_offset == BRAIN_SHARD_HEADER_BYTES as u32 + expected_column_payload && binding_payload == expected_binding_payload && auxiliary_offset == binding_offset + binding_payload && auxiliary_payload == 0u32;
 }
 
 """
@@ -79,26 +83,16 @@ verb manifest_dynamic_descriptor_is_valid_at(
     erg expected_first: u32
 ) -> Bool {
     erg descriptor_offset: u32 = BRAIN_MANIFEST_HEADER_BYTES as u32 + (descriptor_index * BRAIN_MANIFEST_DESCRIPTOR_BYTES as u32);
-    erg descriptor_id: u32 = read_manifest_u32(input: abs bytes, offset: abs descriptor_offset);
-    erg first_offset: u32 = descriptor_offset + 4u32;
-    erg count_offset: u32 = descriptor_offset + 8u32;
-    erg payload_offset: u32 = descriptor_offset + 16u32;
-    erg binding_offset_field: u32 = descriptor_offset + 20u32;
-    erg binding_payload_offset: u32 = descriptor_offset + 24u32;
-    erg state_offset: u32 = descriptor_offset + 36u32;
-    erg first_column: u32 = read_manifest_u32(input: abs bytes, offset: abs first_offset);
-    erg column_count: u32 = read_manifest_u32(input: abs bytes, offset: abs count_offset);
-    erg column_payload: u32 = read_manifest_u32(input: abs bytes, offset: abs payload_offset);
-    erg binding_offset: u32 = read_manifest_u32(input: abs bytes, offset: abs binding_offset_field);
-    erg binding_payload: u32 = read_manifest_u32(input: abs bytes, offset: abs binding_payload_offset);
-    erg state: u32 = read_manifest_u32(input: abs bytes, offset: abs state_offset);
-    return descriptor_id == descriptor_index && first_column <= total_columns && column_count <= total_columns - first_column && manifest_dynamic_descriptor_is_safe(
-        first_column: abs first_column,
-        column_count: abs column_count,
-        column_payload: abs column_payload,
-        binding_offset: abs binding_offset,
-        binding_payload: abs binding_payload,
-        state: abs state,
+    erg fields: DynamicManifestDescriptorFields = read_dynamic_manifest_descriptor_fields(bytes: abs bytes, descriptor_offset: erg descriptor_offset);
+    return fields.descriptor_id == descriptor_index && fields.first_column <= total_columns && fields.column_count <= total_columns - fields.first_column && manifest_dynamic_descriptor_is_safe(
+        first_column: abs fields.first_column,
+        column_count: abs fields.column_count,
+        column_payload: abs fields.column_payload,
+        binding_offset: abs fields.binding_offset,
+        binding_payload: abs fields.binding_payload,
+        auxiliary_offset: abs fields.auxiliary_offset,
+        auxiliary_payload: abs fields.auxiliary_payload,
+        state: abs fields.state,
         expected_first: abs expected_first
     );
 }

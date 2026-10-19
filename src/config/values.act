@@ -451,7 +451,7 @@ open const BRAIN_MANIFEST_HEADER_BYTES: u16 = 64u16;
 
 
 """Serialized byte length of one manifest shard descriptor."""
-open const BRAIN_MANIFEST_DESCRIPTOR_BYTES: u16 = 40u16;
+open const BRAIN_MANIFEST_DESCRIPTOR_BYTES: u16 = 48u16;
 
 
 """Number of descriptors in the fixed two-shard manifest."""
@@ -463,7 +463,7 @@ open const BRAIN_MANIFEST_MAX_SHARDS: u32 = 2u32;
 
 
 """Total serialized byte length of the fixed manifest."""
-open const BRAIN_MANIFEST_FILE_BYTES: u32 = 144u32;
+open const BRAIN_MANIFEST_FILE_BYTES: u32 = 160u32;
 
 
 """Maximum descriptor count accepted by a dynamic manifest."""
@@ -475,7 +475,7 @@ open const BRAIN_MANIFEST_DYNAMIC_MAX_COLUMNS: u32 = 8192u32;
 
 
 """Maximum serialized byte length accepted by a dynamic manifest."""
-open const BRAIN_MANIFEST_DYNAMIC_MAX_BYTES: u32 = 384u32;
+open const BRAIN_MANIFEST_DYNAMIC_MAX_BYTES: u32 = 448u32;
 
 
 """Number of inline shard metadata entries in the bounded cache."""
