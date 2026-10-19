@@ -127,7 +127,12 @@ gates below.
 - [x] Measure malformed or adversarial byte sequences within the tokenizer
       input bound.
 - [x] Measure repeated unknown input and unique unknown input separately.
-- [ ] Measure mixed known-token and byte-fallback input.
+- [x] Measure mixed known-token and byte-fallback input.
+
+The tokenizer-side mixed case is recorded in
+`docs/benchmarks/mixed-bpe-fallback.md`: a four-byte input emits one merged
+known token and two preserved fallback bytes. Training-side accounting remains
+open.
 
 The tokenizer-side raw-byte envelope is recorded in
 `docs/benchmarks/byte-fallback-envelope.md`: repeated and unique 64-byte
