@@ -114,6 +114,16 @@ checksum corruption and truncation (`partial_rejected=1`,
 (`previous_generation_preserved`), and incomplete-generation restart recovery
 (`dynamic_failed_unchanged`).
 
+### Recovery policy
+
+Recovery is read-only with respect to persisted generations: loading ignores an
+invalid or incomplete newest generation and selects the newest complete
+generation without repairing files implicitly. A failed explicit flush is
+retryable, but only when the caller submits a new save request; the dirty
+resident entry remains available for that retry. Already resident state may
+continue normal mutation after a failed save, while no automatic retry or
+recovery write is performed.
+
 ### Pinning
 
 Pinning protects a resident shard for the lifetime of its active user. A pin

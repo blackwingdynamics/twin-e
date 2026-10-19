@@ -254,8 +254,10 @@ task.
       recovery reports `dynamic_failed_unchanged`. See
       `docs/benchmarks/phase-5-cache-lifecycle.md` and
       `docs/benchmarks/phase-5-save-boundary.md`.
-- [ ] Define whether recovery is read-only, retryable, or allows continued
-      mutation in the existing resident generation.
+- [x] Define recovery as read-only for persisted generations, retryable through
+      a new caller-driven save request after failure, and mutation-compatible
+      for already resident state. No automatic recovery write or retry is
+      allowed. See ADR-0012, "Recovery policy".
 - [ ] Verify that failed flush leaves the dirty resident shard usable.
 - [ ] Verify that capacity recovery after a successful flush permits the
       deferred admission or neurogenesis operation.
