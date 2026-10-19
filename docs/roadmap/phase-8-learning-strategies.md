@@ -152,16 +152,34 @@ recall matches recall after snapshot serialization and reload.
 
 ## Gate 8.4 — Context and sequence strategies
 
-- [ ] Define how predecessor context distinguishes otherwise identical token
+- [x] Define how predecessor context distinguishes otherwise identical token
       identities.
-- [ ] Define sequence boundaries, BOS/EOS handling, and deterministic tie
+- [x] Define sequence boundaries, BOS/EOS handling, and deterministic tie
       breaking for competing successors.
-- [ ] Define rejection when a sequence exceeds available bounded capacity.
+- [x] Define rejection when a sequence exceeds available bounded capacity.
 
 ### Required evidence
 
-- [ ] Context separation and competing-successor tests pass.
-- [ ] Capacity rejection leaves the prior valid state recoverable.
+- [x] Context separation and competing-successor tests pass.
+- [x] Capacity rejection leaves the prior valid state recoverable.
+
+### Gate 8.4 evidence
+
+Sequence training derives each binding from the ordered predecessor/current
+token pair. The first pair uses the fixed BOS token as predecessor; later pairs
+use the preceding token, so identical token identities in different contexts
+do not share a binding accidentally. Sequence admission rejects empty, invalid,
+or oversized token sequences before mutation. Missing resident capacity is
+reported as a bounded training error and does not publish a partial successor.
+
+tests/aie_observation.act::test_observation_context_separates_predecessors
+proves predecessor-sensitive encoding. The training suite proves deterministic
+lowest-index selection when successor strengths tie and rejects a stronger
+false-identity candidate. tests/aie_api.act::test_resident_recall_survives_capacity_rejection
+proves that capacity rejection preserves the prior resident path and cache
+state. BOS handling is exercised by the "AB" training and replay fixtures;
+the final token remains a normal bounded event and EOS is not synthesized by
+the training pipeline.
 
 ## Gate 8.5 — Bounded curriculum batches
 
