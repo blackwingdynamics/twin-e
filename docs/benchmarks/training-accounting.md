@@ -74,6 +74,11 @@ boundaries. The unique fallback case reaches
 one binding and one minicolumn per event in this 32-byte sample, while the fixed
 resident and `.brain` layout does not grow.
 
+The strict regression test in `tests/aie_fallback_reuse.act` trains the same
+repeated fallback sequence twice in one fabric. The first pass allocates two
+columns and two bindings; the second pass allocates zero columns and leaves the
+active binding count at two.
+
 ## Same-length comparison
 
 | Profile | Input bytes | Token events | Active bindings | Minicolumns | Resident inline | `.brain` |

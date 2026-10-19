@@ -157,7 +157,7 @@ task.
       headers, manifests, and alignment overhead.
 - [x] Define the maximum admissible fallback run and the behavior when the
       bounded tokenizer or arena cannot admit another event.
-- [ ] Prove that repeated fallback input does not create unbounded duplicate
+- [x] Prove that repeated fallback input does not create unbounded duplicate
       bindings for an equivalent context.
 - [x] Add a worst-case memory table comparing BPE, byte fallback, and mixed
       input under the same input length.
