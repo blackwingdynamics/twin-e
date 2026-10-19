@@ -116,8 +116,8 @@ compiler-valid import tests remain Gate 7.3 evidence.
 
 ## Gate 7.2 — Define the common adapter contract
 
-- [ ] Define the bounded `Observation`/input representation produced by every
-      adapter.
+- [x] Define the bounded common adapter envelope produced by every adapter;
+      it sits above the existing `ObservationEvent` rather than replacing it.
 - [ ] Define modality identity, contract version, source ordering, source
       offset, payload length, and validation status fields.
 - [ ] Define bounded limits for event count, payload bytes, source offsets,
@@ -130,6 +130,18 @@ compiler-valid import tests remain Gate 7.3 evidence.
 - [ ] Define ownership and lifetime at the adapter/facade call boundary.
 - [ ] Define which fields may feed tokenizer, encoding, observation, and
       training APIs without exposing private AIE state.
+
+### Gate 7.2 design draft
+
+The current contract draft defines a fixed-capacity envelope with a separate
+adapter contract version, modality discriminator, event count, bounded source
+length, and ordered integer events. The initial hosted admission envelope is
+256 events with a `u32` source length. The event fields and rejection classes
+are recorded in ADR-0010; implementation must not silently widen these limits.
+
+The remaining Gate 7.2 checkboxes stay open until the contract types,
+validation, rejection paths, and no-state-mutation behavior are implemented
+and confirmed by executable tests.
 
 ### Gate evidence
 

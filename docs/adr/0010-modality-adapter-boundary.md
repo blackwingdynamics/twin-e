@@ -89,6 +89,43 @@ The contract may feed existing tokenizer, encoding, and observation APIs, but
 it must not silently invent an unbounded token stream, floating-point engine
 state, or implicit filesystem operation.
 
+### 3.1 Common adapter envelope
+
+The common adapter result is a bounded envelope containing metadata and an
+ordered, fixed-capacity sequence of normalized integer events. The envelope is
+not a replacement for `ObservationEvent`; it is the modality-neutral boundary
+above the existing tokenizer, encoding, and observation facades.
+
+The envelope carries:
+
+- `contract_version`: the adapter contract version, separate from tokenizer,
+  context, codebook, and observation versions;
+- `modality`: a stable discriminator for text, image, audio, video,
+  structured, or binary input;
+- `event_count`: the number of valid events in the bounded sequence;
+- `source_length`: the bounded length of the accepted source;
+- `events`: ordered normalized events, each carrying a source offset, a
+  feature discriminator, an integer identity/value pair, and bounded flags.
+
+The initial hosted envelope limits are `256` events and a `u32` source length;
+the event representation uses fixed-width integer fields only. These limits
+are admission limits, not promises that every modality can represent every
+source losslessly. A modality must reject input that cannot be represented
+within its documented envelope before the AIE state is touched.
+
+The contract defines these rejection classes: unsupported contract version,
+unsupported modality, empty input where the modality forbids it, source or
+event count overflow, invalid source ordering, unsupported source encoding,
+out-of-range normalized values, and malformed modality data. Rejection returns
+typed status and leaves tokenizer, observation, arena, and persistence state
+unchanged.
+
+The caller retains ownership of the source view. An adapter must not retain a
+source pointer or view after the call, must not perform external I/O, and must
+return a self-contained bounded result. The result may be passed to existing
+public facades, but it must not expose private arena, binding, shard, or
+persistence fields.
+
 ### 4. Boundary and ownership
 
 Adapters are translation boundaries, not a second AIE runtime. They may reject
