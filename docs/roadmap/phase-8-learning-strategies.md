@@ -280,11 +280,29 @@ serialization and the separate persistence boundary.
 
 ## Gate 8.9 — Full learning acceptance
 
-- [ ] Run formatter, lock, strict check, strict tests, and native build.
-- [ ] Record compiler revision, target, profile, input limits, metrics, and
+- [x] Run formatter, lock, strict check, strict tests, and native build.
+- [x] Record compiler revision, target, profile, input limits, metrics, and
       recall outputs.
-- [ ] Record known limits and unsupported learning behaviors.
-- [ ] Keep hosted evidence separate from embedded and hardware evidence.
+- [x] Record known limits and unsupported learning behaviors.
+- [x] Keep hosted evidence separate from embedded and hardware evidence.
+
+### Gate 8.9 evidence
+
+The full hosted acceptance run used Actus commit `2a6aa269`, installed binary
+SHA-256 `d7184c4708ec2d8bf41cf61b3f10037980bd3063fe03bc2c9de7866d526fcc56`,
+on `x86_64` Linux with the strict profile. `actus lock --check`, formatter
+checks for all touched Actus sources, `actus check --strict`, and
+`actus test --strict` passed; the final suite result was `99 passed; 0 failed`.
+The strict native build produced `/tmp/twin-e-phase-8-persistence.aie` and
+reported no floating-point instructions in generated native IR.
+
+The tested input limits remain fixed and bounded: teaching sequences accept at
+most 256 events, cross-modality associations at most 16 combined events, and
+adapter envelopes at most 32 events. Direct teaching and replay recall the
+deterministic `AB` successor; cross-modality teaching accepts the bounded
+text-plus-structured pair and rejects mismatched modalities without mutation.
+These are hosted compiler/runtime results only; no embedded or hardware
+performance claim is made.
 
 ## Acceptance boundary
 
