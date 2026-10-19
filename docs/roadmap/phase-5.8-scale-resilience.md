@@ -153,7 +153,7 @@ task.
 - [x] Report input bytes, emitted token events, unique context bindings,
       allocated minicolumns, active shard count, resident bytes, and `.brain`
       bytes.
-- [ ] Separate payload bytes from binding metadata, column storage, shard
+- [x] Separate payload bytes from binding metadata, column storage, shard
       headers, manifests, and alignment overhead.
 - [x] Define the maximum admissible fallback run and the behavior when the
       bounded tokenizer or arena cannot admit another event.

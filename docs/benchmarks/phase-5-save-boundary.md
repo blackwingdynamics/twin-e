@@ -145,3 +145,37 @@ actus build --strict     PASS; no floating-point instructions
 
 These results do not close the save-boundary gates by themselves. The failure
 and recovery fixtures above are part of the acceptance contract.
+
+## Storage accounting evidence
+
+The dedicated `benchmarks/aie_storage_accounting.act` fixture reports the
+same two-column, two-binding layout separately:
+
+```sh
+actus fmt --check benchmarks/aie_storage_accounting.act
+actus build --strict --emit exe \
+  -o /tmp/twin-e-storage-accounting.aie \
+  benchmarks/aie_storage_accounting.act
+/tmp/twin-e-storage-accounting.aie
+```
+
+The measured run used Actus binary digest
+`e6293f8075d7982b95c1ec8b54eb18d97d1c2ec98f5cf9a8c70120522e38feda`.
+
+```text
+AIE_STORAGE_ACCOUNTING column_payload_bytes=128
+ column_storage_bytes=128
+ binding_metadata_bytes=48
+ shard_header_bytes=48
+ shard_file_bytes=224
+ manifest_header_bytes=64
+ manifest_descriptor_bytes=40
+ manifest_bytes_for_one_shard=104
+ alignment_bytes=0
+```
+
+The payload is two 64-byte minicolumn records. The shard-local binding section
+is two 24-byte records, and the fixed 48-byte header is not counted as payload.
+A one-shard dynamic manifest is its 64-byte header plus one 40-byte descriptor.
+The fixture uses no alignment padding; any future padded format must report the
+padding separately rather than hiding it in payload or metadata bytes.
