@@ -58,6 +58,12 @@ own boundary, and may then issue a new admission request. If the caller does
 not establish that boundary, the live fabric and dirty resident state remain
 unchanged and the capacity error is final for that request.
 
+The cache exposes `shard_cache_dirty_count` and
+`shard_cache_flush_requested`. The latter becomes true when the configured
+dirty high-watermark is reached, before all resident capacity is consumed.
+This is a bounded in-memory signal for the caller; it neither queues flush
+work nor performs filesystem I/O.
+
 ### Pinning
 
 Pinning protects a resident shard for the lifetime of its active user. A pin

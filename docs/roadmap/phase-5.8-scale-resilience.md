@@ -217,8 +217,10 @@ task.
       another scheduler boundary. The selected boundary is caller-driven;
       there is no runtime maintenance loop or implicit queue in the current
       profile. See ADR-0012, "Flush scheduling boundary".
-- [ ] Start flush work at the configured high-watermark before capacity is
-      exhausted.
+- [x] Start flush work at the configured high-watermark before capacity is
+      exhausted. `shard_cache_flush_requested` becomes true at the configured
+      watermark without queueing work or performing filesystem I/O; see
+      `tests/aie_api.act::test_dirty_high_watermark_requests_flush`.
 - [ ] Bound the amount of work and memory held by the flush queue.
 - [ ] Keep flush latency separate from inference, forwarding, and neurogenesis
       latency in benchmark output.

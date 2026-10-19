@@ -166,6 +166,59 @@ verb test_resident_neurogenesis_reports_capacity_error() -> Int {
     return 1;
 }
 
+verb prepare_watermark_cache_for_test(ins cache: ShardCache) {
+    shard_cache_init(cache: ins cache);
+    erg first_id: u32 = 30u32;
+    erg second_id: u32 = 31u32;
+    erg third_id: u32 = 32u32;
+    erg generation: u64 = 1u64;
+    erg checksum: u64 = 1u64;
+    erg first_slot: u8 = 0u8;
+    erg second_slot: u8 = 1u8;
+    shard_cache_insert(
+        cache: ins cache,
+        shard_id: erg first_id,
+        generation: erg generation,
+        checksum: erg checksum
+    );
+    shard_cache_insert(
+        cache: ins cache,
+        shard_id: erg second_id,
+        generation: erg generation,
+        checksum: erg checksum
+    );
+    shard_cache_insert(
+        cache: ins cache,
+        shard_id: erg third_id,
+        generation: erg generation,
+        checksum: erg checksum
+    );
+    shard_cache_mark_dirty(cache: ins cache, slot: erg first_slot);
+    shard_cache_mark_dirty(cache: ins cache, slot: erg second_slot);
+}
+
+verb watermark_signal_is_correct_for_test(ins cache: ShardCache) -> Bool {
+    if shard_cache_flush_requested(cache: abs cache) {
+        return false;
+    }
+    erg third_slot: u8 = 2u8;
+    shard_cache_mark_dirty(cache: ins cache, slot: erg third_slot);
+    if shard_cache_dirty_count(cache: abs cache) != BRAIN_CACHE_DIRTY_HIGH_WATERMARK {
+        return false;
+    }
+    return shard_cache_flush_requested(cache: abs cache);
+}
+
+meta test
+verb test_dirty_high_watermark_requests_flush() -> Int {
+    erg cache: ShardCache = ShardCache {entries: Array[ShardCacheEntry, 4](), clock: 0u64};
+    prepare_watermark_cache_for_test(cache: ins cache);
+    if watermark_signal_is_correct_for_test(cache: ins cache) {
+        return 0;
+    }
+    return 1;
+}
+
 verb prepare_resident_recall(ins fabric: CorticalFabric[3], ins cache: ShardCache) -> u32 {
     fabric_init(fabric: ins fabric);
     shard_cache_init(cache: ins cache);
