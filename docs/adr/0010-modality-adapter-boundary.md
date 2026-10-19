@@ -4,7 +4,7 @@
 - **Date:** 2026-10-19
 - **Scope:** External-data adapters that convert text, images, audio, video,
   structured records, and binary input into Twin-e-compatible bounded input
-- **Related work:** ADR-0001, ADR-0002, ADR-0007, ADR-0008, Phase 5.8
+- **Related work:** ADR-0001, ADR-0002, ADR-0007, ADR-0008, Phase 5.8, Phase 7
 
 ## Context
 
@@ -27,11 +27,11 @@ before entering token, context, observation, training, or generation code.
 The adapter subsystem will live under:
 
 ```text
-src/adapter/
+src/adapters/
 ```
 
-The singular `adapter` namespace is intentional and defines the public call
-shape:
+The filesystem root is plural, while the singular `adapter` namespace is the
+intentional public call shape:
 
 ```text
 adapter::text
@@ -43,10 +43,18 @@ adapter::binary
 adapter::contract
 ```
 
-The canonical facade will be `src/adapter/adapter.act`. No caller may bypass
-this facade to import a private modality implementation. The facade and every
+The canonical facade source will be `src/adapters/adapters.act`. It defines
+the public `adapter` namespace; therefore callers use `adapter::text`,
+`adapter::image`, and the other public child paths. No caller may bypass this
+facade to import a private modality implementation. The facade and every
 public child module require Actus documentation and regression coverage for
 their public import path.
+
+The naming decision has no migration cost because the adapter directory and
+facade do not exist yet. Before implementation, a path or namespace change
+must be made as one documented design change. If implementation is rolled
+back, the adapter directory and its tests are removed together; existing
+tokenizer, sensor, action, AIE, and persistence APIs remain unchanged.
 
 ### 2. Modality modules
 
@@ -153,4 +161,6 @@ representation limits and rejected inputs.
 
 This ADR records the accepted architecture and naming only. No adapter module,
 directory, external service, network endpoint, `.brain` default path, or
-modality encoder is implemented by this decision.
+modality encoder is implemented by this decision. The accepted filesystem and
+facade names are `src/adapters/` and `src/adapters/adapters.act`; the accepted
+public namespace remains `adapter::...`.

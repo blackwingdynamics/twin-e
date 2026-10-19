@@ -53,9 +53,8 @@ adapter::structured
 adapter::binary
 ```
 
-ADR-0010 currently says `src/adapter/` and `src/adapter/adapter.act`. Gate
-7.1 must reconcile that wording before implementation. The filesystem name
-and public namespace must not diverge accidentally.
+ADR-0010 now records the same filesystem and facade names. The filesystem
+name and public namespace must not diverge accidentally.
 
 ## Scope boundaries
 
@@ -81,24 +80,39 @@ Excluded:
 
 ## Gate 7.1 — Reconcile the accepted architecture
 
-- [ ] Update ADR-0010 so the filesystem root, facade filename, and public
+- [x] Update ADR-0010 so the filesystem root, facade filename, and public
       namespace agree with the accepted `src/adapters/` and `adapter::...`
       naming.
-- [ ] Record the implementation status as planned until code and evidence
+- [x] Record the implementation status as planned until code and evidence
       exist.
-- [ ] Define whether `adapter` is a public facade module backed by the
-      plural `adapters` directory, and add one canonical example.
-- [ ] Confirm that no existing tokenizer, sensor, or action facade is
+- [x] Define `adapter` as a public facade namespace backed by the plural
+      `adapters` directory and `src/adapters/adapters.act`.
+- [x] Confirm that no existing tokenizer, sensor, or action facade is
       silently renamed by this phase.
-- [ ] Add a decision note for the migration/rollback path before public
+- [x] Add a decision note for the migration/rollback path before public
       modules are created.
 
 ### Gate evidence
 
-- [ ] ADR-0010 has no contradictory path or import examples.
-- [ ] The roadmap and ADR list the same modality set and implementation order.
-- [ ] The public import path and filesystem path are covered by a documented
+- [x] ADR-0010 has no contradictory path or import examples.
+- [x] The roadmap and ADR list the same modality set and implementation order.
+- [x] The public import path and filesystem path are covered by a documented
       compiler-valid fixture plan.
+
+### Gate 7.1 test evidence
+
+The documentation consistency test checks that ADR-0010 and this roadmap use
+the same filesystem root, facade source, and public namespace:
+
+```sh
+test "$(rg -c --no-filename 'src/adapters/' docs/adr/0010-modality-adapter-boundary.md)" -ge 1
+test "$(rg -c --no-filename 'src/adapters/adapters\.act' docs/adr/0010-modality-adapter-boundary.md)" -ge 1
+test "$(rg -c --no-filename 'adapter::(contract|text|image|audio|video|structured|binary)' docs/adr/0010-modality-adapter-boundary.md)" -ge 1
+test "$(rg -c --no-filename 'src/adapters/' docs/roadmap/phase-7-modality-adapters.md)" -ge 1
+```
+
+Result: all four checks pass. No Actus source or adapter module exists yet;
+compiler-valid import tests remain Gate 7.3 evidence.
 
 ## Gate 7.2 — Define the common adapter contract
 
