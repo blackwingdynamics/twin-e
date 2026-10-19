@@ -342,3 +342,15 @@ open const BRAIN_MANIFEST_DYNAMIC_MAX_BYTES: u32 = 384u32;
 """Number of inline shard metadata entries in the bounded cache."""
 open const BRAIN_CACHE_CAPACITY: u8 = 4u8;
 
+
+"""Dirty-entry count that requests caller-driven flush before full capacity."""
+open const BRAIN_CACHE_DIRTY_HIGH_WATERMARK: u8 = 3u8;
+
+
+"""Pinned eviction policy: zero means pinned entries are never evicted."""
+open const BRAIN_CACHE_PINNED_EVICTION_POLICY: u8 = 0u8;
+
+
+"""Bounded background flush queue capacity; zero selects caller-driven flush."""
+open const BRAIN_CACHE_FLUSH_QUEUE_CAPACITY: u8 = 0u8;
+

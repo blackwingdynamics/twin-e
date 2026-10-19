@@ -192,8 +192,9 @@ task.
 
 ### Capacity contract
 
-- [ ] Define resident capacity, dirty-shard high-watermark, pinned-shard
-      policy, and flush queue capacity as explicit configuration values.
+- [x] Define resident capacity, dirty-shard high-watermark, pinned-shard
+      policy, and flush queue capacity as explicit configuration values. See
+      `src/config/values.act` and ADR-0012.
 - [ ] Define behavior when all resident slots are dirty or pinned.
 - [ ] Guarantee that recall of already resident state can continue when a new
       mutation or shard admission is refused.

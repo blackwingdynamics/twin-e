@@ -1,0 +1,76 @@
+# ADR-0012: Resident Capacity and Flush Boundary
+
+- **Status:** Accepted
+- **Date:** 2026-10-19
+- **Scope:** resident shard cache capacity, dirty high-watermark, pinning,
+  flush admission, and capacity failures
+- **Related work:** ADR-0003, ADR-0004, ADR-0006, Phase 5.8 Gate 5.8.3
+
+## Context
+
+Twin-e already has a fixed four-entry shard metadata cache. Clean resident
+entries can be replaced deterministically, while dirty and pinned entries are
+protected. The cache benchmark and resident-neurogenesis tests show the
+failure behavior, but the policy values and the boundary between hot-path
+admission and persistence need one canonical contract.
+
+## Decision
+
+The current host profile uses these package constants:
+
+| Constant | Value | Meaning |
+|---|---:|---|
+| `BRAIN_CACHE_CAPACITY` | `4` | Maximum resident shard metadata entries |
+| `BRAIN_CACHE_DIRTY_HIGH_WATERMARK` | `3` | Dirty entries at which caller-driven flush should be scheduled |
+| `BRAIN_CACHE_PINNED_EVICTION_POLICY` | `0` | Pinned entries are never evictable |
+| `BRAIN_CACHE_FLUSH_QUEUE_CAPACITY` | `0` | No background queue; flushing is caller-driven |
+
+These values are part of the host runtime profile. They are not a promise of
+unbounded deployment capacity and must be recorded with future measurements.
+
+### Admission and full-capacity behavior
+
+1. A cache admission first refreshes an existing shard, then uses an empty
+   slot, then selects the oldest clean, unpinned resident entry.
+2. Dirty entries and entries with a nonzero pin count are never evicted.
+3. If every slot is dirty or pinned, admission returns the typed
+   `ShardCacheError.NoEvictable`; resident neurogenesis exposes the equivalent
+   `ResidentNeurogenesisError.NoResidentCapacity`.
+4. A rejected admission does not mutate the cache, fabric, bindings, or dirty
+   resident payloads. Recall and inference for already resident state remain
+   available.
+
+### Flush boundary
+
+The current scheduler is caller-driven. Reaching the dirty high-watermark is
+an observable request to schedule or perform an explicit flush, not permission
+for cache insertion, inference, forwarding, or neurogenesis to write to disk.
+Because the queue capacity is zero, no implicit deferred work is stored in the
+runtime. A caller may flush before retrying admission; without that explicit
+boundary, the bounded capacity error remains the result.
+
+### Pinning
+
+Pinning protects a resident shard for the lifetime of its active user. A pin
+does not make dirty state flush automatically, and unpinning does not itself
+perform I/O. A shard becomes eligible for replacement only when it is clean,
+resident/persisted, and has a zero pin count.
+
+## Evidence and remaining work
+
+`benchmarks/aie_cache.act` records four-entry working-set behavior, dirty and
+pinned rejection, clean replacement, and all-dirty full-pressure rejection.
+`tests/aie_api.act` records typed resident-capacity failure without discarding
+the live fabric. The remaining Gate 5.8.3 work is to implement/measure the
+high-watermark trigger, flush ordering, latency separation, and failure/retry
+recovery fixtures. This ADR does not claim those later gates are complete.
+
+## Consequences
+
+- capacity behavior is explicit and observable rather than an accidental
+  property of an array bound;
+- no hidden queue or synchronous disk write can appear during hot-path
+  admission;
+- callers must explicitly flush before retrying when safe capacity is absent;
+- a future background scheduler requires a new profile decision and a
+  nonzero, explicitly bounded queue value.
