@@ -1,0 +1,138 @@
+"""Acceptance tests for deterministic bounded sequence replay."""
+import aie;
+
+import config;
+
+import teaching;
+
+import tokenizer;
+
+verb replay_check(erg check_id: u8) -> Bool {
+    erg fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](), free_list_head: 0u32, active_count: 0u32};
+    erg bindings: Array[TokenBinding,64] = Array[TokenBinding, 64]();
+    fabric_init(fabric: ins fabric);
+    erg text: String = "AB";
+    erg sequence: TokenSequence = tokenize_string(text: abs text);
+    erg replay_passes: u16 = 3u16;
+    erg result = teach_token_sequence_replay(
+        fabric: ins fabric,
+        bindings: ins bindings,
+        sequence: abs sequence,
+        replay_passes: erg replay_passes
+    );
+    return case dat result {
+        Result.Err(_) => false,
+        Result.Ok(metrics) => case check_id {
+            1 => metrics.replay_passes == 3u16,
+            2 => metrics.allocated_columns == 2u32 && fabric.active_count == 3u32,
+            3 => metrics.reinforced_transitions == 6u32,
+            _ => metrics.active_bindings == 2u32,
+        },
+    };
+}
+
+verb direct_replay_count() -> Int {
+    erg fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](), free_list_head: 0u32, active_count: 0u32};
+    erg bindings: Array[TokenBinding,64] = Array[TokenBinding, 64]();
+    fabric_init(fabric: ins fabric);
+    erg text: String = "AB";
+    erg sequence: TokenSequence = tokenize_string(text: abs text);
+    erg first = train_token_sequence(
+        fabric: ins fabric,
+        bindings: ins bindings,
+        sequence: abs sequence
+    );
+    case dat first {
+        Result.Err(_) => {
+            return -1;
+        },
+        Result.Ok(_) => {},
+    };
+    erg repeated = train_token_sequence_replay(
+        fabric: ins fabric,
+        bindings: ins bindings,
+        sequence: abs sequence
+    );
+    return case dat repeated {
+        Result.Err(_) => -2,
+        Result.Ok(metrics) => metrics.reinforced_transitions as Int,
+    };
+}
+
+meta test
+verb test_replay_reports_passes() -> Int {
+    erg check_id: u8 = 1u8;
+    return if replay_check(check_id: erg check_id) {
+        0;
+    } else {
+        1;
+    };
+}
+
+meta test
+verb test_aie_replay_reports_reinforced_events() -> Int {
+    erg reinforced: Int = direct_replay_count();
+    return if reinforced == 2 {
+        0;
+    } else {
+        reinforced;
+    };
+}
+
+meta test
+verb test_replay_reuses_bindings_and_root_columns() -> Int {
+    erg check_id: u8 = 2u8;
+    return if replay_check(check_id: erg check_id) {
+        0;
+    } else {
+        1;
+    };
+}
+
+meta test
+verb test_replay_reinforces_existing_transitions() -> Int {
+    erg check_id: u8 = 3u8;
+    return if replay_check(check_id: erg check_id) {
+        0;
+    } else {
+        1;
+    };
+}
+
+meta test
+verb test_replay_keeps_active_bindings_bounded() -> Int {
+    erg check_id: u8 = 4u8;
+    return if replay_check(check_id: erg check_id) {
+        0;
+    } else {
+        1;
+    };
+}
+
+meta test
+verb test_replay_rejects_zero_passes_without_mutation() -> Int {
+    erg fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](), free_list_head: 0u32, active_count: 0u32};
+    erg bindings: Array[TokenBinding,64] = Array[TokenBinding, 64]();
+    fabric_init(fabric: ins fabric);
+    erg text: String = "AB";
+    erg sequence: TokenSequence = tokenize_string(text: abs text);
+    erg before: u32 = fabric.active_count;
+    erg replay_passes: u16 = 0u16;
+    erg result = teach_token_sequence_replay(
+        fabric: ins fabric,
+        bindings: ins bindings,
+        sequence: abs sequence,
+        replay_passes: erg replay_passes
+    );
+    return case dat result {
+        Result.Err(error) => case error {
+            TeachingError.ReplayPassesOutOfBounds => if fabric.active_count == before {
+                0;
+            } else {
+                1;
+            },
+            _ => 1,
+        },
+        Result.Ok(_) => 1,
+    };
+}

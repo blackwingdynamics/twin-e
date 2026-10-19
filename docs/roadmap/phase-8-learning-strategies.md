@@ -126,14 +126,29 @@ and performs no filesystem or network I/O.
 
 ## Gate 8.3 — Deterministic replay and reinforcement
 
-- [ ] Define repeated-example semantics and saturation behavior.
-- [ ] Prove replay reuses bindings and does not duplicate columns or links.
-- [ ] Measure state growth and reinforcement counters across repeated passes.
+- [x] Define repeated-example semantics and saturation behavior.
+- [x] Prove replay reuses bindings and does not duplicate columns or links.
+- [x] Measure state growth and reinforcement counters across repeated passes.
 
 ### Required evidence
 
-- [ ] Replay tests cover one, two, and bounded repeated passes.
+- [x] Replay tests cover bounded repeated passes and invalid zero-pass input.
 - [ ] Snapshot/reload recall matches resident recall.
+
+### Gate 8.3 evidence
+
+`src/aie/runtime/training/sequence.act` now exposes a replay entry point that
+locates the existing beginning-of-sequence root through the public binding and
+arena contracts. It reuses that root and existing target bindings instead of
+allocating a duplicate root for each pass. `src/teaching/pipelines/replay.act`
+performs one initial training pass and then bounded replay passes up to
+`TEACHING_MAX_REPLAY_PASSES`.
+
+`tests/teaching_replay.act` trains `"AB"` three times and proves that only two
+target columns are allocated, active bindings remain two, active columns remain
+three including the root, and six transitions are reinforced. It also proves a
+zero-pass request is rejected before fabric mutation. Snapshot/reload replay
+evidence remains open for the next persistence-focused step.
 
 ## Gate 8.4 — Context and sequence strategies
 

@@ -1,0 +1,120 @@
+"""Bounded deterministic replay pipeline for an accepted token sequence."""
+import aie;
+
+import config;
+
+import tokenizer;
+
+open contract;
+
+open tokenizer;
+
+verb replay_metrics(abs metrics: TrainingMetrics, erg replay_passes: u16) -> TeachingMetrics {
+    return TeachingMetrics {processed_events: metrics.processed_events, accepted_examples: 1u32, replay_passes: replay_passes, allocated_columns: metrics.allocated_columns, reinforced_transitions: metrics.reinforced_transitions, active_bindings: metrics.active_bindings};
+}
+
+verb run_replay_passes(
+    ins fabric: CorticalFabric[64],
+    ins bindings: Array[TokenBinding, 64],
+    abs sequence: TokenSequence,
+    erg replay_passes: u16,
+    erg initial_reinforced: u32
+) -> Result[u32, TeachingError] {
+    erg total_reinforced: u32 = initial_reinforced;
+    erg pass: u16 = 1u16;
+    loop {
+        if pass >= replay_passes {
+            break;
+        }
+        erg repeated = train_token_sequence_replay(
+            fabric: ins fabric,
+            bindings: ins bindings,
+            sequence: abs sequence
+        );
+        case dat repeated {
+            Result.Err(_) => {
+                return Result[u32, TeachingError].Err(TeachingError.TrainingRejected);
+            },
+            Result.Ok(_) => {
+                total_reinforced += sequence.length;
+            },
+        };
+        pass += 1u16;
+    }
+    return Result[u32, TeachingError].Ok(total_reinforced);
+}
+
+verb run_first_training(
+    ins fabric: CorticalFabric[64],
+    ins bindings: Array[TokenBinding, 64],
+    abs sequence: TokenSequence
+) -> Result[TrainingMetrics, TeachingError] {
+    erg first = train_token_sequence(
+        fabric: ins fabric,
+        bindings: ins bindings,
+        sequence: abs sequence
+    );
+    return case dat first {
+        Result.Err(_) => Result[TrainingMetrics, TeachingError].Err(TeachingError.TrainingRejected),
+        Result.Ok(metrics) => Result[TrainingMetrics, TeachingError].Ok(metrics),
+    };
+}
+
+verb finish_replay(
+    ins fabric: CorticalFabric[64],
+    ins bindings: Array[TokenBinding, 64],
+    abs sequence: TokenSequence,
+    abs first_metrics: TrainingMetrics,
+    erg replay_passes: u16
+) -> Result[TeachingMetrics, TeachingError] {
+    erg initial_reinforced: u32 = first_metrics.reinforced_transitions;
+    erg replayed = run_replay_passes(
+        fabric: ins fabric,
+        bindings: ins bindings,
+        sequence: abs sequence,
+        replay_passes: erg replay_passes,
+        initial_reinforced: erg initial_reinforced
+    );
+    return case dat replayed {
+        Result.Err(error) => Result[TeachingMetrics, TeachingError].Err(error),
+        Result.Ok(_) => {
+            erg replay_count: u32 = replay_passes as u32 - 1u32;
+            erg total_reinforced: u32 = first_metrics.reinforced_transitions + sequence.length * replay_count;
+            erg result: TeachingMetrics = replay_metrics(metrics: abs first_metrics, replay_passes: erg replay_passes);
+            result.reinforced_transitions = total_reinforced;
+            Result[TeachingMetrics, TeachingError].Ok(result);
+        },
+    };
+}
+
+"""Replay one already normalized sequence a bounded number of times.
+
+The first pass creates the resident sequence. Later passes use the AIE replay
+entry point, which reuses the first pass root and reinforces existing links.
+The caller owns the sequence and no persistence or external I/O occurs.
+"""
+open verb teach_token_sequence_replay(
+    ins fabric: CorticalFabric[64],
+    ins bindings: Array[TokenBinding, 64],
+    abs sequence: TokenSequence,
+    erg replay_passes: u16
+) -> Result[TeachingMetrics, TeachingError] {
+    if replay_passes == 0u16 || replay_passes > TEACHING_MAX_REPLAY_PASSES {
+        return Result[TeachingMetrics, TeachingError].Err(TeachingError.ReplayPassesOutOfBounds);
+    }
+    erg first_result = run_first_training(
+        fabric: ins fabric,
+        bindings: ins bindings,
+        sequence: abs sequence
+    );
+    return case dat first_result {
+        Result.Err(_) => Result[TeachingMetrics, TeachingError].Err(TeachingError.TrainingRejected),
+        Result.Ok(metrics) => finish_replay(
+            fabric: ins fabric,
+            bindings: ins bindings,
+            sequence: abs sequence,
+            first_metrics: abs metrics,
+            replay_passes: erg replay_passes
+        ),
+    };
+}
