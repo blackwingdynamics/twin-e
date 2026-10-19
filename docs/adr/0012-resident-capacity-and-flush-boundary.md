@@ -64,6 +64,14 @@ dirty high-watermark is reached, before all resident capacity is consumed.
 This is a bounded in-memory signal for the caller; it neither queues flush
 work nor performs filesystem I/O.
 
+### Flush queue bound
+
+`BRAIN_CACHE_FLUSH_QUEUE_CAPACITY` is `0` in the current host profile. The
+runtime therefore retains zero pending flush requests and zero queue-owned
+flush memory. A caller may hold one explicitly selected, bounded save request
+while performing its flush, but that work is outside the runtime queue and is
+not accumulated by admission or inference.
+
 ### Pinning
 
 Pinning protects a resident shard for the lifetime of its active user. A pin

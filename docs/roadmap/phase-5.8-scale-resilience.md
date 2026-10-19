@@ -221,7 +221,10 @@ task.
       exhausted. `shard_cache_flush_requested` becomes true at the configured
       watermark without queueing work or performing filesystem I/O; see
       `tests/aie_api.act::test_dirty_high_watermark_requests_flush`.
-- [ ] Bound the amount of work and memory held by the flush queue.
+- [x] Bound the amount of work and memory held by the flush queue. The current
+      profile sets `BRAIN_CACHE_FLUSH_QUEUE_CAPACITY=0`, so the runtime retains
+      zero queued flush work and zero queue-owned memory; see ADR-0012,
+      "Flush queue bound".
 - [ ] Keep flush latency separate from inference, forwarding, and neurogenesis
       latency in benchmark output.
 - [ ] Define ordering for shard payload, binding payload, checksum, and
