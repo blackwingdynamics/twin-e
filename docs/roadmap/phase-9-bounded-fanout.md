@@ -78,7 +78,7 @@ the sidecar count remains zero, and no auxiliary marker or record is created.
 
 ### Step 7 — Performance and acceptance
 
-- [ ] Benchmark inline-only forwarding separately from overflow forwarding.
+- [x] Benchmark inline-only forwarding separately from overflow forwarding.
 - [ ] Record memory usage, capacity, traversal order, and failure metrics.
 - [ ] Run formatter, lock, strict check, strict tests, and native build.
 - [ ] Verify generated native IR remains free of floating-point instructions.
@@ -99,6 +99,11 @@ round-trips with its free-list intact. Auxiliary serialization is currently a
 fixed-size in-memory snapshot contract rejects a truncated payload descriptor
 before restore and leaves live state unchanged. Atomic publication remains open
 for the next steps.
+
+The forwarding benchmark measures 10,000 inline-only and overflow calls
+separately. The recorded hosted result is `1,414,118 ns` inline-only versus
+`1,581,395 ns` with one auxiliary target, approximately `11.8%` additional
+time in this fixture. This is not a hardware-performance claim.
 
 ## Out of scope
 
