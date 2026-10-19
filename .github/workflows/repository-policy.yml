@@ -48,7 +48,7 @@ jobs:
           failed=0
           while IFS= read -r file; do
             lines=$(wc -l < "${file}")
-            if [ "${lines}" -gt 500 ] && ! grep -q '^meta limitless\("file"\)' "${file}"; then
+            if [ "${lines}" -gt 500 ] && ! grep -qF 'meta limitless("file")' "${file}"; then
               echo "Source exceeds the hard limit without documented file metadata: ${file} (${lines} lines)"
               failed=1
             fi
