@@ -261,8 +261,10 @@ task.
 - [x] Verify that failed flush leaves the dirty resident shard usable. The save
       benchmark reports `dirty_after_failed_save` and
       `resident_usable_after_failed_save` after a failed publication.
-- [ ] Verify that capacity recovery after a successful flush permits the
-      deferred admission or neurogenesis operation.
+- [x] Verify that capacity recovery after a successful flush permits the
+      deferred admission or neurogenesis operation. The save benchmark reports
+      `capacity_recovered_after_flush` after persisting one dirty slot and
+      admitting a fifth shard into the four-entry cache.
 - [ ] Verify that recovery never silently accepts a stale generation or a
       mismatched manifest descriptor.
 

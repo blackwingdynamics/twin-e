@@ -59,6 +59,7 @@ AIE_BINDING_STAGE write_ok
 AIE_BINDING_STAGE validate_ok
 AIE_BINDING_STAGE publication_ok
 AIE_BINDING_STAGE payload_bindings_checksum_metadata_ok
+AIE_BINDING_STAGE capacity_recovered_after_flush
 AIE_SHARD_BINDINGS_DYNAMIC columns=2 bindings=2 stride=24 validated=1
 exit_status=0
 ```
@@ -78,6 +79,10 @@ compatibility metadata, total length, and checksum. The lifecycle markers prove
 that the public save API leaves a failed resident save dirty and usable for a
 subsequent cache lookup/touch, and changes the same entry to persisted only
 after successful publication.
+
+After a successful flush changes the entry to `Persisted`, the capacity
+fixture admits a fifth shard into the four-entry cache by evicting that clean
+resident entry. This is reported as `capacity_recovered_after_flush`.
 
 ## Remaining evidence after Gate D
 
