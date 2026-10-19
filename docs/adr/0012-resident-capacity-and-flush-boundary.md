@@ -77,6 +77,27 @@ neurogenesis are measured without persistence calls, while explicit flush time
 is reported separately as `flush_ns`. The reproducible host-profile record is
 `docs/benchmarks/phase-5-hot-path.md`.
 
+### Publication ordering
+
+The canonical ordering for a complete shard generation is:
+
+1. Validate bounded shard, payload, and shard-local binding inputs.
+2. Build the complete staged shard, including payload, bindings, header, and
+   checksum.
+3. Write the staged shard and read it back for identity, layout, length, and
+   checksum validation.
+4. Publish the validated shard by atomic rename.
+5. Build and checksum a staged manifest descriptor that references the
+   published shard generation.
+6. Validate the complete staged manifest and all referenced shard checksums.
+7. Publish the manifest last by atomic rename.
+
+The manifest is therefore the publication point for the complete generation;
+it must never reference a shard or binding payload that has not already passed
+validation. The current shard and manifest APIs expose these boundaries
+separately, so this ordering is the contract and not a claim that one
+multi-artifact transaction is already implemented.
+
 ### Pinning
 
 Pinning protects a resident shard for the lifetime of its active user. A pin

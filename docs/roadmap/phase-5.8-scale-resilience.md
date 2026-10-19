@@ -229,8 +229,11 @@ task.
       latency in benchmark output. Hot-path measurements exclude persistence,
       while explicit persistence reports `flush_ns`; see
       `docs/benchmarks/phase-5-hot-path.md` and ADR-0012.
-- [ ] Define ordering for shard payload, binding payload, checksum, and
-      manifest publication.
+- [x] Define ordering for shard payload, binding payload, checksum, and
+      manifest publication: validate and stage the complete shard, validate and
+      publish it, then stage/validate the manifest and publish the manifest
+      last. See ADR-0012, "Publication ordering". Integrated multi-artifact
+      publication remains an implementation/recovery gate.
 - [ ] Prove that a flush cannot publish a partially validated generation.
 
 ### Failure and recovery
