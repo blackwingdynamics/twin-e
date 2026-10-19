@@ -75,3 +75,23 @@ open struct TeachingBatchMetrics {
     erg stopped_on_training_error: Bool,
     erg items: Array[TeachingBatchItemResult, 8],
 }
+
+"""Caller-owned correction event with an explicit replacement example.
+
+The original example is retained as a competing association. The replacement
+is reinforced separately; no correction operation deletes resident state.
+"""
+open struct TeachingCorrection {
+    erg original: TeachingRequest,
+    erg replacement: TeachingRequest,
+    erg valid: Bool,
+}
+
+"""Evidence returned after applying one bounded correction event."""
+open struct TeachingCorrectionMetrics {
+    erg accepted: Bool,
+    erg original_preserved: Bool,
+    erg replacement_reinforced_transitions: u32,
+    erg competing_successors: u16,
+    erg ambiguous: Bool,
+}

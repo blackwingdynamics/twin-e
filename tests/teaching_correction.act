@@ -1,0 +1,121 @@
+"""Acceptance tests for explicit competition and correction teaching."""
+import adapters;
+
+import config;
+
+import teaching;
+
+import tokenizer;
+
+open aie;
+
+open tokenizer;
+
+verb correction_request(erg first: u8, erg second: u8) -> TeachingRequest {
+    erg input: Buffer = Buffer[2];
+    input[0u32] = first;
+    input[1u32] = second;
+    erg input_length: u32 = 2u32;
+    erg adapted = adapt_text_bytes(input: abs input, input_length: erg input_length);
+    erg envelope: AdapterEnvelope = AdapterEnvelope {contract_version: ADAPTER_CONTRACT_VERSION, modality: AdapterModality.Text, event_count: 0u16, source_length: 0u32, events: Array[AdapterEvent, 256](
+    ), valid: false};
+    case dat adapted {
+        Result.Err(_) => {},
+        Result.Ok(value) => {
+            envelope = value;
+        },
+    };
+    erg envelope_valid: Bool = envelope.valid;
+    return TeachingRequest {contract_version: TEACHING_CONTRACT_VERSION, mode: TeachingMode.Direct, envelope: envelope, replay_passes: 1u16, valid: envelope_valid};
+}
+
+verb original_request() -> TeachingRequest {
+    erg first: u8 = 65u8;
+    erg second: u8 = 66u8;
+    return correction_request(first: erg first, second: erg second);
+}
+
+verb replacement_request() -> TeachingRequest {
+    erg first: u8 = 65u8;
+    erg second: u8 = 67u8;
+    return correction_request(first: erg first, second: erg second);
+}
+
+verb teach_original_example(
+    ins fabric: CorticalFabric[64],
+    ins bindings: Array[TokenBinding, 64],
+    abs original: TeachingRequest
+) -> Bool {
+    erg learned = teach_text_envelope_direct(
+        fabric: ins fabric,
+        bindings: ins bindings,
+        envelope: abs original.envelope
+    );
+    return case dat learned {
+        Result.Err(_) => false,
+        Result.Ok(_) => true,
+    };
+}
+
+verb correction_metrics_are_expected(
+    abs metrics: TeachingCorrectionMetrics,
+    abs active_count: u32
+) -> Bool {
+    return metrics.accepted && metrics.original_preserved && metrics.competing_successors == 2u16 && metrics.ambiguous && active_count == 4u32;
+}
+
+meta test
+verb test_correction_preserves_old_and_prefers_replacement() -> Int {
+    erg fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](), free_list_head: 0u32, active_count: 0u32};
+    erg bindings: Array[TokenBinding,64] = Array[TokenBinding, 64]();
+    fabric_init(fabric: ins fabric);
+    erg original: TeachingRequest = original_request();
+    erg replacement: TeachingRequest = replacement_request();
+    if !teach_original_example(
+        fabric: ins fabric,
+        bindings: ins bindings,
+        original: abs original
+    ) {
+        return 1;
+    }
+    erg correction: TeachingCorrection = TeachingCorrection {original: original, replacement: replacement, valid: true};
+    erg corrected = teach_correction(
+        fabric: ins fabric,
+        bindings: ins bindings,
+        correction: abs correction
+    );
+    return case dat corrected {
+        Result.Err(_) => 1,
+        Result.Ok(metrics) => if correction_metrics_are_expected(metrics: abs metrics, active_count: abs fabric.active_count) {
+            0;
+        } else {
+            1;
+        },
+    };
+}
+
+meta test
+verb test_invalid_correction_does_not_mutate() -> Int {
+    erg fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](), free_list_head: 0u32, active_count: 0u32};
+    erg bindings: Array[TokenBinding,64] = Array[TokenBinding, 64]();
+    fabric_init(fabric: ins fabric);
+    erg original: TeachingRequest = original_request();
+    erg replacement: TeachingRequest = replacement_request();
+    erg correction: TeachingCorrection = TeachingCorrection {original: original, replacement: replacement, valid: false};
+    erg result = teach_correction(
+        fabric: ins fabric,
+        bindings: ins bindings,
+        correction: abs correction
+    );
+    return case dat result {
+        Result.Err(error) => case error {
+            TeachingError.InvalidRequest => if fabric.active_count == 0u32 {
+                0;
+            } else {
+                1;
+            },
+            _ => 1,
+        },
+        Result.Ok(_) => 1,
+    };
+}

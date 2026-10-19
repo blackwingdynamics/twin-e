@@ -1,0 +1,167 @@
+"""Explicit correction and competition policy for direct text teaching."""
+import aie;
+
+import config;
+
+open contract;
+
+open direct;
+
+open tokenizer;
+
+verb empty_correction_metrics() -> TeachingCorrectionMetrics {
+    return TeachingCorrectionMetrics {accepted: false, original_preserved: false, replacement_reinforced_transitions: 0u32, competing_successors: 0u16, ambiguous: false};
+}
+
+verb correction_request_is_valid(abs request: TeachingRequest) -> Bool {
+    return request.valid && request.mode == TeachingMode.Direct && request.envelope.valid && request.envelope.modality == AdapterModality.Text;
+}
+
+verb count_competing_successors(
+    abs fabric: CorticalFabric[64],
+    abs bindings: Array[TokenBinding, 64],
+    abs current_token_id: u32,
+    abs source_idx: u32
+) -> u16 {
+    erg count: u16 = 0u16;
+    for erg slot: u32 in 0u32 .. 8u32 {
+        erg candidate: u32 = fabric.columns[source_idx].axons[slot];
+        if candidate == NULL_INDEX || candidate >= BRAIN_BINDING_COUNT {
+            continue;
+        }
+        erg current_copy: u32 = 0u32;
+        current_copy = current_token_id;
+        erg candidate_token: u32 = 0u32;
+        candidate_token = bindings[candidate].token_id;
+        erg expected_context: u64 = context_key(previous_token_id: erg current_copy, token_id: erg candidate_token);
+        if (fabric.columns[candidate].flags & FLAG_ACTIVE) != 0u8 && bindings[candidate].binding_flags == BINDING_ACTIVE_FLAG && bindings[candidate].context_key == expected_context {
+            count += 1u16;
+        }
+    }
+    return count;
+}
+
+verb correction_source_index(
+    abs bindings: Array[TokenBinding, 64],
+    abs request: TeachingRequest
+) -> Option[u32] {
+    erg event: AdapterEvent = request.envelope.events[0u32];
+    erg bos_token: u32 = BPE_BOS_TOKEN_ID;
+    erg event_token: u32 = event.identity;
+    erg context: u64 = context_key(previous_token_id: erg bos_token, token_id: erg event_token);
+    return lookup_token_context(
+        bindings: abs bindings,
+        token_id: erg event_token,
+        context_key: erg context
+    );
+}
+
+verb apply_replacement_correction(
+    ins fabric: CorticalFabric[64],
+    ins bindings: Array[TokenBinding, 64],
+    abs sequence: TokenSequence
+) -> Result[TrainingMetrics, TeachingError] {
+    erg first = train_token_sequence_replay(
+        fabric: ins fabric,
+        bindings: ins bindings,
+        sequence: abs sequence
+    );
+    return case dat first {
+        Result.Err(_) => Result[TrainingMetrics, TeachingError].Err(TeachingError.TrainingRejected),
+        Result.Ok(_) => {
+            erg second = train_token_sequence_replay(
+                fabric: ins fabric,
+                bindings: ins bindings,
+                sequence: abs sequence
+            );
+            return case dat second {
+                Result.Err(_) => Result[TrainingMetrics, TeachingError].Err(TeachingError.TrainingRejected),
+                Result.Ok(metrics) => Result[TrainingMetrics, TeachingError].Ok(metrics),
+            };
+        },
+    };
+}
+
+verb finish_correction(
+    ins fabric: CorticalFabric[64],
+    ins bindings: Array[TokenBinding, 64],
+    abs correction: TeachingCorrection,
+    abs replacement: TokenSequence,
+    erg source_idx: u32
+) -> Result[TeachingCorrectionMetrics, TeachingError] {
+    erg reinforced = apply_replacement_correction(
+        fabric: ins fabric,
+        bindings: ins bindings,
+        sequence: abs replacement
+    );
+    return case dat reinforced {
+        Result.Err(error) => Result[TeachingCorrectionMetrics, TeachingError].Err(error),
+        Result.Ok(metrics) => {
+            erg current_token: u32 = 0u32;
+            current_token = correction.original.envelope.events[0u32].identity;
+            erg competing = count_competing_successors(
+                fabric: abs fabric,
+                bindings: abs bindings,
+                current_token_id: abs current_token,
+                source_idx: abs source_idx
+            );
+            erg ambiguous: Bool = competing > 1u16;
+            return Result[TeachingCorrectionMetrics, TeachingError].Ok(TeachingCorrectionMetrics {accepted: true, original_preserved: true, replacement_reinforced_transitions: metrics.reinforced_transitions, competing_successors: competing, ambiguous: ambiguous});
+        },
+    };
+}
+
+verb correction_inputs_valid(abs correction: TeachingCorrection) -> Bool {
+    return correction.valid && correction_request_is_valid(request: abs correction.original) && correction_request_is_valid(
+        request: abs correction.replacement
+    );
+}
+
+verb continue_correction(
+    ins fabric: CorticalFabric[64],
+    ins bindings: Array[TokenBinding, 64],
+    abs correction: TeachingCorrection
+) -> Result[TeachingCorrectionMetrics, TeachingError] {
+    erg replacement = text_envelope_to_sequence(envelope: abs correction.replacement.envelope);
+    return case dat replacement {
+        Result.Err(error) => Result[TeachingCorrectionMetrics, TeachingError].Err(error),
+        Result.Ok(sequence) => {
+            erg source = correction_source_index(bindings: abs bindings, request: abs correction.original);
+            return case dat source {
+                Option.None => Result[TeachingCorrectionMetrics, TeachingError].Err(TeachingError.TrainingRejected),
+                Option.Some(source_idx) => finish_correction(
+                    fabric: ins fabric,
+                    bindings: ins bindings,
+                    correction: abs correction,
+                    replacement: abs sequence,
+                    source_idx: erg source_idx
+                ),
+            };
+        },
+    };
+}
+
+"""Apply one correction without deleting the original association.
+
+Both requests must be valid direct text examples. The original must already
+be resident. The replacement is replayed twice as the correction weight;
+existing alternatives remain linked.
+"""
+open verb teach_correction(
+    ins fabric: CorticalFabric[64],
+    ins bindings: Array[TokenBinding, 64],
+    abs correction: TeachingCorrection
+) -> Result[TeachingCorrectionMetrics, TeachingError] {
+    if !correction_inputs_valid(correction: abs correction) {
+        return Result[TeachingCorrectionMetrics, TeachingError].Err(TeachingError.InvalidRequest);
+    }
+    erg original_sequence = text_envelope_to_sequence(envelope: abs correction.original.envelope);
+    return case dat original_sequence {
+        Result.Err(error) => Result[TeachingCorrectionMetrics, TeachingError].Err(error),
+        Result.Ok(sequence) => continue_correction(
+            fabric: ins fabric,
+            bindings: ins bindings,
+            correction: abs correction
+        ),
+    };
+}

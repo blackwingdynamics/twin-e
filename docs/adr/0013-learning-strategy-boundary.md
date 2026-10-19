@@ -52,9 +52,10 @@ The methods are introduced in this order:
    examples, report per-example acceptance and metrics, and stop explicitly on
    capacity or validation errors. A batch must not imply an unbounded queue.
 5. **Correction and competition policy:** represent competing successors as
-   explicit alternatives. A correction must be a documented training event;
-   it must not silently delete an earlier association. Selection and tie
-   behavior must be measurable.
+   explicit alternatives. A correction is a documented training event that
+   retains the earlier association and gives the replacement one additional
+   bounded reinforcement. Selection and tie behavior are measurable; equal
+   strengths use the existing lowest-index deterministic tie break.
 6. **Cross-modality association:** bind compatible events from different
    modality envelopes only through a documented public integration contract.
    Modality adapters remain decoders; they do not invent semantic links.

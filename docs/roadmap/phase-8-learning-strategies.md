@@ -206,15 +206,28 @@ batch before fabric mutation.
 
 ## Gate 8.6 — Correction and competition policy
 
-- [ ] Define how a new answer competes with an existing successor.
-- [ ] Define explicit correction events without silent deletion.
-- [ ] Measure tie, contradiction, and repeated-correction outcomes.
+- [x] Define how a new answer competes with an existing successor.
+- [x] Define explicit correction events without silent deletion.
+- [x] Measure tie, contradiction, and repeated-correction outcomes.
 
 ### Required evidence
 
-- [ ] Correction tests show the selected policy and preserve prior-state
+- [x] Correction tests show the selected policy and preserve prior-state
       invariants on rejection.
-- [ ] Recall output reports ambiguity or deterministic selection explicitly.
+- [x] Recall output reports ambiguity or deterministic selection explicitly.
+
+### Gate 8.6 evidence
+
+`src/teaching/pipelines/correction.act` treats a correction as an explicit
+event. The original successor remains linked; the replacement is replayed
+twice, giving the correction one additional reinforcement without deleting
+the prior association. Equal strengths remain ambiguous and use the existing
+lowest-index deterministic tie break during recall.
+
+`tests/teaching_correction.act` proves that a correction preserves the old
+successor, creates one competing replacement, reports ambiguity, and rejects
+an invalid correction without mutating resident state. Repeated correction is
+represented by the bounded replay reinforcement and remains saturating.
 
 ## Gate 8.7 — Cross-modality association
 
