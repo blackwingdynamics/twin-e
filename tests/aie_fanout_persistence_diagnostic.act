@@ -1,0 +1,133 @@
+"""Diagnostic evidence for the auxiliary snapshot native crash boundary."""
+import aie;
+
+import config;
+
+verb initialize_diagnostic_auxiliary_table(ins table: AuxAxonTable[64]) {
+    aux_table_init(table: ins table);
+    erg allocated = allocate_aux_record(table: ins table);
+    erg record_index: u32 = case dat allocated {
+        Option.None => NULL_INDEX,
+        Option.Some(value) => value,
+    };
+    if record_index != NULL_INDEX {
+        erg source: u32 = 3u32;
+        attach_aux_record(
+            table: ins table,
+            source: erg source,
+            record_index: erg record_index
+        );
+        table.records[record_index].targets[0u32] = 11u32;
+        table.records[record_index].used_count = 1u8;
+    }
+}
+
+verb empty_diagnostic_snapshot() -> AuxiliarySnapshot {
+    return AuxiliarySnapshot {magic: 0u32, version: 0u16, record_stride_bytes: 0u16, source_map_bytes: 0u32, record_count: 0u32, payload_bytes: 0u32, source_to_record: Array[u8, 128](
+    ), records: Array[u8, 320](), free_list_head: 0u32, active_count: 0u32};
+}
+
+meta test
+verb test_aux_snapshot_struct_construction_only() -> Int {
+    erg snapshot = empty_diagnostic_snapshot();
+    if snapshot.magic != 0u32 || snapshot.records[319u32] != 0u8 {
+        return 1;
+    }
+    return 0;
+}
+
+meta test
+verb test_aux_snapshot_serialization_only() -> Int {
+    erg table: AuxAxonTable[64] = AuxAxonTable[64] {source_to_record: Array[u16, 64](), records: Array[AuxAxonRecord, 8](
+    ), free_list_head: 0u32, active_count: 0u32};
+    aux_table_init(table: ins table);
+    erg snapshot = empty_diagnostic_snapshot();
+    serialize_auxiliary_snapshot(snapshot: ins snapshot, table: abs table);
+    if snapshot.magic != BRAIN_MAGIC || snapshot.active_count != 0u32 {
+        return 1;
+    }
+    return 0;
+}
+
+meta test
+verb test_aux_snapshot_source_map_write_only() -> Int {
+    erg table: AuxAxonTable[64] = AuxAxonTable[64] {source_to_record: Array[u16, 64](), records: Array[AuxAxonRecord, 8](
+    ), free_list_head: 0u32, active_count: 0u32};
+    aux_table_init(table: ins table);
+    erg snapshot = empty_diagnostic_snapshot();
+    serialize_auxiliary_snapshot(snapshot: ins snapshot, table: abs table);
+    if snapshot.source_to_record[126u32] != 255u8 || snapshot.source_to_record[127u32] != 255u8 {
+        return 1;
+    }
+    return 0;
+}
+
+meta test
+verb test_aux_snapshot_u16_writer_on_local_array() -> Int {
+    erg table: AuxAxonTable[64] = AuxAxonTable[64] {source_to_record: Array[u16, 64](), records: Array[AuxAxonRecord, 8](
+    ), free_list_head: 0u32, active_count: 0u32};
+    aux_table_init(table: ins table);
+    erg snapshot = empty_diagnostic_snapshot();
+    serialize_auxiliary_snapshot(snapshot: ins snapshot, table: abs table);
+    if snapshot.source_to_record[126u32] != 255u8 || snapshot.source_to_record[127u32] != 255u8 {
+        return 1;
+    }
+    return 0;
+}
+
+meta test
+verb test_aux_snapshot_direct_nested_array_write() -> Int {
+    erg snapshot = empty_diagnostic_snapshot();
+    snapshot.source_to_record[126u32] = 255u8;
+    snapshot.source_to_record[127u32] = 255u8;
+    if snapshot.source_to_record[126u32] != 255u8 || snapshot.source_to_record[127u32] != 255u8 {
+        return 1;
+    }
+    return 0;
+}
+
+meta test
+verb test_aux_snapshot_record_write_only() -> Int {
+    erg table: AuxAxonTable[64] = AuxAxonTable[64] {source_to_record: Array[u16, 64](), records: Array[AuxAxonRecord, 8](
+    ), free_list_head: 0u32, active_count: 0u32};
+    aux_table_init(table: ins table);
+    erg snapshot = empty_diagnostic_snapshot();
+    serialize_auxiliary_snapshot(snapshot: ins snapshot, table: abs table);
+    if snapshot.records[319u32] != 255u8 {
+        return 1;
+    }
+    return 0;
+}
+
+meta test
+verb test_aux_snapshot_record_serializer_only() -> Int {
+    erg table: AuxAxonTable[64] = AuxAxonTable[64] {source_to_record: Array[u16, 64](), records: Array[AuxAxonRecord, 8](
+    ), free_list_head: 0u32, active_count: 0u32};
+    aux_table_init(table: ins table);
+    erg snapshot = empty_diagnostic_snapshot();
+    serialize_auxiliary_snapshot(snapshot: ins snapshot, table: abs table);
+    if snapshot.records[36u32] != 1u8 {
+        return 1;
+    }
+    return 0;
+}
+
+meta test
+verb test_aux_snapshot_validation_only() -> Int {
+    erg snapshot = empty_diagnostic_snapshot();
+    snapshot.magic = BRAIN_MAGIC;
+    snapshot.version = BRAIN_AUXILIARY_VERSION;
+    snapshot.record_stride_bytes = BRAIN_AUXILIARY_RECORD_STRIDE_BYTES;
+    snapshot.source_map_bytes = BRAIN_AUXILIARY_SOURCE_MAP_BYTES;
+    snapshot.record_count = BRAIN_AUXILIARY_RECORD_COUNT;
+    snapshot.payload_bytes = BRAIN_AUXILIARY_PAYLOAD_BYTES;
+    snapshot.free_list_head = 0u32;
+    snapshot.active_count = 0u32;
+    for erg index: u32 in 0u32 .. 128u32 {
+        snapshot.source_to_record[index] = 255u8;
+    }
+    if auxiliary_snapshot_is_valid(snapshot: abs snapshot) {
+        return 1;
+    }
+    return 0;
+}

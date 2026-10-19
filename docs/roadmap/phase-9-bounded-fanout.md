@@ -86,7 +86,7 @@ the sidecar count remains zero, and no auxiliary marker or record is created.
 
 ## Current evidence
 
-The strict suite passes with `104 passed; 0 failed`. The fan-out tests verify
+The strict suite passes with `113 passed; 0 failed`. The fan-out tests verify
 the unchanged eight-slot inline contract, reach one auxiliary successor
 through the gated forwarding path, reject the ninth auxiliary record without
 mutating the table, and reclaim a record while clearing `FLAG_HAS_AUX`. The

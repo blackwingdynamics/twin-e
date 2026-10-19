@@ -87,6 +87,30 @@ open const BRAIN_BINDING_COUNT: u32 = 64u32;
 open const BRAIN_BINDING_PAYLOAD_BYTES: u32 = 1536u32;
 
 
+"""Version of the fixed auxiliary fan-out snapshot section."""
+open const BRAIN_AUXILIARY_VERSION: u16 = 1u16;
+
+
+"""Serialized byte length of the auxiliary source directory."""
+open const BRAIN_AUXILIARY_SOURCE_MAP_BYTES: u32 = 128u32;
+
+
+"""Serialized byte stride of one auxiliary fan-out record."""
+open const BRAIN_AUXILIARY_RECORD_STRIDE_BYTES: u16 = 40u16;
+
+
+"""Serialized count of auxiliary fan-out records."""
+open const BRAIN_AUXILIARY_RECORD_COUNT: u32 = 8u32;
+
+
+"""Serialized byte length of all auxiliary fan-out records."""
+open const BRAIN_AUXILIARY_RECORD_PAYLOAD_BYTES: u32 = 320u32;
+
+
+"""Serialized byte length of auxiliary directory, records, and metadata."""
+open const BRAIN_AUXILIARY_PAYLOAD_BYTES: u32 = 456u32;
+
+
 """Magic value identifying the combined fabric and binding `.brain` file."""
 open const BRAIN_TEXT_MAGIC: u32 = 1414482256u32;
 
