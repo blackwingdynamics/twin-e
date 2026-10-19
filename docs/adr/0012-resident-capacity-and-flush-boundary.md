@@ -140,6 +140,15 @@ the live fabric. The remaining Gate 5.8.3 work is to implement/measure the
 high-watermark trigger, flush ordering, latency separation, and failure/retry
 recovery fixtures. This ADR does not claim those later gates are complete.
 
+### Phase 5.8 acceptance update
+
+The host-profile integrated acceptance now records four-entry capacity,
+three-entry dirty high-watermark signaling, zero filesystem writes in resident
+inference and neurogenesis, and preservation of the last valid generation
+after failed publication. The runtime remains caller-driven with no background
+flush queue; these results do not change that boundary or claim hardware
+performance.
+
 ## Consequences
 
 - capacity behavior is explicit and observable rather than an accidental

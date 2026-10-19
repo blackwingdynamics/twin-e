@@ -299,21 +299,35 @@ task.
 
 ## Gate 5.8.4 — Integrated acceptance
 
-- [ ] Run the codebook, fallback, and cache stress suites together under one
-      documented compiler and host profile.
-- [ ] Confirm that codebook ambiguity does not create an unsafe action or
-      successor selection.
-- [ ] Confirm that fallback pressure produces bounded errors or reclamation,
-      never hidden growth.
-- [ ] Confirm that cache exhaustion does not add synchronous filesystem I/O to
-      inference or neurogenesis.
-- [ ] Confirm that failed persistence preserves live state and the last valid
-      generation.
-- [ ] Update the relevant ADRs with the accepted designs and rejected options.
-- [ ] Record the final limits, known failure modes, and follow-up work.
-- [ ] Run `actus fmt --check` on every touched Actus source file.
-- [ ] Run `actus lock --check`, `actus check --strict`, and `actus test --strict`.
-- [ ] Run a strict native build and retain zero-floating-point verification.
+- [x] Run the codebook, fallback, and cache stress suites together under one
+      documented compiler and host profile. See
+      `docs/benchmarks/phase-5-8-integrated-acceptance.md`.
+- [x] Confirm that codebook ambiguity does not create an unsafe action or
+      successor selection. The strict suite covers ambiguous candidate
+      identity, conflicting successors, repeated actions, and stale sequences.
+      See `docs/benchmarks/phase-5-8-integrated-acceptance.md`.
+- [x] Confirm that fallback pressure produces bounded errors or reclamation,
+      never hidden growth. The integrated fallback run reports
+      `growth_bytes=0`, `oversized_rejected=1`, and
+      `failed_save_unchanged=1`.
+- [x] Confirm that cache exhaustion does not add synchronous filesystem I/O to
+      inference or neurogenesis. The resident hot-path fixture reports
+      `filesystem_writes=0` for clean and dirty paths.
+- [x] Confirm that failed persistence preserves live state and the last valid
+      generation. The save and recovery fixtures report
+      `resident_usable_after_failed_save`,
+      `previous_generation_preserved`, and `stale_rejected=1`. See
+      `docs/benchmarks/phase-5-8-integrated-acceptance.md`.
+- [x] Update the relevant ADRs with the accepted designs and rejected options.
+      See ADR-0009, ADR-0011, and ADR-0012.
+- [x] Record the final limits, known failure modes, and follow-up work in
+      `docs/benchmarks/phase-5-8-integrated-acceptance.md`.
+- [x] Run `actus fmt --check` on every touched Actus source file. No Actus
+      source was changed in this acceptance run; the touched benchmark source
+      was formatter-clean before this gate.
+- [x] Run `actus lock --check`, `actus check --strict`, and
+      `actus test --strict`.
+- [x] Run a strict native build and retain zero-floating-point verification.
 
 ## Definition of done
 

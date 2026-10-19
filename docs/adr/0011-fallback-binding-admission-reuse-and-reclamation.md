@@ -119,6 +119,15 @@ complete.
   tokenizer behavior is expanded;
 - no automatic fallback-specific eviction policy is available yet.
 
+### Phase 5.8 acceptance update
+
+The integrated fallback persistence fixture records stable artifact size across
+repeated training (`growth_bytes=0`), rejects an oversized artifact before
+mutation (`oversized_rejected=1`, `unchanged=1`), and preserves resident state
+after a failed save (`failed_save_unchanged=1`). These results close the
+current host-profile persistence evidence without claiming unbounded fallback
+storage or automatic reclamation.
+
 ## Rejected alternatives
 
 - allocating a new binding for every fallback event;

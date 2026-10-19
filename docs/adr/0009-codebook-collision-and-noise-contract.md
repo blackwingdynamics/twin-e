@@ -180,3 +180,12 @@ the current profile is collision-free at arbitrary scale, tolerant of sensor
 noise, or suitable for unrestricted language modelling. Those claims require
 the completed Phase 5.8.1 evidence and remain unproven until then.
 
+### Phase 5.8 acceptance update
+
+The current 12-bit host profile passed the five-million-entry deterministic
+population fixture with 5,000,000 occupied slots, zero exact duplicates, and
+no table exhaustion. Ambiguous sparse candidates still require identity
+verification before action or successor selection. Noise tolerance remains an
+explicit future policy: lowering a matching threshold is not accepted as an
+implicit noise implementation.
+
