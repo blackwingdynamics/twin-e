@@ -24,7 +24,7 @@ verb initialize_diagnostic_auxiliary_table(ins table: AuxAxonTable[64]) {
 
 verb empty_diagnostic_snapshot() -> AuxiliarySnapshot {
     return AuxiliarySnapshot {magic: 0u32, version: 0u16, record_stride_bytes: 0u16, source_map_bytes: 0u32, record_count: 0u32, payload_bytes: 0u32, source_to_record: Array[u8, 128](
-    ), records: Array[u8, 320](), free_list_head: 0u32, active_count: 0u32};
+    ), records: Array[u8, 320](), free_list_head: 0u32, active_count: 0u32, checksum: 0u64};
 }
 
 meta test
@@ -43,7 +43,7 @@ verb test_aux_snapshot_serialization_only() -> Int {
     aux_table_init(table: ins table);
     erg snapshot = empty_diagnostic_snapshot();
     serialize_auxiliary_snapshot(snapshot: ins snapshot, table: abs table);
-    if snapshot.magic != BRAIN_MAGIC || snapshot.active_count != 0u32 {
+    if snapshot.magic != BRAIN_MAGIC || snapshot.active_count != 0u32 || snapshot.checksum == 0u64 {
         return 1;
     }
     return 0;
@@ -157,6 +157,20 @@ verb test_aux_snapshot_validation_rejects_duplicate_directory_entry() -> Int {
     snapshot.source_to_record[1u32] = 0u8;
     snapshot.source_to_record[2u32] = 0u8;
     snapshot.source_to_record[3u32] = 0u8;
+    if auxiliary_snapshot_is_valid(snapshot: abs snapshot) {
+        return 1;
+    }
+    return 0;
+}
+
+meta test
+verb test_aux_snapshot_validation_rejects_checksum_corruption() -> Int {
+    erg table: AuxAxonTable[64] = AuxAxonTable[64] {source_to_record: Array[u16, 64](), records: Array[AuxAxonRecord, 8](
+    ), free_list_head: 0u32, active_count: 0u32};
+    aux_table_init(table: ins table);
+    erg snapshot = empty_diagnostic_snapshot();
+    serialize_auxiliary_snapshot(snapshot: ins snapshot, table: abs table);
+    snapshot.records[35u32] += 1u8;
     if auxiliary_snapshot_is_valid(snapshot: abs snapshot) {
         return 1;
     }

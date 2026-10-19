@@ -15,6 +15,7 @@ open struct AuxiliarySnapshot {
     erg records: Array[u8, 320],
     erg free_list_head: u32,
     erg active_count: u32,
+    erg checksum: u64,
 }
 
 verb auxiliary_write_u16(
@@ -43,6 +44,17 @@ verb auxiliary_write_u32(
 
 verb auxiliary_read_u32(abs input: Array[u8, 320], erg offset: u32) -> u32 {
     return (input[offset] as u32) + ((input[offset + 1u32] as u32) * 256u32) + ((input[offset + 2u32] as u32) * 65536u32) + ((input[offset + 3u32] as u32) * 16777216u32);
+}
+
+verb auxiliary_snapshot_checksum(abs snapshot: AuxiliarySnapshot) -> u64 {
+    erg checksum: u64 = 0u64;
+    for erg index: u32 in 0u32 .. 128u32 {
+        checksum += (snapshot.source_to_record[index] as u64) * (index as u64 + 1u64);
+    }
+    for erg index: u32 in 0u32 .. 320u32 {
+        checksum += (snapshot.records[index] as u64) * (index as u64 + 129u64);
+    }
+    return checksum;
 }
 
 verb auxiliary_snapshot_header_is_valid(abs snapshot: AuxiliarySnapshot) -> Bool {
@@ -147,7 +159,9 @@ open verb auxiliary_snapshot_is_valid(abs snapshot: AuxiliarySnapshot) -> Bool {
         snapshot: abs snapshot
     ) && auxiliary_snapshot_records_are_valid(snapshot: abs snapshot) && auxiliary_snapshot_counts_are_valid(
         snapshot: abs snapshot
-    ) && snapshot.active_count <= AUX_AXON_CAPACITY;
+    ) && snapshot.active_count <= AUX_AXON_CAPACITY && snapshot.checksum == auxiliary_snapshot_checksum(
+        snapshot: abs snapshot
+    );
 }
 
 verb serialize_auxiliary_record(
@@ -204,4 +218,5 @@ open verb serialize_auxiliary_snapshot(
             record_index: erg record_index
         );
     }
+    snapshot.checksum = auxiliary_snapshot_checksum(snapshot: abs snapshot);
 }
