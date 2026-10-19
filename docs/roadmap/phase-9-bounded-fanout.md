@@ -86,16 +86,15 @@ the sidecar count remains zero, and no auxiliary marker or record is created.
 
 ## Current evidence
 
-The strict suite passes with `116 passed; 0 failed`. The fan-out tests verify
+The strict suite passes with `121 passed; 0 failed`. The fan-out tests verify
 the unchanged eight-slot inline contract, reach one auxiliary successor
 through the gated forwarding path, reject the ninth auxiliary record without
 mutating the table, and reclaim a record while clearing `FLAG_HAS_AUX`. The
-auxiliary snapshot validator now also rejects active-count mismatches and
-duplicate source-directory entries, while checking that attached and free-list
-records cover the bounded table exactly. Checksum, publication, and round-trip
-recovery gates remain open for the next steps. Auxiliary snapshot serialization
-now records a deterministic payload checksum, and validation rejects a
-checksum-only corruption of an otherwise structurally valid snapshot.
+auxiliary snapshot validator now rejects active-count mismatches and validates
+the source-map count, record bounds, and a deterministic payload checksum. The
+snapshot restore path validates before mutating the destination table, and a
+corrupted snapshot leaves live state unchanged. Exact free-list coverage,
+publication, and on-disk round-trip recovery remain open for the next steps.
 
 ## Out of scope
 
