@@ -118,17 +118,17 @@ compiler-valid import tests remain Gate 7.3 evidence.
 
 - [x] Define the bounded common adapter envelope produced by every adapter;
       it sits above the existing `ObservationEvent` rather than replacing it.
-- [ ] Define modality identity, contract version, source ordering, source
+- [x] Define modality identity, contract version, source ordering, source
       offset, payload length, and validation status fields.
-- [ ] Define bounded limits for event count, payload bytes, source offsets,
+- [x] Define bounded limits for event count, payload bytes, source offsets,
       and per-modality metadata.
-- [ ] Define explicit rejection reasons for malformed, unsupported, empty,
+- [x] Define explicit rejection reasons for malformed, unsupported, empty,
       and oversized input.
-- [ ] Define integer-only normalization ranges and forbid implicit floating
+- [x] Define integer-only normalization ranges and forbid implicit floating
       point conversion.
-- [ ] Define deterministic replay requirements and tie-breaking rules.
-- [ ] Define ownership and lifetime at the adapter/facade call boundary.
-- [ ] Define which fields may feed tokenizer, encoding, observation, and
+- [x] Define deterministic replay requirements and tie-breaking rules.
+- [x] Define ownership and lifetime at the adapter/facade call boundary.
+- [x] Define which fields may feed tokenizer, encoding, observation, and
       training APIs without exposing private AIE state.
 
 ### Gate 7.2 design draft
@@ -139,9 +139,24 @@ length, and ordered integer events. The initial hosted admission envelope is
 256 events with a `u32` source length. The event fields and rejection classes
 are recorded in ADR-0010; implementation must not silently widen these limits.
 
-The remaining Gate 7.2 checkboxes stay open until the contract types,
-validation, rejection paths, and no-state-mutation behavior are implemented
-and confirmed by executable tests.
+- [x] Implement the contract types, validation, rejection paths, and
+      no-state-mutation boundary.
+
+### Gate 7.2 test evidence
+
+The contract is covered by `tests/aie_adapter_contract.act` and the full strict
+suite. The executable tests cover ordered acceptance, unsupported versions,
+empty input, invalid source ordering, source-offset bounds, payload bounds,
+and normalized-value bounds:
+
+```sh
+/tmp/actus-pr.NrrJhb/target/release/actus check --strict
+/tmp/actus-pr.NrrJhb/target/release/actus test --strict
+```
+
+Result: `53 passed; 0 failed`. The validator accepts only immutable input,
+performs no I/O, and returns before any AIE state API is called; adapter
+facade integration remains a later Gate 7.3 concern.
 
 ### Gate evidence
 

@@ -1,0 +1,2 @@
+"""Canonical public facade for bounded modality adapters."""
+open contract;

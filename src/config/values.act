@@ -207,6 +207,14 @@ open const OBSERVATION_SNAPSHOT_VERSION: u16 = 1u16;
 open const OBSERVATION_SNAPSHOT_BYTES: u16 = 20u16;
 
 
+"""Version marker for the common modality adapter envelope contract."""
+open const ADAPTER_CONTRACT_VERSION: u16 = 1u16;
+
+
+"""Maximum number of normalized events in one adapter envelope."""
+open const ADAPTER_MAX_EVENTS: u32 = 256u32;
+
+
 """Maximum number of generated token ids retained for loop guards."""
 open const GENERATION_HISTORY_LIMIT: u32 = 8u32;
 

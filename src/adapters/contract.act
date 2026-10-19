@@ -1,0 +1,116 @@
+"""Bounded, modality-neutral input contract for external adapters."""
+import config;
+
+"""Stable modality discriminator carried by one adapter envelope."""
+open enum AdapterModality {
+    Text,
+    Image,
+    Audio,
+    Video,
+    Structured,
+    Binary,
+}
+
+"""One normalized integer event with a source position and identity."""
+open struct AdapterEvent {
+    erg source_offset: u32,
+    erg feature_kind: u16,
+    erg identity: u32,
+    erg value_primary: u16,
+    erg value_secondary: u16,
+    erg payload_length: u16,
+    erg flags: u8,
+}
+
+"""Bounded adapter output that can feed existing public AIE facades."""
+open struct AdapterEnvelope {
+    erg contract_version: u16,
+    erg modality: AdapterModality,
+    erg event_count: u16,
+    erg source_length: u32,
+    erg events: Array[AdapterEvent, 256],
+    erg valid: Bool,
+}
+
+"""Typed reasons for rejecting an adapter envelope before engine mutation."""
+open enum AdapterError {
+    InvalidEnvelope,
+    UnsupportedContractVersion,
+    EmptyInput,
+    EventCountExceeded,
+    SourceOffsetOutOfBounds,
+    PayloadOutOfBounds,
+    InvalidSourceOrdering,
+    NormalizedValueOutOfBounds,
+    UnsupportedEncoding,
+    MalformedInput,
+}
+
+"""Validate one adapter envelope without allocation, I/O, or engine mutation.
+
+The source view is not retained. Events must be ordered by non-decreasing
+source offset, every offset must refer to the bounded source length, and the
+event count must fit the fixed envelope capacity. A successful result returns
+the admitted event count; a failure leaves all external state untouched.
+"""
+verb validate_adapter_event(
+    abs envelope: AdapterEnvelope,
+    abs event: AdapterEvent
+) -> Result[Int, AdapterError] {
+    if event.source_offset >= envelope.source_length {
+        return Result[Int, AdapterError].Err(AdapterError.SourceOffsetOutOfBounds);
+    }
+    if event.payload_length as u32 > envelope.source_length - event.source_offset {
+        return Result[Int, AdapterError].Err(AdapterError.PayloadOutOfBounds);
+    }
+    if event.value_primary > OBSERVATION_MAX_VALUE || event.value_secondary > OBSERVATION_MAX_VALUE {
+        return Result[Int, AdapterError].Err(AdapterError.NormalizedValueOutOfBounds);
+    }
+    return Result[Int, AdapterError].Ok(0);
+}
+
+verb validate_adapter_header(abs envelope: AdapterEnvelope) -> Result[Int, AdapterError] {
+    if !envelope.valid {
+        return Result[Int, AdapterError].Err(AdapterError.InvalidEnvelope);
+    }
+    if envelope.contract_version != ADAPTER_CONTRACT_VERSION {
+        return Result[Int, AdapterError].Err(AdapterError.UnsupportedContractVersion);
+    }
+    if envelope.event_count == 0u16 || envelope.source_length == 0u32 {
+        return Result[Int, AdapterError].Err(AdapterError.EmptyInput);
+    }
+    if envelope.event_count as u32 > ADAPTER_MAX_EVENTS {
+        return Result[Int, AdapterError].Err(AdapterError.EventCountExceeded);
+    }
+    return Result[Int, AdapterError].Ok(envelope.event_count as Int);
+}
+
+verb validate_adapter_events(abs envelope: AdapterEnvelope) -> Result[Int, AdapterError] {
+    erg previous_offset: u32 = 0u32;
+    for erg index: u32 in 0u32 .. ADAPTER_MAX_EVENTS {
+        if index >= envelope.event_count as u32 {
+            return Result[Int, AdapterError].Ok(envelope.event_count as Int);
+        }
+        erg event: AdapterEvent = envelope.events[index as Usize];
+        if index > 0u32 && event.source_offset < previous_offset {
+            return Result[Int, AdapterError].Err(AdapterError.InvalidSourceOrdering);
+        }
+        erg event_result = validate_adapter_event(envelope: abs envelope, event: abs event);
+        case dat event_result {
+            Result.Err(error) => {
+                return Result[Int, AdapterError].Err(error);
+            },
+            Result.Ok(_) => {},
+        };
+        previous_offset = event.source_offset;
+    }
+    return Result[Int, AdapterError].Err(AdapterError.EventCountExceeded);
+}
+
+open verb validate_adapter_envelope(abs envelope: AdapterEnvelope) -> Result[Int, AdapterError] {
+    erg header_result = validate_adapter_header(envelope: abs envelope);
+    return case dat header_result {
+        Result.Err(error) => Result[Int, AdapterError].Err(error),
+        Result.Ok(_) => validate_adapter_events(envelope: abs envelope),
+    };
+}
