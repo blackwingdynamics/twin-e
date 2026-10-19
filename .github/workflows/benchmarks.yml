@@ -29,9 +29,9 @@ jobs:
           - name: cache-pressure
             source: benchmarks/aie_cache.act
             output: /tmp/twin-e-cache-pressure.aie
-          - name: generation-recovery
-            source: benchmarks/aie_shard_bindings_dynamic.act
-            output: /tmp/twin-e-generation-recovery.aie
+          - name: shard-generation-recovery
+            source: benchmarks/aie_shards_dynamic.act
+            output: /tmp/twin-e-shard-generation-recovery.aie
 
     steps:
       - name: Checkout Twin-e

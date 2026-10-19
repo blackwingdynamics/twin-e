@@ -6,7 +6,9 @@ fully sized Minicolumn, and closes the Region. It does not materialize an
 inline CorticalFabric for the logical capacity.
 """
 import aie;
+
 import std::io;
+
 import std::region;
 
 """Open, read, and close one logical Region capacity.
@@ -20,7 +22,7 @@ verb verify_region_capacity(erg logical_length: u64) -> Int {
     erg backing: Buffer = Buffer[64];
     erg window_start: u64 = 0u64;
     erg window_count: u64 = 1u64;
-    erg opened: Result[Region[Minicolumn], RegionError] = region_open[Minicolumn](
+    erg opened: Result[Region[Minicolumn],RegionError] = region_open[Minicolumn](
         backing: dat backing,
         logical_length: erg logical_length,
         window_start: erg window_start,
@@ -31,7 +33,7 @@ verb verify_region_capacity(erg logical_length: u64) -> Int {
         Result.Ok(region) => {
             erg destination: Buffer = Buffer[64];
             erg index: u64 = 0u64;
-            erg read_result: Result[Int, RegionError] = region_read[Minicolumn](
+            erg read_result: Result[Int,RegionError] = region_read[Minicolumn](
                 region: abs region,
                 index: erg index,
                 destination: ins destination
