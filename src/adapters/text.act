@@ -1,0 +1,118 @@
+"""Bounded text-to-envelope adapter built on the canonical tokenizer facade."""
+import config;
+
+import tokenizer;
+
+open contract;
+
+"""Version marker for the public text adapter namespace."""
+open const ADAPTER_TEXT_NAMESPACE_VERSION: u16 = 1u16;
+
+
+"""Build one common adapter event from tokenizer span metadata.
+
+The token identity is preserved in `identity`; the primary value records the
+bounded source span and the secondary value records the tokenizer version.
+The operation copies no source bytes, performs no I/O, and does not mutate
+engine state.
+"""
+verb text_token_to_event(abs token: Token, erg feature_kind: u16) -> AdapterEvent {
+    return AdapterEvent {source_offset: token.byte_offset, feature_kind: feature_kind, identity: token.id, value_primary: token.byte_length, value_secondary: token.tokenizer_version, payload_length: token.byte_length, flags: 0u8};
+}
+
+verb text_sequence_source_length(abs sequence: TokenSequence) -> u32 {
+    erg source_length: u32 = 0u32;
+    for erg index: u32 in 0u32 .. ADAPTER_MAX_EVENTS {
+        if index >= sequence.length {
+            break;
+        }
+        erg token: Token = sequence.tokens[index as Usize];
+        erg token_end: u32 = token.byte_offset + token.byte_length as u32;
+        if token_end > source_length {
+            source_length = token_end;
+        }
+    }
+    return source_length;
+}
+
+verb text_sequence_to_envelope(abs sequence: TokenSequence, erg feature_kind: u16) -> AdapterEnvelope {
+    erg envelope: AdapterEnvelope = AdapterEnvelope {contract_version: ADAPTER_CONTRACT_VERSION, modality: AdapterModality.Text, event_count: sequence.length as u16, source_length: text_sequence_source_length(
+        sequence: abs sequence
+    ), events: Array[AdapterEvent, 256](), valid: sequence.valid};
+    for erg index: u32 in 0u32 .. ADAPTER_MAX_EVENTS {
+        if index >= sequence.length {
+            break;
+        }
+        envelope.events[index as Usize] = text_token_to_event(token: abs sequence.tokens[index as Usize], feature_kind: erg feature_kind);
+    }
+    return envelope;
+}
+
+verb adapt_text_sequence(abs sequence: TokenSequence, erg feature_kind: u16) -> Result[AdapterEnvelope, AdapterError] {
+    if !sequence.valid {
+        return Result[AdapterEnvelope, AdapterError].Err(AdapterError.MalformedInput);
+    }
+    if sequence.length == 0u32 {
+        return Result[AdapterEnvelope, AdapterError].Err(AdapterError.EmptyInput);
+    }
+    erg envelope: AdapterEnvelope = text_sequence_to_envelope(sequence: abs sequence, feature_kind: erg feature_kind);
+    erg validation = validate_adapter_envelope(envelope: abs envelope);
+    erg accepted: Bool = false;
+    erg validation_error: AdapterError = AdapterError.InvalidEnvelope;
+    case dat validation {
+        Result.Err(error) => {
+            validation_error = error;
+        },
+        Result.Ok(_) => {
+            accepted = true;
+        },
+    };
+    if accepted {
+        return Result[AdapterEnvelope, AdapterError].Ok(envelope);
+    }
+    return Result[AdapterEnvelope, AdapterError].Err(validation_error);
+}
+
+"""Adapt bounded text into the common modality envelope.
+
+The input is tokenized by the existing byte tokenizer. Empty, oversized, and
+malformed input is rejected before envelope validation; valid output preserves
+each byte identity and source offset. No filesystem or network I/O occurs.
+"""
+open verb adapt_text(abs text: String) -> Result[AdapterEnvelope, AdapterError] {
+    erg sequence: TokenSequence = tokenize_string(text: abs text);
+    erg feature_kind: u16 = ADAPTER_TEXT_BYTE_FEATURE;
+    return adapt_text_sequence(sequence: abs sequence, feature_kind: erg feature_kind);
+}
+
+"""Adapt bounded raw bytes through the text byte-fallback path.
+
+This entry point preserves non-UTF-8 byte identity and offsets by delegating
+to the existing byte tokenizer. A declared length outside the fixed buffer or
+token capacity is rejected before a common envelope is returned.
+"""
+open verb adapt_text_bytes(abs input: Buffer, erg input_length: u32) -> Result[AdapterEnvelope, AdapterError] {
+    erg sequence: TokenSequence = tokenize_bytes(input: abs input, input_length: erg input_length);
+    erg feature_kind: u16 = ADAPTER_TEXT_BYTE_FEATURE;
+    return adapt_text_sequence(sequence: abs sequence, feature_kind: erg feature_kind);
+}
+
+"""Adapt bounded BPE text into the common modality envelope.
+
+The existing deterministic BPE contract supplies token IDs and merged source
+spans. The adapter preserves those IDs and spans without duplicating merge or
+context logic, and rejects the same invalid sequence categories as `adapt_text`.
+"""
+open verb adapt_text_bpe(
+    abs text: String,
+    abs rules: Array[BpeMergeRule, 128],
+    erg rule_count: u32
+) -> Result[AdapterEnvelope, AdapterError] {
+    erg sequence: TokenSequence = bpe_tokenize_string(
+        text: abs text,
+        rules: abs rules,
+        rule_count: erg rule_count
+    );
+    erg feature_kind: u16 = ADAPTER_TEXT_BPE_FEATURE;
+    return adapt_text_sequence(sequence: abs sequence, feature_kind: erg feature_kind);
+}

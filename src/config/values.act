@@ -207,6 +207,90 @@ open const OBSERVATION_SNAPSHOT_VERSION: u16 = 1u16;
 open const OBSERVATION_SNAPSHOT_BYTES: u16 = 20u16;
 
 
+"""Version marker for the common modality adapter envelope contract."""
+open const ADAPTER_CONTRACT_VERSION: u16 = 1u16;
+
+
+"""Maximum number of normalized events in one adapter envelope."""
+open const ADAPTER_MAX_EVENTS: u32 = 256u32;
+
+
+"""Feature discriminator for one byte-token text event."""
+open const ADAPTER_TEXT_BYTE_FEATURE: u16 = 1u16;
+
+
+"""Feature discriminator for one merged BPE text event."""
+open const ADAPTER_TEXT_BPE_FEATURE: u16 = 2u16;
+
+
+"""Feature discriminator for one structured integer field event."""
+open const ADAPTER_STRUCTURED_FIELD_FEATURE: u16 = 3u16;
+
+
+"""Feature discriminator for one opaque binary byte event."""
+open const ADAPTER_BINARY_BYTE_FEATURE: u16 = 4u16;
+
+
+"""Maximum number of fields in one structured adapter record."""
+open const ADAPTER_STRUCTURED_MAX_FIELDS: u32 = 32u32;
+
+
+"""Maximum image width admitted by the future patch-event envelope."""
+open const ADAPTER_IMAGE_MAX_WIDTH: u16 = 64u16;
+
+
+"""Maximum image height admitted by the future patch-event envelope."""
+open const ADAPTER_IMAGE_MAX_HEIGHT: u16 = 64u16;
+
+
+"""Maximum image channel count admitted by the future envelope."""
+open const ADAPTER_IMAGE_MAX_CHANNELS: u8 = 4u8;
+
+
+"""Maximum quantized image value represented by one integer feature."""
+open const ADAPTER_IMAGE_MAX_QUANTIZED_VALUE: u16 = 255u16;
+
+
+"""Maximum audio samples in one future integer feature window."""
+open const ADAPTER_AUDIO_MAX_WINDOW_SAMPLES: u32 = 4096u32;
+
+
+"""Maximum audio channel count admitted by the future envelope."""
+open const ADAPTER_AUDIO_MAX_CHANNELS: u8 = 2u8;
+
+
+"""Maximum normalized audio feature value in the future envelope."""
+open const ADAPTER_AUDIO_MAX_FEATURE_VALUE: u16 = 4095u16;
+
+
+"""Maximum video frames in one future bounded temporal envelope."""
+open const ADAPTER_VIDEO_MAX_FRAMES: u16 = 16u16;
+
+
+"""Maximum video width admitted by the future frame envelope."""
+open const ADAPTER_VIDEO_MAX_WIDTH: u16 = 64u16;
+
+
+"""Maximum video height admitted by the future frame envelope."""
+open const ADAPTER_VIDEO_MAX_HEIGHT: u16 = 64u16;
+
+
+"""Maximum video channel count admitted by the future frame envelope."""
+open const ADAPTER_VIDEO_MAX_CHANNELS: u8 = 4u8;
+
+
+"""Feature discriminator for one quantized image event."""
+open const ADAPTER_IMAGE_FEATURE: u16 = 5u16;
+
+
+"""Feature discriminator for one integer audio event."""
+open const ADAPTER_AUDIO_FEATURE: u16 = 6u16;
+
+
+"""Feature discriminator for one sparse video event."""
+open const ADAPTER_VIDEO_FEATURE: u16 = 7u16;
+
+
 """Maximum number of generated token ids retained for loop guards."""
 open const GENERATION_HISTORY_LIMIT: u32 = 8u32;
 

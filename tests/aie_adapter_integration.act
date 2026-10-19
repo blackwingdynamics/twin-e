@@ -1,0 +1,53 @@
+"""Acceptance fixture for the in-memory adapter-to-AIE boundary.
+
+The caller owns the source input and explicitly maps one validated adapter
+event to the existing public observation contract. No private arena or
+persistence API is imported by this boundary fixture.
+"""
+import adapters;
+
+import aie;
+
+import config;
+
+verb adapter_event_to_observation(abs event: AdapterEvent) -> ObservationEvent {
+    return ObservationEvent {kind: ObservationKind.Person, primary_value: event.identity as u16, secondary_value: event.value_primary, sequence: event.source_offset + 1u32, version: OBSERVATION_VERSION, valid: true};
+}
+
+verb public_observation_is_accepted(abs observation: ObservationEvent) -> Bool {
+    erg admitted = accept_sensor_observation(event: abs observation);
+    case dat admitted {
+        Result.Err(_) => {
+            return false;
+        },
+        Result.Ok(_) => {},
+    };
+    erg encoded = encode_observation(event: abs observation);
+    return case dat encoded {
+        Result.Err(_) => false,
+        Result.Ok(code) => code.active_bits == TOKEN_CODE_ACTIVE_BITS,
+    };
+}
+
+meta test
+verb test_adapter_output_reaches_public_observation_boundary() -> Int {
+    erg text: String = "A";
+    erg adapted = adapt_text(text: abs text);
+    return case dat adapted {
+        Result.Err(_) => 1,
+        Result.Ok(envelope) => {
+            erg envelope_check = validate_adapter_envelope(envelope: abs envelope);
+            case dat envelope_check {
+                Result.Err(_) => {
+                    return 1;
+                },
+                Result.Ok(_) => {},
+            };
+            erg observation = adapter_event_to_observation(event: abs envelope.events[0u32]);
+            if public_observation_is_accepted(observation: abs observation) {
+                return 0;
+            }
+            return 1;
+        },
+    };
+}

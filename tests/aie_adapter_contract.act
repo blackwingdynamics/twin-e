@@ -1,0 +1,118 @@
+"""Acceptance tests for the common bounded modality adapter contract."""
+import adapters;
+
+import config;
+
+verb valid_envelope() -> AdapterEnvelope {
+    erg envelope: AdapterEnvelope = AdapterEnvelope {contract_version: ADAPTER_CONTRACT_VERSION, modality: AdapterModality.Text, event_count: 2u16, source_length: 8u32, events: Array[AdapterEvent, 256](
+    ), valid: true};
+    envelope.events[0u32] = AdapterEvent {source_offset: 0u32, feature_kind: 1u16, identity: 65u32, value_primary: 65u16, value_secondary: 0u16, payload_length: 1u16, flags: 0u8};
+    envelope.events[1u32] = AdapterEvent {source_offset: 3u32, feature_kind: 1u16, identity: 66u32, value_primary: 66u16, value_secondary: 0u16, payload_length: 1u16, flags: 0u8};
+    return envelope;
+}
+
+meta test
+verb test_adapter_facade_imports_all_public_namespaces() -> Int {
+    if ADAPTER_TEXT_NAMESPACE_VERSION != 1u16 || ADAPTER_IMAGE_NAMESPACE_VERSION != 1u16 || ADAPTER_AUDIO_NAMESPACE_VERSION != 1u16 || ADAPTER_VIDEO_NAMESPACE_VERSION != 1u16 || ADAPTER_STRUCTURED_NAMESPACE_VERSION != 1u16 || ADAPTER_BINARY_NAMESPACE_VERSION != 1u16 {
+        return 1;
+    }
+    return 0;
+}
+
+meta test
+verb test_adapter_contract_accepts_ordered_events() -> Int {
+    erg envelope: AdapterEnvelope = valid_envelope();
+    erg result = validate_adapter_envelope(envelope: abs envelope);
+    return case dat result {
+        Result.Ok(count) => case count == 2 {
+            true => 0,
+            _ => 1,
+        },
+        Result.Err(_) => 1,
+    };
+}
+
+meta test
+verb test_adapter_contract_rejects_unsupported_version() -> Int {
+    erg envelope: AdapterEnvelope = valid_envelope();
+    envelope.contract_version = ADAPTER_CONTRACT_VERSION + 1u16;
+    erg result = validate_adapter_envelope(envelope: abs envelope);
+    return case dat result {
+        Result.Err(error) => case error {
+            AdapterError.UnsupportedContractVersion => 0,
+            _ => 1,
+        },
+        Result.Ok(_) => 1,
+    };
+}
+
+meta test
+verb test_adapter_contract_rejects_empty_input() -> Int {
+    erg envelope: AdapterEnvelope = valid_envelope();
+    envelope.event_count = 0u16;
+    erg result = validate_adapter_envelope(envelope: abs envelope);
+    return case dat result {
+        Result.Err(error) => case error {
+            AdapterError.EmptyInput => 0,
+            _ => 1,
+        },
+        Result.Ok(_) => 1,
+    };
+}
+
+meta test
+verb test_adapter_contract_rejects_invalid_source_order() -> Int {
+    erg envelope: AdapterEnvelope = valid_envelope();
+    envelope.events[0u32] = AdapterEvent {source_offset: 4u32, feature_kind: 1u16, identity: 65u32, value_primary: 65u16, value_secondary: 0u16, payload_length: 1u16, flags: 0u8};
+    envelope.events[1u32] = AdapterEvent {source_offset: 1u32, feature_kind: 1u16, identity: 66u32, value_primary: 66u16, value_secondary: 0u16, payload_length: 1u16, flags: 0u8};
+    erg result = validate_adapter_envelope(envelope: abs envelope);
+    return case dat result {
+        Result.Err(error) => case error {
+            AdapterError.InvalidSourceOrdering => 0,
+            _ => 1,
+        },
+        Result.Ok(_) => 1,
+    };
+}
+
+meta test
+verb test_adapter_contract_rejects_offset_outside_source() -> Int {
+    erg envelope: AdapterEnvelope = valid_envelope();
+    envelope.events[1u32].source_offset = envelope.source_length;
+    erg result = validate_adapter_envelope(envelope: abs envelope);
+    return case dat result {
+        Result.Err(error) => case error {
+            AdapterError.SourceOffsetOutOfBounds => 0,
+            _ => 1,
+        },
+        Result.Ok(_) => 1,
+    };
+}
+
+meta test
+verb test_adapter_contract_rejects_payload_outside_source() -> Int {
+    erg envelope: AdapterEnvelope = valid_envelope();
+    envelope.events[1u32].payload_length = 6u16;
+    erg result = validate_adapter_envelope(envelope: abs envelope);
+    return case dat result {
+        Result.Err(error) => case error {
+            AdapterError.PayloadOutOfBounds => 0,
+            _ => 1,
+        },
+        Result.Ok(_) => 1,
+    };
+}
+
+meta test
+verb test_adapter_contract_rejects_normalized_value_outside_range() -> Int {
+    erg envelope: AdapterEnvelope = valid_envelope();
+    envelope.events[0u32].value_primary = OBSERVATION_MAX_VALUE + 1u16;
+    erg result = validate_adapter_envelope(envelope: abs envelope);
+    return case dat result {
+        Result.Err(error) => case error {
+            AdapterError.NormalizedValueOutOfBounds => 0,
+            _ => 1,
+        },
+        Result.Ok(_) => 1,
+    };
+}

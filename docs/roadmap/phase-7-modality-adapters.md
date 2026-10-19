@@ -1,0 +1,485 @@
+# Phase 7 — Modality Adapters and the Common Twin-e Input Boundary
+
+## Status
+
+**Complete.** This phase implements the bounded adapter boundary described by
+ADR-0010. No external service, network endpoint, or automatic `.brain`
+persistence is part of this phase.
+
+## Objective
+
+Define and implement a bounded, integer-only translation boundary for external
+data. Text, images, audio, video, structured records, and opaque binary input
+must each use source-specific conversion while producing a common,
+versioned representation that the existing tokenizer, encoding, observation,
+training, and persistence contracts can validate.
+
+The phase preserves the current boundary:
+
+- the AIE core remains modality-neutral and owns associative state;
+- adapters do not write directly to arena or persistence internals;
+- inference, forwarding, coincidence evaluation, and neurogenesis remain free
+  of synchronous filesystem and network I/O;
+- all state and normalized features remain bounded and integer-only;
+- hosted x86-64 evidence remains separate from future Cortex-M evidence.
+
+## Mandatory gate evidence rule
+
+Every gate in this phase must be confirmed by tests before it can be marked
+complete. A design statement, successful compilation, or manual inspection
+alone is not sufficient. Each gate must identify and run the applicable
+contract, acceptance, rejection-path, integration, or benchmark tests, and
+the reproducible command and result must be recorded in this roadmap or the
+linked evidence document. A gate with missing, failing, or unexplained test
+evidence remains open.
+
+## Naming decision
+
+The agreed filesystem root is:
+
+```text
+src/adapters/
+```
+
+The public call shape remains:
+
+```text
+adapter::contract
+adapter::text
+adapter::image
+adapter::audio
+adapter::video
+adapter::structured
+adapter::binary
+```
+
+ADR-0010 now records the same filesystem and facade names. The filesystem
+name and public namespace must not diverge accidentally.
+
+## Scope boundaries
+
+Included:
+
+- a shared adapter contract and validation rules;
+- a canonical public facade and import-path tests;
+- bounded text, structured, and binary adapters;
+- documented representation envelopes for image, audio, and video;
+- deterministic rejection, replay, and evidence fixtures;
+- explicit integration boundaries for future chat or teacher providers.
+
+Excluded:
+
+- LLMs, OpenAI, chat UI, provider-specific network clients, or teacher
+  services;
+- automatic `.brain` save or load from an adapter;
+- changes to the AIE arena layout, shard format, binding layout, or codebook
+  width;
+- floating-point engine state or unbounded dynamic collections;
+- Cortex-M firmware and hardware claims, which remain in Phase 6;
+- a universal encoder that hides modality-specific decoding policy.
+
+## Gate 7.1 — Reconcile the accepted architecture
+
+- [x] Update ADR-0010 so the filesystem root, facade filename, and public
+      namespace agree with the accepted `src/adapters/` and `adapter::...`
+      naming.
+- [x] Record the implementation status as planned until code and evidence
+      exist.
+- [x] Define `adapter` as a public facade namespace backed by the plural
+      `adapters` directory and `src/adapters/adapters.act`.
+- [x] Confirm that no existing tokenizer, sensor, or action facade is
+      silently renamed by this phase.
+- [x] Add a decision note for the migration/rollback path before public
+      modules are created.
+
+### Gate evidence
+
+- [x] ADR-0010 has no contradictory path or import examples.
+- [x] The roadmap and ADR list the same modality set and implementation order.
+- [x] The public import path and filesystem path are covered by a documented
+      compiler-valid fixture plan.
+
+### Gate 7.1 test evidence
+
+The documentation consistency test checks that ADR-0010 and this roadmap use
+the same filesystem root, facade source, and public namespace:
+
+```sh
+test "$(rg -c --no-filename 'src/adapters/' docs/adr/0010-modality-adapter-boundary.md)" -ge 1
+test "$(rg -c --no-filename 'src/adapters/adapters\.act' docs/adr/0010-modality-adapter-boundary.md)" -ge 1
+test "$(rg -c --no-filename 'adapter::(contract|text|image|audio|video|structured|binary)' docs/adr/0010-modality-adapter-boundary.md)" -ge 1
+test "$(rg -c --no-filename 'src/adapters/' docs/roadmap/phase-7-modality-adapters.md)" -ge 1
+```
+
+Result: all four checks pass. The compiler-valid import tests are recorded in
+Gate 7.3 evidence.
+
+## Gate 7.2 — Define the common adapter contract
+
+- [x] Define the bounded common adapter envelope produced by every adapter;
+      it sits above the existing `ObservationEvent` rather than replacing it.
+- [x] Define modality identity, contract version, source ordering, source
+      offset, payload length, and validation status fields.
+- [x] Define bounded limits for event count, payload bytes, source offsets,
+      and per-modality metadata.
+- [x] Define explicit rejection reasons for malformed, unsupported, empty,
+      and oversized input.
+- [x] Define integer-only normalization ranges and forbid implicit floating
+      point conversion.
+- [x] Define deterministic replay requirements and tie-breaking rules.
+- [x] Define ownership and lifetime at the adapter/facade call boundary.
+- [x] Define which fields may feed tokenizer, encoding, observation, and
+      training APIs without exposing private AIE state.
+
+### Gate 7.2 design draft
+
+The current contract draft defines a fixed-capacity envelope with a separate
+adapter contract version, modality discriminator, event count, bounded source
+length, and ordered integer events. The initial hosted admission envelope is
+256 events with a `u32` source length. The event fields and rejection classes
+are recorded in ADR-0010; implementation must not silently widen these limits.
+
+- [x] Implement the contract types, validation, rejection paths, and
+      no-state-mutation boundary.
+
+### Gate 7.2 test evidence
+
+The contract is covered by `tests/aie_adapter_contract.act` and the full strict
+suite. The executable tests cover ordered acceptance, unsupported versions,
+empty input, invalid source ordering, source-offset bounds, payload bounds,
+and normalized-value bounds:
+
+```sh
+actus check --strict
+actus test --strict
+```
+
+Evidence compiler: Actus `cf1cbda75bf4e14d1ad6c9f1bbf7a12c57f808eb`, the
+compiler revision pinned by Twin-e CI. Result: `53 passed; 0 failed`. The
+validator accepts only immutable input, performs no I/O, and returns before
+any AIE state API is called; adapter facade integration remains a later Gate
+7.3 concern.
+
+### Gate evidence
+
+- [x] Contract types and limits are documented in an ADR or accepted update.
+- [x] Valid, empty, malformed, and oversized contract fixtures are specified.
+- [x] Rejection occurs before any engine-state mutation.
+
+## Gate 7.3 — Create the canonical facade
+
+- [x] Create the `src/adapters/` module root and canonical facade only after
+      Gate 7.1 is accepted.
+- [x] Expose `adapter::contract` through the facade.
+- [x] Add public child-module paths for every planned modality without
+      exposing private implementation helpers.
+- [x] Add regression coverage for each public import path.
+- [x] Keep the facade free of provider, transport, filesystem, and UI logic.
+- [x] Keep the new modules below the repository source-size limits by
+      responsibility-based decomposition.
+
+### Gate evidence
+
+- [x] Strict package checking accepts the facade and all public imports.
+- [x] A facade-level test proves that private modality modules are not used
+      as public entry points.
+- [x] No existing public API or serialized layout changes incidentally.
+
+### Gate 7.3 test evidence
+
+`tests/aie_adapter_contract.act::test_adapter_facade_imports_all_public_namespaces`
+checks the six public namespace markers through the canonical `adapters`
+facade. The strict package and full test commands were run with the pinned
+Actus compiler from the Gate 7.2 evidence.
+
+Result: `54 passed; 0 failed`. The child modules contain namespace markers
+only; modality conversion remains open under Gates 7.4–7.7.
+
+## Gate 7.4 — Implement the text adapter
+
+- [x] Accept bounded text input using the existing byte tokenizer and BPE
+      contracts.
+- [x] Preserve source byte offsets and malformed/non-UTF-8 behavior defined
+      by the byte fallback contract.
+- [x] Produce the common adapter representation without duplicating token or
+      context-generation logic.
+- [x] Define empty-input, maximum-length, repeated-byte, and mixed-BPE
+      behavior.
+- [x] Prove deterministic output for repeated runs and equivalent input.
+- [x] Verify that the adapter performs no filesystem or network I/O.
+
+### Gate evidence
+
+- [x] Valid text, empty text, oversized text, malformed bytes, repeated bytes,
+      and mixed BPE fixtures pass.
+- [x] Text adapter output can be consumed through the canonical facade.
+- [x] Existing tokenizer and fallback tests remain green.
+
+### Gate 7.4 test evidence
+
+`src/adapters/text.act` exposes `adapt_text`, `adapt_text_bytes`, and
+`adapt_text_bpe` through `src/adapters/adapters.act`. The implementation
+delegates tokenization and BPE merging to the existing tokenizer facade,
+preserves token identity and source spans, and validates the common envelope
+before returning it. It does not access filesystem or network APIs.
+
+`tests/aie_text_adapter.act` covers valid byte text, empty input, oversized
+raw input, malformed/non-UTF-8 bytes, repeated bytes, one deterministic BPE
+merge with its two-byte source span, and repeated-run determinism. Existing
+byte-fallback tests remain part of the same strict suite.
+
+Commands, using the pinned Actus compiler from the earlier compiler evidence
+(`cf1cbda75bf4e14d1ad6c9f1bbf7a12c57f808eb`):
+
+```sh
+actus check --strict
+actus test --strict
+```
+
+Result: `60 passed; 0 failed`.
+
+## Gate 7.5 — Implement structured and binary adapters
+
+- [x] Define the bounded schema for structured records, field ordering, and
+      supported integer values.
+- [x] Reject unknown, duplicate, missing, malformed, and oversized fields
+      before engine-state mutation.
+- [x] Define binary input as bounded opaque bytes with explicit source
+      offsets; do not infer semantics from arbitrary byte groups.
+- [x] Preserve exact byte identity where the contract requires it.
+- [x] Define version and compatibility behavior for structured and binary
+      payloads.
+- [x] Keep both adapters behind the same canonical facade and contract.
+
+### Gate evidence
+
+- [x] Structured and binary acceptance/rejection fixtures are reproducible.
+- [x] Round-trip or deterministic replay evidence is recorded where lossless
+      representation is promised.
+- [x] Oversized input is rejected before live AIE state changes.
+
+### Gate 7.5 test evidence
+
+`adapter::structured` accepts a fixed-capacity schema and integer record. The
+schema version must match the adapter contract, every schema key is required,
+field keys must be known and unique, values must fit the observation integer
+range, and source offsets must remain inside the declared source length.
+`adapter::binary` treats input as opaque bytes only: each byte becomes one
+event with its exact identity and source offset, without guessing protocol
+semantics.
+
+`tests/aie_structured_binary_adapter.act` covers valid structured conversion,
+unknown, duplicate, missing, and oversized fields, exact binary bytes,
+empty/oversized binary input, and canonical-facade consumption. The returned
+envelopes are validated before publication and no AIE state is mutated.
+
+Commands, using the pinned Actus compiler from the earlier compiler evidence
+(`cf1cbda75bf4e14d1ad6c9f1bbf7a12c57f808eb`):
+
+```sh
+actus lock --check
+actus check --strict
+actus test --strict
+actus build --strict --emit exe -o /tmp/twin-e-structured-binary.aie
+```
+
+Result: `67 passed; 0 failed`; native IR verification reported no
+floating-point instructions.
+
+## Gate 7.6 — Define image, audio, and video envelopes
+
+- [x] Select a bounded integer-only image representation: feature or patch
+      events, dimensions, channels, and quantization limits.
+- [x] Select a bounded integer-only audio representation: time window,
+      channel metadata, event resolution, and feature limits.
+- [x] Select a bounded integer-only video representation: frame identity,
+      temporal order, frame envelope, and maximum sequence length.
+- [x] Document precision loss, unsupported formats, malformed frames, and
+      resource limits for each modality.
+- [x] Define deterministic ordering and source offsets for every event.
+- [x] Do not implement an encoder until its resource envelope and rejection
+      policy are accepted.
+
+### Gate evidence
+
+- [x] Each modality has an accepted representation ADR or ADR-0010 update.
+- [x] Each envelope has bounded fixtures for valid, malformed, empty, and
+      oversized input.
+- [x] No claim of semantic or lossless conversion is made without evidence.
+
+### Gate 7.6 test evidence
+
+ADR-0010 now fixes the pre-encoder representations and rejection policy:
+image uses `64 x 64`, at most `4` channels, and `0..255` quantized patch
+features; audio uses at most `4096` samples, `2` channels, and `0..4095`
+integer feature values per window; video uses at most `16` ordered frames,
+each capped at `64 x 64` and `4` channels. All modalities remain subject to
+the common `256` event limit and make no lossless-conversion claim.
+
+`tests/aie_modality_envelope_policy.act` provides executable policy fixtures
+for valid bounds and empty/oversized image, audio, and video inputs. These are
+representation-policy tests, not encoders; Gate 7.7 must implement the
+source-specific adapters only after this contract is accepted.
+
+Commands, using the pinned Actus compiler from the earlier compiler evidence
+(`cf1cbda75bf4e14d1ad6c9f1bbf7a12c57f808eb`):
+
+```sh
+actus check --strict
+actus test --strict
+```
+
+Result: `71 passed; 0 failed`.
+
+## Gate 7.7 — Implement image, audio, and video adapters
+
+- [x] Implement the accepted image representation behind `adapter::image`.
+- [x] Implement the accepted audio representation behind `adapter::audio`.
+- [x] Implement the accepted video representation behind `adapter::video`.
+- [x] Keep decoding, normalization, and validation source-specific.
+- [x] Feed only the common bounded contract into the AIE-facing boundary.
+- [x] Add deterministic replay and rejection tests for each modality.
+- [x] Audit all three call paths for allocation, blocking I/O, and unbounded
+      work.
+
+### Gate evidence
+
+- [x] All three adapters pass strict checks and public-facade tests.
+- [x] Input limits are enforced before any live-state mutation.
+- [x] Benchmark output separates conversion cost from inference,
+      forwarding, neurogenesis, and persistence cost.
+
+### Gate 7.7 test evidence
+
+`adapter::image` accepts caller-provided quantized bytes and emits one event
+per bounded sample while rejecting empty, malformed, oversized, and
+event-capacity-overflow input before reading it. `adapter::audio` accepts
+integer feature events with bounded time offsets and channel metadata, and
+rejects empty, out-of-window, out-of-order, unsupported-channel, and
+over-capacity input. `adapter::video` accepts sparse integer frame features and
+enforces frame identity, coordinate bounds, deterministic temporal ordering,
+and the bounded frame/resource envelope.
+
+`tests/aie_media_adapter.act` covers valid conversion and rejection fixtures
+for all three modalities through the canonical `adapters` facade. The three
+implementations perform no filesystem/network I/O, allocation, container
+decoding, floating-point conversion, or AIE-state mutation.
+
+Commands, using the pinned Actus compiler from the earlier compiler evidence
+(`cf1cbda75bf4e14d1ad6c9f1bbf7a12c57f808eb`):
+
+```sh
+actus lock --check
+actus check --strict
+actus test --strict
+actus build --strict --emit exe -o /tmp/twin-e-media-adapters.aie
+```
+
+Result: `77 passed; 0 failed`; native IR verification reported no
+floating-point instructions.
+
+## Gate 7.8 — Integration and external-boundary contract
+
+- [x] Define an in-memory adapter invocation boundary for callers that already
+      possess input data.
+- [x] Define how a future chat or teacher integration submits adapter input
+      without becoming part of the AIE core or adapter contract.
+- [x] Keep provider credentials, network retries, UI state, and transport
+      outside `src/adapters/` unless a later ADR explicitly changes the
+      boundary.
+- [x] Confirm that adapters do not choose an implicit `.brain` path or save
+      engine state.
+- [x] Confirm explicit caller-owned persistence remains unchanged.
+
+### Gate evidence
+
+- [x] An integration fixture proves adapter output reaches the existing public
+      input boundary without private arena access.
+- [x] A hot-path audit finds no synchronous filesystem or network I/O.
+- [x] Persistence tests prove adapter invocation does not publish or mutate
+      `.brain` state implicitly.
+
+### Gate 7.8 test evidence
+
+`tests/aie_adapter_integration.act` invokes `adapter::text`, validates the
+returned envelope through `adapter::contract`, and maps its first event to the
+existing public `ObservationEvent` boundary. The fixture then calls both
+`accept_sensor_observation` and `encode_observation` through the public `aie`
+facade. It imports neither private arena modules nor persistence APIs, and the
+adapter call performs no save or path selection.
+
+The static hot-path audit found no filesystem publication, rename, `.brain`
+path, or persistence import under `src/adapters/`:
+
+```sh
+rg -n 'write_file|rename|\.brain|import persistence' src/adapters
+```
+
+Result: no matches. The full strict suite reports `78 passed; 0 failed` and
+exercises the fixture, while the unchanged persistence tests continue to
+cover explicit caller-owned publication and recovery behavior. The adapter
+source contains only documentation statements that describe the prohibition
+on network or filesystem I/O; those statements are not executable I/O.
+
+## Gate 7.9 — Full acceptance and documentation
+
+- [x] Run formatter checks for every touched `.act` source.
+- [x] Run `actus lock --check`, `actus check --strict`, and `actus test --strict`.
+- [x] Build the strict native executable and retain zero-float verification.
+- [x] Record compiler commit, target, profile, input limits, commands, and
+      captured outputs for adapter benchmarks.
+- [x] Record known representation limits and unsupported formats.
+- [x] Update the adapter ADR, architecture documentation, and this roadmap
+      with the accepted evidence.
+- [x] Keep hosted evidence separate from Phase 6 hardware evidence.
+
+### Gate 7.9 test evidence
+
+Final acceptance was run with Actus compiler commit
+`cf1cbda75bf4e14d1ad6c9f1bbf7a12c57f808eb` on hosted Linux x86-64 using the
+strict profile. The touched Actus fixture was formatter-clean, the lock and
+strict checks passed, and the complete suite reported `78 passed; 0 failed`.
+The native artifact was built as `/tmp/twin-e-phase-7.aie`; native IR
+verification reported no floating-point instructions.
+
+The accepted hosted limits are: 256 common events; `u32` source length;
+images up to `64 x 64` and 4 channels with quantized values `0..255`; audio
+windows up to 4096 samples and 2 channels with integer features up to 4095;
+video up to 16 frames at `64 x 64` and 4 channels. Text, structured, and
+binary adapters remain bounded by the common envelope and their fixed schema
+or byte-buffer limits. Container decoding, arbitrary image/audio/video
+formats, floating-point-only features, provider transport, network retries,
+UI/session state, semantic understanding, and lossless media reconstruction
+are unsupported by this phase.
+
+The exact reproducible commands were:
+
+```sh
+actus fmt --check tests/aie_adapter_integration.act
+actus lock --check
+actus check --strict
+actus test --strict
+actus build --strict --emit exe -o /tmp/twin-e-phase-7.aie
+```
+
+All evidence above is hosted Linux evidence only. It does not establish
+Cortex-M behavior, device-driver compatibility, or production performance;
+those remain outside this phase.
+
+## Acceptance boundary
+
+Phase 7 is complete only when every planned modality has a documented bounded
+representation, the common contract and canonical facade are tested, the
+implemented adapters pass strict and rejection-path evidence, and no adapter
+performs hidden persistence or hot-path external I/O. Image, audio, and video
+may remain explicitly deferred within this phase until their envelopes are
+accepted; their absence must not be presented as implementation completeness.
+
+## Non-goals
+
+- Do not claim that adapter output is human-like understanding.
+- Do not claim lossless conversion for arbitrary media.
+- Do not make an LLM, chat interface, or provider API a prerequisite.
+- Do not couple the adapter phase to STM32 hardware availability.
+- Do not change the `.brain` format, arena layout, codebook profile, or
+  persistence publication order as incidental adapter work.

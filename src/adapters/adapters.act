@@ -1,0 +1,14 @@
+"""Canonical public facade for bounded modality adapters."""
+open contract;
+
+open text;
+
+open image;
+
+open audio;
+
+open video;
+
+open structured;
+
+open binary;

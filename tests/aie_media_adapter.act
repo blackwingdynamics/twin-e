@@ -1,0 +1,159 @@
+"""Acceptance tests for the bounded image, audio, and video adapters."""
+import adapters;
+
+import config;
+
+verb test_audio_features() -> Array[AudioFeature, 256] {
+    erg features: Array[AudioFeature,256] = Array[AudioFeature, 256]();
+    features[0u32] = AudioFeature {time_offset: 0u32, channel: 0u8, kind: 1u16, value: 100u16};
+    features[1u32] = AudioFeature {time_offset: 2u32, channel: 1u8, kind: 2u16, value: 200u16};
+    return features;
+}
+
+verb test_video_features() -> Array[VideoFeature, 256] {
+    erg features: Array[VideoFeature,256] = Array[VideoFeature, 256]();
+    features[0u32] = VideoFeature {frame_id: 0u16, row: 0u16, column: 0u16, channel: 0u8, value: 10u16};
+    features[1u32] = VideoFeature {frame_id: 1u16, row: 0u16, column: 0u16, channel: 0u8, value: 20u16};
+    return features;
+}
+
+meta test
+verb test_image_adapter_converts_quantized_bytes() -> Int {
+    erg input: Buffer = Buffer[4];
+    input[0u32] = 1u8;
+    input[1u32] = 2u8;
+    input[2u32] = 3u8;
+    input[3u32] = 255u8;
+    erg width: u16 = 2u16;
+    erg height: u16 = 2u16;
+    erg channels: u8 = 1u8;
+    erg result = adapt_image(
+        input: abs input,
+        width: abs width,
+        height: abs height,
+        channels: abs channels
+    );
+    return case dat result {
+        Result.Err(_) => 1,
+        Result.Ok(envelope) => if envelope.event_count == 4u16 && envelope.events[3u32].identity == 3u32 && envelope.events[3u32].value_primary == 255u16 {
+            0;
+        } else {
+            1;
+        },
+    };
+}
+
+meta test
+verb test_image_adapter_rejects_event_capacity_overflow() -> Int {
+    erg input: Buffer = Buffer[1];
+    erg width: u16 = 17u16;
+    erg height: u16 = 17u16;
+    erg channels: u8 = 1u8;
+    erg result = adapt_image(
+        input: abs input,
+        width: abs width,
+        height: abs height,
+        channels: abs channels
+    );
+    return case dat result {
+        Result.Err(error) => case error {
+            AdapterError.EventCountExceeded => 0,
+            _ => 1,
+        },
+        Result.Ok(_) => 1,
+    };
+}
+
+meta test
+verb test_audio_adapter_preserves_time_and_channel() -> Int {
+    erg features: Array[AudioFeature,256] = test_audio_features();
+    erg feature_count: u16 = 2u16;
+    erg window_samples: u32 = 4u32;
+    erg channels: u8 = 2u8;
+    erg result = adapt_audio(
+        features: abs features,
+        feature_count: abs feature_count,
+        window_samples: abs window_samples,
+        channels: abs channels
+    );
+    return case dat result {
+        Result.Err(_) => 1,
+        Result.Ok(envelope) => if envelope.event_count == 2u16 && envelope.events[1u32].source_offset == 2u32 && envelope.events[1u32].value_secondary == 1u16 {
+            0;
+        } else {
+            1;
+        },
+    };
+}
+
+meta test
+verb test_audio_adapter_rejects_empty_window() -> Int {
+    erg features: Array[AudioFeature,256] = Array[AudioFeature, 256]();
+    erg feature_count: u16 = 0u16;
+    erg window_samples: u32 = 0u32;
+    erg channels: u8 = 1u8;
+    erg result = adapt_audio(
+        features: abs features,
+        feature_count: abs feature_count,
+        window_samples: abs window_samples,
+        channels: abs channels
+    );
+    return case dat result {
+        Result.Err(error) => case error {
+            AdapterError.EmptyInput => 0,
+            _ => 1,
+        },
+        Result.Ok(_) => 1,
+    };
+}
+
+meta test
+verb test_video_adapter_preserves_frame_order() -> Int {
+    erg features: Array[VideoFeature,256] = test_video_features();
+    erg feature_count: u16 = 2u16;
+    erg frame_count: u16 = 2u16;
+    erg width: u16 = 2u16;
+    erg height: u16 = 1u16;
+    erg channels: u8 = 1u8;
+    erg result = adapt_video(
+        features: abs features,
+        feature_count: abs feature_count,
+        frame_count: abs frame_count,
+        width: abs width,
+        height: abs height,
+        channels: abs channels
+    );
+    return case dat result {
+        Result.Err(_) => 1,
+        Result.Ok(envelope) => if envelope.event_count == 2u16 && envelope.events[0u32].source_offset == 0u32 && envelope.events[1u32].source_offset == 2u32 {
+            0;
+        } else {
+            1;
+        },
+    };
+}
+
+meta test
+verb test_video_adapter_rejects_temporal_overflow() -> Int {
+    erg features: Array[VideoFeature,256] = test_video_features();
+    erg feature_count: u16 = 1u16;
+    erg frame_count: u16 = ADAPTER_VIDEO_MAX_FRAMES + 1u16;
+    erg width: u16 = 1u16;
+    erg height: u16 = 1u16;
+    erg channels: u8 = 1u8;
+    erg result = adapt_video(
+        features: abs features,
+        feature_count: abs feature_count,
+        frame_count: abs frame_count,
+        width: abs width,
+        height: abs height,
+        channels: abs channels
+    );
+    return case dat result {
+        Result.Err(error) => case error {
+            AdapterError.EventCountExceeded => 0,
+            _ => 1,
+        },
+        Result.Ok(_) => 1,
+    };
+}

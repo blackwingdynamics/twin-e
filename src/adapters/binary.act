@@ -1,0 +1,73 @@
+"""Bounded opaque-byte adapter with exact identity and source offsets."""
+import config;
+
+open contract;
+
+"""Version marker for the public binary adapter namespace."""
+open const ADAPTER_BINARY_NAMESPACE_VERSION: u16 = 1u16;
+
+
+"""Convert bounded opaque bytes without inferring protocol semantics.
+
+Every input byte becomes one event with the exact byte identity and offset.
+Input bounds are checked before conversion; the adapter performs no decoding,
+allocation, filesystem I/O, network I/O, or engine-state mutation.
+"""
+verb binary_to_envelope(
+    abs input: Buffer,
+    erg source_length: u32,
+    erg event_count: u16
+) -> AdapterEnvelope {
+    erg loop_limit: u32 = source_length + 0u32;
+    erg envelope: AdapterEnvelope = AdapterEnvelope {contract_version: ADAPTER_CONTRACT_VERSION, modality: AdapterModality.Binary, event_count: event_count, source_length: source_length, events: Array[AdapterEvent, 256](
+    ), valid: true};
+    for erg index: u32 in 0u32 .. ADAPTER_MAX_EVENTS {
+        if index >= loop_limit {
+            break;
+        }
+        erg value: u8 = input[index as Usize];
+        envelope.events[index as Usize] = AdapterEvent {source_offset: index, feature_kind: ADAPTER_BINARY_BYTE_FEATURE, identity: value as u32, value_primary: value as u16, value_secondary: 0u16, payload_length: 1u16, flags: 0u8};
+    }
+    return envelope;
+}
+
+verb finalize_binary_envelope(erg envelope: AdapterEnvelope) -> Result[AdapterEnvelope, AdapterError] {
+    erg validation = validate_adapter_envelope(envelope: abs envelope);
+    erg accepted: Bool = false;
+    erg validation_error: AdapterError = AdapterError.InvalidEnvelope;
+    case dat validation {
+        Result.Err(error) => {
+            validation_error = error;
+        },
+        Result.Ok(_) => {
+            accepted = true;
+        },
+    };
+    if accepted {
+        return Result[AdapterEnvelope, AdapterError].Ok(envelope);
+    }
+    return Result[AdapterEnvelope, AdapterError].Err(validation_error);
+}
+
+"""Convert bounded opaque bytes without inferring protocol semantics."""
+open verb adapt_binary(abs input: Buffer, abs input_length: u32) -> Result[AdapterEnvelope, AdapterError] {
+    erg source_length: u32 = input_length + 0u32;
+    erg event_count: u16 = input_length as u16;
+    erg available_result = buffer_size(buffer: abs input);
+    erg available: u32 = case dat available_result {
+        Result.Ok(value) => value as u32,
+        Result.Err(_) => 0u32,
+    };
+    if source_length == 0u32 {
+        return Result[AdapterEnvelope, AdapterError].Err(AdapterError.EmptyInput);
+    }
+    if source_length > ADAPTER_MAX_EVENTS || source_length > available {
+        return Result[AdapterEnvelope, AdapterError].Err(AdapterError.MalformedInput);
+    }
+    erg envelope: AdapterEnvelope = binary_to_envelope(
+        input: abs input,
+        source_length: erg source_length,
+        event_count: erg event_count
+    );
+    return finalize_binary_envelope(envelope: erg envelope);
+}
