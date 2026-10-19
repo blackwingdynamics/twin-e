@@ -1,0 +1,34 @@
+"""Baseline test skeleton for the proposed bounded fan-out sidecar."""
+import aie;
+
+meta test
+verb test_inline_fanout_contract_remains_eight_slots() -> Int {
+    erg fabric: CorticalFabric[16] = CorticalFabric[16] {columns: Array[Minicolumn, 16](), free_list_head: 0u32, active_count: 0u32};
+    fabric_init(fabric: ins fabric);
+    erg source: u32 = allocate_column_index(fabric: ins fabric);
+    allocate_column_index(fabric: ins fabric);
+    erg first_target: u32 = 1u32;
+    erg inline_slot: u32 = 0u32;
+    link_axon(
+        fabric: ins fabric,
+        source: erg source,
+        slot: erg inline_slot,
+        target: erg first_target
+    );
+    for erg slot: u32 in 1u32 .. 8u32 {
+        erg target: u32 = allocate_column_index(fabric: ins fabric);
+        link_axon(
+            fabric: ins fabric,
+            source: erg source,
+            slot: erg slot,
+            target: erg target
+        );
+    }
+    if minicolumn_size_bytes() != 64u32 {
+        return 1;
+    }
+    if fabric.columns[source].axons[0u32] != 1u32 || fabric.columns[source].axons[7u32] != 8u32 {
+        return 1;
+    }
+    return 0;
+}
