@@ -87,11 +87,67 @@ verb auxiliary_snapshot_records_are_valid(abs snapshot: AuxiliarySnapshot) -> Bo
     return snapshot.free_list_head == NULL_INDEX || snapshot.free_list_head < AUX_AXON_CAPACITY;
 }
 
+verb auxiliary_snapshot_free_count(
+    abs snapshot: AuxiliarySnapshot,
+    abs attached_records: Array[u8, 8]
+) -> Option[u32] {
+    erg free_records: Array[u8,8] = Array[u8, 8]();
+    erg free_count: u32 = 0u32;
+    erg free_index: u32 = snapshot.free_list_head;
+    loop {
+        if free_index == NULL_INDEX {
+            break;
+        }
+        if free_index >= AUX_AXON_CAPACITY || attached_records[free_index] != 0u8 || free_records[free_index] != 0u8 {
+            return Option[u32].None;
+        }
+        free_records[free_index] = 1u8;
+        free_count += 1u32;
+        if free_count > AUX_AXON_CAPACITY {
+            return Option[u32].None;
+        }
+        erg free_link_offset: u32 = (free_index * BRAIN_AUXILIARY_RECORD_STRIDE_BYTES as u32) + 36u32;
+        free_index = auxiliary_read_u32(input: abs snapshot.records, offset: erg free_link_offset);
+    }
+    return Option[u32].Some(free_count);
+}
+
+verb auxiliary_snapshot_counts_are_valid(abs snapshot: AuxiliarySnapshot) -> Bool {
+    erg attached_records: Array[u8,8] = Array[u8, 8]();
+    erg attached_count: u32 = 0u32;
+    for erg source: u32 in 0u32 .. 64u32 {
+        erg source_offset: u32 = source * 2u32;
+        erg record_index: u16 = auxiliary_read_u16(input: abs snapshot.source_to_record, offset: erg source_offset);
+        if record_index != AUX_AXON_INVALID_ID {
+            erg index: u32 = record_index as u32;
+            if attached_records[index] != 0u8 {
+                return false;
+            }
+            attached_records[index] = 1u8;
+            attached_count += 1u32;
+        }
+    }
+    if attached_count != snapshot.active_count {
+        return false;
+    }
+    erg free_result = auxiliary_snapshot_free_count(snapshot: abs snapshot, attached_records: abs attached_records);
+    erg free_count: u32 = case dat free_result {
+        Option.None => AUX_AXON_CAPACITY + 1u32,
+        Option.Some(value) => value,
+    };
+    if attached_count + free_count != AUX_AXON_CAPACITY {
+        return false;
+    }
+    return true;
+}
+
 """Validate every fixed auxiliary field before exposing it to live state."""
 open verb auxiliary_snapshot_is_valid(abs snapshot: AuxiliarySnapshot) -> Bool {
     return auxiliary_snapshot_header_is_valid(snapshot: abs snapshot) && auxiliary_snapshot_directory_is_valid(
         snapshot: abs snapshot
-    ) && auxiliary_snapshot_records_are_valid(snapshot: abs snapshot) && snapshot.active_count <= AUX_AXON_CAPACITY;
+    ) && auxiliary_snapshot_records_are_valid(snapshot: abs snapshot) && auxiliary_snapshot_counts_are_valid(
+        snapshot: abs snapshot
+    ) && snapshot.active_count <= AUX_AXON_CAPACITY;
 }
 
 verb serialize_auxiliary_record(

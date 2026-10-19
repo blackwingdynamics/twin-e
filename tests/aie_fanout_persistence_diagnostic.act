@@ -131,3 +131,34 @@ verb test_aux_snapshot_validation_only() -> Int {
     }
     return 0;
 }
+
+meta test
+verb test_aux_snapshot_validation_rejects_active_count_mismatch() -> Int {
+    erg table: AuxAxonTable[64] = AuxAxonTable[64] {source_to_record: Array[u16, 64](), records: Array[AuxAxonRecord, 8](
+    ), free_list_head: 0u32, active_count: 0u32};
+    aux_table_init(table: ins table);
+    erg snapshot = empty_diagnostic_snapshot();
+    serialize_auxiliary_snapshot(snapshot: ins snapshot, table: abs table);
+    snapshot.active_count = 1u32;
+    if auxiliary_snapshot_is_valid(snapshot: abs snapshot) {
+        return 1;
+    }
+    return 0;
+}
+
+meta test
+verb test_aux_snapshot_validation_rejects_duplicate_directory_entry() -> Int {
+    erg table: AuxAxonTable[64] = AuxAxonTable[64] {source_to_record: Array[u16, 64](), records: Array[AuxAxonRecord, 8](
+    ), free_list_head: 0u32, active_count: 0u32};
+    initialize_diagnostic_auxiliary_table(table: ins table);
+    erg snapshot = empty_diagnostic_snapshot();
+    serialize_auxiliary_snapshot(snapshot: ins snapshot, table: abs table);
+    snapshot.source_to_record[0u32] = 0u8;
+    snapshot.source_to_record[1u32] = 0u8;
+    snapshot.source_to_record[2u32] = 0u8;
+    snapshot.source_to_record[3u32] = 0u8;
+    if auxiliary_snapshot_is_valid(snapshot: abs snapshot) {
+        return 1;
+    }
+    return 0;
+}
