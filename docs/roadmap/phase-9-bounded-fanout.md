@@ -79,7 +79,7 @@ the sidecar count remains zero, and no auxiliary marker or record is created.
 ### Step 7 — Performance and acceptance
 
 - [x] Benchmark inline-only forwarding separately from overflow forwarding.
-- [ ] Record memory usage, capacity, traversal order, and failure metrics.
+- [x] Record memory usage, capacity, traversal order, and failure metrics.
 - [ ] Run formatter, lock, strict check, strict tests, and native build.
 - [ ] Verify generated native IR remains free of floating-point instructions.
 - [ ] Update ADR-0014 and close the phase only after all gates are green.
