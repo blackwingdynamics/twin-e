@@ -150,13 +150,15 @@ empty input, invalid source ordering, source-offset bounds, payload bounds,
 and normalized-value bounds:
 
 ```sh
-/tmp/actus-pr.NrrJhb/target/release/actus check --strict
-/tmp/actus-pr.NrrJhb/target/release/actus test --strict
+actus check --strict
+actus test --strict
 ```
 
-Result: `53 passed; 0 failed`. The validator accepts only immutable input,
-performs no I/O, and returns before any AIE state API is called; adapter
-facade integration remains a later Gate 7.3 concern.
+Evidence compiler: Actus `cf1cbda75bf4e14d1ad6c9f1bbf7a12c57f808eb`, the
+compiler revision pinned by Twin-e CI. Result: `53 passed; 0 failed`. The
+validator accepts only immutable input, performs no I/O, and returns before
+any AIE state API is called; adapter facade integration remains a later Gate
+7.3 concern.
 
 ### Gate evidence
 
