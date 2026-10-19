@@ -265,13 +265,21 @@ task.
       deferred admission or neurogenesis operation. The save benchmark reports
       `capacity_recovered_after_flush` after persisting one dirty slot and
       admitting a fifth shard into the four-entry cache.
-- [ ] Verify that recovery never silently accepts a stale generation or a
-      mismatched manifest descriptor.
+- [x] Verify that recovery never silently accepts a stale generation or a
+      mismatched manifest descriptor. Generation selection reports
+      `stale_rejected=1`, and dynamic shard validation reports
+      `swapped_rejected=1`. See
+      `docs/benchmarks/phase-5-generation-recovery.md`.
 
 ### Gate evidence
 
-- [ ] Add a deterministic four-slot exhaustion benchmark.
-- [ ] Add a high-watermark flush benchmark with clean and dirty residents.
+- [x] Add a deterministic four-slot exhaustion benchmark. The cache fixture
+      fills all four resident entries with dirty state and records
+      `full_pressure_rejected=1` without mutating the working set. See
+      `docs/benchmarks/phase-5-cache-lifecycle.md`.
+- [x] Add a high-watermark flush benchmark with clean and dirty residents.
+      `aie_cache` reports `dirty_before_signal=2`,
+      `dirty_at_signal=3`, and `flush_requested=1`.
 - [ ] Add corruption, interrupted-publication, retry, and previous-generation
       recovery fixtures.
 - [ ] Record `disk_writes_hot_path=0`, capacity results, flush latency,

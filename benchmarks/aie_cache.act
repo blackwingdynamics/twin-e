@@ -93,6 +93,32 @@ verb rejects_full_pressure() -> Bool {
     return result < 0 && unchanged;
 }
 
+verb verifies_flush_high_watermark() -> Bool {
+    erg cache: ShardCache = ShardCache {entries: Array[ShardCacheEntry, 4](), clock: 0u64};
+    shard_cache_init(cache: ins cache);
+    erg first_id: u32 = 20u32;
+    erg second_id: u32 = 21u32;
+    erg third_id: u32 = 22u32;
+    erg first_slot: Int = insert_slot(cache: ins cache, shard_id: erg first_id);
+    erg second_slot: Int = insert_slot(cache: ins cache, shard_id: erg second_id);
+    erg third_slot: Int = insert_slot(cache: ins cache, shard_id: erg third_id);
+    if first_slot < 0 || second_slot < 0 || third_slot < 0 {
+        return false;
+    }
+    erg first_slot_u8: u8 = first_slot as u8;
+    erg second_slot_u8: u8 = second_slot as u8;
+    erg third_slot_u8: u8 = third_slot as u8;
+    shard_cache_mark_dirty(cache: ins cache, slot: erg first_slot_u8);
+    shard_cache_mark_dirty(cache: ins cache, slot: erg second_slot_u8);
+    if shard_cache_dirty_count(cache: abs cache) != 2u8 || shard_cache_flush_requested(cache: abs cache) {
+        return false;
+    }
+    shard_cache_mark_dirty(cache: ins cache, slot: erg third_slot_u8);
+    return shard_cache_dirty_count(cache: abs cache) == BRAIN_CACHE_DIRTY_HIGH_WATERMARK && shard_cache_flush_requested(
+        cache: abs cache
+    );
+}
+
 meta limitless("verb")
 verb main() -> Int {
     erg cache: ShardCache = ShardCache {entries: Array[ShardCacheEntry, 4](), clock: 0u64};
@@ -138,10 +164,11 @@ verb main() -> Int {
     erg query_old: u32 = 1u32;
     erg evicted_old: Bool = is_evicted(cache: abs cache, shard_id: erg query_old);
     erg full_pressure_rejected: Bool = rejects_full_pressure();
-    if !unpinned || !slot_four_is_valid || !evicted_old || !is_resident_state(cache: abs cache, slot: erg slot_four_u8) || !full_pressure_rejected {
+    erg high_watermark_reached: Bool = verifies_flush_high_watermark();
+    if !unpinned || !slot_four_is_valid || !evicted_old || !is_resident_state(cache: abs cache, slot: erg slot_four_u8) || !full_pressure_rejected || !high_watermark_reached {
         return 3;
     }
-    erg message: String = "AIE_CACHE capacity=4 working_set=4 dirty_rejected=1 pinned_rejected=1 clean_evicted=1 replacement=1 full_pressure_rejected=1";
+    erg message: String = "AIE_CACHE capacity=4 working_set=4 dirty_rejected=1 pinned_rejected=1 clean_evicted=1 replacement=1 full_pressure_rejected=1 high_watermark=3 dirty_before_signal=2 dirty_at_signal=3 flush_requested=1";
     println(text: abs message);
     return 0;
 }

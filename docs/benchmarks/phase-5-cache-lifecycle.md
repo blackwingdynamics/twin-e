@@ -19,7 +19,7 @@ latency claim.
 ```text
 built `/tmp/twin-e-cache-pressure.aie` (strict)
 verified generated native IR: no floating-point instructions
-AIE_CACHE capacity=4 working_set=4 dirty_rejected=1 pinned_rejected=1 clean_evicted=1 replacement=1 full_pressure_rejected=1
+AIE_CACHE capacity=4 working_set=4 dirty_rejected=1 pinned_rejected=1 clean_evicted=1 replacement=1 full_pressure_rejected=1 high_watermark=3 dirty_before_signal=2 dirty_at_signal=3 flush_requested=1
 ```
 
 ## Meaning
@@ -32,6 +32,8 @@ AIE_CACHE capacity=4 working_set=4 dirty_rejected=1 pinned_rejected=1 clean_evic
   clean entry and installs the new resident entry.
 - When all four entries are dirty, insertion returns the bounded resource
   failure and the requested shard is not published into the cache.
+- The caller-driven flush signal remains off at two dirty entries and turns on
+  at the configured high-watermark of three dirty entries.
 - The cache now stores an explicit `ShardLifecycle` value instead of separate
   `loaded` and `dirty` booleans. The lifecycle enum includes the states needed
   by the later load, flush, publish, and failure gates.
