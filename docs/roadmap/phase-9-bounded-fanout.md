@@ -100,6 +100,11 @@ the sidecar count remains zero, and no auxiliary marker or record is created.
       the shard-local auxiliary section.
 - [ ] Update ADR-0014 and close Phase 9 only after every Step 8 gate passes.
 
+Step 8 format decision: the manifest descriptor will be widened from 40 to 48
+bytes and will carry explicit `auxiliary_offset` and `auxiliary_bytes` fields.
+The descriptor format is recorded in ADR-0014; implementation must update all
+writers, readers, validators, and compatibility fixtures together.
+
 ## Current evidence
 
 The strict suite passes with `125 passed; 0 failed`. The fan-out tests verify

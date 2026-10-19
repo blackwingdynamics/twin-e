@@ -54,6 +54,15 @@ rename; the manifest is published only after the complete shard generation is
 available. There is no global `auxiliary.brain` and no one-to-one auxiliary
 file beside each shard.
 
+The dynamic manifest descriptor is widened from 40 to 48 bytes. Its ordered
+fields are `shard_id`, `first_column_index`, `column_count`, `payload_offset`,
+`payload_bytes`, `binding_offset`, `binding_bytes`, `auxiliary_offset`,
+`auxiliary_bytes`, `checksum`, and `state`. The auxiliary offset is derived as
+the end of the bindings section and is recorded explicitly so publication
+validation can reject a mismatched section layout before activation. The
+descriptor-size change is a format change: writers, readers, validators, and
+fixed-manifest compatibility fixtures must move together.
+
 ## Invariants
 
 - `Minicolumn` remains exactly 64 bytes and its eight inline axon offsets do
@@ -102,6 +111,6 @@ file beside each shard.
 
 Chaining, more than one auxiliary record per source, fan-out above sixteen,
 and any alternative compact index width require a new design review. The
-implementation gate must still settle the exact shard header field and
-manifest descriptor encoding for the auxiliary section, then provide
-round-trip, corruption-rejection, publication, and restart-recovery evidence.
+implementation gate must still implement and test the selected manifest
+descriptor encoding, then provide round-trip, corruption-rejection,
+publication, and restart-recovery evidence.
