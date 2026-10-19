@@ -31,6 +31,8 @@ open enum TeachingError {
     ReplayPassesOutOfBounds,
     UnsupportedMode,
     UnsupportedModality,
+    UnsupportedAssociation,
+    AssociationTooLarge,
     TrainingRejected,
 }
 
@@ -94,4 +96,21 @@ open struct TeachingCorrectionMetrics {
     erg replacement_reinforced_transitions: u32,
     erg competing_successors: u16,
     erg ambiguous: Bool,
+}
+
+"""Caller-owned pair of independently validated modality envelopes."""
+open struct TeachingAssociation {
+    erg left: AdapterEnvelope,
+    erg right: AdapterEnvelope,
+    erg valid: Bool,
+}
+
+"""Evidence returned after one bounded cross-modality teaching operation."""
+open struct TeachingAssociationMetrics {
+    erg accepted: Bool,
+    erg left_events: u16,
+    erg right_events: u16,
+    erg combined_events: u16,
+    erg allocated_columns: u32,
+    erg reinforced_transitions: u32,
 }

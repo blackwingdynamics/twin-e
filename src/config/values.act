@@ -226,6 +226,10 @@ open const ADAPTER_CONTRACT_VERSION: u16 = 1u16;
 open const ADAPTER_MAX_EVENTS: u32 = 256u32;
 
 
+"""Maximum combined events admitted by one cross-modality teaching pair."""
+open const TEACHING_MAX_ASSOCIATION_EVENTS: u16 = 16u16;
+
+
 """Feature discriminator for one byte-token text event."""
 open const ADAPTER_TEXT_BYTE_FEATURE: u16 = 1u16;
 

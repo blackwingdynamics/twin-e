@@ -231,16 +231,29 @@ represented by the bounded replay reinforcement and remains saturating.
 
 ## Gate 8.7 — Cross-modality association
 
-- [ ] Define the public integration contract for associating compatible events
+- [x] Define the public integration contract for associating compatible events
       from separate modality envelopes.
-- [ ] Keep modality decoders independent from semantic-link policy.
-- [ ] Define limits and rejection behavior for mismatched or oversized pairs.
+- [x] Keep modality decoders independent from semantic-link policy.
+- [x] Define limits and rejection behavior for mismatched or oversized pairs.
 
 ### Required evidence
 
-- [ ] At least one text-plus-structured or text-plus-image fixture passes
+- [x] At least one text-plus-structured or text-plus-image fixture passes
       through public boundaries.
-- [ ] The fixture proves no adapter directly mutates private AIE state.
+- [x] The fixture proves no adapter directly mutates private AIE state.
+
+### Gate 8.7 evidence
+
+`src/teaching/pipelines/multimodal.act` accepts only a bounded text-plus-
+structured pair in this first implementation. Both envelopes are validated
+through the public adapter contract, their events are namespaced into one
+bounded sequence, and public `train_token_sequence` performs the learning.
+The combined pair is limited to `TEACHING_MAX_ASSOCIATION_EVENTS = 16`; a
+mismatched modality or oversized pair is rejected before fabric mutation.
+
+`tests/teaching_multimodal.act` proves text and structured adapters reach the
+public association boundary and that a text-plus-text pair is rejected with
+zero active columns.
 
 ## Gate 8.8 — Decay, reclamation, and persistence interaction
 
