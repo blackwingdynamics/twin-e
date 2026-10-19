@@ -43,6 +43,23 @@ verb make_repeated_unknown_input() -> Buffer {
     return input;
 }
 
+verb make_utf8_unknown_input() -> Buffer {
+    erg input: Buffer = Buffer[32];
+    erg index: u32 = 0u32;
+    loop {
+        if index >= 32u32 {
+            break;
+        }
+        if index % 2u32 == 0u32 {
+            input[index as Usize] = 195u8;
+        } else {
+            input[index as Usize] = 169u8;
+        }
+        index += 1u32;
+    }
+    return input;
+}
+
 verb make_unique_unknown_input() -> Buffer {
     erg input: Buffer = Buffer[32];
     erg index: u32 = 0u32;
@@ -134,6 +151,7 @@ verb main() -> Int {
     erg rules: Array[BpeMergeRule,128] = make_rules();
     erg ab_input: Buffer = make_ab_input();
     erg repeated_input: Buffer = make_repeated_unknown_input();
+    erg utf8_input: Buffer = make_utf8_unknown_input();
     erg unique_input: Buffer = make_unique_unknown_input();
     erg mixed_input: Buffer = make_mixed_input();
     erg input_length: u32 = 32u32;
@@ -146,24 +164,32 @@ verb main() -> Int {
         rule_count: erg rule_count
     );
     erg repeated_sequence: TokenSequence = tokenize_bytes(input: abs repeated_input, input_length: erg input_length);
+    erg utf8_bytes: TokenSequence = tokenize_bytes(input: abs utf8_input, input_length: erg input_length);
+    erg utf8_sequence: TokenSequence = bpe_encode(
+        input: abs utf8_bytes,
+        rules: abs rules,
+        rule_count: erg rule_count
+    );
     erg unique_sequence: TokenSequence = tokenize_bytes(input: abs unique_input, input_length: erg input_length);
     erg mixed_sequence: TokenSequence = bpe_encode(
         input: abs mixed_bytes,
         rules: abs rules,
         rule_count: erg rule_count
     );
-    if !bpe_sequence.valid || !repeated_sequence.valid || !unique_sequence.valid || !mixed_sequence.valid {
+    if !bpe_sequence.valid || !repeated_sequence.valid || !utf8_sequence.valid || !unique_sequence.valid || !mixed_sequence.valid {
         erg error: String = "AIE_TRAINING_ACCOUNTING_ERROR invalid_sequence";
         println(text: abs error);
         return 1;
     }
     erg bpe_metrics: TrainingMetrics = train_case(sequence: abs bpe_sequence);
     erg repeated_metrics: TrainingMetrics = train_case(sequence: abs repeated_sequence);
+    erg utf8_metrics: TrainingMetrics = train_case(sequence: abs utf8_sequence);
     erg unique_metrics: TrainingMetrics = train_case(sequence: abs unique_sequence);
     erg mixed_metrics: TrainingMetrics = train_case(sequence: abs mixed_sequence);
     erg heading: String = "AIE_TRAINING_ACCOUNTING input_bytes=32 arena_columns=64 binding_slots=64";
     erg bpe_name: String = "AIE_TRAINING_ACCOUNTING case=bpe\\n";
     erg repeated_name: String = "AIE_TRAINING_ACCOUNTING case=repeated_byte_fallback\\n";
+    erg utf8_name: String = "AIE_TRAINING_ACCOUNTING case=utf8_unknown\\n";
     erg unique_name: String = "AIE_TRAINING_ACCOUNTING case=unique_byte_fallback\\n";
     erg mixed_name: String = "AIE_TRAINING_ACCOUNTING case=mixed\\n";
     println(text: abs heading);
@@ -176,6 +202,11 @@ verb main() -> Int {
         name: abs repeated_name,
         sequence: abs repeated_sequence,
         metrics: abs repeated_metrics
+    );
+    emit_case(
+        name: abs utf8_name,
+        sequence: abs utf8_sequence,
+        metrics: abs utf8_metrics
     );
     emit_case(
         name: abs unique_name,

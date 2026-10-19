@@ -123,7 +123,7 @@ gates below.
 ### Input classes
 
 - [x] Measure a representative BPE-friendly text corpus.
-- [ ] Measure UTF-8 text whose symbols are absent from the bounded vocabulary.
+- [x] Measure UTF-8 text whose symbols are absent from the bounded vocabulary.
 - [x] Measure malformed or adversarial byte sequences within the tokenizer
       input bound.
 - [x] Measure repeated unknown input and unique unknown input separately.
