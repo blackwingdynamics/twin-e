@@ -1,0 +1,75 @@
+"""Fast in-memory teaching path from text adapter output to AIE training."""
+import adapters;
+
+import aie;
+
+import config;
+
+import tokenizer;
+
+open contract;
+
+open tokenizer;
+
+verb text_modality_supported(abs modality: AdapterModality) -> Bool {
+    return case modality {
+        AdapterModality.Text => true,
+        _ => false,
+    };
+}
+
+verb text_envelope_to_sequence(abs envelope: AdapterEnvelope) -> Result[TokenSequence, TeachingError] {
+    if !text_modality_supported(modality: abs envelope.modality) {
+        return Result[TokenSequence, TeachingError].Err(TeachingError.UnsupportedModality);
+    }
+    erg sequence: TokenSequence = TokenSequence {tokens: Array[Token, 256](), length: envelope.event_count as u32, valid: envelope.valid};
+    for erg index: u32 in 0u32 .. ADAPTER_MAX_EVENTS {
+        if index >= envelope.event_count as u32 {
+            return Result[TokenSequence, TeachingError].Ok(sequence);
+        }
+        erg event: AdapterEvent = envelope.events[index as Usize];
+        sequence.tokens[index as Usize] = Token {id: event.identity, byte_offset: event.source_offset, byte_length: event.payload_length, tokenizer_version: event.value_secondary};
+    }
+    return Result[TokenSequence, TeachingError].Err(TeachingError.InvalidAdapterEnvelope);
+}
+
+verb training_metrics_to_teaching(abs metrics: TrainingMetrics) -> TeachingMetrics {
+    return TeachingMetrics {processed_events: metrics.processed_events, accepted_examples: 1u32, replay_passes: 1u16, allocated_columns: metrics.allocated_columns, reinforced_transitions: metrics.reinforced_transitions, active_bindings: metrics.active_bindings};
+}
+
+"""Teach one text value directly in resident memory.
+
+The caller owns the input String. The text adapter produces a validated
+envelope, which is converted to the existing bounded TokenSequence contract
+and submitted to public AIE training. No filesystem, network, or persistence
+operation is performed.
+"""
+open verb teach_text_direct(
+    ins fabric: CorticalFabric[64],
+    ins bindings: Array[TokenBinding, 64],
+    abs text: String
+) -> Result[TeachingMetrics, TeachingError] {
+    erg adapted = adapt_text(text: abs text);
+    return case dat adapted {
+        Result.Err(_) => Result[TeachingMetrics, TeachingError].Err(TeachingError.InvalidAdapterEnvelope),
+        Result.Ok(envelope) => {
+            erg sequence_result = text_envelope_to_sequence(envelope: abs envelope);
+            case dat sequence_result {
+                Result.Err(error) => Result[TeachingMetrics, TeachingError].Err(error),
+                Result.Ok(sequence) => {
+                    erg trained = train_token_sequence(
+                        fabric: ins fabric,
+                        bindings: ins bindings,
+                        sequence: abs sequence
+                    );
+                    return case dat trained {
+                        Result.Err(_) => Result[TeachingMetrics, TeachingError].Err(TeachingError.TrainingRejected),
+                        Result.Ok(metrics) => Result[TeachingMetrics, TeachingError].Ok(training_metrics_to_teaching(
+                            metrics: abs metrics
+                        )),
+                    };
+                },
+            };
+        },
+    };
+}

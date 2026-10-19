@@ -2,3 +2,5 @@
 open contract;
 
 open admission;
+
+open pipelines;

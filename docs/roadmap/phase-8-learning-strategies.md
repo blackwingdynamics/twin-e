@@ -99,17 +99,30 @@ filesystem I/O, network I/O, or persistence operation.
 
 ## Gate 8.2 — Baseline single-example teaching
 
-- [ ] Connect one accepted text adapter output to the existing bounded training
+- [x] Connect one accepted text adapter output to the existing bounded training
       entry point through public facades.
-- [ ] Report processed events, allocations, reinforced transitions, and active
+- [x] Report processed events, allocations, reinforced transitions, and active
       bindings.
-- [ ] Prove resident-only training performs no persistence or external I/O.
+- [x] Prove resident-only training performs no persistence or external I/O.
 
 ### Required evidence
 
-- [ ] A local fixture teaches one bounded example and recalls its learned
+- [x] A local fixture teaches one bounded example and recalls its learned
       transition.
-- [ ] Training metrics and failure paths are asserted.
+- [x] Training metrics and failure paths are asserted.
+
+### Gate 8.2 evidence
+
+`src/teaching/pipelines/direct.act` implements the first teaching pipeline.
+`teach_text_direct` calls `adapter::text`, reconstructs the bounded
+`TokenSequence` contract from validated text events, and calls the existing
+public `train_token_sequence` facade. It returns teaching metrics without
+opening persistence or transport boundaries.
+
+`tests/teaching_direct.act` proves one bounded `"AB"` example produces the
+expected metrics and recalls `B` from prompt `A`. It also proves empty text is
+rejected without changing the fabric active count. The fixture is resident-only
+and performs no filesystem or network I/O.
 
 ## Gate 8.3 — Deterministic replay and reinforcement
 

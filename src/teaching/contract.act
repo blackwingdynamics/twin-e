@@ -30,6 +30,8 @@ open enum TeachingError {
     InvalidAdapterEnvelope,
     ReplayPassesOutOfBounds,
     UnsupportedMode,
+    UnsupportedModality,
+    TrainingRejected,
 }
 
 """Counters returned by a completed teaching pipeline."""
