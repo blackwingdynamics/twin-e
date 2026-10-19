@@ -241,7 +241,12 @@ task.
 
 ### Failure and recovery
 
-- [ ] Add a checksum-failure test for a resident load and for a staged flush.
+- [x] Add a checksum-failure test for a resident load and for a staged flush.
+      Resident load evidence reports `corrupted_rejected=1` with
+      `fabric_unchanged=1`; staged flush evidence reports
+      `validation_rejected error=IoError.InvalidData`. See
+      `docs/benchmarks/phase-5-brain-file.md` and
+      `docs/benchmarks/phase-5-save-boundary.md`.
 - [ ] Preserve the previous complete generation when the newest generation is
       corrupt, truncated, interrupted, or fails publication.
 - [ ] Define whether recovery is read-only, retryable, or allows continued

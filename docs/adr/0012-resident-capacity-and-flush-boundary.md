@@ -102,6 +102,12 @@ The dynamic flush benchmark provides the shard-level failure evidence: a
 corrupted staged checksum is rejected and the pre-existing active shard remains
 valid (`partial_rejected=1`, `active_unchanged=1`).
 
+Checksum failures are also covered at both required boundaries: resident shard
+load rejects corrupted bytes without mutating the fabric
+(`AIE_BRAIN_SHARDS ... corrupted_rejected=1 fabric_unchanged=1`), while the
+staged binding-aware flush rejects invalid data before publication
+(`AIE_BINDING_STAGE validation_rejected error=IoError.InvalidData`).
+
 ### Pinning
 
 Pinning protects a resident shard for the lifetime of its active user. A pin
