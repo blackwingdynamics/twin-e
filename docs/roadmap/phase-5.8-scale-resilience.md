@@ -201,8 +201,10 @@ task.
 - [x] Guarantee that recall of already resident state can continue when a new
       mutation or shard admission is refused. See
       `tests/aie_api.act::test_resident_recall_survives_capacity_rejection`.
-- [ ] Return a typed, observable capacity result without discarding the live
-      fabric or dirty resident state.
+- [x] Return a typed, observable capacity result without discarding the live
+      fabric or dirty resident state. `NoResidentCapacity` is asserted together
+      with resident recall, unchanged fabric links, and unchanged dirty cache
+      entries in `tests/aie_api.act::test_resident_recall_survives_capacity_rejection`.
 - [ ] Define whether admission may retry, defer, or require an explicit flush
       boundary; no implicit synchronous disk write may be introduced.
 

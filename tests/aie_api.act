@@ -90,6 +90,19 @@ verb fill_dirty_cache_for_test(ins cache: ShardCache) {
     }
 }
 
+verb dirty_cache_is_unchanged_for_test(abs cache: ShardCache) -> Bool {
+    if cache.entries[0u32].shard_id != 20u32 || cache.entries[3u32].shard_id != 23u32 {
+        return false;
+    }
+    if cache_entry_is_dirty_for_test(cache: abs cache) == false {
+        return false;
+    }
+    return case cache.entries[3u32].lifecycle {
+        ShardLifecycle.Dirty => true,
+        _ => false,
+    };
+}
+
 verb resident_capacity_error_for_test() -> Bool {
     erg fabric: CorticalFabric[2] = CorticalFabric[2] {columns: Array[Minicolumn, 2](), free_list_head: 0u32, active_count: 0u32};
     erg cache: ShardCache = ShardCache {entries: Array[ShardCacheEntry, 4](), clock: 0u64};
@@ -186,12 +199,22 @@ verb reject_resident_admission(
     );
 }
 
-meta test
-verb test_resident_recall_survives_capacity_rejection() -> Int {
-    erg fabric: CorticalFabric[3] = CorticalFabric[3] {columns: Array[Minicolumn, 3](), free_list_head: 0u32, active_count: 0u32};
-    erg cache: ShardCache = ShardCache {entries: Array[ShardCacheEntry, 4](), clock: 0u64};
-    erg source_idx: u32 = prepare_resident_recall(fabric: ins fabric, cache: ins cache);
-    fill_dirty_cache_for_test(cache: ins cache);
+verb resident_state_is_preserved_for_test(
+    abs fabric: CorticalFabric[3],
+    abs cache: ShardCache,
+    abs after: ImpulseStepResult,
+    erg source_idx: u32
+) -> Bool {
+    return after.destination_0 == 1u32 && fabric.active_count == 2u32 && fabric.columns[source_idx].axons[0u32] == 1u32 && dirty_cache_is_unchanged_for_test(
+        cache: abs cache
+    );
+}
+
+verb execute_resident_recall_capacity_test(
+    ins fabric: CorticalFabric[3],
+    ins cache: ShardCache,
+    erg source_idx: u32
+) -> Bool {
     erg wave: Wavefront = Wavefront {mask_low: 1u64, mask_high: 0u64, energy: 1u8};
     erg capacity = reject_resident_admission(
         fabric: ins fabric,
@@ -206,14 +229,30 @@ verb test_resident_recall_survives_capacity_rejection() -> Int {
     );
     return case dat capacity {
         Result.Err(error) => case error {
-            ResidentNeurogenesisError.NoResidentCapacity => {
-                if after.destination_0 == 1u32 && fabric.active_count == 2u32 && fabric.columns[source_idx].axons[0u32] == 1u32 {
-                    return 0;
-                }
-                return 1;
-            },
-            _ => 1,
+            ResidentNeurogenesisError.NoResidentCapacity => resident_state_is_preserved_for_test(
+                fabric: abs fabric,
+                cache: abs cache,
+                after: abs after,
+                source_idx: erg source_idx
+            ),
+            _ => false,
         },
-        Result.Ok(_) => 1,
+        Result.Ok(_) => false,
     };
+}
+
+meta test
+verb test_resident_recall_survives_capacity_rejection() -> Int {
+    erg fabric: CorticalFabric[3] = CorticalFabric[3] {columns: Array[Minicolumn, 3](), free_list_head: 0u32, active_count: 0u32};
+    erg cache: ShardCache = ShardCache {entries: Array[ShardCacheEntry, 4](), clock: 0u64};
+    erg source_idx: u32 = prepare_resident_recall(fabric: ins fabric, cache: ins cache);
+    fill_dirty_cache_for_test(cache: ins cache);
+    if execute_resident_recall_capacity_test(
+        fabric: ins fabric,
+        cache: ins cache,
+        source_idx: erg source_idx
+    ) {
+        return 0;
+    }
+    return 1;
 }
