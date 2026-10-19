@@ -280,11 +280,22 @@ task.
 - [x] Add a high-watermark flush benchmark with clean and dirty residents.
       `aie_cache` reports `dirty_before_signal=2`,
       `dirty_at_signal=3`, and `flush_requested=1`.
-- [ ] Add corruption, interrupted-publication, retry, and previous-generation
-      recovery fixtures.
-- [ ] Record `disk_writes_hot_path=0`, capacity results, flush latency,
-      committed generation, and recovery status.
-- [ ] Run the full strict suite and retain complete diagnostics for any failure.
+- [x] Add corruption, interrupted-publication, retry, and previous-generation
+      recovery fixtures. The dynamic-shard fixture reports
+      `partial_rejected=1`, `truncated_rejected=1`, and
+      `active_unchanged=1`; the binding-aware save fixture reports
+      `previous_generation_preserved`,
+      `dirty_after_failed_save resident_usable_after_failed_save`, and
+      `validation_rejected`. See
+      `docs/benchmarks/phase-5-cache-lifecycle.md` and
+      `docs/benchmarks/phase-5-save-boundary.md`.
+- [x] Record `disk_writes_hot_path=0`, capacity results, flush latency,
+      committed generation, and recovery status. See the Phase 5.8 gate
+      evidence record in `docs/benchmarks/phase-5-hot-path.md`.
+- [x] Run the full strict suite and retain complete diagnostics for any
+      failure. `actus lock --check`, `actus check --strict`, and
+      `actus test --strict` passed with 46 tests and 0 failures; the strict
+      native build also verified no floating-point instructions.
 
 ## Gate 5.8.4 — Integrated acceptance
 

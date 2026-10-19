@@ -128,3 +128,32 @@ profile totals and are not hardware latency claims.
 
 The remaining evidence is target-specific: repeat the measurements on a
 selected hardware profile.
+
+## Phase 5.8 gate evidence record
+
+The current host-profile evidence records the required boundaries as follows:
+
+```text
+disk_writes_hot_path=0
+capacity=4
+dirty_high_watermark=3
+flush_ns=20761
+committed_generation=10
+recovery_status=stale_rejected=1 swapped_rejected=1
+```
+
+`disk_writes_hot_path=0` is represented by the resident fixture's
+`filesystem_writes=0`; the explicit save and flush measurements remain outside
+the inference and neurogenesis loops. Capacity and high-watermark behavior are
+recorded in `docs/benchmarks/phase-5-cache-lifecycle.md`, while generation and
+descriptor recovery are recorded in
+`docs/benchmarks/phase-5-generation-recovery.md`.
+
+The final strict validation for this gate also passed:
+
+```text
+actus lock --check: passed
+actus check --strict: passed
+actus test --strict: 46 passed; 0 failed
+actus build --strict --emit exe: no floating-point instructions
+```
