@@ -170,8 +170,9 @@ task.
       the selected representation.
 - [x] Do not aggregate bytes into a wider integer until token boundaries,
       compatibility metadata, and round-trip behavior are specified.
-- [ ] Define admission, reuse, and reclamation rules for fallback-derived
-      bindings before changing tokenizer behavior.
+- [x] Define admission, reuse, and reclamation rules for fallback-derived
+      bindings before changing tokenizer behavior. See ADR-0011; paired
+      cleanup and capacity/persistence evidence remain implementation gates.
 - [x] Verify that fallback processing remains allocation-free and performs no
       filesystem I/O on the hot path.
 
