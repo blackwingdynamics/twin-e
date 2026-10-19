@@ -1,6 +1,8 @@
 """Public facade for bounded impulse forwarding."""
 import config;
 
+open auxiliary;
+
 open slots;
 
 open step;

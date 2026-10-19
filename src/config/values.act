@@ -19,6 +19,22 @@ open const FLAG_REFRACTORY: u8 = 4u8;
 open const FLAG_CONSOLIDATED: u8 = 8u8;
 
 
+"""Bit flag marking a minicolumn with one attached auxiliary axon record."""
+open const FLAG_HAS_AUX: u8 = 128u8;
+
+
+"""Empty value in the compact auxiliary source-to-record index."""
+open const AUX_AXON_INVALID_ID: u16 = 65535u16;
+
+
+"""Maximum number of fixed auxiliary records in the first sidecar profile."""
+open const AUX_AXON_CAPACITY: u32 = 8u32;
+
+
+"""Number of extra successor targets in one auxiliary record."""
+open const AUX_AXON_TARGET_CAPACITY: u32 = 8u32;
+
+
 """Initial coincidence threshold assigned to a newly initialized minicolumn."""
 open const DEFAULT_THRESHOLD: u8 = 30u8;
 

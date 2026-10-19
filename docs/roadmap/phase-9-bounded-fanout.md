@@ -46,10 +46,15 @@ Chaining and fan-out above sixteen are deferred.
 
 ### Step 4 — Implement bounded auxiliary storage
 
-- [ ] Add fixed-size `AuxAxonTable` storage and bounded allocation.
+- [x] Add fixed-size `AuxAxonTable` storage and bounded allocation.
 - [ ] Keep eight-successor forwarding on the existing inline path.
 - [ ] Add overflow insertion and typed capacity rejection.
 - [ ] Preserve free-list and reclamation invariants.
+
+The first storage slice is implemented without changing `CorticalFabric` or
+forwarding behavior. `AuxAxonTable` owns eight fixed records, a compact
+`u16` source map, and a `u32` free-list; attach and release are bounded and
+tested. Runtime forwarding still uses only the existing eight inline axons.
 
 ### Step 5 — Add behavioral evidence
 

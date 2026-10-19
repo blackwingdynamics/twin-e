@@ -1,0 +1,115 @@
+"""Fixed-capacity auxiliary successor storage for overflow fan-out."""
+import config;
+
+"""One bounded sidecar record containing extra successor column indexes.
+
+The record is not a pointer and does not change the packed `Minicolumn`
+layout. Its free-list link is a `u32` arena index; the compact source map
+stores only a bounded table ID.
+"""
+open struct AuxAxonRecord {
+    erg targets: Array[u32, 8],
+    erg used_count: u8,
+    erg reserved: Array[u8, 3],
+    erg free_list_link: u32,
+}
+
+"""Bounded source-to-auxiliary mapping and dense sidecar arena.
+
+`source_to_record` uses `AUX_AXON_INVALID_ID` for an unattached source. The
+table owns fixed storage only; it performs no allocation, I/O, or forwarding.
+"""
+open struct AuxAxonTable[N: Usize] {
+    erg source_to_record: Array[u16, N],
+    erg records: Array[AuxAxonRecord, 8],
+    erg free_list_head: u32,
+    erg active_count: u32,
+}
+
+verb reset_aux_record(ins record: AuxAxonRecord, erg next_free: u32) {
+    for erg index: u32 in 0u32 .. AUX_AXON_TARGET_CAPACITY {
+        record.targets[index] = NULL_INDEX;
+    }
+    record.used_count = 0u8;
+    record.reserved[0u32] = 0u8;
+    record.reserved[1u32] = 0u8;
+    record.reserved[2u32] = 0u8;
+    record.free_list_link = next_free;
+}
+
+"""Initialize every source entry and auxiliary record deterministically."""
+open verb aux_table_init[N: Usize](ins table: AuxAxonTable[N]) {
+    for erg source: u32 in 0u32 .. N {
+        table.source_to_record[source] = AUX_AXON_INVALID_ID;
+    }
+    for erg record_index: u32 in 0u32 .. AUX_AXON_CAPACITY {
+        erg next_free: u32 = NULL_INDEX;
+        if record_index + 1u32 < AUX_AXON_CAPACITY {
+            next_free = record_index + 1u32;
+        }
+        reset_aux_record(record: ins table.records[record_index], next_free: erg next_free);
+    }
+    table.free_list_head = 0u32;
+    table.active_count = 0u32;
+}
+
+"""Allocate one fixed auxiliary record or return `Option.None` on exhaustion."""
+open verb allocate_aux_record[N: Usize](ins table: AuxAxonTable[N]) -> Option[u32] {
+    if table.free_list_head == NULL_INDEX {
+        return Option[u32].None;
+    }
+    erg record_index: u32 = table.free_list_head;
+    table.free_list_head = table.records[record_index].free_list_link;
+    table.records[record_index].free_list_link = NULL_INDEX;
+    table.active_count += 1u32;
+    return Option[u32].Some(record_index);
+}
+
+"""Attach one allocated record to a source column ID exactly once."""
+open verb attach_aux_record[N: Usize](
+    ins table: AuxAxonTable[N],
+    erg source: u32,
+    erg record_index: u32
+) -> Bool {
+    if source >= (N as u32) || record_index >= AUX_AXON_CAPACITY {
+        return false;
+    }
+    if table.source_to_record[source] != AUX_AXON_INVALID_ID {
+        return false;
+    }
+    table.source_to_record[source] = record_index as u16;
+    return true;
+}
+
+"""Return a source's auxiliary record ID or `NULL_INDEX` when unattached."""
+open verb aux_record_for_source[N: Usize](
+    abs table: AuxAxonTable[N],
+    erg source: u32
+) -> u32 {
+    if source >= (N as u32) || table.source_to_record[source] == AUX_AXON_INVALID_ID {
+        return NULL_INDEX;
+    }
+    return table.source_to_record[source] as u32;
+}
+
+"""Release one attached record and return it to the bounded free-list."""
+open verb release_aux_record[N: Usize](
+    ins table: AuxAxonTable[N],
+    erg source: u32
+) -> Bool {
+    if source >= (N as u32) {
+        return false;
+    }
+    erg record_index: u32 = aux_record_for_source(table: abs table, source: erg source);
+    if record_index == NULL_INDEX || record_index >= AUX_AXON_CAPACITY {
+        return false;
+    }
+    table.source_to_record[source] = AUX_AXON_INVALID_ID;
+    erg next_free: u32 = table.free_list_head;
+    reset_aux_record(record: ins table.records[record_index], next_free: erg next_free);
+    table.free_list_head = record_index;
+    if table.active_count > 0u32 {
+        table.active_count -= 1u32;
+    }
+    return true;
+}

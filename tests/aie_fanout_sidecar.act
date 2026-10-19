@@ -1,6 +1,8 @@
 """Baseline test skeleton for the proposed bounded fan-out sidecar."""
 import aie;
 
+import config;
+
 meta test
 verb test_inline_fanout_contract_remains_eight_slots() -> Int {
     erg fabric: CorticalFabric[16] = CorticalFabric[16] {columns: Array[Minicolumn, 16](), free_list_head: 0u32, active_count: 0u32};
@@ -31,4 +33,43 @@ verb test_inline_fanout_contract_remains_eight_slots() -> Int {
         return 1;
     }
     return 0;
+}
+
+verb auxiliary_lifecycle_result(ins table: AuxAxonTable[16]) -> Int {
+    erg allocated = allocate_aux_record(table: ins table);
+    erg record_index: u32 = case dat allocated {
+        Option.None => NULL_INDEX,
+        Option.Some(value) => value,
+    };
+    if record_index == NULL_INDEX {
+        return 1;
+    }
+    erg attach_source: u32 = 3u32;
+    if !attach_aux_record(
+        table: ins table,
+        source: erg attach_source,
+        record_index: erg record_index
+    ) {
+        return 1;
+    }
+    erg lookup_source: u32 = 3u32;
+    if aux_record_for_source(table: abs table, source: erg lookup_source) != record_index || table.active_count != 1u32 {
+        return 1;
+    }
+    erg release_source: u32 = 3u32;
+    if !release_aux_record(table: ins table, source: erg release_source) || aux_record_for_source(
+        table: abs table,
+        source: erg release_source
+    ) != NULL_INDEX || table.active_count != 0u32 {
+        return 1;
+    }
+    return 0;
+}
+
+meta test
+verb test_aux_table_allocates_attaches_and_reclaims() -> Int {
+    erg table: AuxAxonTable[16] = AuxAxonTable[16] {source_to_record: Array[u16, 16](), records: Array[AuxAxonRecord, 8](
+    ), free_list_head: 0u32, active_count: 0u32};
+    aux_table_init(table: ins table);
+    return auxiliary_lifecycle_result(table: ins table);
 }
