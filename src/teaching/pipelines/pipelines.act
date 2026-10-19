@@ -1,0 +1,10 @@
+"""Canonical public facade for bounded teaching pipelines."""
+open direct;
+
+open replay;
+
+open batch;
+
+open correction;
+
+open multimodal;

@@ -1,0 +1,116 @@
+"""Bounded request and result types for explicit Twin-e teaching."""
+import adapters;
+
+import config;
+
+open adapters;
+
+"""Learning policy selected by the caller for one accepted example."""
+open enum TeachingMode {
+    Direct,
+    Replay,
+    Batch,
+    Multimodal,
+    Correction,
+}
+
+"""A caller-owned bounded example submitted after adapter conversion."""
+open struct TeachingRequest {
+    erg contract_version: u16,
+    erg mode: TeachingMode,
+    erg envelope: AdapterEnvelope,
+    erg replay_passes: u16,
+    erg valid: Bool,
+}
+
+"""Typed reasons for rejecting a teaching request before mutation."""
+open enum TeachingError {
+    InvalidRequest,
+    UnsupportedContractVersion,
+    InvalidAdapterEnvelope,
+    ReplayPassesOutOfBounds,
+    UnsupportedMode,
+    UnsupportedModality,
+    UnsupportedAssociation,
+    AssociationTooLarge,
+    TrainingRejected,
+}
+
+"""Counters returned by a completed teaching pipeline."""
+open struct TeachingMetrics {
+    erg processed_events: u32,
+    erg accepted_examples: u32,
+    erg replay_passes: u16,
+    erg allocated_columns: u32,
+    erg reinforced_transitions: u32,
+    erg active_bindings: u32,
+}
+
+"""Per-item result returned by a bounded teaching batch.
+
+Accepted items carry the metrics produced by their pipeline. Rejected items
+carry zero metrics and do not mutate the resident fabric.
+"""
+open struct TeachingBatchItemResult {
+    erg accepted: Bool,
+    erg processed_events: u32,
+    erg allocated_columns: u32,
+    erg reinforced_transitions: u32,
+}
+
+"""Caller-owned finite batch of teaching requests.
+
+The fixed array is the complete storage for the batch. The count field selects
+the active prefix and must not exceed TEACHING_MAX_BATCH_ITEMS.
+"""
+open struct TeachingBatch {
+    erg requests: Array[TeachingRequest, 8],
+    erg count: u16,
+    erg valid: Bool,
+}
+
+"""Aggregate and per-item evidence from one bounded batch."""
+open struct TeachingBatchMetrics {
+    erg item_count: u16,
+    erg accepted_count: u16,
+    erg rejected_count: u16,
+    erg stopped_on_training_error: Bool,
+    erg items: Array[TeachingBatchItemResult, 8],
+}
+
+"""Caller-owned correction event with an explicit replacement example.
+
+The original example is retained as a competing association. The replacement
+is reinforced separately; no correction operation deletes resident state.
+"""
+open struct TeachingCorrection {
+    erg original: TeachingRequest,
+    erg replacement: TeachingRequest,
+    erg valid: Bool,
+}
+
+"""Evidence returned after applying one bounded correction event."""
+open struct TeachingCorrectionMetrics {
+    erg accepted: Bool,
+    erg original_preserved: Bool,
+    erg replacement_reinforced_transitions: u32,
+    erg competing_successors: u16,
+    erg ambiguous: Bool,
+}
+
+"""Caller-owned pair of independently validated modality envelopes."""
+open struct TeachingAssociation {
+    erg left: AdapterEnvelope,
+    erg right: AdapterEnvelope,
+    erg valid: Bool,
+}
+
+"""Evidence returned after one bounded cross-modality teaching operation."""
+open struct TeachingAssociationMetrics {
+    erg accepted: Bool,
+    erg left_events: u16,
+    erg right_events: u16,
+    erg combined_events: u16,
+    erg allocated_columns: u32,
+    erg reinforced_transitions: u32,
+}

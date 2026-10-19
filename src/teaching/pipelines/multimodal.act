@@ -1,0 +1,101 @@
+"""Bounded cross-modality association over public adapter envelopes."""
+import adapters;
+
+import aie;
+
+import config;
+
+import tokenizer;
+
+open contract;
+
+verb supported_association(abs left: AdapterModality, abs right: AdapterModality) -> Bool {
+    return (left == AdapterModality.Text && right == AdapterModality.Structured) || (left == AdapterModality.Structured && right == AdapterModality.Text);
+}
+
+verb validate_association_envelope(abs envelope: AdapterEnvelope) -> Bool {
+    erg validation = validate_adapter_envelope(envelope: abs envelope);
+    return case dat validation {
+        Result.Err(_) => false,
+        Result.Ok(_) => true,
+    };
+}
+
+verb associated_token_id(abs event: AdapterEvent, abs modality: AdapterModality) -> u32 {
+    erg identity: u32 = 0u32;
+    identity = event.identity;
+    return case modality {
+        AdapterModality.Structured => identity | 2147483648u32,
+        _ => identity,
+    };
+}
+
+verb append_association_events(
+    ins sequence: TokenSequence,
+    abs envelope: AdapterEnvelope,
+    erg start: u16
+) {
+    for erg index: u32 in 0u32 .. ADAPTER_MAX_EVENTS {
+        if index >= envelope.event_count as u32 {
+            break;
+        }
+        erg event: AdapterEvent = envelope.events[index as Usize];
+        erg token_id: u32 = associated_token_id(event: abs event, modality: abs envelope.modality);
+        sequence.tokens[(start as u32 + index) as Usize] = Token {id: token_id, byte_offset: event.source_offset, byte_length: event.payload_length, tokenizer_version: TOKENIZER_VERSION};
+    }
+}
+
+verb association_sequence(abs association: TeachingAssociation) -> TokenSequence {
+    erg sequence: TokenSequence = TokenSequence {tokens: Array[Token, 256](), length: (association.left.event_count + association.right.event_count) as u32, valid: true};
+    erg left_start: u16 = 0u16;
+    erg right_start: u16 = association.left.event_count;
+    append_association_events(
+        sequence: ins sequence,
+        envelope: abs association.left,
+        start: erg left_start
+    );
+    append_association_events(
+        sequence: ins sequence,
+        envelope: abs association.right,
+        start: erg right_start
+    );
+    return sequence;
+}
+
+verb empty_association_metrics() -> TeachingAssociationMetrics {
+    return TeachingAssociationMetrics {accepted: false, left_events: 0u16, right_events: 0u16, combined_events: 0u16, allocated_columns: 0u32, reinforced_transitions: 0u32};
+}
+
+"""Teach one compatible text-plus-structured pair in resident memory.
+
+Each envelope is validated through the public adapter contract before a
+bounded combined sequence reaches public AIE training. The adapters do not
+mutate fabric state, allocate a queue, or perform I/O.
+"""
+open verb teach_association(
+    ins fabric: CorticalFabric[64],
+    ins bindings: Array[TokenBinding, 64],
+    abs association: TeachingAssociation
+) -> Result[TeachingAssociationMetrics, TeachingError] {
+    if !association.valid || !supported_association(left: abs association.left.modality, right: abs association.right.modality) {
+        return Result[TeachingAssociationMetrics, TeachingError].Err(TeachingError.UnsupportedAssociation);
+    }
+    if !validate_association_envelope(envelope: abs association.left) || !validate_association_envelope(
+        envelope: abs association.right
+    ) {
+        return Result[TeachingAssociationMetrics, TeachingError].Err(TeachingError.InvalidAdapterEnvelope);
+    }
+    if (association.left.event_count + association.right.event_count) == 0u16 || (association.left.event_count + association.right.event_count) > TEACHING_MAX_ASSOCIATION_EVENTS {
+        return Result[TeachingAssociationMetrics, TeachingError].Err(TeachingError.AssociationTooLarge);
+    }
+    erg sequence: TokenSequence = association_sequence(association: abs association);
+    erg trained = train_token_sequence(
+        fabric: ins fabric,
+        bindings: ins bindings,
+        sequence: abs sequence
+    );
+    return case dat trained {
+        Result.Err(_) => Result[TeachingAssociationMetrics, TeachingError].Err(TeachingError.TrainingRejected),
+        Result.Ok(metrics) => Result[TeachingAssociationMetrics, TeachingError].Ok(TeachingAssociationMetrics {accepted: true, left_events: association.left.event_count, right_events: association.right.event_count, combined_events: association.left.event_count + association.right.event_count, allocated_columns: metrics.allocated_columns, reinforced_transitions: metrics.reinforced_transitions}),
+    };
+}

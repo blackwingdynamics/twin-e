@@ -1,0 +1,87 @@
+"""Acceptance tests for text-plus-structured association teaching."""
+import adapters;
+
+import config;
+
+import teaching;
+
+open aie;
+
+verb text_pair_envelope() -> AdapterEnvelope {
+    erg input: Buffer = Buffer[2];
+    input[0u32] = 65u8;
+    input[1u32] = 66u8;
+    erg input_length: u32 = 2u32;
+    erg adapted = adapt_text_bytes(input: abs input, input_length: erg input_length);
+    return case dat adapted {
+        Result.Err(_) => AdapterEnvelope {contract_version: ADAPTER_CONTRACT_VERSION, modality: AdapterModality.Text, event_count: 0u16, source_length: 0u32, events: Array[AdapterEvent, 256](
+        ), valid: false},
+        Result.Ok(envelope) => envelope,
+    };
+}
+
+verb structured_pair_envelope() -> AdapterEnvelope {
+    erg fields: Array[StructuredField,32] = Array[StructuredField, 32]();
+    fields[0u32] = StructuredField {key: 10u16, value: 100u16, source_offset: 0u32};
+    fields[1u32] = StructuredField {key: 20u16, value: 200u16, source_offset: 1u32};
+    erg record: StructuredRecord = StructuredRecord {version: ADAPTER_CONTRACT_VERSION, field_count: 2u16, source_length: 2u32, fields: fields, valid: true};
+    erg keys: Array[u16,32] = Array[u16, 32]();
+    keys[0u32] = 10u16;
+    keys[1u32] = 20u16;
+    erg schema: StructuredSchema = StructuredSchema {version: ADAPTER_CONTRACT_VERSION, key_count: 2u16, keys: keys};
+    erg adapted = adapt_structured(record: abs record, schema: abs schema);
+    return case dat adapted {
+        Result.Err(_) => AdapterEnvelope {contract_version: ADAPTER_CONTRACT_VERSION, modality: AdapterModality.Structured, event_count: 0u16, source_length: 0u32, events: Array[AdapterEvent, 256](
+        ), valid: false},
+        Result.Ok(envelope) => envelope,
+    };
+}
+
+meta test
+verb test_text_structured_association_teaches_through_public_boundaries() -> Int {
+    erg fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](), free_list_head: 0u32, active_count: 0u32};
+    erg bindings: Array[TokenBinding,64] = Array[TokenBinding, 64]();
+    fabric_init(fabric: ins fabric);
+    erg left: AdapterEnvelope = text_pair_envelope();
+    erg right: AdapterEnvelope = structured_pair_envelope();
+    erg association: TeachingAssociation = TeachingAssociation {left: left, right: right, valid: true};
+    erg taught = teach_association(
+        fabric: ins fabric,
+        bindings: ins bindings,
+        association: abs association
+    );
+    return case dat taught {
+        Result.Err(_) => 1,
+        Result.Ok(metrics) => if metrics.accepted && metrics.left_events == 2u16 && metrics.right_events == 2u16 && metrics.combined_events == 4u16 && metrics.reinforced_transitions == 4u32 && fabric.active_count == 5u32 {
+            0;
+        } else {
+            1;
+        },
+    };
+}
+
+meta test
+verb test_mismatched_association_rejects_without_mutation() -> Int {
+    erg fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](), free_list_head: 0u32, active_count: 0u32};
+    erg bindings: Array[TokenBinding,64] = Array[TokenBinding, 64]();
+    fabric_init(fabric: ins fabric);
+    erg left: AdapterEnvelope = text_pair_envelope();
+    erg right: AdapterEnvelope = text_pair_envelope();
+    erg association: TeachingAssociation = TeachingAssociation {left: left, right: right, valid: true};
+    erg taught = teach_association(
+        fabric: ins fabric,
+        bindings: ins bindings,
+        association: abs association
+    );
+    return case dat taught {
+        Result.Err(error) => case error {
+            TeachingError.UnsupportedAssociation => if fabric.active_count == 0u32 {
+                0;
+            } else {
+                1;
+            },
+            _ => 1,
+        },
+        Result.Ok(_) => 1,
+    };
+}

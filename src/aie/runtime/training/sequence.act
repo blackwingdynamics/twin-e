@@ -6,6 +6,49 @@ open tokenizer;
 
 open input;
 
+verb find_replay_target(
+    abs bindings: Array[TokenBinding, 64],
+    abs sequence: TokenSequence
+) -> Option[u32] {
+    if sequence.length == 0u32 {
+        return Option[u32].None;
+    }
+    erg first_token_id: u32 = sequence.tokens[0u32].id;
+    erg bos_token_id: u32 = BPE_BOS_TOKEN_ID;
+    erg first_context: u64 = context_key(previous_token_id: erg bos_token_id, token_id: erg first_token_id);
+    erg target = lookup_token_context(
+        bindings: abs bindings,
+        token_id: erg first_token_id,
+        context_key: erg first_context
+    );
+    return target;
+}
+
+verb find_root_for_target(abs fabric: CorticalFabric[64], erg target_idx: u32) -> Option[u32] {
+    for erg source_idx: u32 in 0u32 .. BRAIN_BINDING_COUNT {
+        if fabric.columns[source_idx].flags & FLAG_ACTIVE == FLAG_ACTIVE {
+            for erg slot: u32 in 0u32 .. 8u32 {
+                if fabric.columns[source_idx].axons[slot] == target_idx {
+                    return Option[u32].Some(source_idx);
+                }
+            }
+        }
+    }
+    return Option[u32].None;
+}
+
+verb find_replay_root(
+    abs fabric: CorticalFabric[64],
+    abs bindings: Array[TokenBinding, 64],
+    abs sequence: TokenSequence
+) -> Option[u32] {
+    erg target = find_replay_target(bindings: abs bindings, sequence: abs sequence);
+    return case dat target {
+        Option.None => Option[u32].None,
+        Option.Some(target_idx) => find_root_for_target(fabric: abs fabric, target_idx: erg target_idx),
+    };
+}
+
 verb train_sequence_position(
     ins fabric: CorticalFabric[64],
     ins bindings: Array[TokenBinding, 64],
@@ -175,4 +218,41 @@ open verb train_token_sequence(
         sequence: abs sequence,
         root_idx: erg root_idx
     );
+}
+
+"""Replay one previously learned sequence without allocating a new root.
+
+The sequence must already have one successful training pass. The first
+beginning-of-sequence transition identifies the resident root; subsequent
+events reuse existing bindings and reinforce existing transitions. No
+persistence or external I/O is performed.
+"""
+open verb train_token_sequence_replay(
+    ins fabric: CorticalFabric[64],
+    ins bindings: Array[TokenBinding, 64],
+    abs sequence: TokenSequence
+) -> Result[TrainingMetrics, TrainingError] {
+    erg admitted = validate_training_sequence(sequence: abs sequence);
+    case dat admitted {
+        Result.Err(error) => {
+            erg input_error: TrainingInputError = error;
+            erg mapped: TrainingError = training_error_from_input(error: erg input_error);
+            return Result[TrainingMetrics, TrainingError].Err(mapped);
+        },
+        Result.Ok(_) => {},
+    };
+    erg root = find_replay_root(
+        fabric: abs fabric,
+        bindings: abs bindings,
+        sequence: abs sequence
+    );
+    return case dat root {
+        Option.None => Result[TrainingMetrics, TrainingError].Err(TrainingError.NoRootColumn),
+        Option.Some(root_idx) => train_sequence_events(
+            fabric: ins fabric,
+            bindings: ins bindings,
+            sequence: abs sequence,
+            root_idx: erg root_idx
+        ),
+    };
 }
