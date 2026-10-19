@@ -47,20 +47,22 @@ Chaining and fan-out above sixteen are deferred.
 ### Step 4 — Implement bounded auxiliary storage
 
 - [x] Add fixed-size `AuxAxonTable` storage and bounded allocation.
-- [ ] Keep eight-successor forwarding on the existing inline path.
-- [ ] Add overflow insertion and typed capacity rejection.
-- [ ] Preserve free-list and reclamation invariants.
+- [x] Keep eight-successor forwarding on the existing inline path.
+- [x] Add overflow insertion and typed capacity rejection.
+- [x] Preserve free-list and reclamation invariants.
 
-The first storage slice is implemented without changing `CorticalFabric` or
-forwarding behavior. `AuxAxonTable` owns eight fixed records, a compact
-`u16` source map, and a `u32` free-list; attach and release are bounded and
-tested. Runtime forwarding still uses only the existing eight inline axons.
+The bounded implementation keeps `CorticalFabric` and the eight inline axons
+unchanged. `AuxAxonTable` owns eight fixed records, a compact `u16` source map,
+and a `u32` free-list. Auxiliary forwarding is explicitly gated by
+`FLAG_HAS_AUX`; capacity and duplicate failures return typed errors without
+publishing partial links, and paired release clears the marker before record
+reuse.
 
 ### Step 5 — Add behavioral evidence
 
-- [ ] Reach every successor for a source above eight and within the bound.
-- [ ] Reject auxiliary exhaustion without partial mutation.
-- [ ] Reuse reclaimed auxiliary records safely.
+- [x] Reach every successor for a source above eight and within the bound.
+- [x] Reject auxiliary exhaustion without partial mutation.
+- [x] Reuse reclaimed auxiliary records safely.
 - [ ] Preserve existing eight-axon behavior byte-for-byte.
 
 ### Step 6 — Persistence and recovery
@@ -80,9 +82,11 @@ tested. Runtime forwarding still uses only the existing eight inline axons.
 
 ## Current evidence
 
-The current branch contains only the ADR draft and the inline baseline test.
-No runtime, serialized layout, or hot-path implementation has changed. The
-baseline strict suite passes with `100 passed; 0 failed`.
+The strict suite passes with `104 passed; 0 failed`. The fan-out tests verify
+the unchanged eight-slot inline contract, reach one auxiliary successor
+through the gated forwarding path, reject the ninth auxiliary record without
+mutating the table, and reclaim a record while clearing `FLAG_HAS_AUX`. The
+native and persistence gates remain open for the next steps.
 
 ## Out of scope
 

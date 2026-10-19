@@ -152,3 +152,105 @@ verb test_gated_auxiliary_step_reaches_extra_target() -> Int {
     }
     return 0;
 }
+
+verb fill_auxiliary_capacity(
+    ins fabric: CorticalFabric[16],
+    ins table: AuxAxonTable[16]
+) -> Bool {
+    for erg source: u32 in 0u32 .. AUX_AXON_CAPACITY {
+        erg target: u32 = 15u32;
+        erg linked = link_aux_axon(
+            fabric: ins fabric,
+            table: ins table,
+            source: erg source,
+            target: erg target
+        );
+        erg linked_ok: Bool = case dat linked {
+            Result.Err(_) => false,
+            Result.Ok(_) => true,
+        };
+        if !linked_ok {
+            return false;
+        }
+    }
+    return true;
+}
+
+meta test
+verb test_aux_capacity_rejects_without_mutation() -> Int {
+    erg fabric: CorticalFabric[16] = CorticalFabric[16] {columns: Array[Minicolumn, 16](), free_list_head: 0u32, active_count: 0u32};
+    erg table: AuxAxonTable[16] = AuxAxonTable[16] {source_to_record: Array[u16, 16](), records: Array[AuxAxonRecord, 8](
+    ), free_list_head: 0u32, active_count: 0u32};
+    fabric_init(fabric: ins fabric);
+    aux_table_init(table: ins table);
+    if !fill_auxiliary_capacity(fabric: ins fabric, table: ins table) || table.active_count != AUX_AXON_CAPACITY {
+        return 1;
+    }
+    erg source: u32 = 8u32;
+    erg target: u32 = 14u32;
+    erg rejected = link_aux_axon(
+        fabric: ins fabric,
+        table: ins table,
+        source: erg source,
+        target: erg target
+    );
+    erg rejected_ok: Bool = case dat rejected {
+        Result.Err(_) => true,
+        Result.Ok(_) => false,
+    };
+    if !rejected_ok || table.active_count != AUX_AXON_CAPACITY || table.source_to_record[8u32] != AUX_AXON_INVALID_ID {
+        return 1;
+    }
+    return 0;
+}
+
+verb create_reclamation_link(
+    ins fabric: CorticalFabric[16],
+    ins table: AuxAxonTable[16]
+) -> Bool {
+    erg source: u32 = 2u32;
+    erg target: u32 = 3u32;
+    erg linked = link_aux_axon(
+        fabric: ins fabric,
+        table: ins table,
+        source: erg source,
+        target: erg target
+    );
+    erg linked_ok: Bool = case dat linked {
+        Result.Err(_) => false,
+        Result.Ok(_) => true,
+    };
+    return linked_ok;
+}
+
+verb paired_reclamation_result(
+    ins fabric: CorticalFabric[16],
+    ins table: AuxAxonTable[16]
+) -> Int {
+    if !create_reclamation_link(fabric: ins fabric, table: ins table) || (fabric.columns[2u32].flags & FLAG_HAS_AUX) == 0u8 {
+        return 1;
+    }
+    erg release_source: u32 = 2u32;
+    if !release_aux_link(
+        fabric: ins fabric,
+        table: ins table,
+        source: erg release_source
+    ) || table.active_count != 0u32 || (fabric.columns[2u32].flags & FLAG_HAS_AUX) != 0u8 {
+        return 1;
+    }
+    erg reused = allocate_aux_record(table: ins table);
+    return case dat reused {
+        Option.Some(_) => 0,
+        Option.None => 1,
+    };
+}
+
+meta test
+verb test_paired_aux_reclamation_clears_marker_and_reuses_record() -> Int {
+    erg fabric: CorticalFabric[16] = CorticalFabric[16] {columns: Array[Minicolumn, 16](), free_list_head: 0u32, active_count: 0u32};
+    erg table: AuxAxonTable[16] = AuxAxonTable[16] {source_to_record: Array[u16, 16](), records: Array[AuxAxonRecord, 8](
+    ), free_list_head: 0u32, active_count: 0u32};
+    fabric_init(fabric: ins fabric);
+    aux_table_init(table: ins table);
+    return paired_reclamation_result(fabric: ins fabric, table: ins table);
+}
