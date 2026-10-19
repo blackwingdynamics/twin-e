@@ -178,12 +178,15 @@ task.
 
 ### Persistence and recovery evidence
 
-- [ ] Verify that fallback-heavy state remains valid under shard size and
-      binding count limits.
-- [ ] Measure `.brain` growth across repeated training and restart.
-- [ ] Verify rejection of oversized fallback artifacts before live-state
-      mutation.
-- [ ] Verify that a failed save leaves the live fallback state unchanged.
+- [x] Verify that fallback-heavy state remains valid under shard size and
+      binding count limits. See
+      `docs/benchmarks/phase-5-8-fallback-persistence.md`.
+- [x] Measure `.brain` growth across repeated training and restart. The
+      bounded fixture remains 5,702 bytes across both saves and reload.
+- [x] Verify rejection of oversized fallback artifacts before live-state
+      mutation. See the recorded `oversized_rejected=1 unchanged=1` result.
+- [x] Verify that a failed save leaves the live fallback state unchanged. See
+      the recorded `failed_save_unchanged=1` result.
 
 ## Gate 5.8.3 — Resident capacity and flush policy
 
