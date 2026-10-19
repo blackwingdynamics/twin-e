@@ -176,9 +176,9 @@ The source receives one record at most and is marked with `FLAG_HAS_AUX` only
 after the target is successfully stored. Capacity or duplicate errors leave
 the fabric and table unchanged.
 """
-verb acquire_aux_record[N: Usize](ins table: AuxAxonTable[N], erg source: u32) -> Option[u32] {
+verb acquire_aux_record[N: Usize](ins table: AuxAxonTable[N], erg source: u32) -> Result[u32, AuxLinkError] {
     if table.source_to_record[source] != AUX_AXON_INVALID_ID {
-        return Option[u32].Some(table.source_to_record[source] as u32);
+        return Result[u32, AuxLinkError].Ok(table.source_to_record[source] as u32);
     }
     erg allocated = allocate_aux_record(table: ins table);
     erg record_index: u32 = case dat allocated {
@@ -190,9 +190,9 @@ verb acquire_aux_record[N: Usize](ins table: AuxAxonTable[N], erg source: u32) -
         source: erg source,
         record_index: erg record_index
     ) {
-        return Option[u32].None;
+        return Result[u32, AuxLinkError].Err(AuxLinkError.Capacity);
     }
-    return Option[u32].Some(record_index);
+    return Result[u32, AuxLinkError].Ok(record_index);
 }
 
 open verb link_aux_axon[N: Usize](
@@ -206,8 +206,8 @@ open verb link_aux_axon[N: Usize](
     }
     erg acquired = acquire_aux_record(table: ins table, source: erg source);
     return case dat acquired {
-        Option.None => Result[Int, AuxLinkError].Err(AuxLinkError.Capacity),
-        Option.Some(record_index) => {
+        Result.Err(error) => Result[Int, AuxLinkError].Err(error),
+        Result.Ok(record_index) => {
             erg linked = append_aux_target(record: ins table.records[record_index], target: erg target);
             case dat linked {
                 Result.Err(error) => Result[Int, AuxLinkError].Err(error),

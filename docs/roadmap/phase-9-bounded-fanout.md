@@ -63,7 +63,11 @@ reuse.
 - [x] Reach every successor for a source above eight and within the bound.
 - [x] Reject auxiliary exhaustion without partial mutation.
 - [x] Reuse reclaimed auxiliary records safely.
-- [ ] Preserve existing eight-axon behavior byte-for-byte.
+- [x] Preserve existing eight-axon behavior byte-for-byte.
+
+The inline compatibility test runs the legacy eight-slot step and the
+sidecar-aware step against identical fixtures. Their fixed result fields match,
+the sidecar count remains zero, and no auxiliary marker or record is created.
 
 ### Step 6 — Persistence and recovery
 

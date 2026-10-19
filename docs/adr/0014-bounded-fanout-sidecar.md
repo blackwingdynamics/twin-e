@@ -1,6 +1,6 @@
 # ADR-0014: Bounded Auxiliary Fan-out Sidecar
 
-- **Status:** Accepted; implementation not started
+- **Status:** Accepted; bounded runtime implementation in progress
 - **Date:** 2026-10-19
 - **Scope:** Extending successor fan-out without changing `Minicolumn.axons`
 - **Related work:** ADR-0002, ADR-0007, ADR-0009, ADR-0013, Phase 5.8,
@@ -42,6 +42,14 @@ The `Minicolumn.axons` array remains semantically unchanged in both options.
 The initial maximum total fan-out is sixteen successors per source: eight
 inline plus eight auxiliary. This is a phase-local bounded policy and becomes
 a shared protocol constant only after implementation evidence.
+
+Persistence is a separate gate. The first serialized sidecar section will be
+an independent fixed-width section for the 64-column fabric: a `u16` source
+directory, eight fixed records, and the `u32` free-list/active-count metadata.
+It will be validated independently before any auxiliary state is copied into
+the live table. Existing fabric and binding sections keep their current
+layout; no version or compatibility change is accepted until the sidecar
+section has round-trip and corruption-rejection evidence.
 
 ## Invariants
 
