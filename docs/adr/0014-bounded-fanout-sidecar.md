@@ -1,6 +1,6 @@
 # ADR-0014: Bounded Auxiliary Fan-out Sidecar
 
-- **Status:** Accepted; bounded runtime implementation in progress
+- **Status:** Accepted; bounded runtime and shard-local persistence integration in progress
 - **Date:** 2026-10-19
 - **Scope:** Extending successor fan-out without changing `Minicolumn.axons`
 - **Related work:** ADR-0002, ADR-0007, ADR-0009, ADR-0013, Phase 5.8,
@@ -43,13 +43,16 @@ The initial maximum total fan-out is sixteen successors per source: eight
 inline plus eight auxiliary. This is a phase-local bounded policy and becomes
 a shared protocol constant only after implementation evidence.
 
-Persistence is a separate gate. The first serialized sidecar section will be
-an independent fixed-width section for the 64-column fabric: a `u16` source
-directory, eight fixed records, and the `u32` free-list/active-count metadata.
-It will be validated independently before any auxiliary state is copied into
-the live table. Existing fabric and binding sections keep their current
-layout; no version or compatibility change is accepted until the sidecar
-section has round-trip and corruption-rejection evidence.
+Persistence is a shard-local section, not a global file. Every `.brain` shard
+is one independent unit with this order: `Header`, `Columns`, `Bindings`, and
+`Auxiliary`. The auxiliary section uses the fixed-width snapshot contract
+already covered by the runtime tests: a `u16` source directory, fixed records,
+and `u32` free-list/active-count metadata. Its byte length and checksum are
+recorded in the shard generation metadata, and the complete shard checksum
+covers all sections together. A staged shard is validated completely before
+rename; the manifest is published only after the complete shard generation is
+available. There is no global `auxiliary.brain` and no one-to-one auxiliary
+file beside each shard.
 
 ## Invariants
 
@@ -63,6 +66,10 @@ section has round-trip and corruption-rejection evidence.
 - Reclamation clears both inline and auxiliary links before returning storage.
 - Snapshot publication validates auxiliary descriptors, bounds, indexes, and
   checksums before mutating live state.
+- Each shard owns only its local auxiliary records; auxiliary data never
+  crosses shard-file boundaries.
+- A shard with no auxiliary records remains valid with an empty auxiliary
+  section; auxiliary capacity is bounded per shard.
 - Forwarding order is deterministic: inline successors first, then auxiliary
   successors in stored order.
 - No synchronous filesystem or network I/O is introduced into forwarding,
@@ -95,5 +102,6 @@ section has round-trip and corruption-rejection evidence.
 
 Chaining, more than one auxiliary record per source, fan-out above sixteen,
 and any alternative compact index width require a new design review. The
-implementation gate must still settle the exact arena capacity, serialized
-section layout, version impact, and benchmark thresholds.
+implementation gate must still settle the exact shard header field and
+manifest descriptor encoding for the auxiliary section, then provide
+round-trip, corruption-rejection, publication, and restart-recovery evidence.

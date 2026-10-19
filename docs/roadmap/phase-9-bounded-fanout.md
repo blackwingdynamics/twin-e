@@ -84,6 +84,22 @@ the sidecar count remains zero, and no auxiliary marker or record is created.
 - [x] Verify generated native IR remains free of floating-point instructions.
 - [ ] Update ADR-0014 and close the phase only after all gates are green.
 
+### Step 8 — Auxiliary publication integration
+
+- [ ] Keep one independent `.brain` file per shard with the ordered sections
+      `Header → Columns → Bindings → Auxiliary`; never create a global or
+      per-shard auxiliary side file.
+- [ ] Add the shard-local auxiliary section length and descriptor to the
+      dynamic shard generation format.
+- [ ] Validate columns, bindings, auxiliary payload, and the complete-shard
+      checksum together before publication.
+- [ ] Publish the complete shard generation first and the manifest last.
+- [ ] Reject partial, truncated, or mismatched generations without changing
+      the active generation.
+- [ ] Prove restart recovery selects the last complete generation, including
+      the shard-local auxiliary section.
+- [ ] Update ADR-0014 and close Phase 9 only after every Step 8 gate passes.
+
 ## Current evidence
 
 The strict suite passes with `125 passed; 0 failed`. The fan-out tests verify
@@ -96,9 +112,10 @@ snapshot restore path validates before mutating the destination table, and a
 corrupted snapshot leaves live state unchanged. Exact free-list coverage now
 rejects detached-record omissions and free-list cycles, and a reclaimed table
 round-trips with its free-list intact. Auxiliary serialization is currently a
-fixed-size in-memory snapshot contract rejects a truncated payload descriptor
-before restore and leaves live state unchanged. Atomic publication remains open
-for the next steps.
+fixed-size in-memory snapshot contract that rejects a truncated payload
+descriptor before restore and leaves live state unchanged. Atomic publication
+integration with the dynamic shard/manifest generation remains open for the
+next steps.
 
 The forwarding benchmark measures 10,000 inline-only and overflow calls
 separately. The recorded hosted result is `1,414,118 ns` inline-only versus
