@@ -235,6 +235,50 @@ open const ADAPTER_BINARY_BYTE_FEATURE: u16 = 4u16;
 open const ADAPTER_STRUCTURED_MAX_FIELDS: u32 = 32u32;
 
 
+"""Maximum image width admitted by the future patch-event envelope."""
+open const ADAPTER_IMAGE_MAX_WIDTH: u16 = 64u16;
+
+
+"""Maximum image height admitted by the future patch-event envelope."""
+open const ADAPTER_IMAGE_MAX_HEIGHT: u16 = 64u16;
+
+
+"""Maximum image channel count admitted by the future envelope."""
+open const ADAPTER_IMAGE_MAX_CHANNELS: u8 = 4u8;
+
+
+"""Maximum quantized image value represented by one integer feature."""
+open const ADAPTER_IMAGE_MAX_QUANTIZED_VALUE: u16 = 255u16;
+
+
+"""Maximum audio samples in one future integer feature window."""
+open const ADAPTER_AUDIO_MAX_WINDOW_SAMPLES: u32 = 4096u32;
+
+
+"""Maximum audio channel count admitted by the future envelope."""
+open const ADAPTER_AUDIO_MAX_CHANNELS: u8 = 2u8;
+
+
+"""Maximum normalized audio feature value in the future envelope."""
+open const ADAPTER_AUDIO_MAX_FEATURE_VALUE: u16 = 4095u16;
+
+
+"""Maximum video frames in one future bounded temporal envelope."""
+open const ADAPTER_VIDEO_MAX_FRAMES: u16 = 16u16;
+
+
+"""Maximum video width admitted by the future frame envelope."""
+open const ADAPTER_VIDEO_MAX_WIDTH: u16 = 64u16;
+
+
+"""Maximum video height admitted by the future frame envelope."""
+open const ADAPTER_VIDEO_MAX_HEIGHT: u16 = 64u16;
+
+
+"""Maximum video channel count admitted by the future frame envelope."""
+open const ADAPTER_VIDEO_MAX_CHANNELS: u8 = 4u8;
+
+
 """Maximum number of generated token ids retained for loop guards."""
 open const GENERATION_HISTORY_LIMIT: u32 = 8u32;
 

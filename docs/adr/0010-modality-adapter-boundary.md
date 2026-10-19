@@ -140,6 +140,39 @@ match the adapter contract. The binary adapter is intentionally opaque: it
 preserves each byte's exact identity and offset and performs no protocol
 inference.
 
+### 3.2 Image, audio, and video representation envelopes
+
+Gate 7.6 fixes the resource envelope before any encoder implementation:
+
+- Image uses quantized patch/feature events. Width and height are each capped
+  at `64`, channel count at `4`, and each quantized feature is an integer in
+  `0..255`. Events are ordered by row, column, channel, then feature index;
+  their source offset is the deterministic flattened patch position. The
+  representation does not promise pixel-perfect reconstruction or preserve
+  unsupported color profiles, alpha semantics, or arbitrary image metadata.
+- Audio uses caller-provided integer feature events in bounded time windows.
+  One window contains at most `4096` samples and `2` channels; normalized
+  feature values are capped at the common `4095` integer limit. Events are
+  ordered by window offset, channel, feature kind, and local time. The adapter
+  will reject floating-point-only input, unsupported sample layouts, empty
+  windows, and windows exceeding the limit. No claim of waveform or acoustic
+  losslessness is made.
+- Video uses ordered frame/patch events. A sequence contains at most `16`
+  frames, each frame is capped at `64 x 64` and `4` channels. Events are
+  ordered by frame identity, row, column, channel, then feature index; the
+  source offset includes frame order before the local patch position. Missing,
+  duplicated, or out-of-order frame identities, malformed frame dimensions,
+  unsupported pixel formats, empty sequences, and oversized sequences are
+  rejected before envelope publication. Temporal or pixel-perfect lossless
+  reconstruction is not promised.
+
+All three representations use integer-only feature values and must remain
+within the common `256` event envelope. A source that would exceed that event
+capacity is rejected even when its per-modality dimensions are individually
+valid. Decoding, resampling, color conversion, compression handling, and
+external I/O remain outside this contract until a later implementation ADR or
+an explicit update to this decision.
+
 ### 4. Boundary and ownership
 
 Adapters are translation boundaries, not a second AIE runtime. They may reject

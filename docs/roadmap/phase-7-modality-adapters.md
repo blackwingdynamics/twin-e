@@ -288,24 +288,48 @@ floating-point instructions.
 
 ## Gate 7.6 — Define image, audio, and video envelopes
 
-- [ ] Select a bounded integer-only image representation: feature or patch
+- [x] Select a bounded integer-only image representation: feature or patch
       events, dimensions, channels, and quantization limits.
-- [ ] Select a bounded integer-only audio representation: time window,
+- [x] Select a bounded integer-only audio representation: time window,
       channel metadata, event resolution, and feature limits.
-- [ ] Select a bounded integer-only video representation: frame identity,
+- [x] Select a bounded integer-only video representation: frame identity,
       temporal order, frame envelope, and maximum sequence length.
-- [ ] Document precision loss, unsupported formats, malformed frames, and
+- [x] Document precision loss, unsupported formats, malformed frames, and
       resource limits for each modality.
-- [ ] Define deterministic ordering and source offsets for every event.
-- [ ] Do not implement an encoder until its resource envelope and rejection
+- [x] Define deterministic ordering and source offsets for every event.
+- [x] Do not implement an encoder until its resource envelope and rejection
       policy are accepted.
 
 ### Gate evidence
 
-- [ ] Each modality has an accepted representation ADR or ADR-0010 update.
-- [ ] Each envelope has bounded fixtures for valid, malformed, empty, and
+- [x] Each modality has an accepted representation ADR or ADR-0010 update.
+- [x] Each envelope has bounded fixtures for valid, malformed, empty, and
       oversized input.
-- [ ] No claim of semantic or lossless conversion is made without evidence.
+- [x] No claim of semantic or lossless conversion is made without evidence.
+
+### Gate 7.6 test evidence
+
+ADR-0010 now fixes the pre-encoder representations and rejection policy:
+image uses `64 x 64`, at most `4` channels, and `0..255` quantized patch
+features; audio uses at most `4096` samples, `2` channels, and `0..4095`
+integer feature values per window; video uses at most `16` ordered frames,
+each capped at `64 x 64` and `4` channels. All modalities remain subject to
+the common `256` event limit and make no lossless-conversion claim.
+
+`tests/aie_modality_envelope_policy.act` provides executable policy fixtures
+for valid bounds and empty/oversized image, audio, and video inputs. These are
+representation-policy tests, not encoders; Gate 7.7 must implement the
+source-specific adapters only after this contract is accepted.
+
+Commands, using the pinned Actus compiler from the earlier compiler evidence
+(`cf1cbda75bf4e14d1ad6c9f1bbf7a12c57f808eb`):
+
+```sh
+actus check --strict
+actus test --strict
+```
+
+Result: `71 passed; 0 failed`.
 
 ## Gate 7.7 — Implement image, audio, and video adapters
 
