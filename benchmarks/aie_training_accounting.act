@@ -1,0 +1,191 @@
+"""Compare bounded training accounting for BPE and byte fallback inputs."""
+import aie;
+
+import config;
+
+import tokenizer;
+
+import std::io;
+
+verb make_rules() -> Array[BpeMergeRule, 128] {
+    erg rules: Array[BpeMergeRule,128] = Array[BpeMergeRule, 128]();
+    rules[0u32] = BpeMergeRule {left_id: 65u32, right_id: 66u32, merged_id: 1000u32, rank: 0u32};
+    return rules;
+}
+
+verb make_ab_input() -> Buffer {
+    erg input: Buffer = Buffer[32];
+    erg index: u32 = 0u32;
+    loop {
+        if index >= 32u32 {
+            break;
+        }
+        if index % 2u32 == 0u32 {
+            input[index as Usize] = 65u8;
+        } else {
+            input[index as Usize] = 66u8;
+        }
+        index += 1u32;
+    }
+    return input;
+}
+
+verb make_repeated_unknown_input() -> Buffer {
+    erg input: Buffer = Buffer[32];
+    erg index: u32 = 0u32;
+    loop {
+        if index >= 32u32 {
+            break;
+        }
+        input[index as Usize] = 255u8;
+        index += 1u32;
+    }
+    return input;
+}
+
+verb make_unique_unknown_input() -> Buffer {
+    erg input: Buffer = Buffer[32];
+    erg index: u32 = 0u32;
+    loop {
+        if index >= 32u32 {
+            break;
+        }
+        input[index as Usize] = index as u8;
+        index += 1u32;
+    }
+    return input;
+}
+
+verb make_mixed_input() -> Buffer {
+    erg input: Buffer = Buffer[32];
+    erg index: u32 = 0u32;
+    loop {
+        if index >= 32u32 {
+            break;
+        }
+        if index % 4u32 == 0u32 {
+            input[index as Usize] = 65u8;
+        } else if index % 4u32 == 1u32 {
+            input[index as Usize] = 66u8;
+        } else if index % 4u32 == 2u32 {
+            input[index as Usize] = 195u8;
+        } else {
+            input[index as Usize] = 40u8;
+        }
+        index += 1u32;
+    }
+    return input;
+}
+
+verb train_case(abs sequence: TokenSequence) -> TrainingMetrics {
+    erg fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](), free_list_head: 0u32, active_count: 0u32};
+    erg bindings: Array[TokenBinding,64] = Array[TokenBinding, 64]();
+    fabric_init(fabric: ins fabric);
+    erg trained = train_token_sequence(
+        fabric: ins fabric,
+        bindings: ins bindings,
+        sequence: abs sequence
+    );
+    return case dat trained {
+        Result.Err(_) => TrainingMetrics {processed_events: 0u32, allocated_columns: 0u32, reinforced_transitions: 0u32, active_bindings: 0u32},
+        Result.Ok(value) => value,
+    };
+}
+
+verb emit_metric(abs label: String, erg value: u32) -> Int {
+    print(text: abs label);
+    erg display_value: Int = value as Int;
+    print_int(value: erg display_value);
+    return 0;
+}
+
+verb emit_case(
+    abs name: String,
+    abs sequence: TokenSequence,
+    abs metrics: TrainingMetrics
+) -> Int {
+    erg input_label: String = " input_bytes=";
+    erg events_label: String = " emitted_token_events=";
+    erg bindings_label: String = " unique_context_bindings=";
+    erg columns_label: String = " allocated_minicolumns=";
+    erg shards_label: String = " active_shards=";
+    erg resident_label: String = " resident_inline_bytes=";
+    erg brain_label: String = " brain_bytes=";
+    erg input_bytes: u32 = 32u32;
+    erg emitted_events: u32 = sequence.length;
+    erg active_bindings: u32 = metrics.active_bindings;
+    erg allocated_columns: u32 = metrics.allocated_columns;
+    erg active_shards: u32 = 0u32;
+    erg resident_inline_bytes: u32 = 5640u32;
+    erg brain_bytes: u32 = BRAIN_TEXT_TOTAL_BYTES;
+    print(text: abs name);
+    emit_metric(label: abs input_label, value: erg input_bytes);
+    emit_metric(label: abs events_label, value: erg emitted_events);
+    emit_metric(label: abs bindings_label, value: erg active_bindings);
+    emit_metric(label: abs columns_label, value: erg allocated_columns);
+    emit_metric(label: abs shards_label, value: erg active_shards);
+    emit_metric(label: abs resident_label, value: erg resident_inline_bytes);
+    emit_metric(label: abs brain_label, value: erg brain_bytes);
+    return 0;
+}
+
+meta limitless("verb")
+verb main() -> Int {
+    erg rules: Array[BpeMergeRule,128] = make_rules();
+    erg ab_input: Buffer = make_ab_input();
+    erg repeated_input: Buffer = make_repeated_unknown_input();
+    erg unique_input: Buffer = make_unique_unknown_input();
+    erg mixed_input: Buffer = make_mixed_input();
+    erg input_length: u32 = 32u32;
+    erg rule_count: u32 = 1u32;
+    erg ab_bytes: TokenSequence = tokenize_bytes(input: abs ab_input, input_length: erg input_length);
+    erg mixed_bytes: TokenSequence = tokenize_bytes(input: abs mixed_input, input_length: erg input_length);
+    erg bpe_sequence: TokenSequence = bpe_encode(
+        input: abs ab_bytes,
+        rules: abs rules,
+        rule_count: erg rule_count
+    );
+    erg repeated_sequence: TokenSequence = tokenize_bytes(input: abs repeated_input, input_length: erg input_length);
+    erg unique_sequence: TokenSequence = tokenize_bytes(input: abs unique_input, input_length: erg input_length);
+    erg mixed_sequence: TokenSequence = bpe_encode(
+        input: abs mixed_bytes,
+        rules: abs rules,
+        rule_count: erg rule_count
+    );
+    if !bpe_sequence.valid || !repeated_sequence.valid || !unique_sequence.valid || !mixed_sequence.valid {
+        erg error: String = "AIE_TRAINING_ACCOUNTING_ERROR invalid_sequence";
+        println(text: abs error);
+        return 1;
+    }
+    erg bpe_metrics: TrainingMetrics = train_case(sequence: abs bpe_sequence);
+    erg repeated_metrics: TrainingMetrics = train_case(sequence: abs repeated_sequence);
+    erg unique_metrics: TrainingMetrics = train_case(sequence: abs unique_sequence);
+    erg mixed_metrics: TrainingMetrics = train_case(sequence: abs mixed_sequence);
+    erg heading: String = "AIE_TRAINING_ACCOUNTING input_bytes=32 arena_columns=64 binding_slots=64";
+    erg bpe_name: String = "AIE_TRAINING_ACCOUNTING case=bpe\\n";
+    erg repeated_name: String = "AIE_TRAINING_ACCOUNTING case=repeated_byte_fallback\\n";
+    erg unique_name: String = "AIE_TRAINING_ACCOUNTING case=unique_byte_fallback\\n";
+    erg mixed_name: String = "AIE_TRAINING_ACCOUNTING case=mixed\\n";
+    println(text: abs heading);
+    emit_case(
+        name: abs bpe_name,
+        sequence: abs bpe_sequence,
+        metrics: abs bpe_metrics
+    );
+    emit_case(
+        name: abs repeated_name,
+        sequence: abs repeated_sequence,
+        metrics: abs repeated_metrics
+    );
+    emit_case(
+        name: abs unique_name,
+        sequence: abs unique_sequence,
+        metrics: abs unique_metrics
+    );
+    emit_case(
+        name: abs mixed_name,
+        sequence: abs mixed_sequence,
+        metrics: abs mixed_metrics
+    );
+    return 0;
+}

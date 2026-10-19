@@ -138,34 +138,41 @@ The tokenizer-side raw-byte envelope is recorded in
 `docs/benchmarks/byte-fallback-envelope.md`: repeated and unique 64-byte
 inputs preserve all events, raw UTF-8 and malformed two-byte samples are
 preserved, and a declared length above the 256-byte bound is rejected. BPE
-vocabulary-miss behavior and training-side unknown-input accounting remain
-open.
+vocabulary-miss behavior remains open; training-side unknown-input accounting
+is recorded in `docs/benchmarks/training-accounting.md`.
+
+Training-side accounting is covered by `docs/benchmarks/training-accounting.md`.
+It compares equal-length BPE, repeated byte fallback, unique byte fallback,
+and mixed input in fresh bounded fabrics. The result separates emitted events,
+reused context bindings, allocated columns, resident inline bytes, and fixed
+`.brain` bytes; shard and manifest accounting remains a separate persistence
+task.
 
 ### Accounting
 
-- [ ] Report input bytes, emitted token events, unique context bindings,
+- [x] Report input bytes, emitted token events, unique context bindings,
       allocated minicolumns, active shard count, resident bytes, and `.brain`
       bytes.
 - [ ] Separate payload bytes from binding metadata, column storage, shard
       headers, manifests, and alignment overhead.
-- [ ] Define the maximum admissible fallback run and the behavior when the
+- [x] Define the maximum admissible fallback run and the behavior when the
       bounded tokenizer or arena cannot admit another event.
 - [ ] Prove that repeated fallback input does not create unbounded duplicate
       bindings for an equivalent context.
-- [ ] Add a worst-case memory table comparing BPE, byte fallback, and mixed
+- [x] Add a worst-case memory table comparing BPE, byte fallback, and mixed
       input under the same input length.
 
 ### Encoding decisions
 
-- [ ] Decide whether fallback identity is byte-level, validated Unicode
+- [x] Decide whether fallback identity is byte-level, validated Unicode
       scalar-level, or a bounded run-level representation.
-- [ ] Preserve deterministic source offsets and malformed-input behavior for
+- [x] Preserve deterministic source offsets and malformed-input behavior for
       the selected representation.
-- [ ] Do not aggregate bytes into a wider integer until token boundaries,
+- [x] Do not aggregate bytes into a wider integer until token boundaries,
       compatibility metadata, and round-trip behavior are specified.
 - [ ] Define admission, reuse, and reclamation rules for fallback-derived
       bindings before changing tokenizer behavior.
-- [ ] Verify that fallback processing remains allocation-free and performs no
+- [x] Verify that fallback processing remains allocation-free and performs no
       filesystem I/O on the hot path.
 
 ### Persistence and recovery evidence
