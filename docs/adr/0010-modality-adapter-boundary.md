@@ -1,6 +1,6 @@
 # ADR-0010: Modality Adapter Boundary and Common Twin-e Input Contract
 
-- **Status:** Accepted; implementation not started
+- **Status:** Accepted; implementation in progress
 - **Date:** 2026-10-19
 - **Scope:** External-data adapters that convert text, images, audio, video,
   structured records, and binary input into Twin-e-compatible bounded input
@@ -192,6 +192,25 @@ remain outside the AIE hot path. An adapter invocation may receive already
 available input, but inference, forwarding, coincidence evaluation, and
 neurogenesis must not perform synchronous filesystem or network I/O.
 
+### 4.1 In-memory invocation boundary
+
+The caller owns the source input and invokes a modality adapter with an
+immutable, already-available value. The adapter returns a self-contained
+`Result<AdapterEnvelope, AdapterError>`; it does not retain the source view or
+choose the next engine operation. The caller then validates the envelope and
+explicitly maps its events into an existing public AIE input contract such as
+`ObservationEvent`, `encode_observation`, or a later public training entry
+point. This mapping belongs to the caller-facing integration layer, not to a
+modality decoder and not to private arena code.
+
+A future chat or teacher integration therefore submits its bounded text,
+image, audio, video, structured, or binary input through the same in-memory
+call boundary after its transport layer has completed. Credentials, network
+retries, UI state, provider protocol, and message/session state remain outside
+`src/adapters/` and outside the AIE core. The integration may choose which
+public AIE operation to call, but it may not bypass the canonical adapter
+contract or mutate private arena state.
+
 ### 5. Persistence and reproducibility
 
 Adapters do not choose an implicit `.brain` location and do not auto-save
@@ -199,6 +218,10 @@ engine state. Persistence remains an explicit caller-owned operation using a
 configured `Path`, with the existing validation and publication rules. Adapter
 outputs must carry enough version and modality metadata for deterministic
 replay and compatibility checks.
+
+An adapter invocation alone therefore cannot publish, replace, or mutate a
+`.brain` generation. A caller that wants persistence must invoke the existing
+explicit save boundary separately, after its own state-management decision.
 
 ### 6. Implementation order
 
@@ -249,8 +272,9 @@ representation limits and rejected inputs.
 
 ## Evidence boundary
 
-This ADR records the accepted architecture and naming only. No adapter module,
-directory, external service, network endpoint, `.brain` default path, or
-modality encoder is implemented by this decision. The accepted filesystem and
-facade names are `src/adapters/` and `src/adapters/adapters.act`; the accepted
-public namespace remains `adapter::...`.
+This ADR records the accepted architecture and naming. The initial bounded
+adapter modules and the in-memory integration fixture are implemented under
+`src/adapters/` and `tests/`; no external service, network endpoint, or
+`.brain` default path is introduced. The accepted facade source remains
+`src/adapters/adapters.act`, and the accepted public namespace remains
+`adapter::...`.
