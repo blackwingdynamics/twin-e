@@ -225,8 +225,10 @@ task.
       profile sets `BRAIN_CACHE_FLUSH_QUEUE_CAPACITY=0`, so the runtime retains
       zero queued flush work and zero queue-owned memory; see ADR-0012,
       "Flush queue bound".
-- [ ] Keep flush latency separate from inference, forwarding, and neurogenesis
-      latency in benchmark output.
+- [x] Keep flush latency separate from inference, forwarding, and neurogenesis
+      latency in benchmark output. Hot-path measurements exclude persistence,
+      while explicit persistence reports `flush_ns`; see
+      `docs/benchmarks/phase-5-hot-path.md` and ADR-0012.
 - [ ] Define ordering for shard payload, binding payload, checksum, and
       manifest publication.
 - [ ] Prove that a flush cannot publish a partially validated generation.

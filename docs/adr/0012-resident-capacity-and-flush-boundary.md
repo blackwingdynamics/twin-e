@@ -72,6 +72,11 @@ flush memory. A caller may hold one explicitly selected, bounded save request
 while performing its flush, but that work is outside the runtime queue and is
 not accumulated by admission or inference.
 
+Latency evidence follows the same boundary: resident inference and
+neurogenesis are measured without persistence calls, while explicit flush time
+is reported separately as `flush_ns`. The reproducible host-profile record is
+`docs/benchmarks/phase-5-hot-path.md`.
+
 ### Pinning
 
 Pinning protects a resident shard for the lifetime of its active user. A pin
