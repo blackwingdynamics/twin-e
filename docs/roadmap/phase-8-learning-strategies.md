@@ -257,15 +257,26 @@ zero active columns.
 
 ## Gate 8.8 — Decay, reclamation, and persistence interaction
 
-- [ ] Define when decay or reclamation may affect learned state.
-- [ ] Prove training does not synchronously flush or save `.brain` data.
-- [ ] Prove failed save/recovery leaves live learned state unchanged.
+- [x] Define when decay or reclamation may affect learned state.
+- [x] Prove training does not synchronously flush or save `.brain` data.
+- [x] Prove failed save/recovery leaves live learned state unchanged.
 
 ### Required evidence
 
-- [ ] Decay/reclamation tests cover valid state, capacity pressure, and
+- [x] Decay/reclamation tests cover valid state, capacity pressure, and
       recovery.
-- [ ] Persistence tests distinguish resident learning from published state.
+- [x] Persistence tests distinguish resident learning from published state.
+
+### Gate 8.8 evidence
+
+Decay remains an explicit caller-driven maintenance step through
+`engine_clock_step`; teaching and replay only mutate resident fabric and
+bindings and do not import or call filesystem persistence. Existing decay and
+capacity tests cover reclamation and pressure behavior. The new
+`tests/teaching_persistence.act` test trains resident state, corrupts a
+snapshot header, and proves rejected recovery leaves the live active count and
+packed state unchanged. Valid publication remains explicit through snapshot
+serialization and the separate persistence boundary.
 
 ## Gate 8.9 — Full learning acceptance
 

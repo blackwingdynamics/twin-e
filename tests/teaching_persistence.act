@@ -1,0 +1,48 @@
+"""Acceptance tests for resident teaching and explicit persistence boundaries."""
+import aie;
+
+import teaching;
+
+import tokenizer;
+
+verb teach_persistence_example(
+    ins fabric: CorticalFabric[64],
+    ins bindings: Array[TokenBinding, 64]
+) -> Bool {
+    erg text: String = "AB";
+    erg taught = teach_text_direct(
+        fabric: ins fabric,
+        bindings: ins bindings,
+        text: abs text
+    );
+    return case dat taught {
+        Result.Err(_) => false,
+        Result.Ok(_) => true,
+    };
+}
+
+meta test
+verb test_failed_teaching_recovery_preserves_live_state() -> Int {
+    erg fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](), free_list_head: 0u32, active_count: 0u32};
+    erg bindings: Array[TokenBinding,64] = Array[TokenBinding, 64]();
+    fabric_init(fabric: ins fabric);
+    if !teach_persistence_example(fabric: ins fabric, bindings: ins bindings) {
+        return 1;
+    }
+    erg active_before: u32 = fabric.active_count;
+    erg root_byte_before: u8 = fabric.columns[0u32].storage[0u32];
+    erg snapshot: TextSnapshot = serialize_text_snapshot(fabric: abs fabric, bindings: abs bindings);
+    snapshot.fabric.magic = 0u32;
+    erg restored = deserialize_text_snapshot(
+        fabric: ins fabric,
+        bindings: ins bindings,
+        snapshot: abs snapshot
+    );
+    if restored {
+        return 1;
+    }
+    if fabric.active_count != active_before || fabric.columns[0u32].storage[0u32] != root_byte_before {
+        return 1;
+    }
+    return 0;
+}
