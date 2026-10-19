@@ -211,10 +211,38 @@ verb verify_partial_generation_is_unpublished(abs active_path: Path) -> Int {
                                         first_column: erg first_column
                                     );
                                     remove_file(path: abs staged_path);
-                                    if rejected && active_status == 0 {
-                                        return 0;
+                                    if !rejected || active_status != 0 {
+                                        return 34;
                                     }
-                                    return 34;
+                                    erg truncated: Buffer = Buffer[0];
+                                    append(truncated, 0u8);
+                                    erg truncated_write = write_file(path: abs staged_path, contents: abs truncated);
+                                    case dat truncated_write {
+                                        Result.Err(_) => 35,
+                                        Result.Ok(_) => {
+                                            erg truncated_publish = publish_dynamic_shard(
+                                                staged: abs staged_path,
+                                                active: abs active_path,
+                                                expected_shard_id: erg shard_id,
+                                                expected_first_column_index: erg first_column,
+                                                expected_column_count: erg column_count
+                                            );
+                                            erg truncated_rejected: Bool = case dat truncated_publish {
+                                                Result.Err(_) => true,
+                                                Result.Ok(_) => false,
+                                            };
+                                            erg truncated_active_status: Int = validate_status(
+                                                path: abs active_path,
+                                                shard_id: erg shard_id,
+                                                first_column: erg first_column
+                                            );
+                                            remove_file(path: abs staged_path);
+                                            if truncated_rejected && truncated_active_status == 0 {
+                                                return 0;
+                                            }
+                                            return 36;
+                                        },
+                                    };
                                 },
                             };
                         },
@@ -888,7 +916,7 @@ verb run_paths(
     if cycle_status != 0 {
         return cycle_status;
     }
-    erg message: String = "AIE_SHARDS_DYNAMIC files=3 generated=1 staged_shard=1 validated=3 partial_rejected=1 active_unchanged=1 manifest_bound=2 swapped_rejected=1 dynamic_loaded=1 dynamic_collection=3 manifest_selected=1 dynamic_failed_unchanged=1 free_chain=5-2-0-null reallocated=2 payload_bytes=128";
+    erg message: String = "AIE_SHARDS_DYNAMIC files=3 generated=1 staged_shard=1 validated=3 partial_rejected=1 truncated_rejected=1 active_unchanged=1 manifest_bound=2 swapped_rejected=1 dynamic_loaded=1 dynamic_collection=3 manifest_selected=1 dynamic_failed_unchanged=1 free_chain=5-2-0-null reallocated=2 payload_bytes=128";
     println(text: abs message);
     return 0;
 }

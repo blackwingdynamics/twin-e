@@ -247,8 +247,13 @@ task.
       `validation_rejected error=IoError.InvalidData`. See
       `docs/benchmarks/phase-5-brain-file.md` and
       `docs/benchmarks/phase-5-save-boundary.md`.
-- [ ] Preserve the previous complete generation when the newest generation is
-      corrupt, truncated, interrupted, or fails publication.
+- [x] Preserve the previous complete generation when the newest generation is
+      corrupt, truncated, interrupted, or fails publication. Staged corruption
+      and truncation report rejection with `active_unchanged=1`; failed
+      publication reports `previous_generation_preserved`; incomplete/restart
+      recovery reports `dynamic_failed_unchanged`. See
+      `docs/benchmarks/phase-5-cache-lifecycle.md` and
+      `docs/benchmarks/phase-5-save-boundary.md`.
 - [ ] Define whether recovery is read-only, retryable, or allows continued
       mutation in the existing resident generation.
 - [ ] Verify that failed flush leaves the dirty resident shard usable.

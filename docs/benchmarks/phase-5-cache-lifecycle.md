@@ -52,15 +52,15 @@ publication is implemented; those remain later P5.1A gates.
 ```text
 built `/tmp/twin-e-dynamic-flush.aie` (strict)
 verified generated native IR: no floating-point instructions
-AIE_SHARDS_DYNAMIC files=3 generated=1 staged_shard=1 validated=3 partial_rejected=1 active_unchanged=1 manifest_bound=2 swapped_rejected=1 dynamic_loaded=1 dynamic_collection=3 manifest_selected=1 dynamic_failed_unchanged=1 free_chain=5-2-0-null reallocated=2 payload_bytes=128
+AIE_SHARDS_DYNAMIC files=3 generated=1 staged_shard=1 validated=3 partial_rejected=1 truncated_rejected=1 active_unchanged=1 manifest_bound=2 swapped_rejected=1 dynamic_loaded=1 dynamic_collection=3 manifest_selected=1 dynamic_failed_unchanged=1 free_chain=5-2-0-null reallocated=2 payload_bytes=128
 ```
 
 The benchmark now exercises the public `flush_dynamic_shard` boundary. The
 operation writes a staged payload, validates it, and publishes it atomically;
 the hot-path runtime does not call this operation. It also corrupts a staged
 checksum before publication and records `partial_rejected=1` with
-`active_unchanged=1`, proving that validation failure cannot replace the active
-generation.
+`active_unchanged=1`, and also rejects a truncated staged file with
+`truncated_rejected=1`. Both failures leave the active generation valid.
 
 ## Resident neurogenesis API evidence
 

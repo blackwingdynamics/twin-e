@@ -108,6 +108,12 @@ load rejects corrupted bytes without mutating the fabric
 staged binding-aware flush rejects invalid data before publication
 (`AIE_BINDING_STAGE validation_rejected error=IoError.InvalidData`).
 
+Recovery evidence preserves the previous complete generation across staged
+checksum corruption and truncation (`partial_rejected=1`,
+`truncated_rejected=1`, `active_unchanged=1`), failed publication
+(`previous_generation_preserved`), and incomplete-generation restart recovery
+(`dynamic_failed_unchanged`).
+
 ### Pinning
 
 Pinning protects a resident shard for the lifetime of its active user. A pin
