@@ -1,6 +1,6 @@
 """Public facade for dynamic shard writer operations."""
-open dynamic_writer_core;
+open writer_core;
 
-open dynamic_bindings;
+open bindings;
 
 open flush;

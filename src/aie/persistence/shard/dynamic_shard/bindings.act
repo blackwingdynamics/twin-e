@@ -1,0 +1,211 @@
+"""Dynamic shard persistence with local token bindings."""
+import config;
+
+import std::io;
+
+open io;
+
+open writer_core;
+
+struct DynamicShardSectionRequest {
+    abs path: Path,
+    erg shard_id: u32,
+    erg first_column_index: u32,
+    erg column_count: u32,
+    abs payload: Buffer,
+    abs bindings: Buffer,
+    abs auxiliary: Buffer,
+}
+
+verb dynamic_binding_buffers_are_valid(
+    abs payload: Buffer,
+    abs bindings: Buffer,
+    erg first_column_index: u32,
+    erg column_count: u32,
+    erg expected_payload_bytes: u32
+) -> Bool {
+    erg expected_binding_bytes: u32 = column_count * BRAIN_SHARD_BINDING_STRIDE_BYTES as u32;
+    erg no_auxiliary_bytes: u32 = 0u32;
+    erg payload_length: Int = buffer_length_or_negative(input: abs payload);
+    erg observed_binding_length: Int = buffer_length_or_negative(input: abs bindings);
+    return dynamic_shard_write_inputs_are_valid(
+        first_column_index: erg first_column_index,
+        column_count: erg column_count,
+        payload_length: erg payload_length,
+        expected_payload_bytes: erg expected_payload_bytes,
+        observed_binding_length: erg observed_binding_length,
+        expected_binding_bytes: erg expected_binding_bytes,
+        expected_auxiliary_bytes: erg no_auxiliary_bytes
+    );
+}
+
+verb dynamic_auxiliary_buffers_are_valid(
+    abs payload: Buffer,
+    abs bindings: Buffer,
+    abs auxiliary: Buffer,
+    erg first_column_index: u32,
+    erg column_count: u32
+) -> Bool {
+    erg expected_payload_bytes: u32 = column_count * BRAIN_SHARD_COLUMN_STRIDE_BYTES as u32;
+    erg expected_binding_bytes: u32 = column_count * BRAIN_SHARD_BINDING_STRIDE_BYTES as u32;
+    erg expected_auxiliary_bytes: u32 = BRAIN_AUXILIARY_PAYLOAD_BYTES;
+    erg payload_length: Int = buffer_length_or_negative(input: abs payload);
+    erg observed_binding_length: Int = buffer_length_or_negative(input: abs bindings);
+    erg auxiliary_length: Int = buffer_length_or_negative(input: abs auxiliary);
+    return dynamic_shard_write_inputs_are_valid(
+        first_column_index: erg first_column_index,
+        column_count: erg column_count,
+        payload_length: erg payload_length,
+        expected_payload_bytes: erg expected_payload_bytes,
+        observed_binding_length: erg observed_binding_length,
+        expected_binding_bytes: erg expected_binding_bytes,
+        expected_auxiliary_bytes: erg expected_auxiliary_bytes
+    ) && auxiliary_length == BRAIN_AUXILIARY_PAYLOAD_BYTES as Int;
+}
+
+verb dynamic_auxiliary_section_length(abs auxiliary: Buffer) -> u32 {
+    erg length: Int = buffer_length_or_negative(input: abs auxiliary);
+    if length == 0 {
+        return 0u32;
+    }
+    return BRAIN_AUXILIARY_PAYLOAD_BYTES;
+}
+
+verb initialize_dynamic_shard_sections(
+    abs request: DynamicShardSectionRequest,
+    erg expected_payload_bytes: u32,
+    erg expected_binding_bytes: u32,
+    erg auxiliary_bytes: u32,
+    erg file_length: u32
+) -> Buffer {
+    erg shard_id: u32 = request.shard_id;
+    erg first_column_index: u32 = request.first_column_index;
+    erg column_count: u32 = request.column_count;
+    return initialize_dynamic_shard_output(
+        shard_id: erg shard_id,
+        first_column_index: erg first_column_index,
+        column_count: erg column_count,
+        expected_payload_bytes: erg expected_payload_bytes,
+        expected_binding_bytes: erg expected_binding_bytes,
+        expected_auxiliary_bytes: erg auxiliary_bytes,
+        file_length: erg file_length
+    );
+}
+
+verb complete_dynamic_shard_sections(
+    dat output: Buffer,
+    abs request: DynamicShardSectionRequest,
+    erg file_length: u32,
+    erg expected_payload_bytes: u32,
+    erg expected_binding_bytes: u32,
+    erg auxiliary_bytes: u32
+) -> Result[Int, IoError] {
+    return complete_dynamic_shard_with_bindings(
+        output: dat output,
+        path: abs request.path,
+        file_length: erg file_length,
+        payload: abs request.payload,
+        bindings: abs request.bindings,
+        expected_payload_bytes: erg expected_payload_bytes,
+        expected_binding_bytes: erg expected_binding_bytes,
+        auxiliary: abs request.auxiliary,
+        expected_auxiliary_bytes: erg auxiliary_bytes
+    );
+}
+
+"""Write a dynamic shard with payload and shard-local binding sections.
+
+Paths and buffers are read through `abs`. The function validates matching
+column, payload, and binding lengths, then writes one checksummed binary shard
+whose binding metadata remains local to that shard.
+"""
+open verb write_dynamic_shard_with_bindings(
+    abs path: Path,
+    erg shard_id: u32,
+    erg first_column_index: u32,
+    erg column_count: u32,
+    abs payload: Buffer,
+    abs bindings: Buffer
+) -> Result[Int, IoError] {
+    erg expected_payload_bytes: u32 = column_count * BRAIN_SHARD_COLUMN_STRIDE_BYTES as u32;
+    if !dynamic_binding_buffers_are_valid(
+        payload: abs payload,
+        bindings: abs bindings,
+        first_column_index: erg first_column_index,
+        column_count: erg column_count,
+        expected_payload_bytes: erg expected_payload_bytes
+    ) {
+        return Err(IoError.InvalidInput);
+    }
+    return persist_dynamic_shard_with_bindings(
+        path: abs path,
+        shard_id: erg shard_id,
+        first_column_index: erg first_column_index,
+        column_count: erg column_count,
+        payload: abs payload,
+        bindings: abs bindings
+    );
+}
+
+verb persist_dynamic_shard_sections(abs request: DynamicShardSectionRequest) -> Result[Int, IoError] {
+    erg expected_payload_bytes: u32 = request.column_count * BRAIN_SHARD_COLUMN_STRIDE_BYTES as u32;
+    erg expected_binding_bytes: u32 = request.column_count * BRAIN_SHARD_BINDING_STRIDE_BYTES as u32;
+    erg auxiliary_bytes: u32 = dynamic_auxiliary_section_length(auxiliary: abs request.auxiliary);
+    erg file_length: u32 = BRAIN_SHARD_HEADER_BYTES as u32 + expected_payload_bytes + expected_binding_bytes + auxiliary_bytes;
+    erg output = initialize_dynamic_shard_sections(
+        request: abs request,
+        expected_payload_bytes: erg expected_payload_bytes,
+        expected_binding_bytes: erg expected_binding_bytes,
+        auxiliary_bytes: erg auxiliary_bytes,
+        file_length: erg file_length
+    );
+    return complete_dynamic_shard_sections(
+        output: dat output,
+        request: abs request,
+        file_length: erg file_length,
+        expected_payload_bytes: erg expected_payload_bytes,
+        expected_binding_bytes: erg expected_binding_bytes,
+        auxiliary_bytes: erg auxiliary_bytes
+    );
+}
+
+verb persist_dynamic_shard_with_bindings(
+    abs path: Path,
+    erg shard_id: u32,
+    erg first_column_index: u32,
+    erg column_count: u32,
+    abs payload: Buffer,
+    abs bindings: Buffer
+) -> Result[Int, IoError] {
+    erg request = DynamicShardSectionRequest {path: path, shard_id: shard_id, first_column_index: first_column_index, column_count: column_count, payload: payload, bindings: bindings, auxiliary: Buffer[0]};
+    return persist_dynamic_shard_sections(request: abs request);
+}
+
+"""Write one shard containing columns, local bindings, and local auxiliary data.
+
+The auxiliary buffer is a fixed-width, position-independent snapshot owned by
+this shard. All three sections are staged and covered by one shard checksum;
+no auxiliary side file is created.
+"""
+open verb write_dynamic_shard_with_bindings_and_auxiliary(
+    abs path: Path,
+    erg shard_id: u32,
+    erg first_column_index: u32,
+    erg column_count: u32,
+    abs payload: Buffer,
+    abs bindings: Buffer,
+    abs auxiliary: Buffer
+) -> Result[Int, IoError] {
+    erg expected_payload_bytes: u32 = column_count * BRAIN_SHARD_COLUMN_STRIDE_BYTES as u32;
+    if !dynamic_auxiliary_buffers_are_valid(
+        payload: abs payload,
+        bindings: abs bindings,
+        auxiliary: abs auxiliary,
+        first_column_index: erg first_column_index,
+        column_count: erg column_count
+    ) {
+        return Err(IoError.InvalidInput);
+    }
+    erg request = DynamicShardSectionRequest {path: path, shard_id: shard_id, first_column_index: first_column_index, column_count: column_count, payload: payload, bindings: bindings, auxiliary: auxiliary};
+    return persist_dynamic_shard_sections(request: abs request);
+}

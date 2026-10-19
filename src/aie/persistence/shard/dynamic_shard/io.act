@@ -1,4 +1,4 @@
 """Public facade for dynamic shard writing and checksum operations."""
-open dynamic_writer;
+open writer;
 
-open dynamic_checksum;
+open checksum;

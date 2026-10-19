@@ -20,18 +20,19 @@ verb dynamic_shard_inputs_are_valid(
     erg column_count: u32,
     erg payload_length: Int,
     erg expected_payload_bytes: u32,
-    erg bindings_length: Int,
+    erg observed_binding_length: Int,
     erg expected_binding_bytes: u32
 ) -> Bool {
-    return column_count != 0u32 && column_count <= BRAIN_SHARD_DYNAMIC_MAX_COLUMNS && first_column_index <= 4294967295u32 - column_count && payload_length == expected_payload_bytes as Int && bindings_length == expected_binding_bytes as Int;
+    return column_count != 0u32 && column_count <= BRAIN_SHARD_DYNAMIC_MAX_COLUMNS && first_column_index <= 4294967295u32 - column_count && payload_length == expected_payload_bytes as Int && observed_binding_length == expected_binding_bytes as Int;
 }
 
 verb dynamic_shard_file_length_is_valid(
     erg payload_bytes: u32,
-    erg binding_bytes: u32
+    erg binding_bytes: u32,
+    erg auxiliary_bytes: u32
 ) -> Bool {
-    erg file_length: u32 = BRAIN_SHARD_HEADER_BYTES as u32 + payload_bytes + binding_bytes;
-    return file_length <= BRAIN_SHARD_DYNAMIC_MAX_BYTES;
+    erg file_length: u32 = BRAIN_SHARD_HEADER_BYTES as u32 + payload_bytes + binding_bytes + auxiliary_bytes;
+    return auxiliary_bytes <= BRAIN_AUXILIARY_PAYLOAD_BYTES && file_length <= BRAIN_SHARD_DYNAMIC_MAX_BYTES;
 }
 
 verb dynamic_shard_write_inputs_are_valid(
@@ -39,17 +40,22 @@ verb dynamic_shard_write_inputs_are_valid(
     erg column_count: u32,
     erg payload_length: Int,
     erg expected_payload_bytes: u32,
-    erg bindings_length: Int,
-    erg expected_binding_bytes: u32
+    erg observed_binding_length: Int,
+    erg expected_binding_bytes: u32,
+    erg expected_auxiliary_bytes: u32
 ) -> Bool {
     return dynamic_shard_inputs_are_valid(
         first_column_index: erg first_column_index,
         column_count: erg column_count,
         payload_length: erg payload_length,
         expected_payload_bytes: erg expected_payload_bytes,
-        bindings_length: erg bindings_length,
+        observed_binding_length: erg observed_binding_length,
         expected_binding_bytes: erg expected_binding_bytes
-    ) && dynamic_shard_file_length_is_valid(payload_bytes: erg expected_payload_bytes, binding_bytes: erg expected_binding_bytes);
+    ) && dynamic_shard_file_length_is_valid(
+        payload_bytes: erg expected_payload_bytes,
+        binding_bytes: erg expected_binding_bytes,
+        auxiliary_bytes: erg expected_auxiliary_bytes
+    );
 }
 
 verb append_dynamic_shard_identity(
@@ -76,19 +82,19 @@ verb append_dynamic_shard_identity(
 verb append_dynamic_shard_metadata(
     ins output: Buffer,
     erg expected_payload_bytes: u32,
-    erg expected_binding_bytes: u32
+    erg expected_binding_bytes: u32,
+    erg expected_auxiliary_bytes: u32
 ) {
     erg tokenizer_version: u16 = TOKENIZER_VERSION;
     erg context_version: u16 = CONTEXT_VERSION;
     erg code_version: u16 = TOKEN_CODE_VERSION;
-    erg zero_u16: u16 = 0u16;
     erg zero_u64: u64 = 0u64;
     append_shard_u32(output: ins output, value: abs expected_payload_bytes);
     append_shard_u32(output: ins output, value: abs expected_binding_bytes);
     append_shard_u16(output: ins output, value: abs tokenizer_version);
     append_shard_u16(output: ins output, value: abs context_version);
     append_shard_u16(output: ins output, value: abs code_version);
-    append_shard_u16(output: ins output, value: abs zero_u16);
+    append_shard_u16(output: ins output, value: abs expected_auxiliary_bytes as u16);
     append_shard_u64(output: ins output, value: abs zero_u64);
 }
 
@@ -98,7 +104,8 @@ verb append_dynamic_shard_header(
     erg first_column_index: u32,
     erg column_count: u32,
     erg expected_payload_bytes: u32,
-    erg expected_binding_bytes: u32
+    erg expected_binding_bytes: u32,
+    erg expected_auxiliary_bytes: u32
 ) {
     erg column_stride: u16 = BRAIN_SHARD_COLUMN_STRIDE_BYTES;
     erg binding_stride: u16 = BRAIN_SHARD_BINDING_STRIDE_BYTES;
@@ -113,7 +120,8 @@ verb append_dynamic_shard_header(
     append_dynamic_shard_metadata(
         output: ins output,
         expected_payload_bytes: erg expected_payload_bytes,
-        expected_binding_bytes: erg expected_binding_bytes
+        expected_binding_bytes: erg expected_binding_bytes,
+        expected_auxiliary_bytes: erg expected_auxiliary_bytes
     );
 }
 
@@ -123,6 +131,7 @@ verb initialize_dynamic_shard_output(
     erg column_count: u32,
     erg expected_payload_bytes: u32,
     erg expected_binding_bytes: u32,
+    erg expected_auxiliary_bytes: u32,
     erg file_length: u32
 ) -> Buffer {
     erg output: Buffer = Buffer[0];
@@ -134,7 +143,8 @@ verb initialize_dynamic_shard_output(
         first_column_index: erg first_column_index,
         column_count: erg column_count,
         expected_payload_bytes: erg expected_payload_bytes,
-        expected_binding_bytes: erg expected_binding_bytes
+        expected_binding_bytes: erg expected_binding_bytes,
+        expected_auxiliary_bytes: erg expected_auxiliary_bytes
     );
     return output;
 }
@@ -159,7 +169,9 @@ verb append_dynamic_shard_segments(
     abs payload: Buffer,
     abs bindings: Buffer,
     erg payload_length: u32,
-    erg bindings_length: u32
+    erg bindings_length: u32,
+    abs auxiliary: Buffer,
+    erg auxiliary_length: u32
 ) {
     append_dynamic_shard_bytes(
         output: ins output,
@@ -170,6 +182,11 @@ verb append_dynamic_shard_segments(
         output: ins output,
         input: abs bindings,
         length: erg bindings_length
+    );
+    append_dynamic_shard_bytes(
+        output: ins output,
+        input: abs auxiliary,
+        length: erg auxiliary_length
     );
 }
 
@@ -188,73 +205,6 @@ verb finalize_dynamic_shard(
     return write_file(path: abs path, contents: abs output);
 }
 
-"""Write a dynamic shard containing column payload bytes only.
-
-The path and payload are read through `abs`. Bounds, lengths, and fixed binary
-limits are validated before a checksummed shard is written. Invalid input
-returns `IoError.InvalidInput`; no partial application state is changed.
-"""
-open verb write_dynamic_shard(
-    abs path: Path,
-    erg shard_id: u32,
-    erg first_column_index: u32,
-    erg column_count: u32,
-    abs payload: Buffer
-) -> Result[Int, IoError] {
-    erg payload_length: Int = buffer_length_or_negative(input: abs payload);
-    erg expected_payload_bytes: u32 = column_count * BRAIN_SHARD_COLUMN_STRIDE_BYTES as u32;
-    erg no_bindings_length: Int = 0;
-    erg no_binding_bytes: u32 = 0u32;
-    if !dynamic_shard_write_inputs_are_valid(
-        first_column_index: erg first_column_index,
-        column_count: erg column_count,
-        payload_length: erg payload_length,
-        expected_payload_bytes: erg expected_payload_bytes,
-        bindings_length: erg no_bindings_length,
-        expected_binding_bytes: erg no_binding_bytes
-    ) {
-        return Err(IoError.InvalidInput);
-    }
-    return persist_dynamic_shard_payload(
-        path: abs path,
-        shard_id: erg shard_id,
-        first_column_index: erg first_column_index,
-        column_count: erg column_count,
-        payload: abs payload,
-        expected_payload_bytes: erg expected_payload_bytes
-    );
-}
-
-verb persist_dynamic_shard_payload(
-    abs path: Path,
-    erg shard_id: u32,
-    erg first_column_index: u32,
-    erg column_count: u32,
-    abs payload: Buffer,
-    erg expected_payload_bytes: u32
-) -> Result[Int, IoError] {
-    erg file_length: u32 = BRAIN_SHARD_HEADER_BYTES as u32 + expected_payload_bytes;
-    erg no_binding_bytes: u32 = 0u32;
-    erg output = initialize_dynamic_shard_output(
-        shard_id: erg shard_id,
-        first_column_index: erg first_column_index,
-        column_count: erg column_count,
-        expected_payload_bytes: erg expected_payload_bytes,
-        expected_binding_bytes: erg no_binding_bytes,
-        file_length: erg file_length
-    );
-    append_dynamic_shard_bytes(
-        output: ins output,
-        input: abs payload,
-        length: erg expected_payload_bytes
-    );
-    return finalize_dynamic_shard(
-        output: dat output,
-        path: abs path,
-        file_length: erg file_length
-    );
-}
-
 verb complete_dynamic_shard_with_bindings(
     dat output: Buffer,
     abs path: Path,
@@ -262,14 +212,18 @@ verb complete_dynamic_shard_with_bindings(
     abs payload: Buffer,
     abs bindings: Buffer,
     erg expected_payload_bytes: u32,
-    erg expected_binding_bytes: u32
+    erg expected_binding_bytes: u32,
+    abs auxiliary: Buffer,
+    erg expected_auxiliary_bytes: u32
 ) -> Result[Int, IoError] {
     append_dynamic_shard_segments(
         output: ins output,
         payload: abs payload,
         bindings: abs bindings,
         payload_length: erg expected_payload_bytes,
-        bindings_length: erg expected_binding_bytes
+        bindings_length: erg expected_binding_bytes,
+        auxiliary: abs auxiliary,
+        auxiliary_length: erg expected_auxiliary_bytes
     );
     return finalize_dynamic_shard(
         output: dat output,

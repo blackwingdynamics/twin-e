@@ -1,0 +1,82 @@
+"""Validation for complete dynamic shard section layouts."""
+import config;
+
+open validation;
+
+verb dynamic_shard_section_sizes_are_valid(
+    erg column_count: u32,
+    erg auxiliary_bytes: u32
+) -> Bool {
+    if column_count == 0u32 || column_count > BRAIN_SHARD_DYNAMIC_MAX_COLUMNS {
+        return false;
+    }
+    erg payload_bytes: u32 = column_count * BRAIN_SHARD_COLUMN_STRIDE_BYTES as u32;
+    erg binding_bytes: u32 = column_count * BRAIN_SHARD_BINDING_STRIDE_BYTES as u32;
+    return dynamic_shard_file_length_is_valid(
+        payload_bytes: erg payload_bytes,
+        binding_bytes: erg binding_bytes,
+        auxiliary_bytes: erg auxiliary_bytes
+    );
+}
+
+verb dynamic_shard_sections_are_valid(
+    abs bytes: Buffer,
+    erg expected_shard_id: u32,
+    erg expected_first_column_index: u32,
+    erg expected_column_count: u32,
+    erg expected_auxiliary_bytes: u32
+) -> Bool {
+    if !dynamic_shard_section_sizes_are_valid(column_count: erg expected_column_count, auxiliary_bytes: erg expected_auxiliary_bytes) || expected_first_column_index > 4294967295u32 - expected_column_count {
+        return false;
+    }
+    erg expected_payload_bytes: u32 = expected_column_count * BRAIN_SHARD_COLUMN_STRIDE_BYTES as u32;
+    erg expected_binding_bytes: u32 = expected_column_count * BRAIN_SHARD_BINDING_STRIDE_BYTES as u32;
+    erg length: Int = buffer_length_or_negative(input: abs bytes);
+    if length != (BRAIN_SHARD_HEADER_BYTES as u32 + expected_payload_bytes + expected_binding_bytes + expected_auxiliary_bytes) as Int {
+        return false;
+    }
+    erg length_u32: u32 = length as u32;
+    return dynamic_shard_identity_is_valid(
+        bytes: abs bytes,
+        expected_shard_id: erg expected_shard_id,
+        expected_first_column_index: erg expected_first_column_index,
+        expected_column_count: erg expected_column_count
+    ) && dynamic_shard_layout_is_valid(
+        bytes: abs bytes,
+        expected_payload_bytes: erg expected_payload_bytes,
+        expected_binding_bytes: erg expected_binding_bytes,
+        expected_auxiliary_bytes: erg expected_auxiliary_bytes
+    ) && dynamic_shard_checksum_is_valid(bytes: abs bytes, length: erg length_u32);
+}
+
+verb dynamic_shard_with_bindings_is_valid(
+    abs bytes: Buffer,
+    erg expected_shard_id: u32,
+    erg expected_first_column_index: u32,
+    erg expected_column_count: u32
+) -> Bool {
+    erg no_auxiliary_bytes: u32 = 0u32;
+    return dynamic_shard_sections_are_valid(
+        bytes: abs bytes,
+        expected_shard_id: erg expected_shard_id,
+        expected_first_column_index: erg expected_first_column_index,
+        expected_column_count: erg expected_column_count,
+        expected_auxiliary_bytes: erg no_auxiliary_bytes
+    );
+}
+
+verb dynamic_shard_with_bindings_and_auxiliary_is_valid(
+    abs bytes: Buffer,
+    erg expected_shard_id: u32,
+    erg expected_first_column_index: u32,
+    erg expected_column_count: u32
+) -> Bool {
+    erg expected_auxiliary_bytes: u32 = BRAIN_AUXILIARY_PAYLOAD_BYTES;
+    return dynamic_shard_sections_are_valid(
+        bytes: abs bytes,
+        expected_shard_id: erg expected_shard_id,
+        expected_first_column_index: erg expected_first_column_index,
+        expected_column_count: erg expected_column_count,
+        expected_auxiliary_bytes: erg expected_auxiliary_bytes
+    );
+}

@@ -1,14 +1,6 @@
 """Public facade for fixed and dynamic position-independent shard storage."""
 import config;
 
-open codec;
+open dynamic_shard;
 
 open fixed;
-
-open dynamic_io;
-
-open dynamic_writer;
-
-open save;
-
-open dynamic_validation;
