@@ -2,7 +2,7 @@
 
 ## Status
 
-**Planned.** Phase 8 defines and tests how accepted examples become learned
+**In progress.** Phase 8 defines and tests how accepted examples become learned
 state. Phase 9 completes bounded auxiliary fan-out. This phase defines how a
 caller supplies those examples to the teaching API without mixing input
 transport, modality decoding, learning policy, or persistence.
@@ -203,22 +203,23 @@ metrics.
 
 ## Gate 10.4 — Add stdin and pipe ingestion
 
-- [ ] Define the stdin framing and end-of-input behavior.
-- [ ] Distinguish clean end-of-input, malformed input, and transport read
+- [x] Define the stdin framing and end-of-input behavior.
+- [x] Distinguish clean end-of-input, malformed input, and transport read
       failure with typed outcomes.
-- [ ] Bound the current record and total stream work; never collect an
+- [x] Bound the current record and total stream work; never collect an
       unbounded stdin stream in memory.
-- [ ] Define flush/commit boundaries for a stream of records.
-- [ ] Ensure a partial final record is rejected without being silently taught.
-- [ ] Provide a reproducible Linux command that feeds a bounded fixture to the
+- [x] Define flush/commit boundaries for a stream of records.
+- [x] Ensure a partial final record is rejected without being silently taught.
+- [x] Provide a reproducible Linux command that feeds a bounded fixture to the
       executable.
 
 ### Required evidence
 
-- [ ] Valid stdin input reaches the same teaching contract as direct input.
+- [x] Valid stdin input reaches the same teaching contract as direct input.
 - [ ] Empty input, partial input, oversized input, and early read failure are
-      covered by tests.
-- [ ] The executable reports per-request metrics without leaking source data.
+      covered by tests. Empty, partial, and oversized input are executable-
+      verified; deterministic early-read-failure injection remains open.
+- [x] The executable reports per-request metrics without leaking source data.
 
 ### Gate 10.4 implementation status
 
@@ -230,12 +231,30 @@ oversized records, oversized streams, and read failures have typed outcomes;
 accepted records call the canonical `teach_direct_request` path and return
 bounded stream metrics.
 
-The source formatter, lock check, strict check, and 138 existing tests pass.
-The executable evidence remains open because the current Actus Cranelift
-backend rejects the generated `stdin_read_input_byte` function with a
-non-dominating-value verifier error. This is a compiler boundary issue, not a
-Twin-e source workaround; the Gate 10.4 checkboxes remain open until the
-executable fixture runs successfully.
+The strict source formatter and executable build pass with zero floating-point
+instructions in the generated native IR. The installed compiler revision is
+`c0d11a2f`. The reproducible Linux fixture is:
+
+```sh
+actus build --strict --emit exe \
+  -o /tmp/twin-e-teaching-stdin.aie \
+  benchmarks/aie_teaching_stdin.act
+printf 'AB\n' | /tmp/twin-e-teaching-stdin.aie
+```
+
+The valid fixture returns `exit 0` and reports `records=1`, `accepted=1`,
+`bytes=2`, `events=2`, `columns=2`, and `transitions=2` without printing the
+source record. Empty input returns `exit 1` with `error_code=1`, a partial
+`AB` record returns `exit 1` with `error_code=3`, and a 257-byte record returns
+`exit 1` with `error_code=4`. Stream flush is explicit: stdin teaching only
+updates resident state; persistence publication remains a separate save
+operation.
+
+The remaining evidence item is deterministic injection of a transport
+read-failure result. The typed `ReadFailure` path is implemented, but no
+portable Linux pipe command can force that failure after the stream has been
+opened; it must be covered by a reader-injection test before Gate 10.4 is
+fully closed.
 
 ## Gate 10.5 — Add framed `std::wire` transport
 
