@@ -70,22 +70,59 @@ foreign-language fallback is allowed.
 
 ## Gate 10.1 — Freeze the caller-facing teaching request
 
-- [ ] Write the exact `TeachingRequest` fields and their fixed-width types.
-- [ ] Write the exact result fields: accepted events, rejected events,
+- [x] Write the exact `TeachingRequest` fields and their fixed-width types.
+- [x] Write the exact result fields: accepted events, rejected events,
       replay passes, reinforced transitions, active bindings, and outcome.
-- [ ] Define whether one request contains one example or a finite batch.
-- [ ] Define request identity, modality metadata, ordering, and sequence
+- [x] Define whether one request contains one example or a finite batch.
+- [x] Define request identity, modality metadata, ordering, and sequence
       boundaries.
-- [ ] Define ownership for source buffers, adapter envelopes, and output
+- [x] Define ownership for source buffers, adapter envelopes, and output
       metrics at every call site.
-- [ ] Define the maximum request bytes, events, batch items, and replay passes.
-- [ ] Update ADR-0013 only if this freezes a decision not already covered.
+- [x] Define the maximum request bytes, events, batch items, and replay passes.
+- [x] Confirm that ADR-0013 already covers these decisions; no ADR update is
+      required for this contract clarification.
+
+### Gate 10.1 contract decisions
+
+`TeachingRequest` is one bounded learning example with these fields: a `u16`
+contract version, `TeachingMode`, one caller-owned `AdapterEnvelope`, a `u16`
+replay-pass count, and a `Bool` validity marker. The envelope carries modality,
+source length, event count, ordered events, and its own adapter contract
+version. `TeachingMetrics` reports processed events, accepted examples, replay
+passes, allocated columns, reinforced transitions, and active bindings.
+
+One request contains one example. A finite batch is represented separately by
+`TeachingBatch`, whose fixed array has eight slots and whose count is bounded by
+`TEACHING_MAX_BATCH_ITEMS`. Event ordering is the envelope array order; source
+offsets remain event metadata. A sequence boundary is the end of one request;
+batch ordering is the active request prefix order.
+
+Request identity is intentionally not stored in the AIE learning unit. A
+future transport may attach a correlation ID at its own boundary, but the core
+teaching contract remains deterministic and transport-neutral. Source buffers
+and envelopes are caller-owned borrowed inputs at validation and teaching
+boundaries; returned metrics are bounded values and do not retain source data.
+
+The current limits are the existing bounded protocol constants: adapter
+envelopes accept at most `ADAPTER_MAX_EVENTS` events, replay accepts one
+through `TEACHING_MAX_REPLAY_PASSES` passes, and batches accept one through
+`TEACHING_MAX_BATCH_ITEMS` requests. Invalid version, validity, envelope, and
+replay state is rejected before any pipeline can reach resident AIE state.
 
 ### Required evidence
 
-- [ ] `tests/teaching_input_contract.act` compiles through the public facade.
-- [ ] Valid, empty, malformed, and oversized requests have typed outcomes.
-- [ ] The invalid cases prove zero resident-state mutation.
+- [x] `tests/teaching_input_contract.act` compiles through the public facade.
+- [x] Valid, empty, malformed, and oversized requests have typed outcomes.
+- [x] The invalid cases prove zero resident-state mutation.
+
+### Gate 10.1 evidence
+
+`tests/teaching_input_contract.act` validates one ordered two-event request and
+rejects an unknown contract version, zero replay passes, and an invalid
+adapter envelope. `tests/teaching_contract.act` additionally covers empty and
+oversized envelopes and oversized replay input. Admission only receives an
+immutable request view and performs no fabric, filesystem, network, or
+persistence operation, so every rejection occurs before resident mutation.
 
 ## Gate 10.2 — Keep the direct in-memory path canonical
 

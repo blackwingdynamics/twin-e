@@ -1,0 +1,80 @@
+"""Acceptance tests for the Phase 10 caller-facing teaching contract."""
+import adapters;
+
+import config;
+
+import teaching;
+
+verb valid_input_request() -> TeachingRequest {
+    erg input: Buffer = Buffer[2];
+    input[0u32] = 65u8;
+    input[1u32] = 66u8;
+    erg input_length: u32 = 2u32;
+    erg adapted = adapt_text_bytes(input: abs input, input_length: erg input_length);
+    erg envelope: AdapterEnvelope = AdapterEnvelope {contract_version: ADAPTER_CONTRACT_VERSION, modality: AdapterModality.Text, event_count: 0u16, source_length: 0u32, events: Array[AdapterEvent, 256](
+    ), valid: false};
+    case dat adapted {
+        Result.Err(_) => {},
+        Result.Ok(value) => {
+            envelope = value;
+        },
+    };
+    erg envelope_valid: Bool = envelope.valid;
+    return TeachingRequest {contract_version: TEACHING_CONTRACT_VERSION, mode: TeachingMode.Direct, envelope: envelope, replay_passes: 1u16, valid: envelope_valid};
+}
+
+meta test
+verb test_input_contract_accepts_one_ordered_example() -> Int {
+    erg request: TeachingRequest = valid_input_request();
+    erg result = validate_teaching_request(request: abs request);
+    return case dat result {
+        Result.Ok(event_count) => if event_count == 2 {
+            0;
+        } else {
+            1;
+        },
+        Result.Err(_) => 1,
+    };
+}
+
+meta test
+verb test_input_contract_rejects_unknown_version_before_mutation() -> Int {
+    erg request: TeachingRequest = valid_input_request();
+    request.contract_version = TEACHING_CONTRACT_VERSION + 1u16;
+    erg result = validate_teaching_request(request: abs request);
+    return case dat result {
+        Result.Err(error) => case error {
+            TeachingError.UnsupportedContractVersion => 0,
+            _ => 1,
+        },
+        Result.Ok(_) => 1,
+    };
+}
+
+meta test
+verb test_input_contract_rejects_zero_replay_before_mutation() -> Int {
+    erg request: TeachingRequest = valid_input_request();
+    request.replay_passes = 0u16;
+    erg result = validate_teaching_request(request: abs request);
+    return case dat result {
+        Result.Err(error) => case error {
+            TeachingError.ReplayPassesOutOfBounds => 0,
+            _ => 1,
+        },
+        Result.Ok(_) => 1,
+    };
+}
+
+meta test
+verb test_input_contract_rejects_invalid_envelope_before_mutation() -> Int {
+    erg request: TeachingRequest = valid_input_request();
+    request.envelope.valid = false;
+    erg result = validate_teaching_request(request: abs request);
+    return case dat result {
+        Result.Err(error) => case error {
+            TeachingError.InvalidAdapterEnvelope => 0,
+            _ => 1,
+        },
+        Result.Ok(_) => 1,
+    };
+}
