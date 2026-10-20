@@ -1,0 +1,179 @@
+"""Measure inline-only and auxiliary-overflow forwarding separately."""
+import aie;
+
+import std::io;
+
+import std::time;
+
+const BENCH_ITERATIONS: u32 = 10000u32;
+
+
+verb emit_metric(abs label: String, erg value: u64) -> Int {
+    print(text: abs label);
+    erg display_value: Int = value as Int;
+    print_int(value: erg display_value);
+    return 0;
+}
+
+verb prepare_fabric(ins fabric: CorticalFabric[16]) -> u32 {
+    fabric_init(fabric: ins fabric);
+    for erg index: u32 in 0u32 .. 10u32 {
+        allocate_column_index(fabric: ins fabric);
+        fabric.columns[index].threshold = 1u8;
+        fabric.columns[index].coincidence_low = 1u64;
+    }
+    return 0u32;
+}
+
+verb prepare_inline(ins fabric: CorticalFabric[16]) {
+    erg source: u32 = prepare_fabric(fabric: ins fabric);
+    for erg slot: u32 in 0u32 .. 8u32 {
+        fabric.columns[source].axons[slot] = slot + 1u32;
+    }
+}
+
+verb prepare_overflow(ins fabric: CorticalFabric[16], ins table: AuxAxonTable[16]) {
+    prepare_inline(fabric: ins fabric);
+    aux_table_init(table: ins table);
+    erg source: u32 = 0u32;
+    erg target: u32 = 9u32;
+    link_aux_axon(
+        fabric: ins fabric,
+        table: ins table,
+        source: erg source,
+        target: erg target
+    );
+}
+
+verb benchmark_inline() -> u64 {
+    erg fabric: CorticalFabric[16] = CorticalFabric[16] {columns: Array[Minicolumn, 16](), free_list_head: 0u32, active_count: 0u32};
+    erg table: AuxAxonTable[16] = AuxAxonTable[16] {source_to_record: Array[u16, 16](), records: Array[AuxAxonRecord, 8](
+    ), free_list_head: 0u32, active_count: 0u32};
+    prepare_inline(fabric: ins fabric);
+    erg source: u32 = 0u32;
+    erg wave: Wavefront = Wavefront {mask_low: 1u64, mask_high: 0u64, energy: 1u8};
+    erg started: u64 = monotonic_nanos();
+    erg iteration: u32 = 0u32;
+    loop {
+        if iteration >= BENCH_ITERATIONS {
+            break;
+        }
+        step_wavefront_with_aux(
+            fabric: ins fabric,
+            table: abs table,
+            wave: abs wave,
+            source_idx: erg source
+        );
+        iteration += 1u32;
+    }
+    return monotonic_nanos() - started;
+}
+
+verb benchmark_overflow() -> u64 {
+    erg fabric: CorticalFabric[16] = CorticalFabric[16] {columns: Array[Minicolumn, 16](), free_list_head: 0u32, active_count: 0u32};
+    erg table: AuxAxonTable[16] = AuxAxonTable[16] {source_to_record: Array[u16, 16](), records: Array[AuxAxonRecord, 8](
+    ), free_list_head: 0u32, active_count: 0u32};
+    prepare_overflow(fabric: ins fabric, table: ins table);
+    erg source: u32 = 0u32;
+    erg wave: Wavefront = Wavefront {mask_low: 1u64, mask_high: 0u64, energy: 1u8};
+    erg started: u64 = monotonic_nanos();
+    erg iteration: u32 = 0u32;
+    loop {
+        if iteration >= BENCH_ITERATIONS {
+            break;
+        }
+        step_wavefront_with_aux(
+            fabric: ins fabric,
+            table: abs table,
+            wave: abs wave,
+            source_idx: erg source
+        );
+        iteration += 1u32;
+    }
+    return monotonic_nanos() - started;
+}
+
+verb verify_traversal_order() -> u32 {
+    erg fabric: CorticalFabric[16] = CorticalFabric[16] {columns: Array[Minicolumn, 16](), free_list_head: 0u32, active_count: 0u32};
+    erg table: AuxAxonTable[16] = AuxAxonTable[16] {source_to_record: Array[u16, 16](), records: Array[AuxAxonRecord, 8](
+    ), free_list_head: 0u32, active_count: 0u32};
+    prepare_overflow(fabric: ins fabric, table: ins table);
+    erg wave: Wavefront = Wavefront {mask_low: 1u64, mask_high: 0u64, energy: 1u8};
+    erg source: u32 = 0u32;
+    erg result = step_wavefront_with_aux(
+        fabric: ins fabric,
+        table: abs table,
+        wave: abs wave,
+        source_idx: erg source
+    );
+    if result.base.destination_0 != 1u32 || result.base.destination_7 != 8u32 || result.auxiliary[0u32] != 9u32 {
+        return 0u32;
+    }
+    return 1u32;
+}
+
+verb fill_auxiliary_capacity(
+    ins fabric: CorticalFabric[16],
+    ins table: AuxAxonTable[16]
+) {
+    for erg source: u32 in 0u32 .. AUX_AXON_CAPACITY {
+        erg target: u32 = 15u32;
+        link_aux_axon(
+            fabric: ins fabric,
+            table: ins table,
+            source: erg source,
+            target: erg target
+        );
+    }
+}
+
+verb verify_capacity_rejection() -> u32 {
+    erg fabric: CorticalFabric[16] = CorticalFabric[16] {columns: Array[Minicolumn, 16](), free_list_head: 0u32, active_count: 0u32};
+    erg table: AuxAxonTable[16] = AuxAxonTable[16] {source_to_record: Array[u16, 16](), records: Array[AuxAxonRecord, 8](
+    ), free_list_head: 0u32, active_count: 0u32};
+    fabric_init(fabric: ins fabric);
+    aux_table_init(table: ins table);
+    fill_auxiliary_capacity(fabric: ins fabric, table: ins table);
+    erg rejected_source: u32 = AUX_AXON_CAPACITY;
+    erg rejected_target: u32 = 15u32;
+    erg rejected = link_aux_axon(
+        fabric: ins fabric,
+        table: ins table,
+        source: erg rejected_source,
+        target: erg rejected_target
+    );
+    erg rejected_ok: u32 = case dat rejected {
+        Result.Err(_) => 1u32,
+        Result.Ok(_) => 0u32,
+    };
+    if rejected_ok == 1u32 && table.active_count == AUX_AXON_CAPACITY && table.source_to_record[rejected_source] == AUX_AXON_INVALID_ID {
+        return 1u32;
+    }
+    return 0u32;
+}
+
+verb main() -> Int {
+    erg inline_ns: u64 = benchmark_inline();
+    erg overflow_ns: u64 = benchmark_overflow();
+    erg traversal_ok: u32 = verify_traversal_order();
+    erg capacity_rejected: u32 = verify_capacity_rejection();
+    erg memory_bytes: u64 = BRAIN_AUXILIARY_PAYLOAD_BYTES as u64;
+    erg record_capacity: u64 = AUX_AXON_CAPACITY as u64;
+    erg traversal_value: u64 = traversal_ok as u64;
+    erg failure_value: u64 = capacity_rejected as u64;
+    erg header: String = "AIE_FANOUT_FORWARDING iterations=10000 inline_targets=8 overflow_targets=9";
+    erg inline_label: String = "AIE_FANOUT_FORWARDING inline_only_ns=";
+    erg overflow_label: String = "AIE_FANOUT_FORWARDING overflow_ns=";
+    erg memory_label: String = "AIE_FANOUT_FORWARDING auxiliary_serialized_bytes=";
+    erg capacity_label: String = "AIE_FANOUT_FORWARDING auxiliary_record_capacity=";
+    erg traversal_label: String = "AIE_FANOUT_FORWARDING traversal_order_verified=";
+    erg failure_label: String = "AIE_FANOUT_FORWARDING exhaustion_rejection_verified=";
+    println(text: abs header);
+    emit_metric(label: abs inline_label, value: erg inline_ns);
+    emit_metric(label: abs overflow_label, value: erg overflow_ns);
+    emit_metric(label: abs memory_label, value: erg memory_bytes);
+    emit_metric(label: abs capacity_label, value: erg record_capacity);
+    emit_metric(label: abs traversal_label, value: erg traversal_value);
+    emit_metric(label: abs failure_label, value: erg failure_value);
+    return 0;
+}

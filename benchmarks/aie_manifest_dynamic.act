@@ -95,6 +95,7 @@ verb append_descriptor(ins output: Buffer, erg shard_id: u32) {
     erg count: u32 = 32u32;
     erg payload_offset: u32 = 48u32;
     erg payload_bytes: u32 = 2048u32;
+    erg auxiliary_offset: u32 = payload_offset + payload_bytes;
     erg zero: u32 = 0u32;
     erg checksum: u64 = (shard_id as u64) + 1u64;
     erg state: u32 = 1u32;
@@ -104,6 +105,8 @@ verb append_descriptor(ins output: Buffer, erg shard_id: u32) {
     append_dynamic_u32_local(output: ins output, value: abs payload_offset);
     append_dynamic_u32_local(output: ins output, value: abs payload_bytes);
     append_dynamic_u32_local(output: ins output, value: abs zero);
+    append_dynamic_u32_local(output: ins output, value: abs zero);
+    append_dynamic_u32_local(output: ins output, value: abs auxiliary_offset);
     append_dynamic_u32_local(output: ins output, value: abs zero);
     append_dynamic_u64_local(output: ins output, value: abs checksum);
     append_dynamic_u32_local(output: ins output, value: abs state);

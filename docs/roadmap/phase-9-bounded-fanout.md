@@ -1,0 +1,163 @@
+# Phase 9 — Bounded Auxiliary Fan-out
+
+- **Status:** Complete
+- **Branch:** `phase-9-bounded-fanout`
+- **Scope:** Extend successor capacity without changing the 64-byte
+  `Minicolumn` layout or the meaning of `Array[u32, 8]`.
+- **Related ADR:** [ADR-0014](../adr/0014-bounded-fanout-sidecar.md)
+
+## Objective
+
+Give a source column a bounded overflow path for additional successors while
+preserving the existing eight-axon inline hot path, deterministic traversal,
+position-independent persistence, and fixed-memory behavior.
+
+This phase does not change token identity, introduce HDC semantics, enlarge
+the coincidence vector, or claim semantic generalization. It addresses only
+bounded successor capacity.
+
+## Progress
+
+### Step 1 — Architectural boundary
+
+- [x] Draft ADR-0014 for the auxiliary sidecar boundary.
+- [x] Preserve `Minicolumn` at exactly 64 bytes.
+- [x] Preserve the meaning and offsets of `axons: Array[u32, 8]`.
+- [x] Record marker/directory alternatives and unresolved design questions.
+
+### Step 2 — Regression-test skeleton
+
+- [x] Add a baseline test for the eight inline axon contract.
+- [x] Verify the baseline with strict checking and the full test suite.
+- [x] Record the 100-test baseline before runtime changes.
+
+### Step 3 — Select the overflow addressing boundary
+
+- [x] Choose the reserved-state marker and bounded external directory.
+- [x] Define the auxiliary record layout and ownership roles.
+- [x] Define the initial total fan-out: eight inline plus eight auxiliary.
+- [x] Define deterministic inline-then-auxiliary traversal.
+- [x] Update ADR-0014 from Proposed to Accepted.
+
+The accepted first implementation uses `FLAG_HAS_AUX = 0x80`, a compact
+`u16` `aux_map` table ID with `0xFFFF` as the empty sentinel, and one fixed
+auxiliary record per overflow source. Auxiliary free-list links remain `u32`.
+Chaining and fan-out above sixteen are deferred.
+
+### Step 4 — Implement bounded auxiliary storage
+
+- [x] Add fixed-size `AuxAxonTable` storage and bounded allocation.
+- [x] Keep eight-successor forwarding on the existing inline path.
+- [x] Add overflow insertion and typed capacity rejection.
+- [x] Preserve free-list and reclamation invariants.
+
+The bounded implementation keeps `CorticalFabric` and the eight inline axons
+unchanged. `AuxAxonTable` owns eight fixed records, a compact `u16` source map,
+and a `u32` free-list. Auxiliary forwarding is explicitly gated by
+`FLAG_HAS_AUX`; capacity and duplicate failures return typed errors without
+publishing partial links, and paired release clears the marker before record
+reuse.
+
+### Step 5 — Add behavioral evidence
+
+- [x] Reach every successor for a source above eight and within the bound.
+- [x] Reject auxiliary exhaustion without partial mutation.
+- [x] Reuse reclaimed auxiliary records safely.
+- [x] Preserve existing eight-axon behavior byte-for-byte.
+
+The inline compatibility test runs the legacy eight-slot step and the
+sidecar-aware step against identical fixtures. Their fixed result fields match,
+the sidecar count remains zero, and no auxiliary marker or record is created.
+
+### Step 6 — Persistence and recovery
+
+- [x] Serialize auxiliary descriptors and records position-independently.
+- [x] Validate bounds, indexes, counts, and checksums before publication.
+- [x] Reject truncated or corrupted auxiliary state without live mutation.
+- [x] Prove snapshot round-trip and recovery after reclamation.
+
+### Step 7 — Performance and acceptance
+
+- [x] Benchmark inline-only forwarding separately from overflow forwarding.
+- [x] Record memory usage, capacity, traversal order, and failure metrics.
+- [x] Run formatter, lock, strict check, strict tests, and native build.
+- [x] Verify generated native IR remains free of floating-point instructions.
+- [x] Update ADR-0014 and close the phase after all gates are green. ADR-0014
+      records the completed bounded runtime and shard-local publication
+      contract.
+
+### Step 8 — Auxiliary publication integration
+
+- [x] Keep one independent `.brain` file per shard with the ordered sections
+      `Header → Columns → Bindings → Auxiliary`; never create a global or
+      per-shard auxiliary side file. The auxiliary-aware writer emits all
+      sections into one shard file and the integration fixture validates the
+      complete shard checksum after writing the non-empty Auxiliary section.
+- [x] Add the shard-local auxiliary section length and descriptor to the
+      dynamic shard generation format. The dynamic header carries the
+      auxiliary section length and the 48-byte manifest descriptor carries
+      `auxiliary_offset` and `auxiliary_bytes`; bounds and layout validation
+      reject mismatches before publication.
+- [x] Validate columns, bindings, auxiliary payload, and the complete-shard
+      checksum together before publication. The integration fixture writes a
+      shard-local Auxiliary section, validates the complete checksum, and
+      rejects a changed Auxiliary byte.
+- [x] Publish the complete shard generation first and the manifest last. The
+      caller-driven `publish_dynamic_shard_generation` boundary validates and
+      atomically publishes the complete shard before validating and publishing
+      the manifest; its failure fixture confirms that an invalid manifest
+      leaves the complete active shard published but no active manifest.
+- [x] Reject partial, truncated, or mismatched generations without changing
+      the active generation. The integration fixture rejects both a changed
+      Auxiliary byte and a truncated shard while the manifest remains at
+      generation `1`.
+- [x] Prove restart recovery selects the last complete generation, including
+      the shard-local auxiliary section. The recovery fixture validates the
+      fallback shard-local Auxiliary descriptor, publishes fallback generation
+      `1` and primary generation `2`, corrupts the primary manifest, and
+      verifies selection of fallback slot `1`, generation `1`.
+- [x] Update ADR-0014 and close Phase 9 after every Step 8 gate passes. The
+      strict suite, native build, publication-order test, and recovery test are
+      green.
+
+Step 8 format decision: the manifest descriptor will be widened from 40 to 48
+bytes and will carry explicit `auxiliary_offset` and `auxiliary_bytes` fields.
+The descriptor format is recorded in ADR-0014; implementation must update all
+writers, readers, validators, and compatibility fixtures together.
+
+## Current evidence
+
+The strict suite passes with `128 passed; 0 failed`. The fan-out tests verify
+the unchanged eight-slot inline contract, reach one auxiliary successor
+through the gated forwarding path, reject the ninth auxiliary record without
+mutating the table, and reclaim a record while clearing `FLAG_HAS_AUX`. The
+auxiliary snapshot validator now rejects active-count mismatches and validates
+the source-map count, record bounds, and a deterministic payload checksum. The
+snapshot restore path validates before mutating the destination table, and a
+corrupted snapshot leaves live state unchanged. Exact free-list coverage now
+rejects detached-record omissions and free-list cycles, and a reclaimed table
+round-trips with its free-list intact. Auxiliary serialization is currently a
+fixed-size in-memory snapshot contract that rejects a truncated payload
+descriptor before restore and leaves live state unchanged. Dynamic publication
+integration now validates and atomically publishes a complete shard before
+publishing its manifest; the failure fixture proves an invalid manifest does
+not become active. Restart recovery selects the last complete manifest
+generation when the primary is corrupted.
+
+The forwarding benchmark measures 10,000 inline-only and overflow calls
+separately. The recorded hosted result is `1,414,118 ns` inline-only versus
+`1,581,395 ns` with one auxiliary target, approximately `11.8%` additional
+time in this fixture. This is not a hardware-performance claim.
+
+The final strict hosted executable build produced `/tmp/twin-e-engine.aie`;
+Actus verified that the generated native IR contains no floating-point
+instructions, and the executable completed the firing, neurogenesis, and decay
+demo stages successfully.
+
+## Out of scope
+
+- HDC, 1024-bit SDR, or semantic vector generalization;
+- removal or weakening of `TokenBinding` identity checks;
+- hierarchical cortical layers;
+- endocrine or neuromodulatory policy;
+- network transports or external teacher integrations.

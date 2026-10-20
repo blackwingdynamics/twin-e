@@ -1,0 +1,47 @@
+"""Caller-driven publication boundary for one complete shard generation."""
+import config;
+
+import std::io;
+
+open io;
+
+open shard;
+
+open manifest;
+
+"""
+Publish one complete shard generation before its manifest generation.
+
+The staged shard is written, fully validated, checksummed, and atomically
+renamed to `active_shard` first. Only after that succeeds is the staged
+manifest validated and atomically renamed to `active_manifest`. The caller
+must provide generation-specific shard and manifest paths so an invalid
+manifest cannot make a partial shard generation active.
+"""
+open verb publish_dynamic_shard_generation(
+    abs staged_shard: Path,
+    abs active_shard: Path,
+    erg shard_id: u32,
+    erg first_column_index: u32,
+    erg column_count: u32,
+    abs payload: Buffer,
+    abs bindings: Buffer,
+    abs auxiliary: Buffer,
+    abs staged_manifest: Path,
+    abs active_manifest: Path
+) -> Result[Int, IoError] {
+    erg shard_result = flush_dynamic_shard_with_bindings_and_auxiliary(
+        staged: abs staged_shard,
+        active: abs active_shard,
+        shard_id: erg shard_id,
+        first_column_index: erg first_column_index,
+        column_count: erg column_count,
+        payload: abs payload,
+        bindings: abs bindings,
+        auxiliary: abs auxiliary
+    );
+    return case dat shard_result {
+        Result.Err(error) => Err(error),
+        Result.Ok(_) => publish_dynamic_manifest(staged: abs staged_manifest, active: abs active_manifest),
+    };
+}

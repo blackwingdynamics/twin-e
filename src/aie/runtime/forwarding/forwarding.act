@@ -1,6 +1,10 @@
 """Public facade for bounded impulse forwarding."""
 import config;
 
+open auxiliary;
+
+open auxiliary_snapshot;
+
 open slots;
 
 open step;

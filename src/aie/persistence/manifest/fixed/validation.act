@@ -20,7 +20,7 @@ open verb manifest_descriptor_is_valid(
     abs descriptor: ManifestDescriptor,
     erg expected_id: u32
 ) -> Bool {
-    return descriptor.shard_id == expected_id && descriptor.first_column_index == (expected_id * BRAIN_SHARD_COLUMN_COUNT) && descriptor.column_count == BRAIN_SHARD_COLUMN_COUNT && descriptor.payload_offset == BRAIN_SHARD_HEADER_BYTES && descriptor.payload_bytes == BRAIN_SHARD_COLUMN_PAYLOAD_BYTES && descriptor.binding_offset == 0u32 && descriptor.binding_bytes == BRAIN_SHARD_BINDING_PAYLOAD_BYTES && descriptor.state == 1u32;
+    return descriptor.shard_id == expected_id && descriptor.first_column_index == (expected_id * BRAIN_SHARD_COLUMN_COUNT) && descriptor.column_count == BRAIN_SHARD_COLUMN_COUNT && descriptor.payload_offset == BRAIN_SHARD_HEADER_BYTES && descriptor.payload_bytes == BRAIN_SHARD_COLUMN_PAYLOAD_BYTES && descriptor.binding_offset == 0u32 && descriptor.binding_bytes == BRAIN_SHARD_BINDING_PAYLOAD_BYTES && descriptor.auxiliary_offset == 0u32 && descriptor.auxiliary_bytes == 0u32 && descriptor.state == 1u32;
 }
 
 """

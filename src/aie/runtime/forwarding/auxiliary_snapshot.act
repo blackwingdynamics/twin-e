@@ -1,0 +1,278 @@
+"""Position-independent serialization for the bounded auxiliary fan-out table."""
+import config;
+
+open auxiliary;
+
+"""Fixed auxiliary sidecar snapshot with no arena pointers or host addresses."""
+open struct AuxiliarySnapshot {
+    erg magic: u32,
+    erg version: u16,
+    erg record_stride_bytes: u16,
+    erg source_map_bytes: u32,
+    erg record_count: u32,
+    erg payload_bytes: u32,
+    erg source_to_record: Array[u8, 128],
+    erg records: Array[u8, 320],
+    erg free_list_head: u32,
+    erg active_count: u32,
+    erg checksum: u64,
+}
+
+verb auxiliary_write_u16(
+    ins output: Array[u8, 128],
+    erg offset: u32,
+    abs value: u16
+) {
+    output[offset] = ((value as u32) & 255u32) as u8;
+    output[offset + 1u32] = ((value as u32 / 256u32) & 255u32) as u8;
+}
+
+verb auxiliary_read_u16(abs input: Array[u8, 128], erg offset: u32) -> u16 {
+    return (input[offset] as u16) + ((input[offset + 1u32] as u16) * 256u16);
+}
+
+verb auxiliary_write_u32(
+    ins output: Array[u8, 320],
+    erg offset: u32,
+    abs value: u32
+) {
+    output[offset] = (value & 255u32) as u8;
+    output[offset + 1u32] = ((value / 256u32) & 255u32) as u8;
+    output[offset + 2u32] = ((value / 65536u32) & 255u32) as u8;
+    output[offset + 3u32] = ((value / 16777216u32) & 255u32) as u8;
+}
+
+verb auxiliary_read_u32(abs input: Array[u8, 320], erg offset: u32) -> u32 {
+    return (input[offset] as u32) + ((input[offset + 1u32] as u32) * 256u32) + ((input[offset + 2u32] as u32) * 65536u32) + ((input[offset + 3u32] as u32) * 16777216u32);
+}
+
+verb auxiliary_snapshot_checksum(abs snapshot: AuxiliarySnapshot) -> u64 {
+    erg checksum: u64 = 0u64;
+    for erg index: u32 in 0u32 .. 128u32 {
+        checksum += (snapshot.source_to_record[index] as u64) * (index as u64 + 1u64);
+    }
+    for erg index: u32 in 0u32 .. 320u32 {
+        checksum += (snapshot.records[index] as u64) * (index as u64 + 129u64);
+    }
+    return checksum;
+}
+
+verb auxiliary_snapshot_header_is_valid(abs snapshot: AuxiliarySnapshot) -> Bool {
+    return snapshot.magic == BRAIN_MAGIC && snapshot.version == BRAIN_AUXILIARY_VERSION && snapshot.record_stride_bytes == BRAIN_AUXILIARY_RECORD_STRIDE_BYTES && snapshot.source_map_bytes == BRAIN_AUXILIARY_SOURCE_MAP_BYTES && snapshot.record_count == BRAIN_AUXILIARY_RECORD_COUNT && snapshot.payload_bytes == BRAIN_AUXILIARY_PAYLOAD_BYTES;
+}
+
+verb auxiliary_snapshot_directory_is_valid(abs snapshot: AuxiliarySnapshot) -> Bool {
+    for erg source: u32 in 0u32 .. 64u32 {
+        erg source_offset: u32 = source * 2u32;
+        erg record_index: u16 = auxiliary_read_u16(input: abs snapshot.source_to_record, offset: erg source_offset);
+        if record_index != AUX_AXON_INVALID_ID && record_index >= AUX_AXON_CAPACITY as u16 {
+            return false;
+        }
+    }
+    return true;
+}
+
+verb auxiliary_snapshot_records_are_valid(abs snapshot: AuxiliarySnapshot) -> Bool {
+    for erg record_index: u32 in 0u32 .. AUX_AXON_CAPACITY {
+        erg record_offset: u32 = record_index * BRAIN_AUXILIARY_RECORD_STRIDE_BYTES as u32;
+        erg used_count: u8 = snapshot.records[record_offset + 32u32];
+        if used_count > AUX_AXON_TARGET_CAPACITY as u8 {
+            return false;
+        }
+        for erg target_index: u32 in 0u32 .. AUX_AXON_TARGET_CAPACITY {
+            erg target_offset: u32 = record_offset + (target_index * 4u32);
+            erg target: u32 = auxiliary_read_u32(input: abs snapshot.records, offset: erg target_offset);
+            if target_index < used_count as u32 {
+                if target == NULL_INDEX || target >= 64u32 {
+                    return false;
+                }
+            } else if target != NULL_INDEX {
+                return false;
+            }
+        }
+        erg free_link_offset: u32 = record_offset + 36u32;
+        erg free_link: u32 = auxiliary_read_u32(input: abs snapshot.records, offset: erg free_link_offset);
+        if free_link != NULL_INDEX && free_link >= AUX_AXON_CAPACITY {
+            return false;
+        }
+    }
+    return snapshot.free_list_head == NULL_INDEX || snapshot.free_list_head < AUX_AXON_CAPACITY;
+}
+
+verb auxiliary_snapshot_record_is_attached(
+    abs snapshot: AuxiliarySnapshot,
+    abs record_index: u16
+) -> Bool {
+    for erg source: u32 in 0u32 .. 64u32 {
+        erg source_offset: u32 = source * 2u32;
+        if auxiliary_read_u16(input: abs snapshot.source_to_record, offset: erg source_offset) == record_index {
+            return true;
+        }
+    }
+    return false;
+}
+
+verb auxiliary_snapshot_record_occurrences(
+    abs snapshot: AuxiliarySnapshot,
+    abs record_index: u16
+) -> u32 {
+    erg occurrences: u32 = 0u32;
+    for erg source: u32 in 0u32 .. 64u32 {
+        erg source_offset: u32 = source * 2u32;
+        if auxiliary_read_u16(input: abs snapshot.source_to_record, offset: erg source_offset) == record_index {
+            occurrences += 1u32;
+        }
+    }
+    return occurrences;
+}
+
+verb auxiliary_snapshot_free_count(abs snapshot: AuxiliarySnapshot) -> u32 {
+    erg free_count: u32 = 0u32;
+    erg free_index: u32 = snapshot.free_list_head;
+    loop {
+        if free_index == NULL_INDEX {
+            break;
+        }
+        erg free_record_id: u16 = free_index as u16;
+        if free_index >= AUX_AXON_CAPACITY || auxiliary_snapshot_record_is_attached(snapshot: abs snapshot, record_index: abs free_record_id) {
+            return AUX_AXON_CAPACITY + 1u32;
+        }
+        free_count += 1u32;
+        if free_count > AUX_AXON_CAPACITY {
+            return AUX_AXON_CAPACITY + 1u32;
+        }
+        erg free_link_offset: u32 = (free_index * BRAIN_AUXILIARY_RECORD_STRIDE_BYTES as u32) + 36u32;
+        free_index = auxiliary_read_u32(input: abs snapshot.records, offset: erg free_link_offset);
+    }
+    return free_count;
+}
+
+verb auxiliary_snapshot_counts_are_valid(abs snapshot: AuxiliarySnapshot) -> Bool {
+    erg attached_count: u32 = 0u32;
+    for erg source: u32 in 0u32 .. 64u32 {
+        erg source_offset: u32 = source * 2u32;
+        erg record_index: u16 = auxiliary_read_u16(input: abs snapshot.source_to_record, offset: erg source_offset);
+        if record_index != AUX_AXON_INVALID_ID {
+            attached_count += 1u32;
+        }
+    }
+    if attached_count != snapshot.active_count {
+        return false;
+    }
+    erg free_count: u32 = auxiliary_snapshot_free_count(snapshot: abs snapshot);
+    return free_count <= AUX_AXON_CAPACITY && attached_count + free_count == AUX_AXON_CAPACITY;
+}
+
+"""Validate every fixed auxiliary field before exposing it to live state."""
+open verb auxiliary_snapshot_is_valid(abs snapshot: AuxiliarySnapshot) -> Bool {
+    return auxiliary_snapshot_header_is_valid(snapshot: abs snapshot) && auxiliary_snapshot_directory_is_valid(
+        snapshot: abs snapshot
+    ) && auxiliary_snapshot_records_are_valid(snapshot: abs snapshot) && auxiliary_snapshot_counts_are_valid(
+        snapshot: abs snapshot
+    ) && snapshot.active_count <= AUX_AXON_CAPACITY && snapshot.checksum == auxiliary_snapshot_checksum(
+        snapshot: abs snapshot
+    );
+}
+
+verb serialize_auxiliary_record(
+    ins output: Array[u8, 320],
+    abs record: AuxAxonRecord,
+    erg record_index: u32
+) {
+    erg record_offset: u32 = record_index * BRAIN_AUXILIARY_RECORD_STRIDE_BYTES as u32;
+    for erg target_index: u32 in 0u32 .. AUX_AXON_TARGET_CAPACITY {
+        erg target_offset: u32 = record_offset + (target_index * 4u32);
+        auxiliary_write_u32(
+            output: ins output,
+            offset: erg target_offset,
+            value: abs record.targets[target_index]
+        );
+    }
+    output[record_offset + 32u32] = record.used_count;
+    output[record_offset + 33u32] = record.reserved[0u32];
+    output[record_offset + 34u32] = record.reserved[1u32];
+    output[record_offset + 35u32] = record.reserved[2u32];
+    erg free_link_offset: u32 = record_offset + 36u32;
+    auxiliary_write_u32(
+        output: ins output,
+        offset: erg free_link_offset,
+        value: abs record.free_list_link
+    );
+}
+
+verb restore_auxiliary_record(
+    ins record: AuxAxonRecord,
+    abs input: Array[u8, 320],
+    erg record_index: u32
+) {
+    erg record_offset: u32 = record_index * BRAIN_AUXILIARY_RECORD_STRIDE_BYTES as u32;
+    for erg target_index: u32 in 0u32 .. AUX_AXON_TARGET_CAPACITY {
+        erg target_offset: u32 = record_offset + (target_index * 4u32);
+        record.targets[target_index] = auxiliary_read_u32(input: abs input, offset: erg target_offset);
+    }
+    record.used_count = input[record_offset + 32u32];
+    record.reserved[0u32] = input[record_offset + 33u32];
+    record.reserved[1u32] = input[record_offset + 34u32];
+    record.reserved[2u32] = input[record_offset + 35u32];
+    erg free_link_offset: u32 = record_offset + 36u32;
+    record.free_list_link = auxiliary_read_u32(input: abs input, offset: erg free_link_offset);
+}
+
+"""Serialize one bounded auxiliary table without pointers or filesystem I/O."""
+open verb serialize_auxiliary_snapshot(
+    ins snapshot: AuxiliarySnapshot,
+    abs table: AuxAxonTable[64]
+) {
+    snapshot.magic = BRAIN_MAGIC;
+    snapshot.version = BRAIN_AUXILIARY_VERSION;
+    snapshot.record_stride_bytes = BRAIN_AUXILIARY_RECORD_STRIDE_BYTES;
+    snapshot.source_map_bytes = BRAIN_AUXILIARY_SOURCE_MAP_BYTES;
+    snapshot.record_count = BRAIN_AUXILIARY_RECORD_COUNT;
+    snapshot.payload_bytes = BRAIN_AUXILIARY_PAYLOAD_BYTES;
+    snapshot.free_list_head = table.free_list_head;
+    snapshot.active_count = table.active_count;
+    for erg source: u32 in 0u32 .. 64u32 {
+        erg source_offset: u32 = source * 2u32;
+        auxiliary_write_u16(
+            output: ins snapshot.source_to_record,
+            offset: erg source_offset,
+            value: abs table.source_to_record[source]
+        );
+    }
+    for erg record_index: u32 in 0u32 .. AUX_AXON_CAPACITY {
+        serialize_auxiliary_record(
+            output: ins snapshot.records,
+            record: abs table.records[record_index],
+            record_index: erg record_index
+        );
+    }
+    snapshot.checksum = auxiliary_snapshot_checksum(snapshot: abs snapshot);
+}
+
+"""Restore a validated auxiliary snapshot without publishing partial state.
+
+The snapshot is validated before the destination table is touched. A rejected
+snapshot therefore leaves the caller's live auxiliary state unchanged.
+"""
+open verb restore_auxiliary_snapshot(
+    ins table: AuxAxonTable[64],
+    abs snapshot: AuxiliarySnapshot
+) -> Bool {
+    if !auxiliary_snapshot_is_valid(snapshot: abs snapshot) {
+        return false;
+    }
+    for erg source: u32 in 0u32 .. 64u32 {
+        erg source_offset: u32 = source * 2u32;
+        table.source_to_record[source] = auxiliary_read_u16(input: abs snapshot.source_to_record, offset: erg source_offset);
+    }
+    for erg record_index: u32 in 0u32 .. AUX_AXON_CAPACITY {
+        restore_auxiliary_record(
+            record: ins table.records[record_index],
+            input: abs snapshot.records,
+            record_index: erg record_index
+        );
+    }
+    table.free_list_head = snapshot.free_list_head;
+    table.active_count = snapshot.active_count;
+    return true;
+}

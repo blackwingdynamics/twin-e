@@ -33,6 +33,8 @@ open struct ManifestDescriptor {
     erg payload_bytes: u32,
     erg binding_offset: u32,
     erg binding_bytes: u32,
+    erg auxiliary_offset: u32,
+    erg auxiliary_bytes: u32,
     erg checksum: u64,
     erg state: u32,
 }
