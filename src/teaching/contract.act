@@ -114,3 +114,25 @@ open struct TeachingAssociationMetrics {
     erg allocated_columns: u32,
     erg reinforced_transitions: u32,
 }
+
+"""Typed failures produced while reading or validating an offline file."""
+open enum TeachingFileError {
+    IoFailure,
+    EmptyFile,
+    InvalidHeader,
+    FileTooLarge,
+    TruncatedRecord,
+    RecordTooLarge,
+    TooManyRecords,
+    InvalidRecord,
+    TeachingRejected,
+}
+
+"""Bounded evidence returned after processing an offline teaching file."""
+open struct TeachingFileMetrics {
+    erg record_count: u16,
+    erg accepted_count: u16,
+    erg processed_events: u32,
+    erg allocated_columns: u32,
+    erg reinforced_transitions: u32,
+}

@@ -230,6 +230,22 @@ open const TEACHING_MAX_REPLAY_PASSES: u16 = 16u16;
 open const TEACHING_MAX_BATCH_ITEMS: u16 = 8u16;
 
 
+"""Byte length of the bounded teaching file magic and version header."""
+open const TEACHING_FILE_HEADER_BYTES: u32 = 5u32;
+
+
+"""Maximum UTF-8 payload bytes in one offline teaching file record."""
+open const TEACHING_FILE_MAX_RECORD_BYTES: u32 = 256u32;
+
+
+"""Maximum length-delimited records accepted in one teaching file."""
+open const TEACHING_FILE_MAX_RECORDS: u16 = 8u16;
+
+
+"""Maximum complete byte length accepted for one offline teaching file."""
+open const TEACHING_FILE_MAX_BYTES: u32 = 2069u32;
+
+
 """Version marker for the bounded modality-neutral observation contract."""
 open const OBSERVATION_VERSION: u16 = 1u16;
 

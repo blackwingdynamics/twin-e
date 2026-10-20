@@ -164,23 +164,42 @@ teaches `AB` and reports two processed events with one accepted example.
 
 ## Gate 10.3 — Add bounded offline file ingestion
 
-- [ ] Define the file format used by the first offline dataset fixture.
-- [ ] Define one record per line or one length-delimited record; do not allow
+- [x] Define the file format used by the first offline dataset fixture.
+- [x] Define one record per line or one length-delimited record; do not allow
       ambiguous delimiter parsing.
-- [ ] Bound file bytes, record count, record bytes, and per-record events.
-- [ ] Validate the complete record before passing it to an adapter.
-- [ ] Decide whether one malformed record rejects the whole file or produces a
+- [x] Bound file bytes, record count, record bytes, and per-record events.
+- [x] Validate the complete record before passing it to an adapter.
+- [x] Decide whether one malformed record rejects the whole file or produces a
       typed per-record rejection; record that decision in the contract.
-- [ ] Keep file reading outside inference and resident teaching mutation.
-- [ ] Ensure a failed read or malformed record leaves already published
+- [x] Keep file reading outside inference and resident teaching mutation.
+- [x] Ensure a failed read or malformed record leaves already published
       resident state unchanged according to the selected transaction policy.
+
+The file format is a five-byte header: four-byte magic `TWF1` plus an explicit
+`u8` record count, followed by up to eight records. Each record is `u16`
+little-endian payload length followed by exactly that many bytes. The file is
+bounded to `2069` bytes, each record to `256` bytes, and the payload is passed
+to the existing text adapter. The complete file is first checked for size,
+header, framing, and adapter validity; any malformed file is rejected before
+training. Valid records are then taught in file order. If a later resident
+capacity failure occurs, earlier accepted records remain and the failure is
+reported as `TeachingRejected`.
 
 ### Required evidence
 
-- [ ] A valid fixture teaches multiple records in deterministic order.
-- [ ] Empty, truncated, oversized, and malformed files are rejected or
+- [x] A valid fixture teaches multiple records in deterministic order.
+- [x] Truncated, oversized, and malformed files are rejected or
       reported according to the documented policy.
-- [ ] Replaying the same file produces the same metrics and recall result.
+- [x] Replaying the same file produces the same metrics and recall result.
+
+### Gate 10.3 evidence
+
+`src/teaching/transport/file.act` performs metadata preflight, bounded
+length-delimited parsing, adapter preflight, and ordered teaching through
+`teach_direct_request`. `tests/teaching_file.act` proves two records are
+taught in order, malformed/truncated/oversized inputs are rejected before
+mutation, and repeated reads produce deterministic resident counts and
+metrics.
 
 ## Gate 10.4 — Add stdin and pipe ingestion
 

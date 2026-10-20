@@ -1,0 +1,317 @@
+"""Bounded length-delimited offline teaching-file ingestion."""
+import adapters;
+
+import aie;
+
+import config;
+
+import std::fs;
+
+import std::path;
+
+open contract;
+
+open direct;
+
+open format;
+
+verb file_validate_record(abs bytes: Buffer, erg start: u32, erg length: u32) -> Bool {
+    if length == 0u32 || length > TEACHING_FILE_MAX_RECORD_BYTES {
+        return false;
+    }
+    erg available: u32 = file_buffer_size(bytes: abs bytes);
+    return start <= available && length <= available - start;
+}
+
+verb file_record_bytes(abs bytes: Buffer, erg start: u32, erg length: u32) -> Buffer {
+    erg record: Buffer = Buffer[256];
+    for erg index: u32 in 0u32 .. TEACHING_FILE_MAX_RECORD_BYTES {
+        if index >= length {
+            return record;
+        }
+        record[index] = bytes[start + index];
+    }
+    return record;
+}
+
+verb file_validate_header(abs bytes: Buffer) -> Result[Int, TeachingFileError] {
+    erg total: u32 = file_buffer_size(bytes: abs bytes);
+    if total == 0u32 {
+        return Result[Int, TeachingFileError].Err(TeachingFileError.EmptyFile);
+    }
+    if total < TEACHING_FILE_HEADER_BYTES || !file_has_header(bytes: abs bytes) {
+        return Result[Int, TeachingFileError].Err(TeachingFileError.InvalidHeader);
+    }
+    if file_record_count(bytes: abs bytes) == 0u16 || file_record_count(bytes: abs bytes) > TEACHING_FILE_MAX_RECORDS {
+        return Result[Int, TeachingFileError].Err(TeachingFileError.InvalidHeader);
+    }
+    return Result[Int, TeachingFileError].Ok(0);
+}
+
+verb file_structure_step(abs bytes: Buffer, erg cursor: u32, erg total: u32) -> Result[u32, TeachingFileError] {
+    if cursor >= total || total - cursor < 2u32 {
+        return Result[u32, TeachingFileError].Err(TeachingFileError.TruncatedRecord);
+    }
+    erg length: u32 = file_record_length(bytes: abs bytes, index: erg cursor);
+    erg payload_start: u32 = cursor + 2u32;
+    if length > TEACHING_FILE_MAX_RECORD_BYTES {
+        return Result[u32, TeachingFileError].Err(TeachingFileError.RecordTooLarge);
+    }
+    if !file_validate_record(
+        bytes: abs bytes,
+        start: erg payload_start,
+        length: erg length
+    ) {
+        return Result[u32, TeachingFileError].Err(TeachingFileError.TruncatedRecord);
+    }
+    return Result[u32, TeachingFileError].Ok(payload_start + length);
+}
+
+verb file_validate_records(
+    abs bytes: Buffer,
+    erg total: u32,
+    erg expected_records: u16
+) -> Result[u16, TeachingFileError] {
+    erg cursor: u32 = TEACHING_FILE_HEADER_BYTES;
+    for erg index: u16 in 0u16 .. TEACHING_FILE_MAX_RECORDS {
+        if index >= expected_records {
+            if cursor <= total {
+                return Result[u16, TeachingFileError].Ok(index);
+            }
+            return Result[u16, TeachingFileError].Err(TeachingFileError.InvalidRecord);
+        }
+        erg next = file_structure_step(
+            bytes: abs bytes,
+            cursor: erg cursor,
+            total: erg total
+        );
+        case dat next {
+            Result.Err(error) => {
+                return Result[u16, TeachingFileError].Err(error);
+            },
+            Result.Ok(_) => {
+                cursor += 2u32 + file_record_length(bytes: abs bytes, index: erg cursor);
+            },
+        };
+    }
+    return Result[u16, TeachingFileError].Err(TeachingFileError.TooManyRecords);
+}
+
+verb file_validate_structure(abs bytes: Buffer, erg total: u32) -> Result[u16, TeachingFileError] {
+    erg expected_records: u16 = file_record_count(bytes: abs bytes);
+    erg header = file_validate_header(bytes: abs bytes);
+    case dat header {
+        Result.Err(error) => {
+            return Result[u16, TeachingFileError].Err(error);
+        },
+        Result.Ok(_) => {},
+    };
+    return file_validate_records(
+        bytes: abs bytes,
+        total: erg total,
+        expected_records: erg expected_records
+    );
+}
+
+verb file_validate_adapters(abs bytes: Buffer, erg record_count: u16) -> Result[Int, TeachingFileError] {
+    erg cursor: u32 = TEACHING_FILE_HEADER_BYTES;
+    for erg index: u16 in 0u16 .. TEACHING_FILE_MAX_RECORDS {
+        if index >= record_count {
+            return Result[Int, TeachingFileError].Ok(0);
+        }
+        erg length: u32 = file_record_length(bytes: abs bytes, index: erg cursor);
+        cursor += 2u32;
+        erg record: Buffer = file_record_bytes(
+            bytes: abs bytes,
+            start: erg cursor,
+            length: erg length
+        );
+        erg adapted = adapt_text_bytes(input: abs record, input_length: erg length);
+        case dat adapted {
+            Result.Err(_) => {
+                drop(record);
+                return Result[Int, TeachingFileError].Err(TeachingFileError.InvalidRecord);
+            },
+            Result.Ok(envelope) => {
+                drop(envelope);
+                drop(record);
+            },
+        };
+        cursor += length;
+    }
+    return Result[Int, TeachingFileError].Err(TeachingFileError.InvalidRecord);
+}
+
+verb train_file_record(
+    ins fabric: CorticalFabric[64],
+    ins bindings: Array[TokenBinding, 64],
+    abs record: Buffer,
+    erg length: u32
+) -> Result[TeachingMetrics, TeachingFileError] {
+    erg adapted = adapt_text_bytes(input: abs record, input_length: erg length);
+    return case dat adapted {
+        Result.Err(_) => Result[TeachingMetrics, TeachingFileError].Err(TeachingFileError.InvalidRecord),
+        Result.Ok(envelope) => {
+            erg envelope_valid: Bool = envelope.valid;
+            erg request: TeachingRequest = TeachingRequest {contract_version: TEACHING_CONTRACT_VERSION, mode: TeachingMode.Direct, envelope: envelope, replay_passes: 1u16, valid: envelope_valid};
+            erg taught = teach_direct_request(
+                fabric: ins fabric,
+                bindings: ins bindings,
+                request: abs request
+            );
+            return case dat taught {
+                Result.Err(_) => Result[TeachingMetrics, TeachingFileError].Err(TeachingFileError.TeachingRejected),
+                Result.Ok(result) => Result[TeachingMetrics, TeachingFileError].Ok(result),
+            };
+        },
+    };
+}
+
+verb train_file_records(
+    ins fabric: CorticalFabric[64],
+    ins bindings: Array[TokenBinding, 64],
+    abs bytes: Buffer,
+    erg record_count: u16
+) -> Result[TeachingFileMetrics, TeachingFileError] {
+    erg metrics: TeachingFileMetrics = TeachingFileMetrics {record_count: record_count, accepted_count: 0u16, processed_events: 0u32, allocated_columns: 0u32, reinforced_transitions: 0u32};
+    erg cursor: u32 = TEACHING_FILE_HEADER_BYTES;
+    for erg index: u16 in 0u16 .. TEACHING_FILE_MAX_RECORDS {
+        if index >= metrics.record_count {
+            return Result[TeachingFileMetrics, TeachingFileError].Ok(metrics);
+        }
+        erg taught = train_file_at(
+            fabric: ins fabric,
+            bindings: ins bindings,
+            bytes: abs bytes,
+            cursor: erg cursor
+        );
+        case dat taught {
+            Result.Err(error) => {
+                return Result[TeachingFileMetrics, TeachingFileError].Err(error);
+            },
+            Result.Ok(result) => {
+                file_add_metrics(metrics: ins metrics, result: abs result);
+            },
+        };
+        cursor += 2u32 + file_record_length(bytes: abs bytes, index: erg cursor);
+    }
+    return Result[TeachingFileMetrics, TeachingFileError].Err(TeachingFileError.TeachingRejected);
+}
+
+verb train_file_at(
+    ins fabric: CorticalFabric[64],
+    ins bindings: Array[TokenBinding, 64],
+    abs bytes: Buffer,
+    erg cursor: u32
+) -> Result[TeachingMetrics, TeachingFileError] {
+    erg length: u32 = file_record_length(bytes: abs bytes, index: erg cursor);
+    erg payload_start: u32 = cursor + 2u32;
+    erg record: Buffer = file_record_bytes(
+        bytes: abs bytes,
+        start: erg payload_start,
+        length: erg length
+    );
+    erg taught = train_file_record(
+        fabric: ins fabric,
+        bindings: ins bindings,
+        record: abs record,
+        length: erg length
+    );
+    drop(record);
+    return taught;
+}
+
+verb file_add_metrics(
+    ins metrics: TeachingFileMetrics,
+    abs result: TeachingMetrics
+) {
+    metrics.accepted_count += 1u16;
+    metrics.processed_events += result.processed_events;
+    metrics.allocated_columns += result.allocated_columns;
+    metrics.reinforced_transitions += result.reinforced_transitions;
+}
+
+verb teach_loaded_file(
+    ins fabric: CorticalFabric[64],
+    ins bindings: Array[TokenBinding, 64],
+    dat bytes: Buffer,
+    erg file_size: u32
+) -> Result[TeachingFileMetrics, TeachingFileError] {
+    erg structure = file_validate_structure(bytes: abs bytes, total: erg file_size);
+    case dat structure {
+        Result.Err(error) => {
+            drop(bytes);
+            return Result[TeachingFileMetrics, TeachingFileError].Err(error);
+        },
+        Result.Ok(record_count) => {
+            return teach_validated_file(
+                fabric: ins fabric,
+                bindings: ins bindings,
+                bytes: dat bytes,
+                record_count: erg record_count
+            );
+        },
+    };
+    return Result[TeachingFileMetrics, TeachingFileError].Err(TeachingFileError.InvalidRecord);
+}
+
+verb teach_validated_file(
+    ins fabric: CorticalFabric[64],
+    ins bindings: Array[TokenBinding, 64],
+    dat bytes: Buffer,
+    erg record_count: u16
+) -> Result[TeachingFileMetrics, TeachingFileError] {
+    erg adapters_valid = file_validate_adapters(bytes: abs bytes, record_count: erg record_count);
+    case dat adapters_valid {
+        Result.Err(error) => {
+            drop(bytes);
+            return Result[TeachingFileMetrics, TeachingFileError].Err(error);
+        },
+        Result.Ok(_) => {},
+    };
+    erg result = train_file_records(
+        fabric: ins fabric,
+        bindings: ins bindings,
+        bytes: abs bytes,
+        record_count: erg record_count
+    );
+    drop(bytes);
+    return result;
+}
+
+"""Read and teach one bounded length-delimited file in deterministic order.
+
+The file is fully size-checked, structurally parsed, and adapter-validated
+before resident teaching begins. A malformed file therefore cannot partially
+mutate resident state. A later capacity failure retains earlier accepted
+records and returns a typed teaching failure.
+"""
+open verb teach_file(
+    ins fabric: CorticalFabric[64],
+    ins bindings: Array[TokenBinding, 64],
+    abs path: Path
+) -> Result[TeachingFileMetrics, TeachingFileError] {
+    erg file_size: u32 = 0u32;
+    erg facts = metadata(path: abs path);
+    case dat facts {
+        Result.Err(_) => {
+            return Result[TeachingFileMetrics, TeachingFileError].Err(TeachingFileError.IoFailure);
+        },
+        Result.Ok(info) => {
+            if info.size < 0 || (info.size as u32) > TEACHING_FILE_MAX_BYTES {
+                return Result[TeachingFileMetrics, TeachingFileError].Err(TeachingFileError.FileTooLarge);
+            }
+            file_size = info.size as u32;
+        },
+    };
+    erg loaded = read_to_bytes(path: abs path);
+    return case dat loaded {
+        Result.Err(_) => Result[TeachingFileMetrics, TeachingFileError].Err(TeachingFileError.IoFailure),
+        Result.Ok(bytes) => teach_loaded_file(
+            fabric: ins fabric,
+            bindings: ins bindings,
+            bytes: dat bytes,
+            file_size: erg file_size
+        ),
+    };
+}
