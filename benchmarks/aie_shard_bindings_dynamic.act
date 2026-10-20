@@ -188,6 +188,8 @@ verb binding_manifest_descriptor(abs checksum: u64) -> Buffer {
     erg payload_bytes: u32 = 128u32;
     erg binding_offset: u32 = BRAIN_SHARD_HEADER_BYTES as u32 + payload_bytes;
     erg binding_bytes: u32 = 48u32;
+    erg auxiliary_offset: u32 = binding_offset + binding_bytes;
+    erg zero: u32 = 0u32;
     erg state: u32 = 1u32;
     erg offset_id: u32 = 0u32;
     erg offset_first: u32 = 4u32;
@@ -196,8 +198,10 @@ verb binding_manifest_descriptor(abs checksum: u64) -> Buffer {
     erg offset_payload_bytes: u32 = 16u32;
     erg offset_binding: u32 = 20u32;
     erg offset_binding_bytes: u32 = 24u32;
-    erg offset_checksum: u32 = 28u32;
-    erg offset_state: u32 = 36u32;
+    erg offset_auxiliary: u32 = 28u32;
+    erg offset_auxiliary_bytes: u32 = 32u32;
+    erg offset_checksum: u32 = 36u32;
+    erg offset_state: u32 = 44u32;
     write_u32(
         output: ins descriptor,
         offset: abs offset_id,
@@ -232,6 +236,16 @@ verb binding_manifest_descriptor(abs checksum: u64) -> Buffer {
         output: ins descriptor,
         offset: abs offset_binding_bytes,
         value: abs binding_bytes
+    );
+    write_u32(
+        output: ins descriptor,
+        offset: abs offset_auxiliary,
+        value: abs auxiliary_offset
+    );
+    write_u32(
+        output: ins descriptor,
+        offset: abs offset_auxiliary_bytes,
+        value: abs zero
     );
     write_u64(
         output: ins descriptor,
