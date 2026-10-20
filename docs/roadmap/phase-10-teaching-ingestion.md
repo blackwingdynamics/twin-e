@@ -220,6 +220,23 @@ metrics.
       covered by tests.
 - [ ] The executable reports per-request metrics without leaking source data.
 
+### Gate 10.4 implementation status
+
+The bounded stdin transport is implemented in `src/teaching/transport/stdin.act`.
+It uses newline-delimited records, a fixed `256`-byte record buffer, at most
+`TEACHING_FILE_MAX_RECORDS` records, and a total stream limit of
+`TEACHING_STDIN_MAX_BYTES`. Clean EOF, empty input, partial final records,
+oversized records, oversized streams, and read failures have typed outcomes;
+accepted records call the canonical `teach_direct_request` path and return
+bounded stream metrics.
+
+The source formatter, lock check, strict check, and 138 existing tests pass.
+The executable evidence remains open because the current Actus Cranelift
+backend rejects the generated `stdin_read_input_byte` function with a
+non-dominating-value verifier error. This is a compiler boundary issue, not a
+Twin-e source workaround; the Gate 10.4 checkboxes remain open until the
+executable fixture runs successfully.
+
 ## Gate 10.5 — Add framed `std::wire` transport
 
 - [ ] Define the wire message type for a teaching request and its version.
