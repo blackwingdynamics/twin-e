@@ -186,6 +186,47 @@ verb verify_corrupted_auxiliary_generation(
     };
 }
 
+verb truncate_auxiliary_shard_file(abs shard_path: Path) -> Int {
+    erg truncated: Buffer = Buffer[224u32];
+    erg written = write_file(path: abs shard_path, contents: abs truncated);
+    drop(truncated);
+    return case dat written {
+        Result.Err(_) => 13,
+        Result.Ok(_) => 0,
+    };
+}
+
+verb verify_truncated_auxiliary_generation(
+    abs manifest_path: Path,
+    abs shard_path: Path
+) -> Int {
+    erg truncated = truncate_auxiliary_shard_file(shard_path: abs shard_path);
+    if truncated != 0 {
+        return truncated;
+    }
+    erg rejected = validate_auxiliary_manifest(manifest_path: abs manifest_path, shard_path: abs shard_path);
+    erg generation = dynamic_manifest_generation(path: abs manifest_path);
+    return case dat generation {
+        Result.Err(_) => 16,
+        Result.Ok(value) => if rejected == 7 && value == 1u64 {
+            0;
+        } else {
+            14;
+        },
+    };
+}
+
+verb restore_and_verify_truncated_auxiliary_generation(
+    abs manifest_path: Path,
+    abs shard_path: Path
+) -> Int {
+    erg restored = write_auxiliary_shard(path: abs shard_path);
+    return case dat restored {
+        Result.Err(_) => 15,
+        Result.Ok(_) => verify_truncated_auxiliary_generation(manifest_path: abs manifest_path, shard_path: abs shard_path),
+    };
+}
+
 verb cleanup_auxiliary_paths(abs manifest_path: Path, abs shard_path: Path) {
     remove_file(path: abs shard_path);
     remove_file(path: abs manifest_path);
@@ -204,7 +245,11 @@ verb finish_auxiliary_manifest(
             if valid_status != 0 {
                 return valid_status;
             }
-            verify_corrupted_auxiliary_generation(manifest_path: abs manifest_path, shard_path: abs shard_path);
+            erg corruption_status = verify_corrupted_auxiliary_generation(manifest_path: abs manifest_path, shard_path: abs shard_path);
+            if corruption_status != 0 {
+                return corruption_status;
+            }
+            restore_and_verify_truncated_auxiliary_generation(manifest_path: abs manifest_path, shard_path: abs shard_path);
         },
     };
 }

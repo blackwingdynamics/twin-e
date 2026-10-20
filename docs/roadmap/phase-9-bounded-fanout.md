@@ -96,8 +96,10 @@ the sidecar count remains zero, and no auxiliary marker or record is created.
       shard-local Auxiliary section, validates the complete checksum, and
       rejects a changed Auxiliary byte.
 - [ ] Publish the complete shard generation first and the manifest last.
-- [ ] Reject partial, truncated, or mismatched generations without changing
-      the active generation.
+- [x] Reject partial, truncated, or mismatched generations without changing
+      the active generation. The integration fixture rejects both a changed
+      Auxiliary byte and a truncated shard while the manifest remains at
+      generation `1`.
 - [ ] Prove restart recovery selects the last complete generation, including
       the shard-local auxiliary section.
 - [ ] Update ADR-0014 and close Phase 9 only after every Step 8 gate passes.
