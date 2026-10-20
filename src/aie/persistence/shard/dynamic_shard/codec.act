@@ -48,7 +48,7 @@ open verb shard_header_matches(abs header: ShardHeader, erg shard_id: u32) -> Bo
 }
 
 verb append_shard_u16(ins output: Buffer, abs value: u16) {
-    append(output, value as u8);
+    append(output, ((value as u32) & 255u32) as u8);
     append(output, ((value as u32 / 256u32) & 255u32) as u8);
 }
 

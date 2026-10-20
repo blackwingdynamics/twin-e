@@ -60,13 +60,14 @@ verb manifest_dynamic_descriptor_is_safe(
 ) -> Bool {
     erg expected_column_payload: u32 = column_count * BRAIN_SHARD_COLUMN_STRIDE_BYTES as u32;
     erg expected_binding_payload: u32 = column_count * BRAIN_SHARD_BINDING_STRIDE_BYTES as u32;
-    if first_column != expected_first || column_count == 0u32 || column_count > BRAIN_SHARD_DYNAMIC_MAX_COLUMNS || first_column > BRAIN_MANIFEST_DYNAMIC_MAX_COLUMNS - column_count || column_payload != expected_column_payload || state != 1u32 {
+    erg expected_file_length: u32 = BRAIN_SHARD_HEADER_BYTES as u32 + expected_column_payload + expected_binding_payload + auxiliary_payload;
+    if first_column != expected_first || column_count == 0u32 || column_count > BRAIN_SHARD_DYNAMIC_MAX_COLUMNS || first_column > BRAIN_MANIFEST_DYNAMIC_MAX_COLUMNS - column_count || column_payload != expected_column_payload || auxiliary_payload > BRAIN_AUXILIARY_PAYLOAD_BYTES || expected_file_length > BRAIN_SHARD_DYNAMIC_MAX_BYTES || state != 1u32 {
         return false;
     }
     if binding_payload == 0u32 {
-        return binding_offset == 0u32 && auxiliary_offset == BRAIN_SHARD_HEADER_BYTES as u32 + expected_column_payload && auxiliary_payload == 0u32;
+        return binding_offset == 0u32 && auxiliary_offset == BRAIN_SHARD_HEADER_BYTES as u32 + expected_column_payload;
     }
-    return binding_offset == BRAIN_SHARD_HEADER_BYTES as u32 + expected_column_payload && binding_payload == expected_binding_payload && auxiliary_offset == binding_offset + binding_payload && auxiliary_payload == 0u32;
+    return binding_offset == BRAIN_SHARD_HEADER_BYTES as u32 + expected_column_payload && binding_payload == expected_binding_payload && auxiliary_offset == binding_offset + binding_payload;
 }
 
 """

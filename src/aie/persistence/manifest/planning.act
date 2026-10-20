@@ -122,7 +122,7 @@ verb dynamic_binding_shard_matches(
     abs shard: Buffer,
     abs expectation: DynamicShardExpectation
 ) -> Bool {
-    if expectation.binding_offset != BRAIN_SHARD_HEADER_BYTES as u32 + (expectation.column_count * BRAIN_SHARD_COLUMN_STRIDE_BYTES as u32) || expectation.binding_bytes != expectation.column_count * BRAIN_SHARD_BINDING_STRIDE_BYTES as u32 || expectation.auxiliary_offset != expectation.binding_offset + expectation.binding_bytes || expectation.auxiliary_bytes != 0u32 {
+    if expectation.binding_offset != BRAIN_SHARD_HEADER_BYTES as u32 + (expectation.column_count * BRAIN_SHARD_COLUMN_STRIDE_BYTES as u32) || expectation.binding_bytes != expectation.column_count * BRAIN_SHARD_BINDING_STRIDE_BYTES as u32 || expectation.auxiliary_offset != expectation.binding_offset + expectation.binding_bytes {
         return false;
     }
     erg checksum_offset: u32 = 40u32;
@@ -133,7 +133,34 @@ verb dynamic_binding_shard_matches(
     erg expected_id: u32 = expectation.shard_id;
     erg expected_first: u32 = expectation.first_column_index;
     erg expected_count: u32 = expectation.column_count;
-    return dynamic_shard_with_bindings_is_valid(
+    return dynamic_binding_shard_payload_matches(
+        shard: abs shard,
+        expectation: abs expectation,
+        expected_id: erg expected_id,
+        expected_first: erg expected_first,
+        expected_count: erg expected_count
+    );
+}
+
+verb dynamic_binding_shard_payload_matches(
+    abs shard: Buffer,
+    abs expectation: DynamicShardExpectation,
+    erg expected_id: u32,
+    erg expected_first: u32,
+    erg expected_count: u32
+) -> Bool {
+    if expectation.auxiliary_bytes == 0u32 {
+        return dynamic_shard_with_bindings_is_valid(
+            bytes: abs shard,
+            expected_shard_id: erg expected_id,
+            expected_first_column_index: erg expected_first,
+            expected_column_count: erg expected_count
+        );
+    }
+    if expectation.auxiliary_bytes != BRAIN_AUXILIARY_PAYLOAD_BYTES {
+        return false;
+    }
+    return dynamic_shard_with_bindings_and_auxiliary_is_valid(
         bytes: abs shard,
         expected_shard_id: erg expected_id,
         expected_first_column_index: erg expected_first,
