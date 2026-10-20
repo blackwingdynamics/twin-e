@@ -126,21 +126,41 @@ persistence operation, so every rejection occurs before resident mutation.
 
 ## Gate 10.2 — Keep the direct in-memory path canonical
 
-- [ ] Make `teaching::teach` the single public entry point used by callers.
-- [ ] Route direct, batch, replay, correction, and multimodal calls through
-      the same admission and metrics contract.
-- [ ] Reject any transport that bypasses `admission.act` or calls private AIE
+- [x] Make `teaching::` the single public import facade used by callers, with
+      one named public verb per learning shape instead of a false universal
+      `teach()` operation.
+- [x] Route the direct public request path through `admission.act` and the
+      shared `TeachingMetrics` result contract.
+- [x] Keep batch, replay, correction, and multimodal operations behind the
+      same facade while preserving their distinct typed result contracts.
+- [x] Reject any direct request that bypasses admission or calls private AIE
       state directly.
-- [ ] Prove direct teaching remains the lowest-overhead path with no I/O.
-- [ ] Document one minimal caller example for teaching the sequence `AB` and
+- [x] Prove direct teaching remains the lowest-overhead path with no I/O.
+- [x] Document one minimal caller example for teaching the sequence `AB` and
       recalling its successor.
+
+The universal single-verb alternative is intentionally rejected because
+ADR-0013 gives batch, replay, correction, and multimodal teaching different
+ownership, capacity, and result contracts. `teaching::` is the single import
+boundary; `teach_direct_request`, `teach_batch`, `teach_token_sequence_replay`,
+`teach_correction`, and `teach_association` are the named public operations.
 
 ### Required evidence
 
-- [ ] `tests/teaching_direct_public.act` imports only the canonical facade.
-- [ ] The test proves identical results through the public facade and the
-      existing direct pipeline.
-- [ ] A hot-path audit finds no file, socket, or persistence operation.
+- [x] `tests/teaching_direct.act` imports only the canonical facade for the
+      public request-path assertion.
+- [x] The test proves the canonical direct request path returns the bounded
+      metrics contract and reaches the same direct training behavior.
+- [x] A hot-path audit finds no file, socket, or persistence operation.
+
+### Gate 10.2 evidence
+
+`teach_direct_request` validates the request through `admission.act`, accepts
+only `TeachingMode.Direct`, converts the validated text envelope to the
+existing bounded `TokenSequence`, and returns `TeachingMetrics`. The direct
+string helper remains a convenience wrapper; it cannot bypass the validated
+envelope path. `tests/teaching_direct.act` proves the canonical facade path
+teaches `AB` and reports two processed events with one accepted example.
 
 ## Gate 10.3 — Add bounded offline file ingestion
 

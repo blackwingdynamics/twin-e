@@ -1,4 +1,10 @@
-"""Canonical public facade for bounded Twin-e teaching requests."""
+"""Canonical public facade for bounded Twin-e teaching requests.
+
+The facade is the only import boundary for teaching pipelines. It exports
+named verbs for each learning shape instead of pretending that direct,
+replay, batch, correction, and multimodal operations share one universal
+runtime contract.
+"""
 open contract;
 
 open admission;

@@ -9,6 +9,8 @@ import tokenizer;
 
 open contract;
 
+open admission;
+
 open tokenizer;
 
 verb text_modality_supported(abs modality: AdapterModality) -> Bool {
@@ -37,7 +39,7 @@ verb training_metrics_to_teaching(abs metrics: TrainingMetrics) -> TeachingMetri
     return TeachingMetrics {processed_events: metrics.processed_events, accepted_examples: 1u32, replay_passes: 1u16, allocated_columns: metrics.allocated_columns, reinforced_transitions: metrics.reinforced_transitions, active_bindings: metrics.active_bindings};
 }
 
-open verb teach_text_envelope_direct(
+verb teach_validated_text_envelope(
     ins fabric: CorticalFabric[64],
     ins bindings: Array[TokenBinding, 64],
     abs envelope: AdapterEnvelope
@@ -58,6 +60,52 @@ open verb teach_text_envelope_direct(
                 )),
             };
         },
+    };
+}
+
+open verb teach_text_envelope_direct(
+    ins fabric: CorticalFabric[64],
+    ins bindings: Array[TokenBinding, 64],
+    abs envelope: AdapterEnvelope
+) -> Result[TeachingMetrics, TeachingError] {
+    erg admitted = validate_teaching_envelope(envelope: abs envelope);
+    case dat admitted {
+        Result.Err(error) => {
+            return Result[TeachingMetrics, TeachingError].Err(error);
+        },
+        Result.Ok(_) => {},
+    };
+    return teach_validated_text_envelope(
+        fabric: ins fabric,
+        bindings: ins bindings,
+        envelope: abs envelope
+    );
+}
+
+"""Teach one already adapted direct request through the canonical facade.
+
+The request is validated before text conversion or resident training. The
+caller owns the request and resident fabric/bindings remain the only mutable
+state. This direct path performs no filesystem, network, or persistence I/O.
+"""
+open verb teach_direct_request(
+    ins fabric: CorticalFabric[64],
+    ins bindings: Array[TokenBinding, 64],
+    abs request: TeachingRequest
+) -> Result[TeachingMetrics, TeachingError] {
+    return case request.mode {
+        TeachingMode.Direct => {
+            erg admitted = validate_teaching_request(request: abs request);
+            return case dat admitted {
+                Result.Err(error) => Result[TeachingMetrics, TeachingError].Err(error),
+                Result.Ok(_) => teach_validated_text_envelope(
+                    fabric: ins fabric,
+                    bindings: ins bindings,
+                    envelope: abs request.envelope
+                ),
+            };
+        },
+        _ => Result[TeachingMetrics, TeachingError].Err(TeachingError.UnsupportedMode),
     };
 }
 
