@@ -2,7 +2,7 @@
 
 ## Status
 
-**Planned.** This phase defines how validated adapter output becomes learned
+**Complete.** This phase defines how validated adapter output becomes learned
 Twin-e state. It does not add a provider, chat UI, network transport, or
 automatic `.brain` persistence.
 
