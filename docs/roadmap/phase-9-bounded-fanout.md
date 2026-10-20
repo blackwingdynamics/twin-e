@@ -86,11 +86,16 @@ the sidecar count remains zero, and no auxiliary marker or record is created.
 
 ### Step 8 — Auxiliary publication integration
 
-- [ ] Keep one independent `.brain` file per shard with the ordered sections
+- [x] Keep one independent `.brain` file per shard with the ordered sections
       `Header → Columns → Bindings → Auxiliary`; never create a global or
-      per-shard auxiliary side file.
-- [ ] Add the shard-local auxiliary section length and descriptor to the
-      dynamic shard generation format.
+      per-shard auxiliary side file. The auxiliary-aware writer emits all
+      sections into one shard file and the integration fixture validates the
+      complete shard checksum after writing the non-empty Auxiliary section.
+- [x] Add the shard-local auxiliary section length and descriptor to the
+      dynamic shard generation format. The dynamic header carries the
+      auxiliary section length and the 48-byte manifest descriptor carries
+      `auxiliary_offset` and `auxiliary_bytes`; bounds and layout validation
+      reject mismatches before publication.
 - [x] Validate columns, bindings, auxiliary payload, and the complete-shard
       checksum together before publication. The integration fixture writes a
       shard-local Auxiliary section, validates the complete checksum, and
