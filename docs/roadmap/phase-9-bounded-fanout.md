@@ -100,7 +100,11 @@ the sidecar count remains zero, and no auxiliary marker or record is created.
       checksum together before publication. The integration fixture writes a
       shard-local Auxiliary section, validates the complete checksum, and
       rejects a changed Auxiliary byte.
-- [ ] Publish the complete shard generation first and the manifest last.
+- [x] Publish the complete shard generation first and the manifest last. The
+      caller-driven `publish_dynamic_shard_generation` boundary validates and
+      atomically publishes the complete shard before validating and publishing
+      the manifest; its failure fixture confirms that an invalid manifest
+      leaves the complete active shard published but no active manifest.
 - [x] Reject partial, truncated, or mismatched generations without changing
       the active generation. The integration fixture rejects both a changed
       Auxiliary byte and a truncated shard while the manifest remains at
