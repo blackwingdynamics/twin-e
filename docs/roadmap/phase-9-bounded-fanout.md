@@ -100,8 +100,11 @@ the sidecar count remains zero, and no auxiliary marker or record is created.
       the active generation. The integration fixture rejects both a changed
       Auxiliary byte and a truncated shard while the manifest remains at
       generation `1`.
-- [ ] Prove restart recovery selects the last complete generation, including
-      the shard-local auxiliary section.
+- [x] Prove restart recovery selects the last complete generation, including
+      the shard-local auxiliary section. The recovery fixture validates the
+      fallback shard-local Auxiliary descriptor, publishes fallback generation
+      `1` and primary generation `2`, corrupts the primary manifest, and
+      verifies selection of fallback slot `1`, generation `1`.
 - [ ] Update ADR-0014 and close Phase 9 only after every Step 8 gate passes.
 
 Step 8 format decision: the manifest descriptor will be widened from 40 to 48
