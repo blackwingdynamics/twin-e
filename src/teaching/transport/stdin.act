@@ -29,13 +29,26 @@ verb stdin_record_error(abs error: TeachingStreamError, erg length: u32) -> Resu
     };
 }
 
-verb stdin_read_input_byte(ins total_bytes: u32) -> Result[Int, TeachingStreamError] {
-    erg next = read_byte();
-    return case dat next {
+"""Classify one injected reader result without performing I/O.
+
+This is the deterministic transport seam used to verify read-failure mapping;
+the production reader calls the same classifier after `read_byte` returns.
+"""
+open verb stdin_classify_read_result(dat result: Result[Int, IoError]) -> Result[Int, TeachingStreamError] {
+    return case dat result {
         Result.Err(error) => case dat error {
             IoError.EndOfStream => Result[Int, TeachingStreamError].Err(TeachingStreamError.CleanEndOfInput),
             _ => Result[Int, TeachingStreamError].Err(TeachingStreamError.ReadFailure),
         },
+        Result.Ok(value) => Result[Int, TeachingStreamError].Ok(value),
+    };
+}
+
+verb stdin_read_input_byte(ins total_bytes: u32) -> Result[Int, TeachingStreamError] {
+    erg next = read_byte();
+    erg classified = stdin_classify_read_result(result: dat next);
+    return case dat classified {
+        Result.Err(error) => Result[Int, TeachingStreamError].Err(error),
         Result.Ok(value) => {
             total_bytes += 1u32;
             if total_bytes > TEACHING_STDIN_MAX_BYTES {

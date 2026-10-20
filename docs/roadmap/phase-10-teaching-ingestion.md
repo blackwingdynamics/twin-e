@@ -216,9 +216,10 @@ metrics.
 ### Required evidence
 
 - [x] Valid stdin input reaches the same teaching contract as direct input.
-- [ ] Empty input, partial input, oversized input, and early read failure are
+- [x] Empty input, partial input, oversized input, and early read failure are
       covered by tests. Empty, partial, and oversized input are executable-
-      verified; deterministic early-read-failure injection remains open.
+      verified; injected EOF and read-failure mappings are covered by
+      `tests/teaching_stdin.act`.
 - [x] The executable reports per-request metrics without leaking source data.
 
 ### Gate 10.4 implementation status
@@ -233,7 +234,7 @@ bounded stream metrics.
 
 The strict source formatter and executable build pass with zero floating-point
 instructions in the generated native IR. The installed compiler revision is
-`c0d11a2f`. The reproducible Linux fixture is:
+`017ddad2`. The reproducible Linux fixture is:
 
 ```sh
 actus build --strict --emit exe \
@@ -250,11 +251,10 @@ source record. Empty input returns `exit 1` with `error_code=1`, a partial
 updates resident state; persistence publication remains a separate save
 operation.
 
-The remaining evidence item is deterministic injection of a transport
-read-failure result. The typed `ReadFailure` path is implemented, but no
-portable Linux pipe command can force that failure after the stream has been
-opened; it must be covered by a reader-injection test before Gate 10.4 is
-fully closed.
+The deterministic reader-injection seam is `stdin_classify_read_result` in
+`src/teaching/transport/stdin.act`. It is used by the production `read_byte`
+path and is tested for both clean EOF and `IoError.Failed` mapping. The full
+strict suite reports `140 passed; 0 failed` after these checks.
 
 ## Gate 10.5 — Add framed `std::wire` transport
 
