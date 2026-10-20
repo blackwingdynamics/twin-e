@@ -256,6 +256,101 @@ The deterministic reader-injection seam is `stdin_classify_read_result` in
 path and is tested for both clean EOF and `IoError.Failed` mapping. The full
 strict suite reports `140 passed; 0 failed` after these checks.
 
+## Gate 10.4.1 — Replace the demo entry point with a production teaching runner
+
+The current package entry point is an AIE demonstration program. It is useful
+for a smoke check, but it is not a training runtime and must not be published
+as the executable used by `twin-e-training`. This gate defines the first real
+operator-facing entry point without changing the AIE hot path.
+
+- [ ] Define the production command contract for loading a published brain,
+      accepting bounded teaching input, reporting metrics, and requesting an
+      explicit save.
+- [ ] Replace the demo-only package entry behavior with a production runner;
+      keep the demonstration as a separate benchmark or example.
+- [ ] Define an explicit workspace/configuration input; do not hardcode the
+      developer's home directory, dataset path, or brain path in source.
+- [ ] Require an explicit brain manifest or an explicit empty-brain creation
+      mode; never silently start with an empty brain when a published brain was
+      requested.
+- [ ] Define typed startup failures for missing, incompatible, corrupt, or
+      partially published brain generations.
+- [ ] Route file and stdin teaching through the canonical `teaching::` facade;
+      the runner must not access resident AIE state directly.
+- [ ] Define stable process exit codes and bounded operator output. Default
+      output must not print raw source records.
+- [ ] Keep the demo output and all fixed benchmark paths out of the production
+      runner.
+
+### Required evidence
+
+- [ ] A Linux executable starts from a clean workspace using only its explicit
+      configuration.
+- [ ] Startup loads a valid published brain and rejects a missing or corrupt
+      manifest before teaching begins.
+- [ ] A teaching request reaches the canonical facade and reports bounded
+      metrics without source leakage.
+- [ ] Invalid configuration and invalid input produce stable non-zero exit
+      codes without resident-state mutation.
+
+## Gate 10.4.2 — Define the production brain lifecycle
+
+This gate connects the production runner to the already accepted persistence
+contract. A `.brain` artifact is learned state, not an executable. The runner
+must load it from an explicit manifest and publish a new complete generation
+only after an explicit save request.
+
+- [ ] Define the lifecycle states `Loaded`, `ResidentDirty`, `SaveRequested`,
+      `Published`, and `SaveFailed` at the runner boundary.
+- [ ] Load the selected complete generation before accepting teaching input.
+- [ ] Keep teaching in resident memory; do not write synchronously from the
+      inference or teaching mutation path.
+- [ ] Publish shard files before the manifest and never expose a partial
+      generation as current.
+- [ ] Distinguish “accepted into resident memory” from “published to disk” in
+      the public result and metrics.
+- [ ] Prove that a failed save leaves the live resident brain unchanged and
+      does not claim persistence.
+- [ ] Prove that restart selects the newest complete generation and ignores an
+      incomplete or incompatible generation.
+- [ ] Record dataset revision, Twin-e revision, compiler revision, target,
+      binary checksum, limits, and output generation in the run manifest.
+- [ ] Keep the brain artifact repository separate from Twin-e source and from
+      Actus source; connect them only through paths, manifests, and checksums.
+
+### Required evidence
+
+- [ ] Load → teach → save → restart → recall passes with a real bounded
+      dataset.
+- [ ] Failed-save and interrupted-publication fixtures preserve the previous
+      published generation and the live resident state.
+- [ ] The run manifest and shard checksums identify the exact executable and
+      input dataset used for the run.
+
+## Gate 10.4.3 — Package a reproducible production release
+
+- [ ] Build a target-specific production executable from the production entry
+      point with strict checking and zero-floating-point IR evidence.
+- [ ] Keep the executable, runtime manifest template, and operator
+      instructions separate from `.brain` generations.
+- [ ] Publish a checksum for every executable and runtime manifest.
+- [ ] Provide a clean-workspace smoke command that loads a known complete brain
+      generation and performs one bounded teaching or recall operation.
+- [ ] Reject a binary/manifest/compiler compatibility mismatch before loading
+      resident state.
+- [ ] Define the rollback procedure to the previous executable and previous
+      complete brain generation.
+- [ ] Record target, profile, compiler revision, source revision, and all
+      input limits in the release evidence.
+
+### Required evidence
+
+- [ ] A clean Arch Linux workspace reproduces the release build and smoke run.
+- [ ] The published checksum and runtime metadata match the executable that
+      produced the evidence.
+- [ ] A rollback fixture restores the previous executable/brain pair without
+      mutating the newer generation.
+
 ## Gate 10.5 — Add framed `std::wire` transport
 
 - [ ] Define the wire message type for a teaching request and its version.
@@ -362,10 +457,12 @@ strict suite reports `140 passed; 0 failed` after these checks.
 
 ## Definition of done
 
-Phase 10 is complete when a local caller can submit bounded teaching data by
-direct API, file, stdin, and the selected framed transport; every path reaches
-the same public teaching contract; rejection and capacity behavior are typed;
-metrics distinguish each boundary; persistence remains explicit; and all
-claims are backed by executable tests. HTTP, WebSocket, and Unix-socket
-support are not considered complete without an accepted transport decision and
-real integration evidence.
+Phase 10 is complete when a production runner, rather than the AIE demo entry
+point, can load a selected complete brain generation, accept bounded teaching
+data by direct API, file, stdin, and the selected framed transport, and publish
+an explicit new generation. Every path must reach the same public teaching
+contract; rejection, capacity, startup, compatibility, and save behavior must
+be typed; metrics must distinguish each boundary; and all claims must be
+backed by executable tests and reproducible release evidence. HTTP, WebSocket,
+and Unix-socket support are not considered complete without an accepted
+transport decision and real integration evidence.
