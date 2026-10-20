@@ -136,3 +136,26 @@ open struct TeachingFileMetrics {
     erg allocated_columns: u32,
     erg reinforced_transitions: u32,
 }
+
+"""Typed outcomes produced while reading a bounded stdin stream."""
+open enum TeachingStreamError {
+    CleanEndOfInput,
+    EmptyInput,
+    ReadFailure,
+    PartialRecord,
+    RecordTooLarge,
+    StreamTooLarge,
+    TooManyRecords,
+    InvalidRecord,
+    TeachingRejected,
+}
+
+"""Bounded evidence returned after processing stdin teaching records."""
+open struct TeachingStreamMetrics {
+    erg record_count: u16,
+    erg accepted_count: u16,
+    erg bytes_read: u32,
+    erg processed_events: u32,
+    erg allocated_columns: u32,
+    erg reinforced_transitions: u32,
+}

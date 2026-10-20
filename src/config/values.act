@@ -246,6 +246,10 @@ open const TEACHING_FILE_MAX_RECORDS: u16 = 8u16;
 open const TEACHING_FILE_MAX_BYTES: u32 = 2069u32;
 
 
+"""Maximum bytes consumed by one bounded stdin teaching stream."""
+open const TEACHING_STDIN_MAX_BYTES: u32 = 2069u32;
+
+
 """Version marker for the bounded modality-neutral observation contract."""
 open const OBSERVATION_VERSION: u16 = 1u16;
 
