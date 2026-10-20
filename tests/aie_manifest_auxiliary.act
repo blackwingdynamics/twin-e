@@ -150,9 +150,63 @@ verb validate_auxiliary_manifest(abs manifest_path: Path, abs shard_path: Path) 
     };
 }
 
+verb corrupt_auxiliary_shard_file(abs shard_path: Path) -> Int {
+    erg loaded = read_to_bytes(path: abs shard_path);
+    return case dat loaded {
+        Result.Err(_) => 8,
+        Result.Ok(shard) => {
+            shard[224u32] = 1u8;
+            erg written = write_file(path: abs shard_path, contents: abs shard);
+            drop(shard);
+            return case dat written {
+                Result.Err(_) => 9,
+                Result.Ok(_) => 0,
+            };
+        },
+    };
+}
+
+verb verify_corrupted_auxiliary_generation(
+    abs manifest_path: Path,
+    abs shard_path: Path
+) -> Int {
+    erg corrupted = corrupt_auxiliary_shard_file(shard_path: abs shard_path);
+    if corrupted != 0 {
+        return corrupted;
+    }
+    erg rejected = validate_auxiliary_manifest(manifest_path: abs manifest_path, shard_path: abs shard_path);
+    erg generation = dynamic_manifest_generation(path: abs manifest_path);
+    return case dat generation {
+        Result.Err(_) => 12,
+        Result.Ok(value) => if rejected == 7 && value == 1u64 {
+            0;
+        } else {
+            10;
+        },
+    };
+}
+
 verb cleanup_auxiliary_paths(abs manifest_path: Path, abs shard_path: Path) {
     remove_file(path: abs shard_path);
     remove_file(path: abs manifest_path);
+}
+
+verb finish_auxiliary_manifest(
+    abs manifest_path: Path,
+    abs shard_path: Path,
+    erg checksum: u64
+) -> Int {
+    erg manifest_written = write_auxiliary_manifest(path: abs manifest_path, checksum: erg checksum);
+    return case dat manifest_written {
+        Result.Err(_) => 4,
+        Result.Ok(_) => {
+            erg valid_status = validate_auxiliary_manifest(manifest_path: abs manifest_path, shard_path: abs shard_path);
+            if valid_status != 0 {
+                return valid_status;
+            }
+            verify_corrupted_auxiliary_generation(manifest_path: abs manifest_path, shard_path: abs shard_path);
+        },
+    };
 }
 
 verb run_auxiliary_manifest_test(dat shard_path: Path) -> Int {
@@ -171,11 +225,11 @@ verb run_auxiliary_manifest_test(dat shard_path: Path) -> Int {
                     return 3;
                 },
                 Result.Ok(checksum) => {
-                    erg manifest_written = write_auxiliary_manifest(path: abs manifest_path, checksum: erg checksum);
-                    erg manifest_status: Int = case dat manifest_written {
-                        Result.Err(_) => 4,
-                        Result.Ok(_) => validate_auxiliary_manifest(manifest_path: abs manifest_path, shard_path: abs shard_path),
-                    };
+                    erg manifest_status = finish_auxiliary_manifest(
+                        manifest_path: abs manifest_path,
+                        shard_path: abs shard_path,
+                        checksum: erg checksum
+                    );
                     cleanup_auxiliary_paths(manifest_path: abs manifest_path, shard_path: abs shard_path);
                     return manifest_status;
                 },

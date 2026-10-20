@@ -91,8 +91,10 @@ the sidecar count remains zero, and no auxiliary marker or record is created.
       per-shard auxiliary side file.
 - [ ] Add the shard-local auxiliary section length and descriptor to the
       dynamic shard generation format.
-- [ ] Validate columns, bindings, auxiliary payload, and the complete-shard
-      checksum together before publication.
+- [x] Validate columns, bindings, auxiliary payload, and the complete-shard
+      checksum together before publication. The integration fixture writes a
+      shard-local Auxiliary section, validates the complete checksum, and
+      rejects a changed Auxiliary byte.
 - [ ] Publish the complete shard generation first and the manifest last.
 - [ ] Reject partial, truncated, or mismatched generations without changing
       the active generation.
