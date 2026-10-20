@@ -1,6 +1,6 @@
 # ADR-0014: Bounded Auxiliary Fan-out Sidecar
 
-- **Status:** Accepted; bounded runtime and shard-local persistence integration in progress
+- **Status:** Accepted; Phase 9 complete
 - **Date:** 2026-10-19
 - **Scope:** Extending successor fan-out without changing `Minicolumn.axons`
 - **Related work:** ADR-0002, ADR-0007, ADR-0009, ADR-0013, Phase 5.8,
@@ -96,6 +96,11 @@ fixed-manifest compatibility fixtures must move together.
   auxiliary data is rejected without partial restore.
 - Native benchmark output separates inline-only forwarding from overflow
   forwarding and records the additional work.
+- Complete shard publication precedes manifest publication, and an invalid
+  manifest cannot become active after a complete shard is published.
+- Restart recovery selects the last complete manifest generation when the
+  primary generation is corrupted, including its shard-local Auxiliary
+  descriptor.
 
 ## Rejected shortcuts
 
@@ -111,6 +116,7 @@ fixed-manifest compatibility fixtures must move together.
 
 Chaining, more than one auxiliary record per source, fan-out above sixteen,
 and any alternative compact index width require a new design review. The
-implementation gate must still implement and test the selected manifest
-descriptor encoding, then provide round-trip, corruption-rejection,
-publication, and restart-recovery evidence.
+selected manifest descriptor encoding, round-trip, corruption-rejection,
+publication-order, and restart-recovery evidence are complete in Phase 9.
+Future changes to chaining, fan-out above sixteen, or compact index width
+require a new design review.

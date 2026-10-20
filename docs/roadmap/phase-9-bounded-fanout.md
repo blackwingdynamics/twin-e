@@ -1,6 +1,6 @@
 # Phase 9 — Bounded Auxiliary Fan-out
 
-- **Status:** In progress
+- **Status:** Complete
 - **Branch:** `phase-9-bounded-fanout`
 - **Scope:** Extend successor capacity without changing the 64-byte
   `Minicolumn` layout or the meaning of `Array[u32, 8]`.
@@ -82,7 +82,9 @@ the sidecar count remains zero, and no auxiliary marker or record is created.
 - [x] Record memory usage, capacity, traversal order, and failure metrics.
 - [x] Run formatter, lock, strict check, strict tests, and native build.
 - [x] Verify generated native IR remains free of floating-point instructions.
-- [ ] Update ADR-0014 and close the phase only after all gates are green.
+- [x] Update ADR-0014 and close the phase after all gates are green. ADR-0014
+      records the completed bounded runtime and shard-local publication
+      contract.
 
 ### Step 8 — Auxiliary publication integration
 
@@ -114,7 +116,9 @@ the sidecar count remains zero, and no auxiliary marker or record is created.
       fallback shard-local Auxiliary descriptor, publishes fallback generation
       `1` and primary generation `2`, corrupts the primary manifest, and
       verifies selection of fallback slot `1`, generation `1`.
-- [ ] Update ADR-0014 and close Phase 9 only after every Step 8 gate passes.
+- [x] Update ADR-0014 and close Phase 9 after every Step 8 gate passes. The
+      strict suite, native build, publication-order test, and recovery test are
+      green.
 
 Step 8 format decision: the manifest descriptor will be widened from 40 to 48
 bytes and will carry explicit `auxiliary_offset` and `auxiliary_bytes` fields.
@@ -123,7 +127,7 @@ writers, readers, validators, and compatibility fixtures together.
 
 ## Current evidence
 
-The strict suite passes with `125 passed; 0 failed`. The fan-out tests verify
+The strict suite passes with `128 passed; 0 failed`. The fan-out tests verify
 the unchanged eight-slot inline contract, reach one auxiliary successor
 through the gated forwarding path, reject the ninth auxiliary record without
 mutating the table, and reclaim a record while clearing `FLAG_HAS_AUX`. The
@@ -134,16 +138,18 @@ corrupted snapshot leaves live state unchanged. Exact free-list coverage now
 rejects detached-record omissions and free-list cycles, and a reclaimed table
 round-trips with its free-list intact. Auxiliary serialization is currently a
 fixed-size in-memory snapshot contract that rejects a truncated payload
-descriptor before restore and leaves live state unchanged. Atomic publication
-integration with the dynamic shard/manifest generation remains open for the
-next steps.
+descriptor before restore and leaves live state unchanged. Dynamic publication
+integration now validates and atomically publishes a complete shard before
+publishing its manifest; the failure fixture proves an invalid manifest does
+not become active. Restart recovery selects the last complete manifest
+generation when the primary is corrupted.
 
 The forwarding benchmark measures 10,000 inline-only and overflow calls
 separately. The recorded hosted result is `1,414,118 ns` inline-only versus
 `1,581,395 ns` with one auxiliary target, approximately `11.8%` additional
 time in this fixture. This is not a hardware-performance claim.
 
-The final strict hosted executable build produced `/tmp/twin-e-phase-9-engine.aie`;
+The final strict hosted executable build produced `/tmp/twin-e-engine.aie`;
 Actus verified that the generated native IR contains no floating-point
 instructions, and the executable completed the firing, neurogenesis, and decay
 demo stages successfully.
