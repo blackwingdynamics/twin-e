@@ -186,3 +186,59 @@ verb test_cross_shard_axon_preserves_global_target() -> Int {
     }
     return 2;
 }
+
+verb global_target_for_test(erg shard_id: u32, erg local_index: u32) -> u32 {
+    erg result = logical_global_index(shard_id: erg shard_id, local_index: erg local_index);
+    return case dat result {
+        Result.Err(_) => BRAIN_LOGICAL_MAX_COLUMNS,
+        Result.Ok(index) => index,
+    };
+}
+
+verb link_cross_shard_targets(
+    ins fabric: CorticalFabric[64],
+    erg source: u32,
+    erg first_target: u32,
+    erg second_target: u32
+) {
+    erg first_slot: u32 = 0u32;
+    erg second_slot: u32 = 1u32;
+    link_axon(
+        fabric: ins fabric,
+        source: erg source,
+        slot: erg first_slot,
+        target: erg first_target
+    );
+    link_axon(
+        fabric: ins fabric,
+        source: erg source,
+        slot: erg second_slot,
+        target: erg second_target
+    );
+}
+
+meta test
+verb test_cross_shard_routes_preserve_deterministic_targets() -> Int {
+    erg fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](), free_list_head: 0u32, active_count: 0u32};
+    fabric_init(fabric: ins fabric);
+    erg source: u32 = allocate_column_index(fabric: ins fabric);
+    erg first_shard: u32 = 1u32;
+    erg first_local: u32 = 7u32;
+    erg second_shard: u32 = 2u32;
+    erg second_local: u32 = 3u32;
+    erg first_target: u32 = global_target_for_test(shard_id: erg first_shard, local_index: erg first_local);
+    erg second_target: u32 = global_target_for_test(shard_id: erg second_shard, local_index: erg second_local);
+    if first_target >= BRAIN_LOGICAL_MAX_COLUMNS || second_target >= BRAIN_LOGICAL_MAX_COLUMNS || first_target == second_target {
+        return 1;
+    }
+    link_cross_shard_targets(
+        fabric: ins fabric,
+        source: erg source,
+        first_target: erg first_target,
+        second_target: erg second_target
+    );
+    if fabric.columns[source].axons[0u32] != first_target || fabric.columns[source].axons[1u32] != second_target {
+        return 2;
+    }
+    return 0;
+}

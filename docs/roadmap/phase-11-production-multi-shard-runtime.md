@@ -76,13 +76,13 @@ filesystem I/O to the learning hot path.
 - [x] Reject multiplication, addition, and shard-ID overflow before mutation.
 - [x] Validate that a local index belongs to the descriptor's declared range.
 - [x] Preserve global `u32` axon targets across shard boundaries.
-- [ ] Add tests for first, last, boundary, unknown, and overflowed indexes.
-- [ ] Add cross-shard route tests with deterministic target selection.
+- [x] Add tests for first, last, boundary, unknown, and overflowed indexes.
+- [x] Add cross-shard route tests with deterministic target selection.
 
 ### Required evidence
 
-- [ ] Routing round-trips every boundary index exactly.
-- [ ] Invalid indexes leave fabric, bindings, auxiliary state, and metrics
+- [x] Routing round-trips every boundary index exactly.
+- [x] Invalid indexes leave fabric, bindings, auxiliary state, and metrics
       unchanged.
 
 ## Gate 11.4 — Implement bounded shard admission and rotation
