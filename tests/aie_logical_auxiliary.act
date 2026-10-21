@@ -128,6 +128,28 @@ verb auxiliary_test_release_reuse(ins brain: LogicalTeachingBrain) -> Bool {
     );
 }
 
+verb auxiliary_test_release_stays_in_owner_shard(ins brain: LogicalTeachingBrain) -> Bool {
+    erg source: u32 = 1024u32;
+    erg target: u32 = 0u32;
+    if !auxiliary_test_link(
+        brain: ins brain,
+        source: erg source,
+        target: erg target
+    ) {
+        return false;
+    }
+    if brain.auxiliary[0u32].table.active_count != 1u32 {
+        return false;
+    }
+    if !logical_teaching_auxiliary_release(brain: ins brain, source_global: erg source) {
+        return false;
+    }
+    if brain.auxiliary[1u32].table.active_count != 0u32 {
+        return false;
+    }
+    return brain.auxiliary[0u32].table.active_count == 1u32 && (brain.fabrics[0u32].columns[0u32].flags & FLAG_HAS_AUX) != 0u8;
+}
+
 meta test
 verb test_logical_auxiliary_cross_shard_round_trip_and_recovery() -> Int {
     erg brain: LogicalTeachingBrain = logical_teaching_empty();
@@ -142,8 +164,11 @@ verb test_logical_auxiliary_cross_shard_round_trip_and_recovery() -> Int {
     if recovery_status != 0 {
         return recovery_status;
     }
+    if !auxiliary_test_release_stays_in_owner_shard(brain: ins brain) {
+        return 5;
+    }
     if !auxiliary_test_release_reuse(brain: ins brain) {
-        return 4;
+        return 6;
     }
     return 0;
 }
@@ -283,4 +308,3 @@ verb test_logical_auxiliary_rejects_duplicate_overflow_and_invalid_source() -> I
     }
     return 0;
 }
-

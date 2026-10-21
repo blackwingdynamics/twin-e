@@ -118,18 +118,28 @@ stdin adapters remain part of Gate 11.7 and are not claimed as complete here.
 
 ## Gate 11.5 — Integrate shard-local bindings and auxiliary state
 
-- [ ] Route every binding to the shard owning its source column.
-- [ ] Preserve global targets for cross-shard bindings.
-- [ ] Keep auxiliary records inside the owning shard's auxiliary section.
-- [ ] Validate binding and auxiliary ranges before applying any candidate data.
-- [ ] Prove paired allocation/reclamation cannot leak across shard boundaries.
-- [ ] Add duplicate, collision, overflow, and cross-shard rejection tests.
+- [x] Route every binding to the shard owning its source column.
+- [x] Preserve global targets for cross-shard bindings.
+- [x] Keep auxiliary records inside the owning shard's auxiliary section.
+- [x] Validate binding and auxiliary ranges before applying any candidate data.
+- [x] Prove paired allocation/reclamation cannot leak across shard boundaries.
+- [x] Add duplicate, collision, overflow, and cross-shard rejection tests.
 
 ### Required evidence
 
-- [ ] A cross-shard binding round-trip preserves source and target identities.
-- [ ] Auxiliary recovery restores the same resident behavior after reload.
-- [ ] Invalid sidecar data is rejected before live-state mutation.
+- [x] A cross-shard binding round-trip preserves source and target identities.
+- [x] Auxiliary recovery restores the same resident behavior after reload.
+- [x] Invalid sidecar data is rejected before live-state mutation.
+
+Gate 11.5 is covered by `tests/aie_logical_teaching.act`,
+`tests/aie_logical_auxiliary.act`, `tests/aie_shard_routing.act`,
+`tests/aie_fanout_sidecar.act`, `tests/aie_fanout_persistence_diagnostic.act`,
+and the manifest auxiliary/recovery fixtures. The logical teaching facade keeps
+bindings in the source shard's bounded binding array; auxiliary links retain
+global target indexes while records remain in the source shard's auxiliary
+state. The auxiliary tests cover duplicate, capacity, invalid-index, and
+unadmitted-target rejection, snapshot validation before mutation, and paired
+release/reuse in both the owning shard and a cross-shard isolation case.
 
 ## Gate 11.6 — Connect generation save, load, and recovery
 
