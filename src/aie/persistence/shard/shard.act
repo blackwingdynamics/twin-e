@@ -4,7 +4,3 @@ import config;
 open dynamic_shard;
 
 open fixed;
-
-open snapshot;
-
-open file;
