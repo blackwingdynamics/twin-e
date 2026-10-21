@@ -1,0 +1,72 @@
+"""Compare production shift/mask routing with reference arithmetic."""
+import config;
+
+import std::io;
+
+import std::time;
+
+open config;
+
+open io;
+
+open time;
+
+verb route_shift_mask(erg iterations: u32) -> u32 {
+    erg index: u32 = 0u32;
+    erg checksum: u32 = 0u32;
+    loop {
+        if index >= iterations {
+            break;
+        }
+        checksum += (index >> BRAIN_LOGICAL_SHARD_SHIFT) + (index & BRAIN_LOGICAL_SHARD_MASK);
+        index += 1u32;
+    }
+    return checksum;
+}
+
+verb route_reference_arithmetic(erg iterations: u32) -> u32 {
+    erg index: u32 = 0u32;
+    erg checksum: u32 = 0u32;
+    loop {
+        if index >= iterations {
+            break;
+        }
+        checksum += (index / BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY) + (index % BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY);
+        index += 1u32;
+    }
+    return checksum;
+}
+
+verb print_u64(abs label: String, erg value: u64) {
+    print(string: abs label);
+    erg display: Int = value as Int;
+    print_int(value: erg display);
+}
+
+verb main() -> Int {
+    erg iterations: u32 = 1000000u32;
+    erg shift_started: u64 = monotonic_nanos();
+    erg shift_checksum: u32 = route_shift_mask(iterations: erg iterations);
+    erg shift_finished: u64 = monotonic_nanos();
+    erg reference_started: u64 = monotonic_nanos();
+    erg reference_checksum: u32 = route_reference_arithmetic(iterations: erg iterations);
+    erg reference_finished: u64 = monotonic_nanos();
+    erg shift_elapsed: u64 = shift_finished - shift_started;
+    erg reference_elapsed: u64 = reference_finished - reference_started;
+    erg shift_label: String = "AIE_PROFILE routing_shift_mask_ns=";
+    erg reference_label: String = " reference_arithmetic_ns=";
+    erg match_label: String = " routing_match=";
+    erg match_value: Int = case shift_checksum == reference_checksum {
+        true => 1,
+        _ => 0,
+    };
+    print_u64(label: abs shift_label, value: erg shift_elapsed);
+    print_u64(label: abs reference_label, value: erg reference_elapsed);
+    print_int(value: erg match_value);
+    erg newline: String = "";
+    println(text: abs newline);
+    if match_value == 0 {
+        return 1;
+    }
+    return 0;
+}

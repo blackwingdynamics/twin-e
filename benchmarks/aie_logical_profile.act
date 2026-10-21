@@ -1,0 +1,280 @@
+"""Measure the complete production logical-shard artifact profile."""
+import aie;
+
+import config;
+
+import std::fs;
+
+import std::io;
+
+import std::path;
+
+open io;
+
+verb profile_append_prefix(ins raw: Buffer) {
+    append(raw, 47u8);
+    append(raw, 116u8);
+    append(raw, 109u8);
+    append(raw, 112u8);
+    append(raw, 47u8);
+    append(raw, 116u8);
+    append(raw, 119u8);
+    append(raw, 105u8);
+    append(raw, 110u8);
+    append(raw, 45u8);
+    append(raw, 101u8);
+    append(raw, 45u8);
+    append(raw, 103u8);
+    append(raw, 97u8);
+    append(raw, 116u8);
+    append(raw, 101u8);
+    append(raw, 49u8);
+    append(raw, 49u8);
+    append(raw, 45u8);
+}
+
+verb profile_path(erg manifest: Bool) -> Result[Path, PathError] {
+    erg raw: Buffer = Buffer[0];
+    profile_append_prefix(raw: ins raw);
+    if manifest {
+        append(raw, 49u8);
+        append(raw, 46u8);
+        append(raw, 109u8);
+        append(raw, 97u8);
+        append(raw, 110u8);
+        append(raw, 105u8);
+        append(raw, 102u8);
+        append(raw, 101u8);
+        append(raw, 115u8);
+        append(raw, 116u8);
+    } else {
+        append(raw, 49u8);
+        append(raw, 46u8);
+        append(raw, 98u8);
+        append(raw, 114u8);
+        append(raw, 97u8);
+        append(raw, 105u8);
+        append(raw, 110u8);
+    }
+    append(raw, 0u8);
+    return path_from_ascii(storage: dat raw);
+}
+
+verb zero_buffer(erg length: u32) -> Buffer {
+    erg output: Buffer = Buffer[0];
+    erg index: u32 = 0u32;
+    loop {
+        if index >= length {
+            break;
+        }
+        append(output, 0u8);
+        index += 1u32;
+    }
+    return output;
+}
+
+verb profile_append_u32(ins output: Buffer, abs value: u32) {
+    append(output, (value & 255u32) as u8);
+    append(output, ((value / 256u32) & 255u32) as u8);
+    append(output, ((value / 65536u32) & 255u32) as u8);
+    append(output, ((value / 16777216u32) & 255u32) as u8);
+}
+
+verb profile_append_u64(ins output: Buffer, abs value: u64) {
+    erg low: u32 = (value & 4294967295u64) as u32;
+    erg high: u32 = (value / 4294967296u64) as u32;
+    profile_append_u32(output: ins output, value: abs low);
+    profile_append_u32(output: ins output, value: abs high);
+}
+
+verb profile_descriptor(abs checksum: u64) -> Buffer {
+    erg descriptor: Buffer = Buffer[0];
+    profile_append_u32(output: ins descriptor, value: abs 0u32);
+    profile_append_u32(output: ins descriptor, value: abs 0u32);
+    profile_append_u32(output: ins descriptor, value: abs BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY);
+    profile_append_u32(output: ins descriptor, value: abs BRAIN_SHARD_HEADER_BYTES as u32);
+    profile_append_u32(output: ins descriptor, value: abs BRAIN_LOGICAL_SHARD_COLUMNS_BYTES);
+    profile_append_u32(output: ins descriptor, value: abs BRAIN_SHARD_HEADER_BYTES as u32 + BRAIN_LOGICAL_SHARD_COLUMNS_BYTES);
+    profile_append_u32(output: ins descriptor, value: abs BRAIN_LOGICAL_SHARD_BINDINGS_BYTES);
+    profile_append_u32(output: ins descriptor, value: abs BRAIN_SHARD_HEADER_BYTES as u32 + BRAIN_LOGICAL_SHARD_COLUMNS_BYTES + BRAIN_LOGICAL_SHARD_BINDINGS_BYTES);
+    profile_append_u32(output: ins descriptor, value: abs BRAIN_AUXILIARY_PAYLOAD_BYTES);
+    profile_append_u64(output: ins descriptor, value: abs checksum);
+    profile_append_u32(output: ins descriptor, value: abs 1u32);
+    return descriptor;
+}
+
+verb profile_file_length(abs path: Path) -> Result[u32, IoError] {
+    erg loaded = read_to_bytes(path: abs path);
+    return case dat loaded {
+        Result.Err(error) => Err(error),
+        Result.Ok(bytes) => {
+            erg length = buffer_size(buffer: abs bytes);
+            drop(bytes);
+            return case dat length {
+                Result.Err(error) => Err(error),
+                Result.Ok(value) => Ok(value as u32),
+            };
+        },
+    };
+}
+
+verb print_u32(abs label: String, erg value: u32) {
+    print(string: abs label);
+    erg display: Int = value as Int;
+    print_int(value: erg display);
+}
+
+verb emit_profile_bounds() {
+    erg max_shards: u32 = BRAIN_LOGICAL_MAX_SHARDS;
+    erg shard_capacity: u32 = BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY;
+    erg resident_shards: u32 = BRAIN_LOGICAL_MAX_RESIDENT_SHARDS;
+    erg bindings: u32 = BRAIN_LOGICAL_MAX_BINDINGS_PER_SHARD;
+    erg auxiliary: u32 = BRAIN_LOGICAL_MAX_AUXILIARY_RECORDS;
+    erg request_items: u32 = BRAIN_LOGICAL_MAX_REQUEST_ITEMS;
+    erg descriptors: u32 = BRAIN_LOGICAL_MAX_MANIFEST_DESCRIPTORS;
+    erg logical_label: String = "AIE_PROFILE max_logical_shards=";
+    erg capacity_label: String = " max_columns_per_shard=";
+    erg resident_label: String = " max_resident_shards=";
+    erg binding_label: String = " max_bindings_per_shard=";
+    erg auxiliary_label: String = " max_auxiliary_records=";
+    erg request_label: String = " max_request_items=";
+    erg descriptor_label: String = " max_manifest_descriptors=";
+    print_u32(label: abs logical_label, value: erg max_shards);
+    print_u32(label: abs capacity_label, value: erg shard_capacity);
+    print_u32(label: abs resident_label, value: erg resident_shards);
+    print_u32(label: abs binding_label, value: erg bindings);
+    print_u32(label: abs auxiliary_label, value: erg auxiliary);
+    print_u32(label: abs request_label, value: erg request_items);
+    print_u32(label: abs descriptor_label, value: erg descriptors);
+    erg newline: String = "";
+    println(text: abs newline);
+}
+
+verb profile_io_error(abs error: IoError) -> Int {
+    return case error {
+        IoError.EndOfStream => 10,
+        IoError.Failed => 11,
+        IoError.InvalidInput => 12,
+        IoError.InvalidData => 13,
+    };
+}
+
+verb write_profile_shard(abs shard_path: Path) -> Result[u64, IoError] {
+    erg column_bytes: u32 = BRAIN_LOGICAL_SHARD_COLUMNS_BYTES;
+    erg binding_bytes: u32 = BRAIN_LOGICAL_SHARD_BINDINGS_BYTES;
+    erg auxiliary_bytes: u32 = BRAIN_AUXILIARY_PAYLOAD_BYTES;
+    erg columns = zero_buffer(length: erg column_bytes);
+    erg bindings = zero_buffer(length: erg binding_bytes);
+    erg auxiliary = zero_buffer(length: erg auxiliary_bytes);
+    erg shard_id: u32 = 0u32;
+    erg first_column: u32 = 0u32;
+    erg column_count: u32 = BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY;
+    erg written = write_dynamic_shard_with_bindings_and_auxiliary(
+        path: abs shard_path,
+        shard_id: erg shard_id,
+        first_column_index: erg first_column,
+        column_count: erg column_count,
+        payload: abs columns,
+        bindings: abs bindings,
+        auxiliary: abs auxiliary
+    );
+    drop(columns);
+    drop(bindings);
+    drop(auxiliary);
+    return case dat written {
+        Result.Err(error) => Err(error),
+        Result.Ok(_) => dynamic_shard_file_checksum(path: abs shard_path),
+    };
+}
+
+verb write_profile_manifest(abs manifest_path: Path, erg checksum: u64) -> Result[Int, IoError] {
+    erg descriptors = profile_descriptor(checksum: abs checksum);
+    erg generation: u64 = 1u64;
+    erg active: u32 = 0u32;
+    erg free_head: u32 = NULL_INDEX;
+    erg total_columns: u32 = BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY;
+    erg shard_count: u32 = 1u32;
+    erg manifest_result = write_manifest_dynamic(
+        path: abs manifest_path,
+        generation: erg generation,
+        active_count: erg active,
+        free_list_head: erg free_head,
+        total_column_count: erg total_columns,
+        shard_count: erg shard_count,
+        descriptors: abs descriptors
+    );
+    drop(descriptors);
+    return manifest_result;
+}
+
+verb emit_profile_sizes(abs shard_path: Path, abs manifest_path: Path) -> Int {
+    erg shard_bytes = profile_file_length(path: abs shard_path);
+    erg manifest_bytes = profile_file_length(path: abs manifest_path);
+    return case dat shard_bytes {
+        Result.Err(_) => 3,
+        Result.Ok(shard_size) => {
+            return case dat manifest_bytes {
+                Result.Err(_) => 4,
+                Result.Ok(manifest_size) => {
+                    erg shard_label: String = "AIE_PROFILE shard_bytes=";
+                    erg manifest_label: String = " manifest_bytes=";
+                    erg complete_label: String = " complete_bytes=";
+                    erg routing_label: String = " routing_profile=shift_mask power_of_two=1";
+                    erg complete_size: u32 = shard_size + manifest_size;
+                    print_u32(label: abs shard_label, value: erg shard_size);
+                    print_u32(label: abs manifest_label, value: erg manifest_size);
+                    print_u32(label: abs complete_label, value: erg complete_size);
+                    println(text: abs routing_label);
+                    0;
+                },
+            };
+        },
+    };
+}
+
+verb run_profile(abs shard_path: Path, abs manifest_path: Path) -> Int {
+    erg checksum = write_profile_shard(shard_path: abs shard_path);
+    return case dat checksum {
+        Result.Err(error) => {
+            erg message: String = "AIE_PROFILE FAILURE shard_write error=";
+            println(text: abs message);
+            profile_io_error(error: abs error);
+        },
+        Result.Ok(value) => {
+            erg manifest = write_profile_manifest(manifest_path: abs manifest_path, checksum: erg value);
+            return case dat manifest {
+                Result.Err(error) => {
+                    erg message: String = "AIE_PROFILE FAILURE manifest_write error=";
+                    println(text: abs message);
+                    profile_io_error(error: abs error);
+                },
+                Result.Ok(_) => emit_profile_sizes(shard_path: abs shard_path, manifest_path: abs manifest_path),
+            };
+        },
+    };
+}
+
+verb main() -> Int {
+    if !logical_shard_profile_is_valid() {
+        return 7;
+    }
+    erg shard_file: Bool = false;
+    erg manifest_file: Bool = true;
+    erg shard_path_result = profile_path(manifest: erg shard_file);
+    erg manifest_path_result = profile_path(manifest: erg manifest_file);
+    return case dat shard_path_result {
+        Result.Err(_) => 5,
+        Result.Ok(shard_path) => {
+            return case dat manifest_path_result {
+                Result.Err(_) => 6,
+                Result.Ok(manifest_path) => {
+                    emit_profile_bounds();
+                    erg result = run_profile(shard_path: abs shard_path, manifest_path: abs manifest_path);
+                    remove_file(path: abs shard_path);
+                    remove_file(path: abs manifest_path);
+                    result;
+                },
+            };
+        },
+    };
+}

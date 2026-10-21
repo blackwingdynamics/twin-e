@@ -3,6 +3,50 @@ import aie;
 
 import config;
 
+verb admit_test_shard(
+    ins brain: LogicalBrain,
+    erg shard_id: u32,
+    erg capacity: u32
+) -> Int {
+    erg admitted = logical_brain_admit_shard(
+        brain: ins brain,
+        shard_id: erg shard_id,
+        column_count: erg capacity
+    );
+    return case dat admitted {
+        Result.Err(_) => 1,
+        Result.Ok(_) => 0,
+    };
+}
+
+verb test_ordered_admission(ins brain: LogicalBrain, erg shard_capacity: u32) -> Int {
+    erg first_shard_id: u32 = 0u32;
+    erg first_status: Int = admit_test_shard(
+        brain: ins brain,
+        shard_id: erg first_shard_id,
+        capacity: erg shard_capacity
+    );
+    if first_status != 0 {
+        return 1;
+    }
+    if brain.shard_count != 1u32 || brain.total_column_count != shard_capacity {
+        return 2;
+    }
+    erg second_shard_id: u32 = 1u32;
+    erg second_status: Int = admit_test_shard(
+        brain: ins brain,
+        shard_id: erg second_shard_id,
+        capacity: erg shard_capacity
+    );
+    if second_status != 0 {
+        return 3;
+    }
+    if brain.shard_count != 2u32 {
+        return 4;
+    }
+    return 0;
+}
+
 meta test
 verb test_logical_brain_admits_ordered_shards() -> Int {
     erg brain: LogicalBrain = logical_brain_empty();
@@ -14,38 +58,6 @@ verb test_logical_brain_admits_ordered_shards() -> Int {
     if initialized_status != 0 {
         return 1;
     }
-    erg first_shard_id: u32 = 0u32;
     erg shard_capacity: u32 = BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY;
-    erg first = logical_brain_admit_shard(
-        brain: ins brain,
-        shard_id: erg first_shard_id,
-        column_count: erg shard_capacity
-    );
-    erg first_status: Int = case dat first {
-        Result.Err(_) => 1,
-        Result.Ok(_) => 0,
-    };
-    if first_status != 0 {
-        return 2;
-    }
-    if brain.shard_count != 1u32 || brain.total_column_count != shard_capacity {
-        return 3;
-    }
-    erg second_shard_id: u32 = 1u32;
-    erg second = logical_brain_admit_shard(
-        brain: ins brain,
-        shard_id: erg second_shard_id,
-        column_count: erg shard_capacity
-    );
-    erg second_status: Int = case dat second {
-        Result.Err(_) => 4,
-        Result.Ok(_) => 0,
-    };
-    if second_status != 0 {
-        return second_status;
-    }
-    if brain.shard_count != 2u32 {
-        return 5;
-    }
-    return 0;
+    return test_ordered_admission(brain: ins brain, shard_capacity: erg shard_capacity);
 }

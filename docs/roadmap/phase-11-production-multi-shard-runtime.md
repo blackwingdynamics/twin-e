@@ -2,7 +2,7 @@
 
 ## Status
 
-Planned. No gate in this phase is complete yet.
+In progress. Gate 11.1 is complete; later gates remain open.
 
 ## Objective
 
@@ -27,30 +27,30 @@ filesystem I/O to the learning hot path.
 
 ## Gate 11.1 — Freeze the production capacity profile
 
-- [ ] Add named constants for maximum logical shards, shard capacity,
+- [x] Add named constants for maximum logical shards, shard capacity,
       resident working-set capacity, binding capacity, auxiliary capacity,
       request size, and manifest descriptor count.
-- [ ] Require `SHARD_COLUMN_CAPACITY` to be a power of two and derive the
+- [x] Require `SHARD_COLUMN_CAPACITY` to be a power of two and derive the
       routing shift and mask from the validated capacity.
-- [ ] Set the initial production host profile to 1024 columns per shard.
-- [ ] Measure complete shard artifacts, including columns, headers, bindings,
+- [x] Set the initial production host profile to 1024 columns per shard.
+- [x] Measure complete shard artifacts, including columns, headers, bindings,
       auxiliary data, checksums, and manifest metadata; do not infer full file
       size from the column array alone.
 - [x] Record the selected values in one canonical config module.
-- [ ] Reject zero, overflowed, and internally inconsistent profiles before
+- [x] Reject zero, overflowed, and internally inconsistent profiles before
       creating resident state.
-- [ ] Define the typed errors for logical-capacity exhaustion, resident-cache
+- [x] Define the typed errors for logical-capacity exhaustion, resident-cache
       exhaustion, invalid shard routing, and incompatible profiles.
-- [ ] Add boundary tests for every configured maximum and one-over-limit case.
-- [ ] Update ADR-0015 with the measured host profile only after tests pass.
-- [ ] Benchmark shift/mask routing against the reference arithmetic model and
+- [x] Add boundary tests for every configured maximum and one-over-limit case.
+- [x] Update ADR-0015 with the measured host profile only after tests pass.
+- [x] Benchmark shift/mask routing against the reference arithmetic model and
       record measured target/compiler results without claiming a fixed cycle
       count.
 
 ### Required evidence
 
-- [ ] A profile test prints the complete bound set and passes deterministically.
-- [ ] Invalid profiles are rejected without allocating or mutating a brain.
+- [x] A profile test prints the complete bound set and passes deterministically.
+- [x] Invalid profiles are rejected without allocating or mutating a brain.
 
 ## Gate 11.2 — Introduce the canonical logical-brain facade
 

@@ -3,11 +3,19 @@ import aie;
 
 import config;
 
-meta test
-verb test_logical_shard_profile_and_round_trip() -> Int {
-    if !logical_shard_profile_is_valid() {
-        return 1;
-    }
+verb profile_is_rejected(erg profile: LogicalShardProfile) -> Bool {
+    erg checked = validate_logical_shard_profile(profile: erg profile);
+    return case dat checked {
+        Result.Err(_) => true,
+        Result.Ok(_) => false,
+    };
+}
+
+verb production_profile_values_are_stable(abs profile: LogicalShardProfile) -> Bool {
+    return profile.max_shards == BRAIN_LOGICAL_MAX_SHARDS && profile.shard_capacity == BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY && profile.max_resident_shards == BRAIN_LOGICAL_MAX_RESIDENT_SHARDS && profile.max_bindings_per_shard == BRAIN_LOGICAL_MAX_BINDINGS_PER_SHARD && profile.max_auxiliary_records == BRAIN_LOGICAL_MAX_AUXILIARY_RECORDS && profile.max_request_items == BRAIN_LOGICAL_MAX_REQUEST_ITEMS && profile.max_manifest_descriptors == BRAIN_LOGICAL_MAX_MANIFEST_DESCRIPTORS && BRAIN_LOGICAL_SHARD_ARTIFACT_BYTES == 90616u32;
+}
+
+verb test_last_logical_column_round_trip() -> Int {
     erg last_index: u32 = BRAIN_LOGICAL_MAX_COLUMNS - 1u32;
     erg location = logical_column_location(global_index: erg last_index);
     return case dat location {
@@ -30,6 +38,18 @@ verb test_logical_shard_profile_and_round_trip() -> Int {
             };
         },
     };
+}
+
+meta test
+verb test_logical_shard_profile_and_round_trip() -> Int {
+    if !logical_shard_profile_is_valid() {
+        return 1;
+    }
+    erg profile: LogicalShardProfile = production_logical_shard_profile();
+    if !production_profile_values_are_stable(profile: abs profile) {
+        return 6;
+    }
+    return test_last_logical_column_round_trip();
 }
 
 meta test
@@ -60,4 +80,71 @@ verb test_logical_shard_routing_rejects_overflow() -> Int {
         Result.Ok(_) => 3,
         Result.Err(_) => 0,
     };
+}
+
+verb test_profile_rejects_base_limits() -> Int {
+    erg zero_profile: LogicalShardProfile = production_logical_shard_profile();
+    zero_profile.max_shards = 0u32;
+    if !profile_is_rejected(profile: erg zero_profile) {
+        return 1;
+    }
+    erg non_power_profile: LogicalShardProfile = production_logical_shard_profile();
+    non_power_profile.shard_capacity = BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY + 1u32;
+    if !profile_is_rejected(profile: erg non_power_profile) {
+        return 2;
+    }
+    erg overflow_profile: LogicalShardProfile = production_logical_shard_profile();
+    overflow_profile.max_shards = 4294967295u32;
+    if !profile_is_rejected(profile: erg overflow_profile) {
+        return 3;
+    }
+    erg shard_over_profile: LogicalShardProfile = production_logical_shard_profile();
+    shard_over_profile.max_shards = BRAIN_LOGICAL_MAX_SHARDS + 1u32;
+    if !profile_is_rejected(profile: erg shard_over_profile) {
+        return 4;
+    }
+    erg inconsistent_profile: LogicalShardProfile = production_logical_shard_profile();
+    inconsistent_profile.max_resident_shards = 9u32;
+    if !profile_is_rejected(profile: erg inconsistent_profile) {
+        return 5;
+    }
+    return 0;
+}
+
+verb test_profile_rejects_extended_limits() -> Int {
+    erg resident_over_profile: LogicalShardProfile = production_logical_shard_profile();
+    resident_over_profile.max_resident_shards = BRAIN_LOGICAL_MAX_RESIDENT_SHARDS + 1u32;
+    if !profile_is_rejected(profile: erg resident_over_profile) {
+        return 1;
+    }
+    erg binding_over_profile: LogicalShardProfile = production_logical_shard_profile();
+    binding_over_profile.max_bindings_per_shard = BRAIN_LOGICAL_MAX_BINDINGS_PER_SHARD + 1u32;
+    if !profile_is_rejected(profile: erg binding_over_profile) {
+        return 2;
+    }
+    erg auxiliary_over_profile: LogicalShardProfile = production_logical_shard_profile();
+    auxiliary_over_profile.max_auxiliary_records = BRAIN_LOGICAL_MAX_AUXILIARY_RECORDS + 1u32;
+    if !profile_is_rejected(profile: erg auxiliary_over_profile) {
+        return 3;
+    }
+    erg request_over_profile: LogicalShardProfile = production_logical_shard_profile();
+    request_over_profile.max_request_items = BRAIN_LOGICAL_MAX_REQUEST_ITEMS + 1u32;
+    if !profile_is_rejected(profile: erg request_over_profile) {
+        return 4;
+    }
+    erg descriptor_over_profile: LogicalShardProfile = production_logical_shard_profile();
+    descriptor_over_profile.max_manifest_descriptors = BRAIN_LOGICAL_MAX_MANIFEST_DESCRIPTORS + 1u32;
+    if !profile_is_rejected(profile: erg descriptor_over_profile) {
+        return 5;
+    }
+    return 0;
+}
+
+meta test
+verb test_logical_profile_rejects_invalid_bounds() -> Int {
+    erg base_status: Int = test_profile_rejects_base_limits();
+    if base_status != 0 {
+        return base_status;
+    }
+    return test_profile_rejects_extended_limits();
 }

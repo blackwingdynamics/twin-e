@@ -52,8 +52,11 @@ The initial production host profile uses `SHARD_COLUMN_CAPACITY = 1024`.
 This value is a strict power-of-two invariant, with `SHARD_SHIFT = 10` and
 `SHARD_MASK = 1023`. The 1024 columns occupy about 64 KiB before headers,
 bindings, auxiliary records, checksums, and manifest metadata are included;
-the complete artifact size must be measured rather than inferred from the
-column array alone.
+the complete artifact is measured rather than inferred from the column array
+alone. On the Arch Linux host profile, the complete shard artifact measured
+`90,616` bytes and the one-descriptor manifest measured `112` bytes, for a
+combined `90,728` bytes. The measurement includes the shard header, columns,
+shard-local bindings, auxiliary section, checksum, and manifest metadata.
 
 ### Logical identity and routing
 
@@ -68,8 +71,10 @@ global_index   = shard_id * SHARD_COLUMN_CAPACITY + local_index
 
 Configuration validation must prove the power-of-two invariant and derive the
 shift and mask from the selected capacity. The implementation must not claim a
-fixed cycle count; routing cost is target- and compiler-dependent and is
-measured by the Phase 11 benchmarks.
+fixed cycle count; routing cost is target- and compiler-dependent. The
+reproducible one-million-route benchmark reported `549,632 ns` for shift/mask
+routing and `2,298,248 ns` for the reference arithmetic model in one Arch
+Linux host run; these are measurements, not fixed cycle guarantees.
 
 The runtime must reject overflow, an unknown shard, and an index outside the
 declared logical brain capacity before resident mutation. Cross-shard axons
