@@ -90,7 +90,7 @@ verb teach_stdin_record(
     abs record: Buffer,
     erg length: u32
 ) -> Result[TeachingMetrics, TeachingStreamError] {
-    erg adapted = adapt_text_bytes(input: abs record, input_length: erg length);
+    erg adapted = adapt_text_ka_bytes(input: abs record, input_length: erg length);
     return case dat adapted {
         Result.Err(_) => Result[TeachingMetrics, TeachingStreamError].Err(TeachingStreamError.InvalidRecord),
         Result.Ok(envelope) => {

@@ -126,7 +126,7 @@ verb file_validate_adapters(abs bytes: Buffer, erg record_count: u16) -> Result[
             start: erg cursor,
             length: erg length
         );
-        erg adapted = adapt_text_bytes(input: abs record, input_length: erg length);
+        erg adapted = adapt_text_ka_bytes(input: abs record, input_length: erg length);
         case dat adapted {
             Result.Err(_) => {
                 drop(record);
@@ -148,7 +148,7 @@ verb train_file_record(
     abs record: Buffer,
     erg length: u32
 ) -> Result[TeachingMetrics, TeachingFileError] {
-    erg adapted = adapt_text_bytes(input: abs record, input_length: erg length);
+    erg adapted = adapt_text_ka_bytes(input: abs record, input_length: erg length);
     return case dat adapted {
         Result.Err(_) => Result[TeachingMetrics, TeachingFileError].Err(TeachingFileError.InvalidRecord),
         Result.Ok(envelope) => {
