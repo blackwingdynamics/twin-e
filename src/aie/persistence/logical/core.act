@@ -11,6 +11,8 @@ open manifest;
 open enum LogicalBrainError {
     InvalidProfile,
     NotInitialized,
+    InvalidGeneration,
+    InvalidDescriptor,
     InvalidShardCapacity,
     NonSequentialShard,
     LogicalCapacityExceeded,
@@ -160,6 +162,42 @@ open verb logical_brain_lookup_shard(abs brain: LogicalBrain, erg shard_id: u32)
         return Result[ManifestDescriptor, LogicalBrainError].Err(LogicalBrainError.ShardNotFound);
     }
     return Result[ManifestDescriptor, LogicalBrainError].Ok(brain.descriptors[shard_id as Usize]);
+}
+
+"""Restore a validated multi-shard generation into a fresh logical facade.
+
+The caller supplies descriptors only after the manifest and every referenced
+shard have passed persistence validation. This operation restores bounded
+logical metadata and resident-cache state without filesystem I/O; shard
+payload restoration belongs to the teaching-state persistence boundary.
+"""
+open verb logical_brain_restore_generation(
+    ins brain: LogicalBrain,
+    erg generation: u64,
+    erg total_column_count: u32,
+    erg shard_count: u32,
+    abs descriptors: Array[ManifestDescriptor, 8]
+) -> Result[Int, LogicalBrainError] {
+    if !logical_shard_profile_is_valid() || shard_count == 0u32 || shard_count > BRAIN_LOGICAL_MAX_SHARDS || shard_count > BRAIN_LOGICAL_MAX_MANIFEST_DESCRIPTORS {
+        return Result[Int, LogicalBrainError].Err(LogicalBrainError.InvalidGeneration);
+    }
+    if total_column_count != shard_count * BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY {
+        return Result[Int, LogicalBrainError].Err(LogicalBrainError.InvalidGeneration);
+    }
+    for erg index: u32 in 0u32 .. shard_count {
+        erg descriptor: ManifestDescriptor = descriptors[index as Usize];
+        if descriptor.shard_id != index || descriptor.first_column_index != index * BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY || descriptor.column_count != BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY {
+            return Result[Int, LogicalBrainError].Err(LogicalBrainError.InvalidDescriptor);
+        }
+    }
+    brain.initialized = true;
+    brain.shard_count = shard_count;
+    brain.total_column_count = total_column_count;
+    brain.shard_transitions = shard_count - 1u32;
+    brain.generation = generation;
+    brain.descriptors = descriptors;
+    shard_cache_init(cache: ins brain.cache);
+    return Result[Int, LogicalBrainError].Ok(0);
 }
 
 """Close a logical brain and release its bounded resident metadata.

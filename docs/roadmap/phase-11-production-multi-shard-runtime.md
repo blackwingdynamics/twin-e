@@ -152,7 +152,7 @@ release/reuse in both the owning shard and a cross-shard isolation case.
 - [x] Reject incomplete, duplicated, overlapping, incompatible, truncated,
       and checksum-invalid generations.
 - [x] Preserve the previous complete generation after failed publication.
-- [ ] Restore a multi-shard generation into a fresh logical brain.
+- [x] Restore a multi-shard generation into a fresh logical brain.
 
 ### Required evidence
 
@@ -164,11 +164,12 @@ Gate 11.6 now has executable coverage for complete two-shard publication,
 descriptor-order loading, duplicate/overlapping/incompatible manifest
 rejection, truncated and checksum-invalid artifacts, mutation-free rejection,
 previous-generation recovery, and failed-save usability. The strict suite is
-166 tests with zero failures. The remaining gate item is the public
-logical-brain restore path: loading a complete multi-shard generation into a
-fresh logical brain and then proving load -> teach -> save -> restart -> recall
-through that facade. Until that API-level lifecycle exists, Gate 11.6 remains
-open.
+167 tests with zero failures. The public `LogicalBrain` metadata restore path
+now restores a validated multi-shard directory into a fresh facade. The
+remaining required evidence is the full teaching-state lifecycle: loading
+columns, bindings, and auxiliary sections into a fresh `LogicalTeachingBrain`,
+then proving load -> teach -> save -> restart -> recall through that facade.
+Until that payload-level lifecycle exists, Gate 11.6 remains open.
 
 ## Gate 11.7 — Replace the runner's single-fabric teaching path
 

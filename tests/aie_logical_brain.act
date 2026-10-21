@@ -128,6 +128,67 @@ verb test_logical_brain_admits_ordered_shards() -> Int {
     return test_ordered_admission(brain: ins brain, shard_capacity: erg shard_capacity);
 }
 
+verb restored_descriptor(erg shard_id: u32) -> ManifestDescriptor {
+    erg first_column: u32 = shard_id * BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY;
+    erg payload_bytes: u32 = BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY * BRAIN_SHARD_COLUMN_STRIDE_BYTES as u32;
+    erg binding_bytes: u32 = BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY * BRAIN_SHARD_BINDING_STRIDE_BYTES as u32;
+    erg binding_offset: u32 = BRAIN_SHARD_HEADER_BYTES as u32 + payload_bytes;
+    erg auxiliary_offset: u32 = binding_offset + binding_bytes;
+    return ManifestDescriptor {shard_id: shard_id, first_column_index: first_column, column_count: BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY, payload_offset: BRAIN_SHARD_HEADER_BYTES as u32, payload_bytes: payload_bytes, binding_offset: binding_offset, binding_bytes: binding_bytes, auxiliary_offset: auxiliary_offset, auxiliary_bytes: BRAIN_AUXILIARY_PAYLOAD_BYTES, checksum: 0u64, state: 1u32};
+}
+
+meta test
+verb test_logical_brain_restores_valid_multi_shard_generation() -> Int {
+    erg descriptors: Array[ManifestDescriptor,8] = Array[ManifestDescriptor, 8]();
+    erg first_id: u32 = 0u32;
+    erg second_id: u32 = 1u32;
+    descriptors[0u32] = restored_descriptor(shard_id: erg first_id);
+    descriptors[1u32] = restored_descriptor(shard_id: erg second_id);
+    erg brain: LogicalBrain = logical_brain_empty();
+    erg generation: u64 = 8u64;
+    erg total_columns: u32 = BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY * 2u32;
+    erg shard_count: u32 = 2u32;
+    erg restored = logical_brain_restore_generation(
+        brain: ins brain,
+        generation: erg generation,
+        total_column_count: erg total_columns,
+        shard_count: erg shard_count,
+        descriptors: abs descriptors
+    );
+    return case dat restored {
+        Result.Err(_) => 1,
+        Result.Ok(_) => restored_brain_state(
+            brain: abs brain,
+            generation: erg generation,
+            shard_count: erg shard_count,
+            total_columns: erg total_columns,
+            second_id: erg second_id
+        ),
+    };
+}
+
+verb restored_brain_state(
+    abs brain: LogicalBrain,
+    erg generation: u64,
+    erg shard_count: u32,
+    erg total_columns: u32,
+    erg second_id: u32
+) -> Int {
+    if !brain.initialized || brain.generation != generation || brain.shard_count != shard_count || brain.total_column_count != total_columns {
+        return 2;
+    }
+    erg lookup = logical_brain_lookup_shard(brain: abs brain, shard_id: erg second_id);
+    return case dat lookup {
+        Result.Err(_) => 3,
+        Result.Ok(descriptor) => {
+            if descriptor.first_column_index != BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY {
+                return 4;
+            }
+            0;
+        },
+    };
+}
+
 """Prove that the established single-shard runtime remains available through
 the canonical AIE facade while shard zero is admitted by LogicalBrain.
 
