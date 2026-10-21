@@ -138,7 +138,7 @@ verb auxiliary_test_release_stays_in_owner_shard(ins brain: LogicalTeachingBrain
     ) {
         return false;
     }
-    if brain.auxiliary[0u32].table.active_count != 1u32 {
+    if brain.auxiliary[1u32].table.active_count != 1u32 {
         return false;
     }
     if !logical_teaching_auxiliary_release(brain: ins brain, source_global: erg source) {
@@ -147,7 +147,16 @@ verb auxiliary_test_release_stays_in_owner_shard(ins brain: LogicalTeachingBrain
     if brain.auxiliary[1u32].table.active_count != 0u32 {
         return false;
     }
-    return brain.auxiliary[0u32].table.active_count == 1u32 && (brain.fabrics[0u32].columns[0u32].flags & FLAG_HAS_AUX) != 0u8;
+    if brain.auxiliary[0u32].table.active_count != 1u32 {
+        return false;
+    }
+    if (brain.fabrics[0u32].columns[0u32].flags & FLAG_HAS_AUX) == 0u8 {
+        return false;
+    }
+    if (brain.fabrics[1u32].columns[0u32].flags & FLAG_HAS_AUX) != 0u8 {
+        return false;
+    }
+    return true;
 }
 
 meta test

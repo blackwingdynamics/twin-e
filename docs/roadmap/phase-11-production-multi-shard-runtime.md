@@ -143,11 +143,11 @@ release/reuse in both the owning shard and a cross-shard isolation case.
 
 ## Gate 11.6 — Connect generation save, load, and recovery
 
-- [ ] Write complete dirty shard candidates with header, columns, bindings,
+- [x] Write complete dirty shard candidates with header, columns, bindings,
       auxiliary, and checksum.
-- [ ] Validate every candidate before publication.
-- [ ] Publish shard files before the manifest and the manifest last.
-- [ ] Include shard count, ranges, bounds, profile versions, and checksums in
+- [x] Validate every candidate before publication.
+- [x] Publish shard files before the manifest and the manifest last.
+- [x] Include shard count, ranges, bounds, profile versions, and checksums in
       the manifest.
 - [ ] Reject incomplete, duplicated, overlapping, incompatible, truncated,
       and checksum-invalid generations.
@@ -159,6 +159,14 @@ release/reuse in both the owning shard and a cross-shard isolation case.
 - [ ] Load → teach across shards → save → restart → recall passes.
 - [ ] Interrupted publication selects the previous complete generation.
 - [ ] Failed save leaves both live resident state and active generation usable.
+
+The current Gate 11.6 evidence includes a passing two-shard generation fixture
+in `tests/aie_multi_shard_generation.act`. It writes complete shard artifacts,
+publishes the manifest after both shard files, validates complete sections on
+load, and restores both descriptor ranges into a fresh cortical fabric. The
+complete-section loader is separate from the existing column-only lookup path.
+Logical-brain binding/auxiliary restoration and the two pre-existing
+`aie_logical_auxiliary` test failures remain open, so this gate is not closed.
 
 ## Gate 11.7 — Replace the runner's single-fabric teaching path
 

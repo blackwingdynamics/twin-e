@@ -3,6 +3,8 @@ import config;
 
 open dynamic_shard;
 
+open file;
+
 open fixed;
 
 open snapshot;
