@@ -1,0 +1,446 @@
+meta limitless("file")
+
+
+"""Gate 11.6 evidence for malformed multi-shard manifest rejection.
+
+This fixture intentionally keeps descriptor construction, publication, and
+mutation-free rejection together so every malformed-generation variant uses
+the same byte layout and resident-state assertion.
+"""
+import aie;
+
+import config;
+
+import std::fs;
+
+import std::path;
+
+open aie;
+
+open config;
+
+open fs;
+
+verb boundary_path(erg suffix: u8) -> Result[Path, PathError] {
+    erg raw: Buffer = Buffer[0];
+    append(raw, 47u8);
+    append(raw, 116u8);
+    append(raw, 109u8);
+    append(raw, 112u8);
+    append(raw, 47u8);
+    append(raw, 116u8);
+    append(raw, 119u8);
+    append(raw, 105u8);
+    append(raw, 110u8);
+    append(raw, 45u8);
+    append(raw, 101u8);
+    append(raw, 45u8);
+    append(raw, 98u8);
+    append(raw, 111u8);
+    append(raw, 117u8);
+    append(raw, 110u8);
+    append(raw, 100u8);
+    append(raw, 45u8);
+    append(raw, suffix);
+    append(raw, 0u8);
+    return path_from_ascii(storage: dat raw);
+}
+
+verb boundary_append_u32(ins output: Buffer, abs value: u32) {
+    append(output, (value & 255u32) as u8);
+    append(output, ((value / 256u32) & 255u32) as u8);
+    append(output, ((value / 65536u32) & 255u32) as u8);
+    append(output, ((value / 16777216u32) & 255u32) as u8);
+}
+
+verb boundary_append_u64(ins output: Buffer, abs value: u64) {
+    boundary_append_u32(output: ins output, value: abs (value & 4294967295u64) as u32);
+    boundary_append_u32(output: ins output, value: abs (value / 4294967296u64) as u32);
+}
+
+verb boundary_descriptor(
+    erg shard_id: u32,
+    erg first_column: u32,
+    erg column_count: u32,
+    erg column_payload: u32,
+    abs checksum: u64
+) -> Buffer {
+    erg output: Buffer = Buffer[0];
+    erg payload_offset: u32 = BRAIN_SHARD_HEADER_BYTES as u32;
+    erg binding_payload: u32 = column_count * BRAIN_SHARD_BINDING_STRIDE_BYTES as u32;
+    erg binding_offset: u32 = payload_offset + column_payload;
+    erg auxiliary_offset: u32 = binding_offset + binding_payload;
+    boundary_append_u32(output: ins output, value: abs shard_id);
+    boundary_append_u32(output: ins output, value: abs first_column);
+    boundary_append_u32(output: ins output, value: abs column_count);
+    boundary_append_u32(output: ins output, value: abs payload_offset);
+    boundary_append_u32(output: ins output, value: abs column_payload);
+    boundary_append_u32(output: ins output, value: abs binding_offset);
+    boundary_append_u32(output: ins output, value: abs binding_payload);
+    boundary_append_u32(output: ins output, value: abs auxiliary_offset);
+    boundary_append_u32(output: ins output, value: abs BRAIN_AUXILIARY_PAYLOAD_BYTES);
+    boundary_append_u64(output: ins output, value: abs checksum);
+    boundary_append_u32(output: ins output, value: abs 1u32);
+    return output;
+}
+
+verb boundary_manifest(
+    erg second_id: u32,
+    erg second_first: u32,
+    erg second_payload: u32,
+    abs first_checksum: u64,
+    abs second_checksum: u64
+) -> Buffer {
+    erg first_id: u32 = 0u32;
+    erg first_column: u32 = 0u32;
+    erg first_count: u32 = BRAIN_SHARD_COLUMN_COUNT;
+    erg first_payload: u32 = BRAIN_SHARD_COLUMN_COUNT * BRAIN_SHARD_COLUMN_STRIDE_BYTES as u32;
+    erg descriptors: Buffer = boundary_descriptor(
+        shard_id: erg first_id,
+        first_column: erg first_column,
+        column_count: erg first_count,
+        column_payload: erg first_payload,
+        checksum: abs first_checksum
+    );
+    erg second: Buffer = boundary_descriptor(
+        shard_id: erg second_id,
+        first_column: erg second_first,
+        column_count: erg first_count,
+        column_payload: erg second_payload,
+        checksum: abs second_checksum
+    );
+    for erg index: u32 in 0u32 .. BRAIN_MANIFEST_DESCRIPTOR_BYTES as u32 {
+        append(descriptors, second[index]);
+    }
+    return descriptors;
+}
+
+verb boundary_attempt(
+    abs manifest: Path,
+    abs shard_paths: Array[Path, 8],
+    erg variant: u8,
+    abs first_checksum: u64,
+    abs second_checksum: u64
+) -> Bool {
+    erg second_id: u32 = 1u32;
+    erg second_first: u32 = BRAIN_SHARD_COLUMN_COUNT;
+    erg second_payload: u32 = BRAIN_SHARD_COLUMN_COUNT * BRAIN_SHARD_COLUMN_STRIDE_BYTES as u32;
+    if variant == 1u8 {
+        second_id = 0u32;
+    }
+    if variant == 2u8 {
+        second_first = BRAIN_SHARD_COLUMN_COUNT - 1u32;
+    }
+    if variant == 3u8 {
+        second_payload = second_payload - 1u32;
+    }
+    return boundary_write_and_reject(
+        path: abs manifest,
+        shard_paths: abs shard_paths,
+        second_id: erg second_id,
+        second_first: erg second_first,
+        second_payload: erg second_payload,
+        first_checksum: abs first_checksum,
+        second_checksum: abs second_checksum
+    );
+}
+
+verb boundary_manifest_write(
+    abs path: Path,
+    erg second_id: u32,
+    erg second_first: u32,
+    erg second_payload: u32,
+    abs first_checksum: u64,
+    abs second_checksum: u64
+) -> Result[Int, IoError] {
+    erg generation: u64 = 9u64;
+    erg active_count: u32 = 0u32;
+    erg free_list_head: u32 = NULL_INDEX;
+    erg total_column_count: u32 = 64u32;
+    erg shard_count: u32 = 2u32;
+    erg descriptors = boundary_manifest(
+        second_id: erg second_id,
+        second_first: erg second_first,
+        second_payload: erg second_payload,
+        first_checksum: abs first_checksum,
+        second_checksum: abs second_checksum
+    );
+    return write_manifest_dynamic(
+        path: abs path,
+        generation: erg generation,
+        active_count: erg active_count,
+        free_list_head: erg free_list_head,
+        total_column_count: erg total_column_count,
+        shard_count: erg shard_count,
+        descriptors: abs descriptors
+    );
+}
+
+verb boundary_write_and_reject(
+    abs path: Path,
+    abs shard_paths: Array[Path, 8],
+    erg second_id: u32,
+    erg second_first: u32,
+    erg second_payload: u32,
+    abs first_checksum: u64,
+    abs second_checksum: u64
+) -> Bool {
+    erg written = boundary_manifest_write(
+        path: abs path,
+        second_id: erg second_id,
+        second_first: erg second_first,
+        second_payload: erg second_payload,
+        first_checksum: abs first_checksum,
+        second_checksum: abs second_checksum
+    );
+    return case dat written {
+        Result.Err(_) => false,
+        Result.Ok(_) => boundary_load_rejects(manifest: abs path, shard_paths: abs shard_paths),
+    };
+}
+
+verb boundary_load_rejects(abs manifest: Path, abs shard_paths: Array[Path, 8]) -> Bool {
+    erg fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](), free_list_head: 0u32, active_count: 0u32};
+    erg shard_count: u32 = 2u32;
+    fabric_init(fabric: ins fabric);
+    fabric.columns[0u32].storage[0u32] = 77u8;
+    erg loaded = load_all_dynamic_shards(
+        fabric: ins fabric,
+        manifest_path: abs manifest,
+        shard_paths: abs shard_paths,
+        shard_count: erg shard_count
+    );
+    return case dat loaded {
+        Result.Ok(_) => false,
+        Result.Err(_) => fabric.columns[0u32].storage[0u32] == 77u8,
+    };
+}
+
+verb boundary_run_variant_pair(
+    abs manifest: Path,
+    abs paths: Array[Path, 8],
+    abs first_checksum: u64,
+    abs second_checksum: u64
+) -> Int {
+    erg duplicate_variant: u8 = 1u8;
+    erg overlap_variant: u8 = 2u8;
+    if !boundary_attempt(
+        manifest: abs manifest,
+        shard_paths: abs paths,
+        variant: erg duplicate_variant,
+        first_checksum: abs first_checksum,
+        second_checksum: abs second_checksum
+    ) {
+        return 7;
+    }
+    if !boundary_attempt(
+        manifest: abs manifest,
+        shard_paths: abs paths,
+        variant: erg overlap_variant,
+        first_checksum: abs first_checksum,
+        second_checksum: abs second_checksum
+    ) {
+        return 8;
+    }
+    return 0;
+}
+
+verb boundary_run_variants(
+    abs manifest: Path,
+    abs first: Path,
+    abs second: Path,
+    abs first_checksum: u64,
+    abs second_checksum: u64
+) -> Int {
+    erg paths: Array[Path,8] = Array[Path, 8]();
+    paths[0u32] = first;
+    paths[1u32] = second;
+    paths[2u32] = manifest;
+    erg incompatible_variant: u8 = 3u8;
+    erg pair_result = boundary_run_variant_pair(
+        manifest: abs manifest,
+        paths: abs paths,
+        first_checksum: abs first_checksum,
+        second_checksum: abs second_checksum
+    );
+    if pair_result != 0 {
+        return pair_result;
+    }
+    if !boundary_attempt(
+        manifest: abs manifest,
+        shard_paths: abs paths,
+        variant: erg incompatible_variant,
+        first_checksum: abs first_checksum,
+        second_checksum: abs second_checksum
+    ) {
+        return 9;
+    }
+    return 0;
+}
+
+meta limitless("verb")
+verb boundary_run_generation(abs manifest: Path, abs first: Path, abs second: Path) -> Int {
+    erg paths: Array[Path,8] = Array[Path, 8]();
+    paths[0u32] = first;
+    paths[1u32] = second;
+    paths[2u32] = manifest;
+    erg columns: Array[u8,4096] = Array[u8, 4096]();
+    erg bindings: Array[u8,1536] = Array[u8, 1536]();
+    columns[0u32] = 41u8;
+    columns[2048u32] = 99u8;
+    bindings[0u32] = BINDING_ACTIVE_FLAG;
+    bindings[768u32] = BINDING_ACTIVE_FLAG;
+    erg active_count: u32 = 4u32;
+    erg free_list_head: u32 = NULL_INDEX;
+    erg generation: u64 = 8u64;
+    erg generated = write_sharded_snapshot(
+        manifest_path: abs paths[2u32],
+        shard_paths: abs paths,
+        columns: abs columns,
+        entries: abs bindings,
+        active_count: erg active_count,
+        free_list_head: erg free_list_head,
+        generation: erg generation
+    );
+    return case dat generated {
+        Result.Err(_) => 4,
+        Result.Ok(_) => {
+            erg first_checksum_result = dynamic_shard_file_checksum(path: abs first);
+            return case dat first_checksum_result {
+                Result.Err(_) => 5,
+                Result.Ok(first_checksum) => boundary_finish_generation(
+                    manifest: abs manifest,
+                    first: abs first,
+                    second: abs second,
+                    first_checksum: abs first_checksum
+                ),
+            };
+        },
+    };
+}
+
+verb boundary_finish_generation(
+    abs manifest: Path,
+    abs first: Path,
+    abs second: Path,
+    abs first_checksum: u64
+) -> Int {
+    erg second_checksum_result = dynamic_shard_file_checksum(path: abs second);
+    return case dat second_checksum_result {
+        Result.Err(_) => 6,
+        Result.Ok(second_checksum) => boundary_run_variants(
+            manifest: abs manifest,
+            first: abs first,
+            second: abs second,
+            first_checksum: abs first_checksum,
+            second_checksum: abs second_checksum
+        ),
+    };
+}
+
+verb boundary_finish_paths(abs manifest: Path, abs first: Path, abs second: Path) -> Int {
+    erg result: Int = boundary_run_generation(
+        manifest: abs manifest,
+        first: abs first,
+        second: abs second
+    );
+    remove_file(path: abs manifest);
+    remove_file(path: abs first);
+    remove_file(path: abs second);
+    return result;
+}
+
+verb boundary_first_path(
+    abs manifest: Path,
+    dat first_result: Result[Path, PathError],
+    dat second_result: Result[Path, PathError]
+) -> Int {
+    return case dat first_result {
+        Result.Err(_) => {
+            return case dat second_result {
+                Result.Err(_) => 2,
+                Result.Ok(second) => {
+                    drop(second);
+                    2;
+                },
+            };
+        },
+        Result.Ok(first) => case dat second_result {
+            Result.Err(_) => {
+                drop(first);
+                3;
+            },
+            Result.Ok(second) => {
+                erg result: Int = boundary_finish_paths(
+                    manifest: abs manifest,
+                    first: abs first,
+                    second: abs second
+                );
+                drop(first);
+                drop(second);
+                result;
+            },
+        },
+    };
+}
+
+verb boundary_manifest_path(
+    dat manifest_result: Result[Path, PathError],
+    dat first_result: Result[Path, PathError],
+    dat second_result: Result[Path, PathError]
+) -> Int {
+    return case dat manifest_result {
+        Result.Err(_) => boundary_discard_paths(first_result: dat first_result, second_result: dat second_result),
+        Result.Ok(manifest) => {
+            erg result: Int = boundary_first_path(
+                manifest: abs manifest,
+                first_result: dat first_result,
+                second_result: dat second_result
+            );
+            drop(manifest);
+            result;
+        },
+    };
+}
+
+verb boundary_discard_paths(
+    dat first_result: Result[Path, PathError],
+    dat second_result: Result[Path, PathError]
+) -> Int {
+    return case dat first_result {
+        Result.Err(_) => case dat second_result {
+            Result.Err(_) => 1,
+            Result.Ok(second) => {
+                drop(second);
+                1;
+            },
+        },
+        Result.Ok(first) => case dat second_result {
+            Result.Err(_) => {
+                drop(first);
+                1;
+            },
+            Result.Ok(second) => {
+                drop(first);
+                drop(second);
+                1;
+            },
+        },
+    };
+}
+
+meta limitless("verb")
+meta test
+verb test_multi_shard_manifest_rejects_duplicate_overlap_and_incompatible_descriptors() -> Int {
+    erg manifest_suffix: u8 = 91u8;
+    erg first_suffix: u8 = 92u8;
+    erg second_suffix: u8 = 93u8;
+    erg manifest_result = boundary_path(suffix: erg manifest_suffix);
+    erg first_result = boundary_path(suffix: erg first_suffix);
+    erg second_result = boundary_path(suffix: erg second_suffix);
+    return boundary_manifest_path(
+        manifest_result: dat manifest_result,
+        first_result: dat first_result,
+        second_result: dat second_result
+    );
+}

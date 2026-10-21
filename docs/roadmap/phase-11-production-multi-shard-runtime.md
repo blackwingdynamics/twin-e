@@ -149,24 +149,26 @@ release/reuse in both the owning shard and a cross-shard isolation case.
 - [x] Publish shard files before the manifest and the manifest last.
 - [x] Include shard count, ranges, bounds, profile versions, and checksums in
       the manifest.
-- [ ] Reject incomplete, duplicated, overlapping, incompatible, truncated,
+- [x] Reject incomplete, duplicated, overlapping, incompatible, truncated,
       and checksum-invalid generations.
-- [ ] Preserve the previous complete generation after failed publication.
+- [x] Preserve the previous complete generation after failed publication.
 - [ ] Restore a multi-shard generation into a fresh logical brain.
 
 ### Required evidence
 
 - [ ] Load → teach across shards → save → restart → recall passes.
-- [ ] Interrupted publication selects the previous complete generation.
-- [ ] Failed save leaves both live resident state and active generation usable.
+- [x] Interrupted publication selects the previous complete generation.
+- [x] Failed save leaves both live resident state and active generation usable.
 
-The current Gate 11.6 evidence includes a passing two-shard generation fixture
-in `tests/aie_multi_shard_generation.act`. It writes complete shard artifacts,
-publishes the manifest after both shard files, validates complete sections on
-load, and restores both descriptor ranges into a fresh cortical fabric. The
-complete-section loader is separate from the existing column-only lookup path.
-Logical-brain binding/auxiliary restoration and the two pre-existing
-`aie_logical_auxiliary` test failures remain open, so this gate is not closed.
+Gate 11.6 now has executable coverage for complete two-shard publication,
+descriptor-order loading, duplicate/overlapping/incompatible manifest
+rejection, truncated and checksum-invalid artifacts, mutation-free rejection,
+previous-generation recovery, and failed-save usability. The strict suite is
+166 tests with zero failures. The remaining gate item is the public
+logical-brain restore path: loading a complete multi-shard generation into a
+fresh logical brain and then proving load -> teach -> save -> restart -> recall
+through that facade. Until that API-level lifecycle exists, Gate 11.6 remains
+open.
 
 ## Gate 11.7 — Replace the runner's single-fabric teaching path
 
