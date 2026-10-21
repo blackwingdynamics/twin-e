@@ -32,7 +32,13 @@ open struct ShardSaveRequest {
     erg bindings: Buffer,
 }
 
-verb complete_shard_save(
+"""Complete an explicit shard save only after publication succeeds.
+
+An I/O failure leaves the entry dirty so the caller can retry. This boundary
+does not perform I/O itself; it only commits the resident lifecycle transition
+for a successful result returned by the explicit flush operation.
+"""
+open verb complete_shard_save(
     ins cache: ShardCache,
     erg slot: u8,
     dat flushed: Result[Int, IoError]

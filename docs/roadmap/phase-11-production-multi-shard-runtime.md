@@ -88,26 +88,33 @@ filesystem I/O to the learning hot path.
 ## Gate 11.4 — Implement bounded shard admission and rotation
 
 - [ ] Teach into the current shard until its validated local capacity is full.
-- [ ] Allocate the next deterministic shard without replacing older knowledge.
-- [ ] Preserve request ordering and report the shard transition in bounded
+- [x] Allocate the next deterministic shard without replacing older knowledge.
+- [x] Preserve request ordering and report the shard transition in bounded
       metrics.
-- [ ] Reject admission when the logical shard limit is reached.
-- [ ] Keep resident-cache admission consistent with ADR-0012.
+- [x] Reject admission when the logical shard limit is reached.
+- [x] Keep resident-cache admission consistent with ADR-0012.
 - [ ] Make the Production Teaching Runner perform a bounded explicit flush
       when the dirty high-watermark raises `shard_cache_flush_requested`,
       before retrying admission or creating another shard.
-- [ ] Reject or pause teaching on flush failure without dirty eviction or an
+- [x] Reject or pause teaching on flush failure without dirty eviction or an
       unbounded flush queue.
-- [ ] Ensure a failed new-shard admission leaves the previous shard usable.
-- [ ] Do not write a shard synchronously from the teaching mutation path.
+- [x] Ensure a failed new-shard admission leaves the previous shard usable.
+- [x] Do not write a shard synchronously from the teaching mutation path.
 
 ### Required evidence
 
 - [ ] A fixture crosses at least two shards and recalls records from both.
-- [ ] A logical-capacity fixture rejects the next record without mutation.
-- [ ] A failed rotation fixture preserves the last valid resident state.
+- [x] A logical-capacity fixture rejects the next record without mutation.
+- [x] A failed rotation fixture preserves the last valid resident state.
 - [ ] A high-watermark fixture proves flush-then-continue behavior, and a
       failed-flush fixture proves resident and published state are unchanged.
+
+The bounded logical admission boundary is covered by
+`tests/aie_shard_admission.act`. The two runner-specific items remain open:
+the Production Teaching Runner still has to route real teaching records
+through this facade and perform the explicit persistence call before retrying
+`FlushRequired`; that work belongs to the remaining Gate 11.4 runner boundary
+and Gate 11.7 integration.
 
 ## Gate 11.5 — Integrate shard-local bindings and auxiliary state
 
