@@ -29,6 +29,9 @@ jobs:
       - name: Validate lockfile
         run: ${ACTUS} lock --check
 
+      - name: Validate canonical facade import boundaries
+        run: bash scripts/check-facade-import-boundaries.sh
+
       - name: Check every Actus source file
         shell: bash
         run: |
