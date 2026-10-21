@@ -1,0 +1,63 @@
+"""Boundary evidence for the production logical shard routing profile."""
+import aie;
+
+import config;
+
+meta test
+verb test_logical_shard_profile_and_round_trip() -> Int {
+    if !logical_shard_profile_is_valid() {
+        return 1;
+    }
+    erg last_index: u32 = BRAIN_LOGICAL_MAX_COLUMNS - 1u32;
+    erg location = logical_column_location(global_index: erg last_index);
+    return case dat location {
+        Result.Err(_) => 2,
+        Result.Ok(value) => {
+            if value.shard_id != BRAIN_LOGICAL_MAX_SHARDS - 1u32 || value.local_index != BRAIN_LOGICAL_SHARD_MASK {
+                return 3;
+            }
+            erg rebuilt_shard_id: u32 = value.shard_id;
+            erg rebuilt_local_index: u32 = value.local_index;
+            erg rebuilt = logical_global_index(shard_id: erg rebuilt_shard_id, local_index: erg rebuilt_local_index);
+            return case dat rebuilt {
+                Result.Err(_) => 4,
+                Result.Ok(index) => {
+                    if index != last_index {
+                        return 5;
+                    }
+                    0;
+                },
+            };
+        },
+    };
+}
+
+meta test
+verb test_logical_shard_routing_rejects_overflow() -> Int {
+    erg rejected_global_index: u32 = BRAIN_LOGICAL_MAX_COLUMNS;
+    erg out_of_range = logical_column_location(global_index: erg rejected_global_index);
+    erg out_of_range_status: Int = case dat out_of_range {
+        Result.Ok(_) => 1,
+        Result.Err(_) => 0,
+    };
+    if out_of_range_status != 0 {
+        return 1;
+    }
+    erg rejected_shard_id: u32 = BRAIN_LOGICAL_MAX_SHARDS;
+    erg zero_local_index: u32 = 0u32;
+    erg bad_shard = logical_global_index(shard_id: erg rejected_shard_id, local_index: erg zero_local_index);
+    erg bad_shard_status: Int = case dat bad_shard {
+        Result.Ok(_) => 1,
+        Result.Err(_) => 0,
+    };
+    if bad_shard_status != 0 {
+        return 2;
+    }
+    erg zero_shard_id: u32 = 0u32;
+    erg rejected_local_index: u32 = BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY;
+    erg bad_local = logical_global_index(shard_id: erg zero_shard_id, local_index: erg rejected_local_index);
+    return case dat bad_local {
+        Result.Ok(_) => 3,
+        Result.Err(_) => 0,
+    };
+}

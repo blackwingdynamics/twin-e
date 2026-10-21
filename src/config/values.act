@@ -458,6 +458,26 @@ open const BRAIN_SHARD_DYNAMIC_MAX_COLUMNS: u32 = 1024u32;
 open const BRAIN_SHARD_DYNAMIC_MAX_BYTES: u32 = 65584u32;
 
 
+"""Production logical shard capacity; must remain a power of two."""
+open const BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY: u32 = 1024u32;
+
+
+"""Right shift used to derive a production logical shard ID."""
+open const BRAIN_LOGICAL_SHARD_SHIFT: u32 = 10u32;
+
+
+"""Mask used to derive a production shard-local column index."""
+open const BRAIN_LOGICAL_SHARD_MASK: u32 = 1023u32;
+
+
+"""Maximum logical shard count in the initial production host profile."""
+open const BRAIN_LOGICAL_MAX_SHARDS: u32 = 8u32;
+
+
+"""Maximum logical column count in the initial production host profile."""
+open const BRAIN_LOGICAL_MAX_COLUMNS: u32 = 8192u32;
+
+
 """Magic value identifying a serialized shard manifest."""
 open const BRAIN_MANIFEST_MAGIC: u32 = 1296645709u32;
 

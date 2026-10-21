@@ -36,7 +36,7 @@ filesystem I/O to the learning hot path.
 - [ ] Measure complete shard artifacts, including columns, headers, bindings,
       auxiliary data, checksums, and manifest metadata; do not infer full file
       size from the column array alone.
-- [ ] Record the selected values in one canonical config module.
+- [x] Record the selected values in one canonical config module.
 - [ ] Reject zero, overflowed, and internally inconsistent profiles before
       creating resident state.
 - [ ] Define the typed errors for logical-capacity exhaustion, resident-cache
@@ -72,9 +72,9 @@ filesystem I/O to the learning hot path.
 
 ## Gate 11.3 — Implement deterministic global-index routing
 
-- [ ] Implement checked global-to-shard and shard-to-global conversions.
-- [ ] Reject multiplication, addition, and shard-ID overflow before mutation.
-- [ ] Validate that a local index belongs to the descriptor's declared range.
+- [x] Implement checked global-to-shard and shard-to-global conversions.
+- [x] Reject multiplication, addition, and shard-ID overflow before mutation.
+- [x] Validate that a local index belongs to the descriptor's declared range.
 - [ ] Preserve global `u32` axon targets across shard boundaries.
 - [ ] Add tests for first, last, boundary, unknown, and overflowed indexes.
 - [ ] Add cross-shard route tests with deterministic target selection.

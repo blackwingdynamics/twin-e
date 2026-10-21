@@ -1,0 +1,77 @@
+"""Checked position-independent routing for the logical shard profile."""
+import config;
+
+open config;
+
+"""Typed failures for global-to-shard and shard-to-global conversion."""
+open enum ShardRoutingError {
+    InvalidProfile,
+    GlobalIndexOutOfRange,
+    ShardIndexOutOfRange,
+    LocalIndexOutOfRange,
+}
+
+"""Stable location of one global column inside the logical shard set."""
+open struct LogicalColumnLocation {
+    erg global_index: u32,
+    erg shard_id: u32,
+    erg local_index: u32,
+}
+
+"""Validate the fixed production routing profile before resident creation."""
+open verb logical_shard_profile_is_valid() -> Bool {
+    erg capacity: u32 = BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY;
+    if capacity == 0u32 {
+        return false;
+    }
+    if (capacity & (capacity - 1u32)) != 0u32 {
+        return false;
+    }
+    if (1u32 << BRAIN_LOGICAL_SHARD_SHIFT) != capacity {
+        return false;
+    }
+    if BRAIN_LOGICAL_SHARD_MASK != capacity - 1u32 {
+        return false;
+    }
+    return BRAIN_LOGICAL_MAX_COLUMNS == BRAIN_LOGICAL_MAX_SHARDS * capacity;
+}
+
+"""Map a checked global column index to a deterministic shard location.
+
+The operation is pure and does not allocate or mutate resident state. It uses
+the production shift/mask profile only after validating that profile and the
+global index bound.
+"""
+open verb logical_column_location(erg global_index: u32) -> Result[LogicalColumnLocation, ShardRoutingError] {
+    if !logical_shard_profile_is_valid() {
+        return Result[LogicalColumnLocation, ShardRoutingError].Err(ShardRoutingError.InvalidProfile);
+    }
+    if global_index >= BRAIN_LOGICAL_MAX_COLUMNS {
+        return Result[LogicalColumnLocation, ShardRoutingError].Err(ShardRoutingError.GlobalIndexOutOfRange);
+    }
+    erg shard_id: u32 = global_index >> BRAIN_LOGICAL_SHARD_SHIFT;
+    erg local_index: u32 = global_index & BRAIN_LOGICAL_SHARD_MASK;
+    return Result[LogicalColumnLocation, ShardRoutingError].Ok(LogicalColumnLocation {global_index: global_index, shard_id: shard_id, local_index: local_index});
+}
+
+"""Rebuild a global index from checked shard and local indexes.
+
+The operation rejects indexes outside the configured logical brain before
+returning a value and does not mutate resident state.
+"""
+open verb logical_global_index(erg shard_id: u32, erg local_index: u32) -> Result[u32, ShardRoutingError] {
+    if !logical_shard_profile_is_valid() {
+        return Result[u32, ShardRoutingError].Err(ShardRoutingError.InvalidProfile);
+    }
+    if shard_id >= BRAIN_LOGICAL_MAX_SHARDS {
+        return Result[u32, ShardRoutingError].Err(ShardRoutingError.ShardIndexOutOfRange);
+    }
+    if local_index >= BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY {
+        return Result[u32, ShardRoutingError].Err(ShardRoutingError.LocalIndexOutOfRange);
+    }
+    erg global_index: u32 = (shard_id << BRAIN_LOGICAL_SHARD_SHIFT) | local_index;
+    if global_index >= BRAIN_LOGICAL_MAX_COLUMNS {
+        return Result[u32, ShardRoutingError].Err(ShardRoutingError.GlobalIndexOutOfRange);
+    }
+    return Result[u32, ShardRoutingError].Ok(global_index);
+}
