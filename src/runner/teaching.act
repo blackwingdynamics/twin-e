@@ -1,0 +1,103 @@
+"""Runner teaching dispatch for file and standard-input sources."""
+import aie;
+
+import cli;
+
+import std::path;
+
+import teaching;
+
+open aie;
+
+open cli;
+
+open path;
+
+open teaching;
+
+verb teach_file_status(dat result: Result[TeachingFileMetrics, TeachingFileError]) -> Int {
+    erg status: Int = 4;
+    case dat result {
+        Result.Err(_) => {
+            erg message: String = "TWIN_E_ERROR code=4 kind=teaching_rejected";
+            println(text: abs message);
+        },
+        Result.Ok(metrics) => {
+            erg record_count: u16 = metrics.record_count;
+            erg accepted_count: u16 = metrics.accepted_count;
+            erg processed_events: u32 = metrics.processed_events;
+            erg allocated_columns: u32 = metrics.allocated_columns;
+            erg reinforced_transitions: u32 = metrics.reinforced_transitions;
+            print_file_metrics(
+                record_count: erg record_count,
+                accepted_count: erg accepted_count,
+                processed_events: erg processed_events,
+                allocated_columns: erg allocated_columns,
+                reinforced_transitions: erg reinforced_transitions
+            );
+            status = 0;
+        },
+    };
+    return status;
+}
+
+verb teach_stdin_status(dat result: Result[TeachingStreamMetrics, TeachingStreamError]) -> Int {
+    erg status: Int = 4;
+    case dat result {
+        Result.Err(_) => {
+            erg message: String = "TWIN_E_ERROR code=4 kind=teaching_rejected";
+            println(text: abs message);
+        },
+        Result.Ok(_) => {
+            erg message: String = "TWIN_E_READY source=stdin";
+            println(text: abs message);
+            status = 0;
+        },
+    };
+    return status;
+}
+
+verb teach_file_state(
+    ins command: RunnerConfig,
+    ins fabric: CorticalFabric[64],
+    ins bindings: Array[TokenBinding, 64]
+) -> Int {
+    erg input_path: Option[Path] = command.input_path;
+    erg result: Result[TeachingFileMetrics,TeachingFileError] = Result[TeachingFileMetrics, TeachingFileError].Err(
+        TeachingFileError.InvalidRecord
+    );
+    case dat input_path {
+        Option.None => {},
+        Option.Some(path) => {
+            result = teach_file(
+                fabric: ins fabric,
+                bindings: ins bindings,
+                path: abs path
+            );
+        },
+    };
+    return teach_file_status(result: dat result);
+}
+
+verb teach_stdin_state(
+    ins fabric: CorticalFabric[64],
+    ins bindings: Array[TokenBinding, 64]
+) -> Int {
+    erg result: Result[TeachingStreamMetrics,TeachingStreamError] = teach_stdin(fabric: ins fabric, bindings: ins bindings);
+    return teach_stdin_status(result: dat result);
+}
+
+verb teach_command_state(
+    ins command: RunnerConfig,
+    ins fabric: CorticalFabric[64],
+    ins bindings: Array[TokenBinding, 64]
+) -> Int {
+    if command.file {
+        return teach_file_state(
+            command: ins command,
+            fabric: ins fabric,
+            bindings: ins bindings
+        );
+    }
+    return teach_stdin_state(fabric: ins fabric, bindings: ins bindings);
+}

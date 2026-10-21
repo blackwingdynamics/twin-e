@@ -1,0 +1,129 @@
+"""Runner startup, brain loading, and lifecycle orchestration."""
+import aie;
+
+import cli;
+
+import std::io;
+
+import std::path;
+
+import teaching;
+
+open aie;
+
+open cli;
+
+open io;
+
+open path;
+
+open teaching;
+
+open enum RunnerStartupError {
+    MissingBrain,
+    IncompatibleBrain,
+    CorruptBrain,
+    PartialBrain,
+}
+
+verb startup_error(dat error: IoError) -> RunnerStartupError {
+    return case dat error {
+        IoError.Failed => RunnerStartupError.MissingBrain,
+        IoError.InvalidInput => RunnerStartupError.IncompatibleBrain,
+        IoError.InvalidData => RunnerStartupError.CorruptBrain,
+        IoError.EndOfStream => RunnerStartupError.PartialBrain,
+    };
+}
+
+verb load_brain(
+    ins fabric: CorticalFabric[64],
+    ins bindings: Array[TokenBinding, 64],
+    abs path: Path
+) -> Result[Int, RunnerStartupError] {
+    erg loaded: Result[Int,IoError] = read_text_brain(
+        fabric: ins fabric,
+        bindings: ins bindings,
+        path: abs path
+    );
+    erg result: Result[Int,RunnerStartupError] = Result[Int, RunnerStartupError].Err(RunnerStartupError.PartialBrain);
+    case dat loaded {
+        Result.Ok(value) => {
+            result = Result[Int, RunnerStartupError].Ok(value);
+        },
+        Result.Err(error) => {
+            erg startup: RunnerStartupError = startup_error(error: dat error);
+            result = Result[Int, RunnerStartupError].Err(startup);
+        },
+    };
+    return result;
+}
+
+verb load_command_state(
+    abs command: RunnerConfig,
+    ins fabric: CorticalFabric[64],
+    ins bindings: Array[TokenBinding, 64]
+) -> Int {
+    if !command.load {
+        return 0;
+    }
+    erg loaded: Result[Int,RunnerStartupError] = load_brain(
+        fabric: ins fabric,
+        bindings: ins bindings,
+        path: abs command.brain_path
+    );
+    return case dat loaded {
+        Result.Ok(_) => 0,
+        Result.Err(_) => {
+            erg message: String = "TWIN_E_ERROR code=3 kind=brain_load_failed";
+            println(text: abs message);
+            3;
+        },
+    };
+}
+
+verb run_command(ins command: RunnerConfig) -> Int {
+    erg fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](), free_list_head: 0u32, active_count: 0u32};
+    erg bindings: Array[TokenBinding,64] = Array[TokenBinding, 64]();
+    fabric_init(fabric: ins fabric);
+    erg load_status: Int = load_command_state(
+        command: abs command,
+        fabric: ins fabric,
+        bindings: ins bindings
+    );
+    if load_status != 0 {
+        return load_status;
+    }
+    erg teach_status: Int = teach_command_state(
+        command: ins command,
+        fabric: ins fabric,
+        bindings: ins bindings
+    );
+    if teach_status != 0 {
+        return teach_status;
+    }
+    return save_command_state(
+        command: abs command,
+        fabric: abs fabric,
+        bindings: abs bindings
+    );
+}
+
+verb run_owned_command(dat command: RunnerConfig) -> Int {
+    return run_command(command: ins command);
+}
+
+"""Run the explicit CLI command and return its stable exit code."""
+open verb run() -> Int {
+    erg parsed: Result[RunnerConfig,RunnerParseError] = parse();
+    erg status: Int = 2;
+    case dat parsed {
+        Result.Err(_) => {
+            erg message: String = "TWIN_E_ERROR code=2 kind=invalid_config";
+            println(text: abs message);
+        },
+        Result.Ok(command) => {
+            status = run_owned_command(command: dat command);
+        },
+    };
+    return status;
+}

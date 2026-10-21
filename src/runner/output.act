@@ -1,0 +1,33 @@
+"""Bounded runner status and teaching metrics output."""
+verb print_file_metrics(
+    erg record_count: u16,
+    erg accepted_count: u16,
+    erg processed_events: u32,
+    erg allocated_columns: u32,
+    erg reinforced_transitions: u32
+) {
+    erg ready: String = "TWIN_E_READY";
+    erg records: String = "records=";
+    erg accepted: String = " accepted=";
+    erg events: String = " events=";
+    erg allocated: String = " allocated=";
+    erg reinforced: String = " reinforced=";
+    erg newline: String = "";
+    erg record_count_value: Int = record_count as Int;
+    erg accepted_count_value: Int = accepted_count as Int;
+    erg processed_events_value: Int = processed_events as Int;
+    erg allocated_columns_value: Int = allocated_columns as Int;
+    erg reinforced_transitions_value: Int = reinforced_transitions as Int;
+    println(text: abs ready);
+    print(text: abs records);
+    print_int(value: erg record_count_value);
+    print(text: abs accepted);
+    print_int(value: erg accepted_count_value);
+    print(text: abs events);
+    print_int(value: erg processed_events_value);
+    print(text: abs allocated);
+    print_int(value: erg allocated_columns_value);
+    print(text: abs reinforced);
+    print_int(value: erg reinforced_transitions_value);
+    println(text: abs newline);
+}

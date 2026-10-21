@@ -1,0 +1,18 @@
+"""Typed command-line configuration and parse failures."""
+import std::path;
+
+open path;
+
+open enum RunnerParseError {
+    MissingArgument,
+    InvalidArgument,
+    InvalidPath,
+}
+
+open struct RunnerConfig {
+    erg load: Bool,
+    erg file: Bool,
+    erg save: Bool,
+    erg brain_path: Path,
+    erg input_path: Option[Path],
+}

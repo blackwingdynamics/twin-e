@@ -1,0 +1,40 @@
+"""Explicit runner persistence operations."""
+import aie;
+
+import cli;
+
+import std::io;
+
+open aie;
+
+open cli;
+
+open io;
+
+verb save_command_state(
+    abs command: RunnerConfig,
+    abs fabric: CorticalFabric[64],
+    abs bindings: Array[TokenBinding, 64]
+) -> Int {
+    if !command.save {
+        return 0;
+    }
+    erg saved: Result[Int,IoError] = write_text_brain(
+        path: abs command.brain_path,
+        fabric: abs fabric,
+        bindings: abs bindings
+    );
+    erg status: Int = 5;
+    case dat saved {
+        Result.Ok(_) => {
+            erg message: String = "TWIN_E_SAVED";
+            println(text: abs message);
+            status = 0;
+        },
+        Result.Err(_) => {
+            erg message: String = "TWIN_E_ERROR code=5 kind=save_failed";
+            println(text: abs message);
+        },
+    };
+    return status;
+}

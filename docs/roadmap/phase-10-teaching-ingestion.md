@@ -60,6 +60,14 @@ src/teaching/
     ├── http.act                  # future host boundary
     ├── websocket.act              # future host boundary
     └── unix_socket.act             # future host boundary
+
+src/cli/
+├── cli.act                         # public CLI facade
+├── contract.act                    # typed command configuration and errors
+├── arguments.act                   # bounded argv and flag primitives
+└── parser.act                      # command-shape validation
+
+src/runner/runner.act               # engine operation orchestration
 ```
 
 The transport files are not interchangeable teaching implementations. Each
@@ -262,6 +270,29 @@ The current package entry point is an AIE demonstration program. It is useful
 for a smoke check, but it is not a training runtime and must not be published
 as the executable used by `twin-e-training`. This gate defines the first real
 operator-facing entry point without changing the AIE hot path.
+
+### Production command contract
+
+The package entry point accepts only an explicit bounded command shape:
+
+```text
+twin-e --create-empty <brain.brain> --stdin [--save]
+twin-e --load <brain.brain> --stdin [--save]
+twin-e --create-empty <brain.brain> --file <teaching.twf> [--save]
+twin-e --load <brain.brain> --file <teaching.twf> [--save]
+```
+
+`--load` requires an existing published `.brain`; it never falls back to an
+empty resident state. `--create-empty` is the only explicit empty-state mode.
+`--stdin` accepts the existing bounded newline teaching transport and
+`--file` accepts the existing bounded length-delimited teaching transport.
+`--save` is opt-in and publishes the updated combined brain only after the
+teaching operation succeeds. The runner prints bounded status and metric
+fields only; it never prints raw teaching records.
+
+Stable exit codes are `0` for success, `2` for invalid command/configuration,
+`3` for a missing, incompatible, corrupt, or partial brain, `4` for rejected
+teaching input, and `5` for a failed explicit save.
 
 - [ ] Define the production command contract for loading a published brain,
       accepting bounded teaching input, reporting metrics, and requesting an
