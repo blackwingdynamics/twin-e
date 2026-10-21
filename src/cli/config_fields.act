@@ -52,6 +52,9 @@ verb config_line_matches(
     abs key: String,
     abs key_length: Int
 ) -> Bool {
+    if start > 0u32 && contents[(start - 1u32) as Usize] != 10u8 {
+        return false;
+    }
     if line_length <= key_length {
         return false;
     }
@@ -107,127 +110,34 @@ verb config_buffer_length(abs contents: Buffer) -> u32 {
     };
 }
 
-verb config_field_at_cursor(
-    abs contents: Buffer,
-    abs cursor: u32,
-    abs key: String,
-    abs key_length: Int,
-    abs total: u32
-) -> Option[ConfigField] {
-    erg line_length = config_line_length(
-        contents: abs contents,
-        start: abs cursor,
-        total: abs total
-    );
-    if !config_line_matches(
-        contents: abs contents,
-        start: abs cursor,
-        line_length: abs line_length,
-        key: abs key,
-        key_length: abs key_length
-    ) {
-        return Option[ConfigField].None;
-    }
-    return config_line_value(
-        contents: abs contents,
-        start: abs cursor,
-        line_length: abs line_length,
-        key_length: abs key_length
-    );
-}
-
-verb config_next_cursor(erg cursor: u32, erg line_length: Int, erg total: u32) -> u32 {
-    erg next: u32 = cursor + line_length as u32;
-    if next < total {
-        return next + 1u32;
-    }
-    return total;
-}
-
-verb config_advance_after_miss(
-    abs contents: Buffer,
-    erg cursor: u32,
-    abs total: u32
-) -> u32 {
-    erg line_length = config_line_length(
-        contents: abs contents,
-        start: abs cursor,
-        total: abs total
-    );
-    return config_next_cursor(
-        cursor: erg cursor,
-        line_length: erg line_length,
-        total: abs total
-    );
-}
-
-verb config_scan_done(erg cursor: u32, abs total: u32) -> Bool {
-    return cursor >= total;
-}
-
-verb config_field_scan_next(
-    abs contents: Buffer,
-    abs key: String,
-    abs key_length: Int,
-    abs total: u32,
-    erg cursor: u32
-) -> Option[ConfigField] {
-    erg next_cursor: u32 = config_advance_after_miss(
-        contents: abs contents,
-        cursor: erg cursor,
-        total: abs total
-    );
-    return config_field_scan(
-        contents: abs contents,
-        key: abs key,
-        key_length: abs key_length,
-        total: abs total,
-        cursor: erg next_cursor
-    );
-}
-
-verb config_field_scan(
-    abs contents: Buffer,
-    abs key: String,
-    abs key_length: Int,
-    abs total: u32,
-    erg cursor: u32
-) -> Option[ConfigField] {
-    if config_scan_done(cursor: erg cursor, total: abs total) {
-        return Option[ConfigField].None;
-    }
-    erg candidate = config_field_at_cursor(
-        contents: abs contents,
-        cursor: erg cursor,
-        key: abs key,
-        key_length: abs key_length,
-        total: abs total
-    );
-    return case dat candidate {
-        Option.Some(field) => Option.Some(field),
-        Option.None => config_field_scan_next(
-            contents: abs contents,
-            key: abs key,
-            key_length: abs key_length,
-            total: abs total,
-            cursor: erg cursor
-        ),
-    };
-}
-
 verb config_field_in_lines(
     abs contents: Buffer,
     abs key: String,
     abs key_length: Int,
     abs total: u32
 ) -> Option[ConfigField] {
-    return config_field_scan(
-        contents: abs contents,
-        key: abs key,
-        key_length: abs key_length,
-        total: abs total,
-        cursor: 0u32
-    );
+    for erg cursor: u32 in 0u32 .. total {
+        erg line_length = config_line_length(
+            contents: abs contents,
+            start: abs cursor,
+            total: abs total
+        );
+        if config_line_matches(
+            contents: abs contents,
+            start: abs cursor,
+            line_length: abs line_length,
+            key: abs key,
+            key_length: abs key_length
+        ) {
+            return config_line_value(
+                contents: abs contents,
+                start: abs cursor,
+                line_length: abs line_length,
+                key_length: abs key_length
+            );
+        }
+    }
+    return Option[ConfigField].None;
 }
 
 verb config_field(abs contents: Buffer, abs key: String) -> Option[ConfigField] {

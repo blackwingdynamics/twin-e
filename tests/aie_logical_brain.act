@@ -32,6 +32,9 @@ verb test_ordered_admission(ins brain: LogicalBrain, erg shard_capacity: u32) ->
     if brain.shard_count != 1u32 || brain.total_column_count != shard_capacity {
         return 2;
     }
+    if brain.descriptors[0u32].shard_id != 0u32 || brain.descriptors[0u32].first_column_index != 0u32 || brain.descriptors[0u32].column_count != shard_capacity {
+        return 5;
+    }
     erg second_shard_id: u32 = 1u32;
     erg second_status: Int = admit_test_shard(
         brain: ins brain,
@@ -45,6 +48,69 @@ verb test_ordered_admission(ins brain: LogicalBrain, erg shard_capacity: u32) ->
         return 4;
     }
     return 0;
+}
+
+meta test
+verb test_logical_brain_empty_creation() -> Int {
+    erg brain: LogicalBrain = logical_brain_empty();
+    if brain.initialized || brain.shard_count != 0u32 || brain.total_column_count != 0u32 {
+        return 1;
+    }
+    return 0;
+}
+
+verb test_lookup_and_close_state(
+    ins brain: LogicalBrain,
+    erg shard_id: u32,
+    erg capacity: u32
+) -> Int {
+    erg lookup = logical_brain_lookup_shard(brain: abs brain, shard_id: erg shard_id);
+    return case dat lookup {
+        Result.Err(_) => 1,
+        Result.Ok(descriptor) => {
+            if descriptor.shard_id != shard_id || descriptor.column_count != capacity {
+                return 2;
+            }
+            erg closed = logical_brain_close(brain: ins brain);
+            return case dat closed {
+                Result.Err(_) => 3,
+                Result.Ok(_) => {
+                    if brain.initialized || brain.shard_count != 0u32 {
+                        return 4;
+                    }
+                    0;
+                },
+            };
+        },
+    };
+}
+
+meta test
+verb test_logical_brain_lookup_and_close() -> Int {
+    erg brain: LogicalBrain = logical_brain_empty();
+    erg initialized = logical_brain_init(brain: ins brain);
+    erg initialized_status: Int = case dat initialized {
+        Result.Err(_) => 1,
+        Result.Ok(_) => 0,
+    };
+    if initialized_status != 0 {
+        return 1;
+    }
+    erg shard_id: u32 = 0u32;
+    erg capacity: u32 = BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY;
+    erg admitted = logical_brain_admit_shard(
+        brain: ins brain,
+        shard_id: erg shard_id,
+        column_count: erg capacity
+    );
+    return case dat admitted {
+        Result.Err(_) => 2,
+        Result.Ok(_) => test_lookup_and_close_state(
+            brain: ins brain,
+            shard_id: erg shard_id,
+            capacity: erg capacity
+        ),
+    };
 }
 
 meta test

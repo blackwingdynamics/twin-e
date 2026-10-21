@@ -59,9 +59,9 @@ filesystem I/O to the learning hot path.
 - [x] Define the bounded shard directory and resident-entry lifecycle.
 - [x] Export the new child modules through one canonical persistence/runtime
       facade.
-- [ ] Preserve the existing single-shard behavior as shard zero under the new
+- [x] Preserve the existing single-shard behavior as shard zero under the new
       facade.
-- [ ] Add public API tests for empty creation, lookup, admission, and close.
+- [x] Add public API tests for empty creation, lookup, admission, and close.
 - [x] Keep all ownership roles explicit at declarations and call sites.
 
 ### Required evidence

@@ -35,6 +35,13 @@ the unit of fixed-capacity fabric storage; the brain is the ordered shard set.
 Teaching, recall, persistence, and recovery operate on the logical brain
 facade rather than on one hard-coded `CorticalFabric[64]`.
 
+The public logical-brain lifecycle is bounded and explicit: empty creation
+starts with no admitted shards, initialization creates the resident metadata,
+the first admitted shard is always shard zero, lookup returns only an admitted
+position-independent descriptor, and close clears resident metadata without
+publishing or deleting files. Persistence remains an explicit caller operation
+before close.
+
 The first production profile will use explicit compile-time bounds for:
 
 - maximum logical shard count;

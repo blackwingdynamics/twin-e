@@ -16,6 +16,7 @@ open enum LogicalBrainError {
     LogicalCapacityExceeded,
     ResidentCapacityExceeded,
     FlushRequired,
+    ShardNotFound,
 }
 
 """Bounded resident state for one logical brain.
@@ -131,4 +132,39 @@ open verb logical_brain_admit_shard(
         checksum: erg checksum
     );
     return logical_brain_finish_admission(brain: ins brain, inserted: dat inserted);
+}
+
+"""Look up one admitted shard through the public logical-brain facade.
+
+The operation is read-only, returns the position-independent manifest
+descriptor, and never exposes the resident cache or shard payload internals.
+Uninitialized brains and unknown shard IDs return typed errors.
+"""
+open verb logical_brain_lookup_shard(abs brain: LogicalBrain, erg shard_id: u32) -> Result[ManifestDescriptor, LogicalBrainError] {
+    if !brain.initialized {
+        return Result[ManifestDescriptor, LogicalBrainError].Err(LogicalBrainError.NotInitialized);
+    }
+    if shard_id >= brain.shard_count {
+        return Result[ManifestDescriptor, LogicalBrainError].Err(LogicalBrainError.ShardNotFound);
+    }
+    return Result[ManifestDescriptor, LogicalBrainError].Ok(brain.descriptors[shard_id as Usize]);
+}
+
+"""Close a logical brain and release its bounded resident metadata.
+
+Closing is an in-memory lifecycle operation. It clears the logical directory
+and cache; it does not publish or delete files. A caller must perform any
+explicit persistence operation before closing.
+"""
+open verb logical_brain_close(ins brain: LogicalBrain) -> Result[Int, LogicalBrainError] {
+    if !brain.initialized {
+        return Result[Int, LogicalBrainError].Err(LogicalBrainError.NotInitialized);
+    }
+    brain.initialized = false;
+    brain.shard_count = 0u32;
+    brain.total_column_count = 0u32;
+    brain.generation = 0u64;
+    brain.descriptors = Array[ManifestDescriptor, 8]();
+    shard_cache_init(cache: ins brain.cache);
+    return Result[Int, LogicalBrainError].Ok(0);
 }
