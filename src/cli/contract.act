@@ -8,6 +8,7 @@ open enum RunnerParseError {
     MissingArgument,
     InvalidArgument,
     InvalidPath,
+    InvalidConfig,
 }
 
 open struct RunnerConfig {

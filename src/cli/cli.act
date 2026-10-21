@@ -7,4 +7,6 @@ open command;
 
 open help;
 
+open config;
+
 open parser;

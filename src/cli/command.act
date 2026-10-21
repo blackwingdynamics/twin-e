@@ -7,6 +7,31 @@ open contract;
 
 open process;
 
+open config;
+
+verb parse_config_arguments(
+    dat arguments: Arguments,
+    abs config_flag: String
+) -> Result[RunnerConfig, RunnerParseError] {
+    if !parse_program_ok(arguments: ins arguments) {
+        return Result[RunnerConfig, RunnerParseError].Err(RunnerParseError.InvalidArgument);
+    }
+    erg flag_buffer: Buffer = Buffer[4096];
+    erg flag_result = cli_next(arguments: ins arguments, buffer: ins flag_buffer);
+    erg flag_ok: Bool = case dat flag_result {
+        Result.Err(_) => false,
+        Result.Ok(length) => cli_flag(value: abs flag_buffer, length: abs length, expected: abs config_flag),
+    };
+    if !flag_ok {
+        return Result[RunnerConfig, RunnerParseError].Err(RunnerParseError.InvalidArgument);
+    }
+    erg path_result = cli_read_path(arguments: ins arguments);
+    return case dat path_result {
+        Result.Err(error) => Result[RunnerConfig, RunnerParseError].Err(dat error),
+        Result.Ok(path) => parse_config(config_path: dat path),
+    };
+}
+
 verb parse_help_only(dat arguments: Arguments, abs help_flag: String) -> Result[RunnerConfig, RunnerParseError] {
     erg program_buffer: Buffer = Buffer[4096];
     erg program_result: Result[Int,RunnerParseError] = cli_next(arguments: ins arguments, buffer: ins program_buffer);
@@ -69,6 +94,10 @@ verb parse_arguments(
     abs save_flag: String
 ) -> Result[RunnerConfig, RunnerParseError] {
     erg total = count(arguments: abs arguments);
+    if total == 3 {
+        erg config_flag: String = "--config";
+        return parse_config_arguments(arguments: dat arguments, config_flag: abs config_flag);
+    }
     if total == 2 {
         return parse_help_only(arguments: dat arguments, help_flag: abs help_flag);
     }
