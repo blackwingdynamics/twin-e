@@ -1,0 +1,149 @@
+"""Write complete logical teaching generations."""
+import config;
+
+import std::io;
+
+open config;
+
+open io;
+
+open manifest;
+
+open shard;
+
+open core;
+
+open teaching;
+
+open codec;
+
+verb logical_persistence_append_descriptor(
+    ins output: Buffer,
+    erg shard_id: u32,
+    erg checksum: u64
+) {
+    append_manifest_u32(output: ins output, value: abs shard_id);
+    append_manifest_u32(output: ins output, value: abs shard_id * BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY);
+    append_manifest_u32(output: ins output, value: abs BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY);
+    append_manifest_u32(output: ins output, value: abs BRAIN_SHARD_HEADER_BYTES as u32);
+    append_manifest_u32(output: ins output, value: abs BRAIN_LOGICAL_SHARD_COLUMNS_BYTES);
+    append_manifest_u32(output: ins output, value: abs BRAIN_SHARD_HEADER_BYTES as u32 + BRAIN_LOGICAL_SHARD_COLUMNS_BYTES);
+    append_manifest_u32(output: ins output, value: abs BRAIN_LOGICAL_SHARD_BINDINGS_BYTES);
+    append_manifest_u32(output: ins output, value: abs BRAIN_SHARD_HEADER_BYTES as u32 + BRAIN_LOGICAL_SHARD_COLUMNS_BYTES + BRAIN_LOGICAL_SHARD_BINDINGS_BYTES);
+    append_manifest_u32(output: ins output, value: abs BRAIN_AUXILIARY_PAYLOAD_BYTES);
+    append_manifest_u64(output: ins output, value: abs checksum);
+    append_manifest_u32(output: ins output, value: abs 1u32);
+}
+
+verb logical_persistence_save_one_shard(
+    abs brain: LogicalTeachingBrain,
+    abs path: Path,
+    erg shard_id: u32
+) -> Result[u64, IoError] {
+    erg payload = logical_persistence_columns(fabric: abs brain.fabrics[shard_id as Usize]);
+    erg bindings = logical_persistence_bindings(bindings: abs brain.bindings[shard_id as Usize]);
+    erg auxiliary = logical_persistence_auxiliary(state: abs brain.auxiliary[shard_id as Usize]);
+    erg first_column_index: u32 = shard_id * BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY;
+    erg column_count: u32 = BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY;
+    erg written = write_dynamic_shard_with_bindings_and_auxiliary(
+        path: abs path,
+        shard_id: erg shard_id,
+        first_column_index: erg first_column_index,
+        column_count: erg column_count,
+        payload: abs payload,
+        bindings: abs bindings,
+        auxiliary: abs auxiliary
+    );
+    drop(payload);
+    drop(bindings);
+    drop(auxiliary);
+    return case dat written {
+        Result.Err(error) => Err(error),
+        Result.Ok(_) => dynamic_shard_file_checksum(path: abs path),
+    };
+}
+
+verb logical_persistence_save_profile_is_valid(abs brain: LogicalTeachingBrain) -> Bool {
+    return brain.initialized && brain.logical.shard_count != 0u32 && brain.logical.shard_count <= BRAIN_LOGICAL_MAX_RESIDENT_SHARDS;
+}
+
+verb logical_persistence_save_shards(
+    abs brain: LogicalTeachingBrain,
+    abs shard_paths: Array[Path, 8],
+    ins descriptors: Buffer
+) -> Result[Int, IoError] {
+    if !logical_persistence_save_profile_is_valid(brain: abs brain) {
+        return Err(IoError.InvalidInput);
+    }
+    for erg shard_id: u32 in 0u32 .. brain.logical.shard_count {
+        erg checksum = logical_persistence_save_one_shard(
+            brain: abs brain,
+            path: abs shard_paths[shard_id as Usize],
+            shard_id: erg shard_id
+        );
+        case dat checksum {
+            Result.Err(error) => {
+                return Err(error);
+            },
+            Result.Ok(value) => logical_persistence_append_descriptor(
+                output: ins descriptors,
+                shard_id: erg shard_id,
+                checksum: erg value
+            ),
+        };
+    }
+    return Ok(brain.logical.shard_count as Int);
+}
+
+verb logical_persistence_write_manifest(
+    abs brain: LogicalTeachingBrain,
+    abs manifest_path: Path,
+    abs descriptors: Buffer,
+    erg generation: u64
+) -> Result[Int, IoError] {
+    erg active_count: u32 = brain.logical.total_column_count;
+    erg free_list_head: u32 = 0u32;
+    erg total_column_count: u32 = brain.logical.total_column_count;
+    erg shard_count: u32 = brain.logical.shard_count;
+    return write_manifest_dynamic(
+        path: abs manifest_path,
+        generation: erg generation,
+        active_count: erg active_count,
+        free_list_head: erg free_list_head,
+        total_column_count: erg total_column_count,
+        shard_count: erg shard_count,
+        descriptors: abs descriptors
+    );
+}
+
+"""Write all resident logical shards and then their complete manifest."""
+open verb logical_teaching_save_generation(
+    abs brain: LogicalTeachingBrain,
+    abs shard_paths: Array[Path, 8],
+    abs manifest_path: Path,
+    erg generation: u64
+) -> Result[Int, IoError] {
+    erg descriptors: Buffer = Buffer[0];
+    erg descriptor_capacity: Int = (brain.logical.shard_count * BRAIN_MANIFEST_DESCRIPTOR_BYTES as u32) as Int;
+    erg reserved = reserve(buffer: ins descriptors, capacity: erg descriptor_capacity);
+    erg saved = logical_persistence_save_shards(
+        brain: abs brain,
+        shard_paths: abs shard_paths,
+        descriptors: ins descriptors
+    );
+    case dat saved {
+        Result.Err(error) => {
+            drop(descriptors);
+            return Err(error);
+        },
+        Result.Ok(_) => {},
+    };
+    erg result = logical_persistence_write_manifest(
+        brain: abs brain,
+        manifest_path: abs manifest_path,
+        descriptors: abs descriptors,
+        generation: erg generation
+    );
+    drop(descriptors);
+    return result;
+}

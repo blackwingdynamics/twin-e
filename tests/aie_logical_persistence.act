@@ -1,0 +1,244 @@
+"""Gate 11.6 evidence for logical teaching save, load, and restart recall."""
+import aie;
+
+import config;
+
+import std::path;
+
+import tokenizer;
+
+open aie;
+
+open config;
+
+open path;
+
+open tokenizer;
+
+verb persistence_token(abs seed: u32, abs position: u32) -> Token {
+    erg token: Token = Token {id: 0u32, byte_offset: 0u32, byte_length: 1u16, tokenizer_version: TOKENIZER_VERSION};
+    token.id = seed + position;
+    token.byte_offset = position;
+    return token;
+}
+
+verb persistence_sequence(erg seed: u32) -> TokenSequence {
+    erg sequence: TokenSequence = TokenSequence {tokens: Array[Token, 256](), length: 256u32, valid: true};
+    for erg position: u32 in 0u32 .. 256u32 {
+        sequence.tokens[position as Usize] = persistence_token(seed: abs seed, position: abs position);
+    }
+    return sequence;
+}
+
+verb persistence_teach(ins brain: LogicalTeachingBrain, erg seed: u32) -> Bool {
+    erg sequence: TokenSequence = persistence_sequence(seed: erg seed);
+    erg result = logical_teaching_sequence(brain: ins brain, sequence: abs sequence);
+    return case dat result {
+        Result.Err(_) => false,
+        Result.Ok(_) => true,
+    };
+}
+
+verb persistence_initial_training(ins brain: LogicalTeachingBrain) -> Bool {
+    erg first_seed: u32 = 50000u32;
+    erg second_seed: u32 = 54000u32;
+    erg third_seed: u32 = 55000u32;
+    erg fourth_seed: u32 = 56000u32;
+    erg fifth_seed: u32 = 57000u32;
+    erg initialized = logical_teaching_init(brain: ins brain);
+    case dat initialized {
+        Result.Err(_) => {
+            return false;
+        },
+        Result.Ok(_) => {},
+    };
+    return persistence_teach(brain: ins brain, seed: erg first_seed) && persistence_teach(brain: ins brain, seed: erg second_seed) && persistence_teach(
+        brain: ins brain,
+        seed: erg third_seed
+    ) && persistence_teach(brain: ins brain, seed: erg fourth_seed) && persistence_teach(brain: ins brain, seed: erg fifth_seed);
+}
+
+verb persistence_path(erg suffix: u8) -> Result[Path, PathError] {
+    erg raw: Buffer = Buffer[0];
+    append(raw, 47u8);
+    append(raw, 116u8);
+    append(raw, 109u8);
+    append(raw, 112u8);
+    append(raw, 47u8);
+    append(raw, 116u8);
+    append(raw, 119u8);
+    append(raw, 105u8);
+    append(raw, 110u8);
+    append(raw, 45u8);
+    append(raw, 101u8);
+    append(raw, 45u8);
+    append(raw, 103u8);
+    append(raw, 49u8);
+    append(raw, 49u8);
+    append(raw, 54u8);
+    append(raw, 45u8);
+    append(raw, suffix);
+    append(raw, 0u8);
+    return path_from_ascii(storage: dat raw);
+}
+
+verb persistence_assign_path(
+    ins paths: Array[Path, 8],
+    erg slot: u32,
+    dat result: Result[Path, PathError]
+) -> Bool {
+    return case dat result {
+        Result.Err(_) => false,
+        Result.Ok(value) => {
+            paths[slot as Usize] = value;
+            true;
+        },
+    };
+}
+
+verb persistence_paths(ins paths: Array[Path, 8]) -> Bool {
+    erg shard_zero_suffix: u8 = 49u8;
+    erg shard_one_suffix: u8 = 50u8;
+    erg manifest_suffix: u8 = 109u8;
+    erg shard_zero_slot: u32 = 0u32;
+    erg shard_one_slot: u32 = 1u32;
+    erg manifest_slot: u32 = 2u32;
+    erg shard_zero_path = persistence_path(suffix: erg shard_zero_suffix);
+    erg shard_one_path = persistence_path(suffix: erg shard_one_suffix);
+    erg manifest_path = persistence_path(suffix: erg manifest_suffix);
+    return persistence_assign_path(
+        paths: ins paths,
+        slot: erg shard_zero_slot,
+        result: dat shard_zero_path
+    ) && persistence_assign_path(
+        paths: ins paths,
+        slot: erg shard_one_slot,
+        result: dat shard_one_path
+    ) && persistence_assign_path(
+        paths: ins paths,
+        slot: erg manifest_slot,
+        result: dat manifest_path
+    );
+}
+
+verb persistence_save(
+    abs brain: LogicalTeachingBrain,
+    abs paths: Array[Path, 8],
+    erg generation: u64
+) -> Bool {
+    erg result = logical_teaching_save_generation(
+        brain: abs brain,
+        shard_paths: abs paths,
+        manifest_path: abs paths[2u32],
+        generation: erg generation
+    );
+    return case dat result {
+        Result.Err(_) => false,
+        Result.Ok(_) => true,
+    };
+}
+
+verb persistence_load(ins brain: LogicalTeachingBrain, abs paths: Array[Path, 8]) -> Bool {
+    erg result = logical_teaching_load_generation(
+        brain: ins brain,
+        shard_paths: abs paths,
+        manifest_path: abs paths[2u32]
+    );
+    return case dat result {
+        Result.Err(_) => false,
+        Result.Ok(value) => value == 2,
+    };
+}
+
+verb persistence_has_binding(
+    abs bindings: Array[TokenBinding, 1024],
+    erg token_id: u32
+) -> Bool {
+    erg bos_token_id: u32 = BPE_BOS_TOKEN_ID;
+    erg context: u64 = context_key(previous_token_id: erg bos_token_id, token_id: erg token_id);
+    erg result = lookup_token_context[1024](
+        bindings: abs bindings,
+        token_id: erg token_id,
+        context_key: erg context
+    );
+    return case dat result {
+        Option.None => false,
+        Option.Some(_) => true,
+    };
+}
+
+verb persistence_recall(abs brain: LogicalTeachingBrain) -> Bool {
+    erg first_token_id: u32 = 50000u32;
+    erg second_token_id: u32 = 54000u32;
+    erg fifth_token_id: u32 = 57000u32;
+    return persistence_has_binding(bindings: abs brain.bindings[0u32], token_id: erg first_token_id) && persistence_has_binding(
+        bindings: abs brain.bindings[0u32],
+        token_id: erg second_token_id
+    ) && persistence_has_binding(bindings: abs brain.bindings[1u32], token_id: erg fifth_token_id);
+}
+
+verb persistence_first_save(ins paths: Array[Path, 8]) -> Bool {
+    erg first: LogicalTeachingBrain = logical_teaching_empty();
+    erg first_generation: u64 = 1u64;
+    return persistence_initial_training(brain: ins first) && persistence_save(
+        brain: abs first,
+        paths: abs paths,
+        generation: erg first_generation
+    );
+}
+
+verb persistence_second_save(
+    ins brain: LogicalTeachingBrain,
+    abs paths: Array[Path, 8]
+) -> Bool {
+    erg second_generation: u64 = 2u64;
+    erg continuation_seed: u32 = 58000u32;
+    if !persistence_load(brain: ins brain, paths: abs paths) {
+        return false;
+    }
+    if !persistence_recall(brain: abs brain) {
+        return false;
+    }
+    if !persistence_teach(brain: ins brain, seed: erg continuation_seed) {
+        return false;
+    }
+    if !persistence_save(
+        brain: abs brain,
+        paths: abs paths,
+        generation: erg second_generation
+    ) {
+        return false;
+    }
+    return true;
+}
+
+verb persistence_restart_check(
+    ins brain: LogicalTeachingBrain,
+    abs paths: Array[Path, 8]
+) -> Bool {
+    erg restarted_seed: u32 = 58000u32;
+    return persistence_load(brain: ins brain, paths: abs paths) && persistence_recall(brain: abs brain) && persistence_has_binding(
+        bindings: abs brain.bindings[1u32],
+        token_id: erg restarted_seed
+    );
+}
+
+meta test
+verb test_logical_teaching_save_load_restart_recall() -> Int {
+    erg paths: Array[Path,8] = Array[Path, 8]();
+    if !persistence_paths(paths: ins paths) {
+        return 1;
+    }
+    if !persistence_first_save(paths: ins paths) {
+        return 1;
+    }
+    erg loaded: LogicalTeachingBrain = logical_teaching_empty();
+    if !persistence_second_save(brain: ins loaded, paths: abs paths) {
+        return 1;
+    }
+    erg restarted: LogicalTeachingBrain = logical_teaching_empty();
+    if !persistence_restart_check(brain: ins restarted, paths: abs paths) {
+        return 1;
+    }
+    return 0;
+}

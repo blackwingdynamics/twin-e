@@ -156,20 +156,18 @@ release/reuse in both the owning shard and a cross-shard isolation case.
 
 ### Required evidence
 
-- [ ] Load → teach across shards → save → restart → recall passes.
+- [x] Load → teach across shards → save → restart → recall passes.
 - [x] Interrupted publication selects the previous complete generation.
 - [x] Failed save leaves both live resident state and active generation usable.
 
 Gate 11.6 now has executable coverage for complete two-shard publication,
 descriptor-order loading, duplicate/overlapping/incompatible manifest
 rejection, truncated and checksum-invalid artifacts, mutation-free rejection,
-previous-generation recovery, and failed-save usability. The strict suite is
-167 tests with zero failures. The public `LogicalBrain` metadata restore path
-now restores a validated multi-shard directory into a fresh facade. The
-remaining required evidence is the full teaching-state lifecycle: loading
-columns, bindings, and auxiliary sections into a fresh `LogicalTeachingBrain`,
-then proving load -> teach -> save -> restart -> recall through that facade.
-Until that payload-level lifecycle exists, Gate 11.6 remains open.
+previous-generation recovery, failed-save usability, and the full teaching
+state lifecycle. The lifecycle test restores columns, bindings, and auxiliary
+sections into a fresh `LogicalTeachingBrain`, teaches across the restored
+shards, saves a new generation, restarts, and recalls both generations. The
+strict suite is 168 tests with zero failures.
 
 ## Gate 11.7 — Replace the runner's single-fabric teaching path
 
