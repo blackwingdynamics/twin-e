@@ -148,3 +148,41 @@ verb test_logical_profile_rejects_invalid_bounds() -> Int {
     }
     return test_profile_rejects_extended_limits();
 }
+
+"""Verify that an axon stores the global destination index unchanged.
+
+The destination belongs to shard one while the source fabric is the legacy
+single-shard runtime. The axon slot must retain the logical global `u32`; it
+must not be rewritten as a shard-local index or a persistence offset.
+"""
+meta test
+verb test_cross_shard_axon_preserves_global_target() -> Int {
+    erg shard_id: u32 = 1u32;
+    erg local_index: u32 = 7u32;
+    erg target_result = logical_global_index(shard_id: erg shard_id, local_index: erg local_index);
+    erg target: u32 = 0u32;
+    erg target_status: Int = case dat target_result {
+        Result.Err(_) => 1,
+        Result.Ok(index) => {
+            target = index;
+            0;
+        },
+    };
+    if target_status != 0 {
+        return 1;
+    }
+    erg fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](), free_list_head: 0u32, active_count: 0u32};
+    fabric_init(fabric: ins fabric);
+    erg source: u32 = allocate_column_index(fabric: ins fabric);
+    erg slot: u32 = 0u32;
+    link_axon(
+        fabric: ins fabric,
+        source: erg source,
+        slot: erg slot,
+        target: erg target
+    );
+    if target >= BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY && fabric.columns[source].axons[0u32] == target {
+        return 0;
+    }
+    return 2;
+}

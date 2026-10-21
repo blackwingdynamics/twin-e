@@ -75,7 +75,7 @@ filesystem I/O to the learning hot path.
 - [x] Implement checked global-to-shard and shard-to-global conversions.
 - [x] Reject multiplication, addition, and shard-ID overflow before mutation.
 - [x] Validate that a local index belongs to the descriptor's declared range.
-- [ ] Preserve global `u32` axon targets across shard boundaries.
+- [x] Preserve global `u32` axon targets across shard boundaries.
 - [ ] Add tests for first, last, boundary, unknown, and overflowed indexes.
 - [ ] Add cross-shard route tests with deterministic target selection.
 
