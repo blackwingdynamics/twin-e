@@ -1,0 +1,207 @@
+# Phase 11 — Production Multi-Shard Resident Runtime
+
+## Status
+
+Planned. No gate in this phase is complete yet.
+
+## Objective
+
+Replace the single-`CorticalFabric[64]` teaching limit with one bounded,
+manifest-backed logical brain composed of deterministic resident shards. The
+phase must make a real multi-record TWF training run possible without splitting
+knowledge into unrelated brain files, silently dropping records, or adding
+filesystem I/O to the learning hot path.
+
+## Non-negotiable invariants
+
+- One logical brain has one complete manifest generation.
+- Every shard contains `Header -> Columns -> Bindings -> Auxiliary`.
+- No global or per-shard auxiliary side file is introduced.
+- Global arena indexes remain `u32` and position-independent.
+- Every logical and resident bound is explicit and finite.
+- A capacity failure never discards or mutates previously valid state.
+- Teaching, inference, forwarding, and neurogenesis do not perform synchronous
+  filesystem I/O.
+- A manifest is published only after every referenced shard is validated.
+- All gates require executable tests; documentation alone cannot close a gate.
+
+## Gate 11.1 — Freeze the production capacity profile
+
+- [ ] Add named constants for maximum logical shards, shard capacity,
+      resident working-set capacity, binding capacity, auxiliary capacity,
+      request size, and manifest descriptor count.
+- [ ] Require `SHARD_COLUMN_CAPACITY` to be a power of two and derive the
+      routing shift and mask from the validated capacity.
+- [ ] Set the initial production host profile to 1024 columns per shard.
+- [ ] Measure complete shard artifacts, including columns, headers, bindings,
+      auxiliary data, checksums, and manifest metadata; do not infer full file
+      size from the column array alone.
+- [ ] Record the selected values in one canonical config module.
+- [ ] Reject zero, overflowed, and internally inconsistent profiles before
+      creating resident state.
+- [ ] Define the typed errors for logical-capacity exhaustion, resident-cache
+      exhaustion, invalid shard routing, and incompatible profiles.
+- [ ] Add boundary tests for every configured maximum and one-over-limit case.
+- [ ] Update ADR-0015 with the measured host profile only after tests pass.
+- [ ] Benchmark shift/mask routing against the reference arithmetic model and
+      record measured target/compiler results without claiming a fixed cycle
+      count.
+
+### Required evidence
+
+- [ ] A profile test prints the complete bound set and passes deterministically.
+- [ ] Invalid profiles are rejected without allocating or mutating a brain.
+
+## Gate 11.2 — Introduce the canonical logical-brain facade
+
+- [ ] Define the public `LogicalBrain`/equivalent facade without exposing
+      shard internals to the runner or benchmarks.
+- [ ] Define the bounded shard directory and resident-entry lifecycle.
+- [ ] Export the new child modules through one canonical persistence/runtime
+      facade.
+- [ ] Preserve the existing single-shard behavior as shard zero under the new
+      facade.
+- [ ] Add public API tests for empty creation, lookup, admission, and close.
+- [ ] Keep all ownership roles explicit at declarations and call sites.
+
+### Required evidence
+
+- [ ] Existing single-shard tests pass through the new facade unchanged.
+- [ ] A facade-import regression test proves callers cannot bypass the public
+      logical-brain boundary.
+
+## Gate 11.3 — Implement deterministic global-index routing
+
+- [ ] Implement checked global-to-shard and shard-to-global conversions.
+- [ ] Reject multiplication, addition, and shard-ID overflow before mutation.
+- [ ] Validate that a local index belongs to the descriptor's declared range.
+- [ ] Preserve global `u32` axon targets across shard boundaries.
+- [ ] Add tests for first, last, boundary, unknown, and overflowed indexes.
+- [ ] Add cross-shard route tests with deterministic target selection.
+
+### Required evidence
+
+- [ ] Routing round-trips every boundary index exactly.
+- [ ] Invalid indexes leave fabric, bindings, auxiliary state, and metrics
+      unchanged.
+
+## Gate 11.4 — Implement bounded shard admission and rotation
+
+- [ ] Teach into the current shard until its validated local capacity is full.
+- [ ] Allocate the next deterministic shard without replacing older knowledge.
+- [ ] Preserve request ordering and report the shard transition in bounded
+      metrics.
+- [ ] Reject admission when the logical shard limit is reached.
+- [ ] Keep resident-cache admission consistent with ADR-0012.
+- [ ] Make the Production Teaching Runner perform a bounded explicit flush
+      when the dirty high-watermark raises `shard_cache_flush_requested`,
+      before retrying admission or creating another shard.
+- [ ] Reject or pause teaching on flush failure without dirty eviction or an
+      unbounded flush queue.
+- [ ] Ensure a failed new-shard admission leaves the previous shard usable.
+- [ ] Do not write a shard synchronously from the teaching mutation path.
+
+### Required evidence
+
+- [ ] A fixture crosses at least two shards and recalls records from both.
+- [ ] A logical-capacity fixture rejects the next record without mutation.
+- [ ] A failed rotation fixture preserves the last valid resident state.
+- [ ] A high-watermark fixture proves flush-then-continue behavior, and a
+      failed-flush fixture proves resident and published state are unchanged.
+
+## Gate 11.5 — Integrate shard-local bindings and auxiliary state
+
+- [ ] Route every binding to the shard owning its source column.
+- [ ] Preserve global targets for cross-shard bindings.
+- [ ] Keep auxiliary records inside the owning shard's auxiliary section.
+- [ ] Validate binding and auxiliary ranges before applying any candidate data.
+- [ ] Prove paired allocation/reclamation cannot leak across shard boundaries.
+- [ ] Add duplicate, collision, overflow, and cross-shard rejection tests.
+
+### Required evidence
+
+- [ ] A cross-shard binding round-trip preserves source and target identities.
+- [ ] Auxiliary recovery restores the same resident behavior after reload.
+- [ ] Invalid sidecar data is rejected before live-state mutation.
+
+## Gate 11.6 — Connect generation save, load, and recovery
+
+- [ ] Write complete dirty shard candidates with header, columns, bindings,
+      auxiliary, and checksum.
+- [ ] Validate every candidate before publication.
+- [ ] Publish shard files before the manifest and the manifest last.
+- [ ] Include shard count, ranges, bounds, profile versions, and checksums in
+      the manifest.
+- [ ] Reject incomplete, duplicated, overlapping, incompatible, truncated,
+      and checksum-invalid generations.
+- [ ] Preserve the previous complete generation after failed publication.
+- [ ] Restore a multi-shard generation into a fresh logical brain.
+
+### Required evidence
+
+- [ ] Load → teach across shards → save → restart → recall passes.
+- [ ] Interrupted publication selects the previous complete generation.
+- [ ] Failed save leaves both live resident state and active generation usable.
+
+## Gate 11.7 — Replace the runner's single-fabric teaching path
+
+- [ ] Make the production runner own the logical-brain facade, not one raw
+      `CorticalFabric[64]`.
+- [ ] Route direct, file, and stdin teaching through the canonical facade.
+- [ ] Keep configuration explicit and independent of developer home paths.
+- [ ] Distinguish resident acceptance from published persistence in output.
+- [ ] Preserve stable exit codes for routing, capacity, teaching, and save
+      failures.
+- [ ] Ensure default output never prints raw source records.
+
+### Required evidence
+
+- [ ] The three accepted Georgian TWF files train one logical brain across
+      multiple shards.
+- [ ] Output reports total records, accepted records, shard transitions,
+      allocated columns, and persistence status.
+- [ ] Restarting the runner recalls knowledge from every published shard.
+
+## Gate 11.8 — Add scale, failure, and performance evidence
+
+- [ ] Benchmark one-shard, two-shard, and configured-maximum profiles.
+- [ ] Separate adapter, admission, routing, teaching, flush, and publication
+      latency in benchmark output.
+- [ ] Record peak resident memory, logical columns, shard count, binding count,
+      auxiliary bytes, and artifact sizes.
+- [ ] Test repeated training and restart without generation corruption.
+- [ ] Test shard exhaustion, resident-cache pressure, failed save, checksum
+      failure, and recovery.
+- [ ] Retain compiler revision, target, executable checksum, dataset revision,
+      profile, and exact commands.
+
+### Required evidence
+
+- [ ] Repeated runs produce identical logical results and bounded metrics.
+- [ ] Native strict build confirms no floating-point instructions.
+- [ ] No hot-path filesystem operation is observed during teaching/inference.
+
+## Gate 11.9 — Production acceptance and ADR closure
+
+- [ ] Run formatter checks for every touched Actus file.
+- [ ] Run `actus lock --check`, `actus check --strict`, and `actus test --strict`.
+- [ ] Run the strict native build and retain zero-float evidence.
+- [ ] Run the complete multi-shard Georgian training acceptance.
+- [ ] Record all known bounds and unsupported scale profiles.
+- [ ] Update ADR-0015 from Proposed to Accepted only after every prior gate is
+      green.
+- [ ] Update Phase 10 lifecycle evidence to reference the multi-shard runner.
+
+### Required evidence
+
+- [ ] Clean Arch Linux workspace reproduces the complete acceptance run.
+- [ ] One published generation can be loaded and recalled after restart.
+- [ ] No temporary multiple-brain workaround is used anywhere in the evidence.
+
+## Definition of done
+
+Phase 11 is complete only when one production runner can teach the accepted
+dataset into one bounded, multi-shard logical brain, publish a complete
+manifest generation, restart, and recall the learned state from every shard.
+All capacity, routing, persistence, recovery, and performance claims must be
+backed by executable tests and reproducible evidence.

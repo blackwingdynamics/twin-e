@@ -1,0 +1,89 @@
+"""Build bounded shard-local payloads from the resident snapshot.
+
+The helpers perform no filesystem I/O and do not mutate resident state. They
+split the fixed in-memory snapshot into the established 32-column ranges.
+"""
+import config;
+
+open config;
+
+verb append_array_range(
+    ins output: Buffer,
+    abs input: Array[u8, 4096],
+    erg start: u32,
+    erg length: u32
+) {
+    erg index: u32 = 0u32;
+    loop {
+        if index >= length {
+            break;
+        }
+        append(output, input[start + index]);
+        index += 1u32;
+    }
+}
+
+verb append_binding_range(
+    ins output: Buffer,
+    abs input: Array[u8, 1536],
+    erg start: u32,
+    erg length: u32
+) {
+    erg index: u32 = 0u32;
+    loop {
+        if index >= length {
+            break;
+        }
+        append(output, input[start + index]);
+        index += 1u32;
+    }
+}
+
+"""Return one bounded 32-column payload."""
+open verb fabric_shard_payload(abs columns: Array[u8, 4096], erg shard_id: u32) -> Buffer {
+    erg output: Buffer = Buffer[0];
+    erg first_column: u32 = shard_id * BRAIN_SHARD_COLUMN_COUNT;
+    erg start: u32 = first_column * BRAIN_SHARD_COLUMN_STRIDE_BYTES as u32;
+    erg length: u32 = BRAIN_SHARD_COLUMN_PAYLOAD_BYTES;
+    erg capacity: Int = length as Int;
+    reserve(buffer: ins output, capacity: erg capacity);
+    append_array_range(
+        output: ins output,
+        input: abs columns,
+        start: erg start,
+        length: erg length
+    );
+    return output;
+}
+
+"""Return one shard-local binding payload."""
+open verb binding_shard_payload(abs entries: Array[u8, 1536], erg shard_id: u32) -> Buffer {
+    erg output: Buffer = Buffer[0];
+    erg start: u32 = shard_id * BRAIN_SHARD_COLUMN_COUNT * BRAIN_SHARD_BINDING_STRIDE_BYTES as u32;
+    erg length: u32 = BRAIN_SHARD_COLUMN_COUNT * BRAIN_SHARD_BINDING_STRIDE_BYTES as u32;
+    erg capacity: Int = length as Int;
+    reserve(buffer: ins output, capacity: erg capacity);
+    append_binding_range(
+        output: ins output,
+        input: abs entries,
+        start: erg start,
+        length: erg length
+    );
+    return output;
+}
+
+"""Return the fixed-size shard-local auxiliary section."""
+open verb empty_auxiliary_payload() -> Buffer {
+    erg output: Buffer = Buffer[0];
+    erg capacity: Int = BRAIN_AUXILIARY_PAYLOAD_BYTES as Int;
+    reserve(buffer: ins output, capacity: erg capacity);
+    erg index: u32 = 0u32;
+    loop {
+        if index >= BRAIN_AUXILIARY_PAYLOAD_BYTES {
+            break;
+        }
+        append(output, 0u8);
+        index += 1u32;
+    }
+    return output;
+}

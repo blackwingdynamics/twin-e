@@ -1,0 +1,161 @@
+"""Persist shard files and publish their manifest after validation."""
+import config;
+
+import std::io;
+
+open config;
+
+open io;
+
+open manifest;
+
+open dynamic_shard;
+
+open snapshot;
+
+verb append_sharded_descriptor(
+    ins output: Buffer,
+    erg shard_id: u32,
+    erg checksum: u64
+) {
+    erg first_column: u32 = shard_id * BRAIN_SHARD_COLUMN_COUNT;
+    erg column_count: u32 = BRAIN_SHARD_COLUMN_COUNT;
+    erg payload_offset: u32 = BRAIN_SHARD_HEADER_BYTES as u32;
+    erg payload_bytes: u32 = column_count * BRAIN_SHARD_COLUMN_STRIDE_BYTES as u32;
+    erg binding_offset: u32 = payload_offset + payload_bytes;
+    erg binding_bytes: u32 = column_count * BRAIN_SHARD_BINDING_STRIDE_BYTES as u32;
+    erg auxiliary_offset: u32 = binding_offset + binding_bytes;
+    erg auxiliary_bytes: u32 = BRAIN_AUXILIARY_PAYLOAD_BYTES;
+    erg state: u32 = 1u32;
+    append_manifest_u32(output: ins output, value: abs shard_id);
+    append_manifest_u32(output: ins output, value: abs first_column);
+    append_manifest_u32(output: ins output, value: abs column_count);
+    append_manifest_u32(output: ins output, value: abs payload_offset);
+    append_manifest_u32(output: ins output, value: abs payload_bytes);
+    append_manifest_u32(output: ins output, value: abs binding_offset);
+    append_manifest_u32(output: ins output, value: abs binding_bytes);
+    append_manifest_u32(output: ins output, value: abs auxiliary_offset);
+    append_manifest_u32(output: ins output, value: abs auxiliary_bytes);
+    append_manifest_u64(output: ins output, value: abs checksum);
+    append_manifest_u32(output: ins output, value: abs state);
+}
+
+verb write_one_sharded_file(
+    abs path: Path,
+    erg shard_id: u32,
+    abs columns: Array[u8, 4096],
+    abs entries: Array[u8, 1536]
+) -> Result[u64, IoError] {
+    erg payload = fabric_shard_payload(columns: abs columns, shard_id: erg shard_id);
+    erg bindings = binding_shard_payload(entries: abs entries, shard_id: erg shard_id);
+    erg auxiliary = empty_auxiliary_payload();
+    erg first_column_index: u32 = shard_id * BRAIN_SHARD_COLUMN_COUNT;
+    erg column_count: u32 = BRAIN_SHARD_COLUMN_COUNT;
+    erg written = write_dynamic_shard_with_bindings_and_auxiliary(
+        path: abs path,
+        shard_id: erg shard_id,
+        first_column_index: erg first_column_index,
+        column_count: erg column_count,
+        payload: abs payload,
+        bindings: abs bindings,
+        auxiliary: abs auxiliary
+    );
+    return case dat written {
+        Result.Err(error) => Err(error),
+        Result.Ok(_) => dynamic_shard_file_checksum(path: abs path),
+    };
+}
+
+verb build_shard_descriptors(erg checksum_zero: u64, erg checksum_one: u64) -> Buffer {
+    erg descriptors: Buffer = Buffer[0];
+    erg descriptor_capacity: Int = BRAIN_MANIFEST_DESCRIPTOR_BYTES as Int * 2;
+    reserve(buffer: ins descriptors, capacity: erg descriptor_capacity);
+    erg zero_shard_id: u32 = 0u32;
+    erg one_shard_id: u32 = 1u32;
+    append_sharded_descriptor(
+        output: ins descriptors,
+        shard_id: erg zero_shard_id,
+        checksum: erg checksum_zero
+    );
+    append_sharded_descriptor(
+        output: ins descriptors,
+        shard_id: erg one_shard_id,
+        checksum: erg checksum_one
+    );
+    return descriptors;
+}
+
+verb write_shard_pair(
+    abs shard_paths: Array[Path, 8],
+    abs columns: Array[u8, 4096],
+    abs entries: Array[u8, 1536]
+) -> Result[Array[u64, 2], IoError] {
+    erg checksums: Array[u64,2] = Array[u64, 2]();
+    for erg index: u32 in 0u32 .. 2u32 {
+        erg write_result = write_one_sharded_file(
+            path: abs shard_paths[index],
+            shard_id: erg index,
+            columns: abs columns,
+            entries: abs entries
+        );
+        case dat write_result {
+            Result.Err(error) => {
+                return Result[Array[u64, 2], IoError].Err(error);
+            },
+            Result.Ok(value) => {
+                checksums[index] = value;
+            },
+        };
+    }
+    return Result[Array[u64, 2], IoError].Ok(checksums);
+}
+
+verb publish_shard_manifest(
+    abs manifest_path: Path,
+    erg generation: u64,
+    erg active_count: u32,
+    erg free_list_head: u32,
+    abs checksums: Array[u64, 2]
+) -> Result[Int, IoError] {
+    erg checksum_zero: u64 = checksums[0];
+    erg checksum_one: u64 = checksums[1];
+    erg descriptors = build_shard_descriptors(checksum_zero: erg checksum_zero, checksum_one: erg checksum_one);
+    erg total_column_count: u32 = 64u32;
+    erg shard_count: u32 = 2u32;
+    return write_manifest_dynamic(
+        path: abs manifest_path,
+        generation: erg generation,
+        active_count: erg active_count,
+        free_list_head: erg free_list_head,
+        total_column_count: erg total_column_count,
+        shard_count: erg shard_count,
+        descriptors: abs descriptors
+    );
+}
+
+"""Write both shard payloads and publish the complete manifest."""
+open verb write_sharded_snapshot(
+    abs manifest_path: Path,
+    abs shard_paths: Array[Path, 8],
+    abs columns: Array[u8, 4096],
+    abs entries: Array[u8, 1536],
+    erg active_count: u32,
+    erg free_list_head: u32,
+    erg generation: u64
+) -> Result[Int, IoError] {
+    erg pair = write_shard_pair(
+        shard_paths: abs shard_paths,
+        columns: abs columns,
+        entries: abs entries
+    );
+    return case dat pair {
+        Result.Err(error) => Err(error),
+        Result.Ok(checksums) => publish_shard_manifest(
+            manifest_path: abs manifest_path,
+            generation: erg generation,
+            active_count: erg active_count,
+            free_list_head: erg free_list_head,
+            checksums: abs checksums
+        ),
+    };
+}
