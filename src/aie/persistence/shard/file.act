@@ -1,0 +1,135 @@
+"""Persist the complete bounded resident snapshot as two shard files.
+
+This is the first production-sized shard boundary for the current 64-column
+profile. Each shard contains columns, local bindings, and its auxiliary
+section. The manifest is written only after both shard files and their
+checksums are available.
+"""
+import config;
+
+import std::io;
+
+open config;
+
+open io;
+
+open manifest;
+
+open shard;
+
+open sharded_snapshot;
+
+verb append_sharded_descriptor(
+    ins output: Buffer,
+    erg shard_id: u32,
+    erg checksum: u64
+) {
+    erg first_column: u32 = shard_id * BRAIN_SHARD_COLUMN_COUNT;
+    erg column_count: u32 = BRAIN_SHARD_COLUMN_COUNT;
+    erg payload_offset: u32 = BRAIN_SHARD_HEADER_BYTES as u32;
+    erg payload_bytes: u32 = column_count * BRAIN_SHARD_COLUMN_STRIDE_BYTES as u32;
+    erg binding_offset: u32 = payload_offset + payload_bytes;
+    erg binding_bytes: u32 = column_count * BRAIN_SHARD_BINDING_STRIDE_BYTES as u32;
+    erg auxiliary_offset: u32 = binding_offset + binding_bytes;
+    erg auxiliary_bytes: u32 = BRAIN_AUXILIARY_PAYLOAD_BYTES;
+    erg state: u32 = 1u32;
+    append_manifest_u32(output: ins output, value: abs shard_id);
+    append_manifest_u32(output: ins output, value: abs first_column);
+    append_manifest_u32(output: ins output, value: abs column_count);
+    append_manifest_u32(output: ins output, value: abs payload_offset);
+    append_manifest_u32(output: ins output, value: abs payload_bytes);
+    append_manifest_u32(output: ins output, value: abs binding_offset);
+    append_manifest_u32(output: ins output, value: abs binding_bytes);
+    append_manifest_u32(output: ins output, value: abs auxiliary_offset);
+    append_manifest_u32(output: ins output, value: abs auxiliary_bytes);
+    append_manifest_u64(output: ins output, value: abs checksum);
+    append_manifest_u32(output: ins output, value: abs state);
+}
+
+verb write_one_sharded_file(
+    abs path: Path,
+    erg shard_id: u32,
+    abs columns: Array[u8, 4096],
+    abs entries: Array[u8, 1536]
+) -> Result[u64, IoError] {
+    erg payload = fabric_shard_payload(columns: abs columns, shard_id: erg shard_id);
+    erg bindings = binding_shard_payload(entries: abs entries, shard_id: erg shard_id);
+    erg auxiliary = empty_auxiliary_payload();
+    erg first_column_index: u32 = shard_id * BRAIN_SHARD_COLUMN_COUNT;
+    erg column_count: u32 = BRAIN_SHARD_COLUMN_COUNT;
+    erg written = write_dynamic_shard_with_bindings_and_auxiliary(
+        path: abs path,
+        shard_id: erg shard_id,
+        first_column_index: erg first_column_index,
+        column_count: erg column_count,
+        payload: abs payload,
+        bindings: abs bindings,
+        auxiliary: abs auxiliary
+    );
+    return case dat written {
+        Result.Err(error) => Err(error),
+        Result.Ok(_) => dynamic_shard_file_checksum(path: abs path),
+    };
+}
+
+"""Write both shard payloads and then publish their complete manifest."""
+open verb write_sharded_snapshot(
+    abs manifest_path: Path,
+    abs shard_paths: Array[Path, 8],
+    abs columns: Array[u8, 4096],
+    abs entries: Array[u8, 1536],
+    erg active_count: u32,
+    erg free_list_head: u32,
+    erg generation: u64
+) -> Result[Int, IoError] {
+    erg zero_shard_id: u32 = 0u32;
+    erg zero_checksum = write_one_sharded_file(
+        path: abs shard_paths[0],
+        shard_id: erg zero_shard_id,
+        columns: abs columns,
+        entries: abs entries
+    );
+    erg checksum_zero: u64 = case dat zero_checksum {
+        Result.Err(error) => {
+            return Err(error);
+        },
+        Result.Ok(value) => value,
+    };
+    erg one_shard_id: u32 = 1u32;
+    erg one_checksum = write_one_sharded_file(
+        path: abs shard_paths[1],
+        shard_id: erg one_shard_id,
+        columns: abs columns,
+        entries: abs entries
+    );
+    erg checksum_one: u64 = case dat one_checksum {
+        Result.Err(error) => {
+            return Err(error);
+        },
+        Result.Ok(value) => value,
+    };
+    erg descriptors: Buffer = Buffer[0];
+    erg descriptor_capacity: Int = BRAIN_MANIFEST_DESCRIPTOR_BYTES as Int * 2;
+    erg reserved = reserve(buffer: ins descriptors, capacity: erg descriptor_capacity);
+    append_sharded_descriptor(
+        output: ins descriptors,
+        shard_id: erg zero_shard_id,
+        checksum: erg checksum_zero
+    );
+    append_sharded_descriptor(
+        output: ins descriptors,
+        shard_id: erg one_shard_id,
+        checksum: erg checksum_one
+    );
+    erg total_column_count: u32 = 64u32;
+    erg shard_count: u32 = 2u32;
+    return write_manifest_dynamic(
+        path: abs manifest_path,
+        generation: erg generation,
+        active_count: erg active_count,
+        free_list_head: erg free_list_head,
+        total_column_count: erg total_column_count,
+        shard_count: erg shard_count,
+        descriptors: abs descriptors
+    );
+}
