@@ -15,4 +15,6 @@ open manifest;
 
 open cache;
 
+open logical;
+
 open publication;

@@ -1,0 +1,134 @@
+"""Canonical logical-brain facade for bounded resident shard admission."""
+import config;
+
+open cache;
+
+open config;
+
+open manifest;
+
+"""Failures returned before a logical-brain mutation is published."""
+open enum LogicalBrainError {
+    InvalidProfile,
+    NotInitialized,
+    InvalidShardCapacity,
+    NonSequentialShard,
+    LogicalCapacityExceeded,
+    ResidentCapacityExceeded,
+    FlushRequired,
+}
+
+"""Bounded resident state for one logical brain.
+
+The directory and cache are inline bounded state. This facade owns metadata
+only; shard payload encoding, filesystem I/O, and publication remain in the
+explicit persistence operations.
+"""
+open struct LogicalBrain {
+    erg initialized: Bool,
+    erg shard_count: u32,
+    erg total_column_count: u32,
+    erg generation: u64,
+    erg descriptors: Array[ManifestDescriptor, 8],
+    erg cache: ShardCache,
+}
+
+"""Return a zeroed logical brain value without filesystem access."""
+open verb logical_brain_empty() -> LogicalBrain {
+    return LogicalBrain {initialized: false, shard_count: 0u32, total_column_count: 0u32, generation: 0u64, descriptors: Array[ManifestDescriptor, 8](
+    ), cache: ShardCache {entries: Array[ShardCacheEntry, 4](), clock: 0u64}};
+}
+
+"""Initialize or reset bounded logical-brain metadata.
+
+No payload is loaded and no filesystem operation occurs. The caller receives
+an error before mutation when the production routing profile is invalid.
+"""
+open verb logical_brain_init(ins brain: LogicalBrain) -> Result[Int, LogicalBrainError] {
+    if !logical_shard_profile_is_valid() {
+        return Result[Int, LogicalBrainError].Err(LogicalBrainError.InvalidProfile);
+    }
+    brain.initialized = true;
+    brain.shard_count = 0u32;
+    brain.total_column_count = 0u32;
+    brain.generation = 0u64;
+    brain.descriptors = Array[ManifestDescriptor, 8]();
+    shard_cache_init(cache: ins brain.cache);
+    return Result[Int, LogicalBrainError].Ok(0);
+}
+
+"""Admit the next deterministic full-capacity shard into resident metadata.
+
+The operation does not write to disk. It rejects non-sequential or oversized
+shards before mutation and reports `FlushRequired` when the caller must flush
+the cache at its configured dirty high-watermark.
+"""
+verb logical_brain_record_shard(ins brain: LogicalBrain) {
+    brain.descriptors[brain.shard_count as Usize] = ManifestDescriptor {shard_id: brain.shard_count, first_column_index: brain.shard_count << BRAIN_LOGICAL_SHARD_SHIFT, column_count: BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY, payload_offset: BRAIN_SHARD_HEADER_BYTES as u32, payload_bytes: BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY * BRAIN_SHARD_COLUMN_STRIDE_BYTES as u32, binding_offset: BRAIN_SHARD_HEADER_BYTES as u32 + (BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY * BRAIN_SHARD_COLUMN_STRIDE_BYTES as u32), binding_bytes: BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY * BRAIN_SHARD_BINDING_STRIDE_BYTES as u32, auxiliary_offset: 0u32, auxiliary_bytes: BRAIN_AUXILIARY_PAYLOAD_BYTES, checksum: 0u64, state: 1u32};
+    brain.shard_count += 1u32;
+    brain.total_column_count += BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY;
+}
+
+verb logical_brain_insert_resident(
+    ins brain: LogicalBrain,
+    erg shard_id: u32,
+    erg generation: u64,
+    erg checksum: u64
+) -> Result[u8, ShardCacheError] {
+    return shard_cache_insert(
+        cache: ins brain.cache,
+        shard_id: erg shard_id,
+        generation: erg generation,
+        checksum: erg checksum
+    );
+}
+
+verb logical_brain_finish_admission(
+    ins brain: LogicalBrain,
+    dat inserted: Result[u8, ShardCacheError]
+) -> Result[u8, LogicalBrainError] {
+    return case dat inserted {
+        Result.Err(_) => Result[u8, LogicalBrainError].Err(LogicalBrainError.ResidentCapacityExceeded),
+        Result.Ok(slot) => {
+            logical_brain_record_shard(brain: ins brain);
+            Result[u8, LogicalBrainError].Ok(slot);
+        },
+    };
+}
+
+"""Admit the next deterministic full-capacity shard into resident metadata.
+
+The operation does not write to disk. It rejects non-sequential or oversized
+shards before mutation and reports `FlushRequired` when the caller must flush
+the cache at its configured dirty high-watermark.
+"""
+open verb logical_brain_admit_shard(
+    ins brain: LogicalBrain,
+    erg shard_id: u32,
+    erg column_count: u32
+) -> Result[u8, LogicalBrainError] {
+    if !brain.initialized {
+        return Result[u8, LogicalBrainError].Err(LogicalBrainError.NotInitialized);
+    }
+    if column_count != BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY {
+        return Result[u8, LogicalBrainError].Err(LogicalBrainError.InvalidShardCapacity);
+    }
+    if shard_id != brain.shard_count {
+        return Result[u8, LogicalBrainError].Err(LogicalBrainError.NonSequentialShard);
+    }
+    if shard_id >= BRAIN_LOGICAL_MAX_SHARDS {
+        return Result[u8, LogicalBrainError].Err(LogicalBrainError.LogicalCapacityExceeded);
+    }
+    if shard_cache_flush_requested(cache: abs brain.cache) {
+        return Result[u8, LogicalBrainError].Err(LogicalBrainError.FlushRequired);
+    }
+    erg generation: u64 = brain.generation;
+    erg checksum: u64 = 0u64;
+    erg inserted = logical_brain_insert_resident(
+        brain: ins brain,
+        shard_id: erg shard_id,
+        generation: erg generation,
+        checksum: erg checksum
+    );
+    return logical_brain_finish_admission(brain: ins brain, inserted: dat inserted);
+}
