@@ -1,12 +1,43 @@
 """Shared scalar helpers for bounded teaching-file framing."""
+import config;
+
 import std::io;
 
+open contract;
+
 verb file_has_header(abs bytes: Buffer) -> Bool {
-    return bytes[0u32] == 84u8 && bytes[1u32] == 87u8 && bytes[2u32] == 70u8 && bytes[3u32] == 1u8;
+    if bytes[0u32] != 84u8 {
+        return false;
+    }
+    if bytes[1u32] != 87u8 {
+        return false;
+    }
+    if bytes[2u32] != 70u8 {
+        return false;
+    }
+    return bytes[3u32] == 49u8;
 }
 
 verb file_record_count(abs bytes: Buffer) -> u16 {
     return bytes[4u32] as u16;
+}
+
+verb file_validate_header(abs bytes: Buffer) -> Result[Int, TeachingFileError] {
+    erg total: u32 = file_buffer_size(bytes: abs bytes);
+    if total == 0u32 {
+        return Result[Int, TeachingFileError].Err(TeachingFileError.EmptyFile);
+    }
+    if total < TEACHING_FILE_HEADER_BYTES {
+        return Result[Int, TeachingFileError].Err(TeachingFileError.InvalidHeader);
+    }
+    if !file_has_header(bytes: abs bytes) {
+        return Result[Int, TeachingFileError].Err(TeachingFileError.InvalidHeader);
+    }
+    erg record_count: u16 = file_record_count(bytes: abs bytes);
+    if record_count == 0u16 || record_count > TEACHING_FILE_MAX_RECORDS {
+        return Result[Int, TeachingFileError].Err(TeachingFileError.InvalidHeader);
+    }
+    return Result[Int, TeachingFileError].Ok(0);
 }
 
 verb file_record_length(abs bytes: Buffer, erg index: u32) -> u32 {

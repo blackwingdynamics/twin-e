@@ -43,7 +43,7 @@ verb valid_teaching_file() -> Buffer {
     append(output, 84u8);
     append(output, 87u8);
     append(output, 70u8);
-    append(output, 1u8);
+    append(output, 49u8);
     append(output, 2u8);
     erg first_length: u16 = 2u16;
     file_append_u16(output: ins output, value: erg first_length);
@@ -61,7 +61,7 @@ verb truncated_teaching_file() -> Buffer {
     append(output, 84u8);
     append(output, 87u8);
     append(output, 70u8);
-    append(output, 1u8);
+    append(output, 49u8);
     append(output, 1u8);
     erg length: u16 = 3u16;
     file_append_u16(output: ins output, value: erg length);

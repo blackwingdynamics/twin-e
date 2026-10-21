@@ -34,20 +34,6 @@ verb file_record_bytes(abs bytes: Buffer, erg start: u32, erg length: u32) -> Bu
     return record;
 }
 
-verb file_validate_header(abs bytes: Buffer) -> Result[Int, TeachingFileError] {
-    erg total: u32 = file_buffer_size(bytes: abs bytes);
-    if total == 0u32 {
-        return Result[Int, TeachingFileError].Err(TeachingFileError.EmptyFile);
-    }
-    if total < TEACHING_FILE_HEADER_BYTES || !file_has_header(bytes: abs bytes) {
-        return Result[Int, TeachingFileError].Err(TeachingFileError.InvalidHeader);
-    }
-    if file_record_count(bytes: abs bytes) == 0u16 || file_record_count(bytes: abs bytes) > TEACHING_FILE_MAX_RECORDS {
-        return Result[Int, TeachingFileError].Err(TeachingFileError.InvalidHeader);
-    }
-    return Result[Int, TeachingFileError].Ok(0);
-}
-
 verb file_structure_step(abs bytes: Buffer, erg cursor: u32, erg total: u32) -> Result[u32, TeachingFileError] {
     if cursor >= total || total - cursor < 2u32 {
         return Result[u32, TeachingFileError].Err(TeachingFileError.TruncatedRecord);
