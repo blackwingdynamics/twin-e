@@ -17,6 +17,4 @@ open cache;
 
 open logical;
 
-open logical_runtime;
-
 open publication;
