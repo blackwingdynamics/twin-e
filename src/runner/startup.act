@@ -117,9 +117,14 @@ open verb run() -> Int {
     erg parsed: Result[RunnerConfig,RunnerParseError] = parse();
     erg status: Int = 2;
     case dat parsed {
-        Result.Err(_) => {
-            erg message: String = "TWIN_E_ERROR code=2 kind=invalid_config";
-            println(text: abs message);
+        Result.Err(error) => case error {
+            RunnerParseError.HelpRequested => {
+                status = print_help();
+            },
+            _ => {
+                erg message: String = "TWIN_E_ERROR code=2 kind=invalid_config";
+                println(text: abs message);
+            },
         },
         Result.Ok(command) => {
             status = run_owned_command(command: dat command);

@@ -276,14 +276,14 @@ operator-facing entry point without changing the AIE hot path.
 The package entry point accepts only an explicit bounded command shape:
 
 ```text
-twin-e --create-empty <brain.brain> --stdin [--save]
+twin-e --init <brain.brain> --stdin [--save]
 twin-e --load <brain.brain> --stdin [--save]
-twin-e --create-empty <brain.brain> --file <teaching.twf> [--save]
+twin-e --init <brain.brain> --file <teaching.twf> [--save]
 twin-e --load <brain.brain> --file <teaching.twf> [--save]
 ```
 
 `--load` requires an existing published `.brain`; it never falls back to an
-empty resident state. `--create-empty` is the only explicit empty-state mode.
+empty resident state. `--init` is the only explicit empty-state mode.
 `--stdin` accepts the existing bounded newline teaching transport and
 `--file` accepts the existing bounded length-delimited teaching transport.
 `--save` is opt-in and publishes the updated combined brain only after the

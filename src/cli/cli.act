@@ -3,4 +3,8 @@ open contract;
 
 open arguments;
 
+open command;
+
+open help;
+
 open parser;

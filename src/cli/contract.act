@@ -4,6 +4,7 @@ import std::path;
 open path;
 
 open enum RunnerParseError {
+    HelpRequested,
     MissingArgument,
     InvalidArgument,
     InvalidPath,

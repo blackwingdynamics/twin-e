@@ -37,7 +37,7 @@ verb parse_source_mode(
 verb parse_mode(
     ins arguments: Arguments,
     abs load_flag: String,
-    abs create_empty_flag: String
+    abs init_flag: String
 ) -> Result[Bool, RunnerParseError] {
     erg mode: Buffer = Buffer[4096];
     erg result: Result[Int,RunnerParseError] = cli_next(arguments: ins arguments, buffer: ins mode);
@@ -52,7 +52,7 @@ verb parse_mode(
         } else if cli_flag(
             value: abs mode,
             length: abs length,
-            expected: abs create_empty_flag
+            expected: abs init_flag
         ) {
             Result[Bool, RunnerParseError].Ok(false);
         } else {
@@ -200,6 +200,57 @@ verb input_is_file(abs input_path: Option[Path]) -> Bool {
     };
 }
 
+verb finish_command_save(
+    ins arguments: Arguments,
+    abs total: Int,
+    abs input_path: Option[Path],
+    abs save_flag: String
+) -> Result[Bool, RunnerParseError] {
+    erg file: Bool = input_is_file(input_path: abs input_path);
+    return resolve_command_save(
+        arguments: ins arguments,
+        total: abs total,
+        file: abs file,
+        save_flag: abs save_flag
+    );
+}
+
+verb finish_command_input(
+    ins arguments: Arguments,
+    abs file_flag: String,
+    abs stdin_flag: String
+) -> Result[Option[Path], RunnerParseError] {
+    return parse_source_input(
+        arguments: ins arguments,
+        file_flag: abs file_flag,
+        stdin_flag: abs stdin_flag
+    );
+}
+
+verb finish_command_finalize(
+    dat brain_path: Path,
+    ins arguments: Arguments,
+    abs total: Int,
+    dat load: Bool,
+    dat input_path: Option[Path],
+    abs save_flag: String
+) -> Result[RunnerConfig, RunnerParseError] {
+    erg file: Bool = input_is_file(input_path: abs input_path);
+    erg save_result: Result[Bool,RunnerParseError] = finish_command_save(
+        arguments: ins arguments,
+        total: abs total,
+        input_path: abs input_path,
+        save_flag: abs save_flag
+    );
+    erg save: Bool = case dat save_result {
+        Result.Err(error) => {
+            return Result[RunnerConfig, RunnerParseError].Err(dat error);
+        },
+        Result.Ok(value) => value,
+    };
+    return Result[RunnerConfig, RunnerParseError].Ok(RunnerConfig {load: load, file: file, save: save, brain_path: brain_path, input_path: input_path});
+}
+
 verb finish_command(
     dat brain_path: Path,
     ins arguments: Arguments,
@@ -209,7 +260,7 @@ verb finish_command(
     abs stdin_flag: String,
     abs save_flag: String
 ) -> Result[RunnerConfig, RunnerParseError] {
-    erg input_result: Result[Option[Path],RunnerParseError] = parse_source_input(
+    erg input_result: Result[Option[Path],RunnerParseError] = finish_command_input(
         arguments: ins arguments,
         file_flag: abs file_flag,
         stdin_flag: abs stdin_flag
@@ -220,20 +271,14 @@ verb finish_command(
         },
         Result.Ok(value) => value,
     };
-    erg file: Bool = input_is_file(input_path: abs input_path);
-    erg save_result: Result[Bool,RunnerParseError] = resolve_command_save(
+    return finish_command_finalize(
+        brain_path: dat brain_path,
         arguments: ins arguments,
         total: abs total,
-        file: abs file,
+        load: dat load,
+        input_path: dat input_path,
         save_flag: abs save_flag
     );
-    erg save: Bool = case dat save_result {
-        Result.Err(error) => {
-            return Result[RunnerConfig, RunnerParseError].Err(dat error);
-        },
-        Result.Ok(value) => value,
-    };
-    return Result[RunnerConfig, RunnerParseError].Ok(RunnerConfig {load: load, file: file, save: save, brain_path: brain_path, input_path: input_path});
 }
 
 verb parse_remaining(
@@ -254,54 +299,4 @@ verb parse_remaining(
         stdin_flag: abs stdin_flag,
         save_flag: abs save_flag
     );
-}
-
-verb parse_arguments(
-    dat arguments: Arguments,
-    abs load_flag: String,
-    abs create_empty_flag: String,
-    abs file_flag: String,
-    abs stdin_flag: String,
-    abs save_flag: String
-) -> Result[RunnerConfig, RunnerParseError] {
-    erg total = count(arguments: abs arguments);
-    if total < 4 || total > 6 {
-        return Result[RunnerConfig, RunnerParseError].Err(RunnerParseError.InvalidArgument);
-    }
-    if !parse_program_ok(arguments: ins arguments) {
-        return Result[RunnerConfig, RunnerParseError].Err(RunnerParseError.InvalidArgument);
-    }
-    erg mode_result: Result[Bool,RunnerParseError] = parse_mode(
-        arguments: ins arguments,
-        load_flag: abs load_flag,
-        create_empty_flag: abs create_empty_flag
-    );
-    return parse_after_mode(
-        arguments: dat arguments,
-        total: abs total,
-        mode_result: dat mode_result,
-        file_flag: abs file_flag,
-        stdin_flag: abs stdin_flag,
-        save_flag: abs save_flag
-    );
-}
-
-open verb parse() -> Result[RunnerConfig, RunnerParseError] {
-    erg load_flag: String = "--load";
-    erg create_empty_flag: String = "--create-empty";
-    erg file_flag: String = "--file";
-    erg stdin_flag: String = "--stdin";
-    erg save_flag: String = "--save";
-    erg created: Result[Arguments,ProcessError] = arguments();
-    return case dat created {
-        Result.Err(_) => Result[RunnerConfig, RunnerParseError].Err(RunnerParseError.InvalidArgument),
-        Result.Ok(arguments) => parse_arguments(
-            arguments: dat arguments,
-            load_flag: abs load_flag,
-            create_empty_flag: abs create_empty_flag,
-            file_flag: abs file_flag,
-            stdin_flag: abs stdin_flag,
-            save_flag: abs save_flag
-        ),
-    };
 }

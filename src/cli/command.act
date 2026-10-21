@@ -1,0 +1,109 @@
+"""Assemble the validated CLI command from the bounded parser primitives."""
+import std::process;
+
+open arguments;
+
+open contract;
+
+open process;
+
+verb parse_help_only(dat arguments: Arguments, abs help_flag: String) -> Result[RunnerConfig, RunnerParseError] {
+    erg program_buffer: Buffer = Buffer[4096];
+    erg program_result: Result[Int,RunnerParseError] = cli_next(arguments: ins arguments, buffer: ins program_buffer);
+    case dat program_result {
+        Result.Err(_) => {
+            return Result[RunnerConfig, RunnerParseError].Err(RunnerParseError.InvalidArgument);
+        },
+        Result.Ok(_) => {},
+    };
+    erg help_buffer: Buffer = Buffer[4096];
+    erg help_result: Result[Int,RunnerParseError] = cli_next(arguments: ins arguments, buffer: ins help_buffer);
+    return case dat help_result {
+        Result.Ok(length) => if cli_flag(
+            value: abs help_buffer,
+            length: abs length,
+            expected: abs help_flag
+        ) {
+            Result[RunnerConfig, RunnerParseError].Err(RunnerParseError.HelpRequested);
+        } else {
+            Result[RunnerConfig, RunnerParseError].Err(RunnerParseError.InvalidArgument);
+        },
+        Result.Err(_) => Result[RunnerConfig, RunnerParseError].Err(RunnerParseError.InvalidArgument),
+    };
+}
+
+verb parse_command_body(
+    dat arguments: Arguments,
+    abs total: Int,
+    abs load_flag: String,
+    abs init_flag: String,
+    abs file_flag: String,
+    abs stdin_flag: String,
+    abs save_flag: String
+) -> Result[RunnerConfig, RunnerParseError] {
+    if !parse_program_ok(arguments: ins arguments) {
+        return Result[RunnerConfig, RunnerParseError].Err(RunnerParseError.InvalidArgument);
+    }
+    erg mode_result: Result[Bool,RunnerParseError] = parse_mode(
+        arguments: ins arguments,
+        load_flag: abs load_flag,
+        init_flag: abs init_flag
+    );
+    return parse_after_mode(
+        arguments: dat arguments,
+        total: abs total,
+        mode_result: dat mode_result,
+        file_flag: abs file_flag,
+        stdin_flag: abs stdin_flag,
+        save_flag: abs save_flag
+    );
+}
+
+verb parse_arguments(
+    dat arguments: Arguments,
+    abs load_flag: String,
+    abs init_flag: String,
+    abs help_flag: String,
+    abs file_flag: String,
+    abs stdin_flag: String,
+    abs save_flag: String
+) -> Result[RunnerConfig, RunnerParseError] {
+    erg total = count(arguments: abs arguments);
+    if total == 2 {
+        return parse_help_only(arguments: dat arguments, help_flag: abs help_flag);
+    }
+    if total < 4 || total > 6 {
+        return Result[RunnerConfig, RunnerParseError].Err(RunnerParseError.InvalidArgument);
+    }
+    return parse_command_body(
+        arguments: dat arguments,
+        total: abs total,
+        load_flag: abs load_flag,
+        init_flag: abs init_flag,
+        file_flag: abs file_flag,
+        stdin_flag: abs stdin_flag,
+        save_flag: abs save_flag
+    );
+}
+
+open verb parse() -> Result[RunnerConfig, RunnerParseError] {
+    erg load_flag: String = "--load";
+    erg init_flag: String = "--init";
+    erg help_flag: String = "--help";
+    erg file_flag: String = "--file";
+    erg stdin_flag: String = "--stdin";
+    erg save_flag: String = "--save";
+    erg created: Result[Arguments,ProcessError] = arguments();
+    return case dat created {
+        Result.Err(_) => Result[RunnerConfig, RunnerParseError].Err(RunnerParseError.InvalidArgument),
+        Result.Ok(arguments) => parse_arguments(
+            arguments: dat arguments,
+            load_flag: abs load_flag,
+            init_flag: abs init_flag,
+            help_flag: abs help_flag,
+            file_flag: abs file_flag,
+            stdin_flag: abs stdin_flag,
+            save_flag: abs save_flag
+        ),
+    };
+}
