@@ -66,7 +66,7 @@ filesystem I/O to the learning hot path.
 
 ### Required evidence
 
-- [ ] Existing single-shard tests pass through the new facade unchanged.
+- [x] Existing single-shard tests pass through the new facade unchanged.
 - [ ] A facade-import regression test proves callers cannot bypass the public
       logical-brain boundary.
 

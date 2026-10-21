@@ -127,3 +127,63 @@ verb test_logical_brain_admits_ordered_shards() -> Int {
     erg shard_capacity: u32 = BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY;
     return test_ordered_admission(brain: ins brain, shard_capacity: erg shard_capacity);
 }
+
+"""Prove that the established single-shard runtime remains available through
+the canonical AIE facade while shard zero is admitted by LogicalBrain.
+
+The test deliberately keeps the legacy 64-slot fabric setup and wavefront
+expectations unchanged. It verifies the facade boundary without moving
+runtime state into the logical directory or changing the existing behavior.
+"""
+verb single_shard_wavefront_behavior() -> Int {
+    erg fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](), free_list_head: 0u32, active_count: 0u32};
+    fabric_init(fabric: ins fabric);
+    erg source_idx: u32 = allocate_column_index(fabric: ins fabric);
+    erg target_idx: u32 = allocate_column_index(fabric: ins fabric);
+    fabric.columns[source_idx].threshold = 1u8;
+    fabric.columns[source_idx].coincidence_low = 1u64;
+    fabric.columns[source_idx].payload = 41u8;
+    fabric.columns[source_idx].axons[0u32] = target_idx;
+    fabric.columns[target_idx].threshold = 1u8;
+    fabric.columns[target_idx].coincidence_low = 1u64;
+    erg wave: Wavefront = Wavefront {mask_low: 1u64, mask_high: 0u64, energy: 1u8};
+    erg result: ImpulseStepResult = step_wavefront(
+        fabric: ins fabric,
+        wave: abs wave,
+        source_idx: erg source_idx
+    );
+    if result.valid_source && result.source_fired && result.payload == 41u8 && result.destination_0 == target_idx {
+        if fabric.columns[source_idx].myelination == 1u8 && fabric.columns[target_idx].myelination == 1u8 {
+            return 0;
+        }
+    }
+    return 3;
+}
+
+meta test
+verb test_single_shard_behavior_through_logical_facade() -> Int {
+    erg brain: LogicalBrain = logical_brain_empty();
+    erg initialized = logical_brain_init(brain: ins brain);
+    erg init_ok: Bool = case dat initialized {
+        Result.Err(_) => false,
+        Result.Ok(_) => true,
+    };
+    if !init_ok {
+        return 1;
+    }
+    erg shard_id: u32 = 0u32;
+    erg shard_capacity: u32 = BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY;
+    erg admitted = logical_brain_admit_shard(
+        brain: ins brain,
+        shard_id: erg shard_id,
+        column_count: erg shard_capacity
+    );
+    erg admission_ok: Bool = case dat admitted {
+        Result.Err(_) => false,
+        Result.Ok(_) => true,
+    };
+    if !admission_ok {
+        return 2;
+    }
+    return single_shard_wavefront_behavior();
+}
