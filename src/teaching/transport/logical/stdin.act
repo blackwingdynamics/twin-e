@@ -1,0 +1,108 @@
+"""Logical-brain stdin ingestion kept separate from the legacy fabric path."""
+import adapters;
+
+import aie;
+
+import config;
+
+open contract;
+
+verb stdin_logical_error(dat error: LogicalTeachingError) -> TeachingStreamError {
+    return case dat error {
+        LogicalTeachingError.LogicalCapacityExceeded => TeachingStreamError.LogicalCapacityExceeded,
+        LogicalTeachingError.ResidentCapacityExceeded => TeachingStreamError.ResidentCapacityExceeded,
+        LogicalTeachingError.FlushRequired => TeachingStreamError.ResidentCapacityExceeded,
+        _ => TeachingStreamError.InvalidRouting,
+    };
+}
+
+verb teach_logical_stdin_record(
+    ins brain: LogicalTeachingBrain,
+    abs record: Buffer,
+    erg length: u32
+) -> Result[TeachingMetrics, TeachingStreamError] {
+    erg adapted = adapt_text_ka_bytes(input: abs record, input_length: erg length);
+    return case dat adapted {
+        Result.Err(_) => Result[TeachingMetrics, TeachingStreamError].Err(TeachingStreamError.InvalidRecord),
+        Result.Ok(envelope) => {
+            erg taught = teach_text_envelope_logical(brain: ins brain, envelope: abs envelope);
+            return case dat taught {
+                Result.Err(error) => Result[TeachingMetrics, TeachingStreamError].Err(stdin_logical_error(
+                    error: dat error
+                )),
+                Result.Ok(metrics) => Result[TeachingMetrics, TeachingStreamError].Ok(training_metrics_to_teaching(
+                    metrics: abs metrics
+                )),
+            };
+        },
+    };
+}
+
+verb stdin_logical_add_metrics(
+    ins metrics: TeachingStreamMetrics,
+    abs result: TeachingMetrics,
+    erg length: u32
+) {
+    stdin_add_metrics(
+        metrics: ins metrics,
+        result: abs result,
+        length: erg length
+    );
+}
+
+verb stdin_logical_process_record(
+    ins brain: LogicalTeachingBrain,
+    ins record: Buffer,
+    ins total_bytes: u32,
+    ins metrics: TeachingStreamMetrics
+) -> Result[Int, TeachingStreamError] {
+    erg next = stdin_read_record(record: ins record, total_bytes: ins total_bytes);
+    return case dat next {
+        Result.Err(error) => Result[Int, TeachingStreamError].Err(error),
+        Result.Ok(length) => {
+            erg record_length: u32 = length as u32;
+            erg taught = teach_logical_stdin_record(
+                brain: ins brain,
+                record: abs record,
+                length: erg record_length
+            );
+            return case dat taught {
+                Result.Err(error) => Result[Int, TeachingStreamError].Err(error),
+                Result.Ok(result) => {
+                    stdin_logical_add_metrics(
+                        metrics: ins metrics,
+                        result: abs result,
+                        length: erg record_length
+                    );
+                    return Result[Int, TeachingStreamError].Ok(0);
+                },
+            };
+        },
+    };
+}
+
+"""Read bounded stdin records and submit them to one logical brain."""
+open verb teach_logical_stdin(ins brain: LogicalTeachingBrain) -> Result[TeachingStreamMetrics, TeachingStreamError] {
+    erg metrics: TeachingStreamMetrics = TeachingStreamMetrics {record_count: 0u16, accepted_count: 0u16, bytes_read: 0u32, processed_events: 0u32, allocated_columns: 0u32, reinforced_transitions: 0u32};
+    erg record: Buffer = Buffer[256];
+    erg total_bytes: u32 = 0u32;
+    for erg index: u16 in 0u16 .. TEACHING_FILE_MAX_RECORDS {
+        erg next = stdin_logical_process_record(
+            brain: ins brain,
+            record: ins record,
+            total_bytes: ins total_bytes,
+            metrics: ins metrics
+        );
+        case dat next {
+            Result.Err(error) => {
+                return stdin_handle_error(metrics: dat metrics, error: abs error);
+            },
+            Result.Ok(_) => {},
+        };
+    }
+    return stdin_complete(
+        record: ins record,
+        total_bytes: ins total_bytes,
+        metrics: dat metrics
+    );
+}

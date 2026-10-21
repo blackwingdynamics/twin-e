@@ -126,6 +126,9 @@ open enum TeachingFileError {
     TooManyRecords,
     InvalidRecord,
     TeachingRejected,
+    LogicalCapacityExceeded,
+    ResidentCapacityExceeded,
+    InvalidRouting,
 }
 
 """Bounded evidence returned after processing an offline teaching file."""
@@ -148,6 +151,9 @@ open enum TeachingStreamError {
     TooManyRecords,
     InvalidRecord,
     TeachingRejected,
+    LogicalCapacityExceeded,
+    ResidentCapacityExceeded,
+    InvalidRouting,
 }
 
 """Bounded evidence returned after processing stdin teaching records."""

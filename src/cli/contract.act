@@ -16,5 +16,6 @@ open struct RunnerConfig {
     erg file: Bool,
     erg save: Bool,
     erg brain_path: Path,
+    erg shard_paths: Array[Path, 8],
     erg input_path: Option[Path],
 }

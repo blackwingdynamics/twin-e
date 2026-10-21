@@ -35,41 +35,17 @@ verb startup_error(dat error: IoError) -> RunnerStartupError {
     };
 }
 
-verb load_brain(
-    ins fabric: CorticalFabric[64],
-    ins bindings: Array[TokenBinding, 64],
-    abs path: Path
-) -> Result[Int, RunnerStartupError] {
-    erg loaded: Result[Int,IoError] = read_text_brain(
-        fabric: ins fabric,
-        bindings: ins bindings,
-        path: abs path
-    );
-    erg result: Result[Int,RunnerStartupError] = Result[Int, RunnerStartupError].Err(RunnerStartupError.PartialBrain);
-    case dat loaded {
-        Result.Ok(value) => {
-            result = Result[Int, RunnerStartupError].Ok(value);
-        },
-        Result.Err(error) => {
-            erg startup: RunnerStartupError = startup_error(error: dat error);
-            result = Result[Int, RunnerStartupError].Err(startup);
-        },
-    };
-    return result;
-}
-
 verb load_command_state(
     abs command: RunnerConfig,
-    ins fabric: CorticalFabric[64],
-    ins bindings: Array[TokenBinding, 64]
+    ins brain: LogicalTeachingBrain
 ) -> Int {
     if !command.load {
         return 0;
     }
-    erg loaded: Result[Int,RunnerStartupError] = load_brain(
-        fabric: ins fabric,
-        bindings: ins bindings,
-        path: abs command.brain_path
+    erg loaded: Result[Int,IoError] = logical_teaching_load_generation(
+        brain: ins brain,
+        shard_paths: abs command.shard_paths,
+        manifest_path: abs command.brain_path
     );
     return case dat loaded {
         Result.Ok(_) => 0,
@@ -82,30 +58,23 @@ verb load_command_state(
 }
 
 verb run_command(ins command: RunnerConfig) -> Int {
-    erg fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](), free_list_head: 0u32, active_count: 0u32};
-    erg bindings: Array[TokenBinding,64] = Array[TokenBinding, 64]();
-    fabric_init(fabric: ins fabric);
-    erg load_status: Int = load_command_state(
-        command: abs command,
-        fabric: ins fabric,
-        bindings: ins bindings
-    );
+    erg brain: LogicalTeachingBrain = logical_teaching_empty();
+    erg initialized = logical_teaching_init(brain: ins brain);
+    case dat initialized {
+        Result.Err(_) => {
+            return 3;
+        },
+        Result.Ok(_) => {},
+    };
+    erg load_status: Int = load_command_state(command: abs command, brain: ins brain);
     if load_status != 0 {
         return load_status;
     }
-    erg teach_status: Int = teach_command_state(
-        command: ins command,
-        fabric: ins fabric,
-        bindings: ins bindings
-    );
+    erg teach_status: Int = teach_command_state(command: ins command, brain: ins brain);
     if teach_status != 0 {
         return teach_status;
     }
-    return save_command_state(
-        command: abs command,
-        fabric: abs fabric,
-        bindings: abs bindings
-    );
+    return save_command_state(command: abs command, brain: abs brain);
 }
 
 verb run_owned_command(dat command: RunnerConfig) -> Int {

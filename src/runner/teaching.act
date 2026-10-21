@@ -15,6 +15,64 @@ open path;
 
 open teaching;
 
+verb logical_file_error_status(dat error: TeachingFileError) -> Int {
+    return case dat error {
+        TeachingFileError.LogicalCapacityExceeded => 6,
+        TeachingFileError.ResidentCapacityExceeded => 7,
+        TeachingFileError.InvalidRouting => 8,
+        _ => 4,
+    };
+}
+
+verb logical_stream_error_status(dat error: TeachingStreamError) -> Int {
+    return case dat error {
+        TeachingStreamError.LogicalCapacityExceeded => 6,
+        TeachingStreamError.ResidentCapacityExceeded => 7,
+        TeachingStreamError.InvalidRouting => 8,
+        _ => 4,
+    };
+}
+
+verb print_logical_file_result(
+    abs metrics: TeachingFileMetrics,
+    abs brain: LogicalTeachingBrain
+) {
+    erg record_count: u16 = metrics.record_count;
+    erg accepted_count: u16 = metrics.accepted_count;
+    erg processed_events: u32 = metrics.processed_events;
+    erg allocated_columns: u32 = metrics.allocated_columns;
+    erg reinforced_transitions: u32 = metrics.reinforced_transitions;
+    erg shard_transitions: u32 = logical_teaching_shard_transitions(brain: abs brain);
+    erg published: Bool = false;
+    print_logical_metrics(
+        record_count: erg record_count,
+        accepted_count: erg accepted_count,
+        processed_events: erg processed_events,
+        allocated_columns: erg allocated_columns,
+        reinforced_transitions: erg reinforced_transitions,
+        shard_transitions: erg shard_transitions,
+        published: abs published
+    );
+}
+
+verb teach_file_result_status(
+    dat result: Result[TeachingFileMetrics, TeachingFileError],
+    abs brain: LogicalTeachingBrain
+) -> Int {
+    return case dat result {
+        Result.Err(error) => {
+            erg status: Int = logical_file_error_status(error: dat error);
+            erg message: String = "TWIN_E_ERROR code=4 kind=teaching_rejected";
+            println(text: abs message);
+            return status;
+        },
+        Result.Ok(metrics) => {
+            print_logical_file_result(metrics: abs metrics, brain: abs brain);
+            return 0;
+        },
+    };
+}
+
 verb teach_file_status(dat result: Result[TeachingFileMetrics, TeachingFileError]) -> Int {
     erg status: Int = 4;
     case dat result {
@@ -57,11 +115,7 @@ verb teach_stdin_status(dat result: Result[TeachingStreamMetrics, TeachingStream
     return status;
 }
 
-verb teach_file_state(
-    ins command: RunnerConfig,
-    ins fabric: CorticalFabric[64],
-    ins bindings: Array[TokenBinding, 64]
-) -> Int {
+verb teach_file_state(ins command: RunnerConfig, ins brain: LogicalTeachingBrain) -> Int {
     erg input_path: Option[Path] = command.input_path;
     erg result: Result[TeachingFileMetrics,TeachingFileError] = Result[TeachingFileMetrics, TeachingFileError].Err(
         TeachingFileError.InvalidRecord
@@ -69,35 +123,49 @@ verb teach_file_state(
     case dat input_path {
         Option.None => {},
         Option.Some(path) => {
-            result = teach_file(
-                fabric: ins fabric,
-                bindings: ins bindings,
-                path: abs path
-            );
+            result = teach_logical_file(brain: ins brain, path: abs path);
         },
     };
-    return teach_file_status(result: dat result);
+    return teach_file_result_status(result: dat result, brain: abs brain);
 }
 
-verb teach_stdin_state(
-    ins fabric: CorticalFabric[64],
-    ins bindings: Array[TokenBinding, 64]
-) -> Int {
-    erg result: Result[TeachingStreamMetrics,TeachingStreamError] = teach_stdin(fabric: ins fabric, bindings: ins bindings);
-    return teach_stdin_status(result: dat result);
+verb teach_stdin_state(ins brain: LogicalTeachingBrain) -> Int {
+    erg result: Result[TeachingStreamMetrics,TeachingStreamError] = teach_logical_stdin(brain: ins brain);
+    return case dat result {
+        Result.Err(error) => {
+            erg status: Int = logical_stream_error_status(error: dat error);
+            erg message: String = "TWIN_E_ERROR code=4 kind=teaching_rejected";
+            println(text: abs message);
+            return status;
+        },
+        Result.Ok(metrics) => {
+            erg record_count: u16 = metrics.record_count;
+            erg accepted_count: u16 = metrics.accepted_count;
+            erg processed_events: u32 = metrics.processed_events;
+            erg allocated_columns: u32 = metrics.allocated_columns;
+            erg reinforced_transitions: u32 = metrics.reinforced_transitions;
+            erg shard_transitions: u32 = logical_teaching_shard_transitions(brain: abs brain);
+            erg published: Bool = false;
+            print_logical_metrics(
+                record_count: erg record_count,
+                accepted_count: erg accepted_count,
+                processed_events: erg processed_events,
+                allocated_columns: erg allocated_columns,
+                reinforced_transitions: erg reinforced_transitions,
+                shard_transitions: erg shard_transitions,
+                published: abs published
+            );
+            return 0;
+        },
+    };
 }
 
 verb teach_command_state(
     ins command: RunnerConfig,
-    ins fabric: CorticalFabric[64],
-    ins bindings: Array[TokenBinding, 64]
+    ins brain: LogicalTeachingBrain
 ) -> Int {
     if command.file {
-        return teach_file_state(
-            command: ins command,
-            fabric: ins fabric,
-            bindings: ins bindings
-        );
+        return teach_file_state(command: ins command, brain: ins brain);
     }
-    return teach_stdin_state(fabric: ins fabric, bindings: ins bindings);
+    return teach_stdin_state(brain: ins brain);
 }

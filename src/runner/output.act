@@ -39,3 +39,71 @@ verb print_file_metrics(
     print(int: erg reinforced_transitions_value);
     print_file_end();
 }
+
+"""Print aggregate logical-run status without raw source records."""
+verb print_logical_metric_values(
+    erg record_count: u16,
+    erg accepted_count: u16,
+    erg processed_events: u32,
+    erg allocated_columns: u32,
+    erg reinforced_transitions: u32,
+    erg shard_transitions: u32
+) {
+    erg records: String = "TWIN_E_METRICS records=";
+    erg accepted: String = " accepted=";
+    erg events: String = " events=";
+    erg allocated: String = " allocated_columns=";
+    erg reinforced: String = " reinforced=";
+    erg transitions: String = " shard_transitions=";
+    print(string: abs records);
+    print(int: record_count as Int);
+    print(string: abs accepted);
+    print(int: accepted_count as Int);
+    print(string: abs events);
+    print(int: processed_events as Int);
+    print(string: abs allocated);
+    print(int: allocated_columns as Int);
+    print(string: abs reinforced);
+    print(int: reinforced_transitions as Int);
+    print(string: abs transitions);
+    print(int: shard_transitions as Int);
+}
+
+verb print_logical_persistence_status(abs published: Bool) {
+    erg resident: String = " resident_status=accepted persistence_status=";
+    erg published_text: String = "published";
+    erg resident_text: String = "resident_only";
+    erg newline: String = "";
+    print(string: abs resident);
+    if published {
+        print(string: abs published_text);
+    } else {
+        print(string: abs resident_text);
+    }
+    println(text: abs newline);
+}
+
+open verb print_logical_metrics(
+    erg record_count: u16,
+    erg accepted_count: u16,
+    erg processed_events: u32,
+    erg allocated_columns: u32,
+    erg reinforced_transitions: u32,
+    erg shard_transitions: u32,
+    abs published: Bool
+) {
+    print_logical_metric_values(
+        record_count: erg record_count,
+        accepted_count: erg accepted_count,
+        processed_events: erg processed_events,
+        allocated_columns: erg allocated_columns,
+        reinforced_transitions: erg reinforced_transitions,
+        shard_transitions: erg shard_transitions
+    );
+    print_logical_persistence_status(published: abs published);
+}
+
+open verb print_published_status() {
+    erg message: String = "TWIN_E_PERSISTENCE status=published";
+    println(text: abs message);
+}

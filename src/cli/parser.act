@@ -248,7 +248,8 @@ verb finish_command_finalize(
         },
         Result.Ok(value) => value,
     };
-    return Result[RunnerConfig, RunnerParseError].Ok(RunnerConfig {load: load, file: file, save: save, brain_path: brain_path, input_path: input_path});
+    return Result[RunnerConfig, RunnerParseError].Ok(RunnerConfig {load: load, file: file, save: save, brain_path: brain_path, shard_paths: Array[Path, 8](
+    ), input_path: input_path});
 }
 
 verb finish_command(

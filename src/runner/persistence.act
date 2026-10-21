@@ -13,22 +13,22 @@ open io;
 
 verb save_command_state(
     abs command: RunnerConfig,
-    abs fabric: CorticalFabric[64],
-    abs bindings: Array[TokenBinding, 64]
+    abs brain: LogicalTeachingBrain
 ) -> Int {
     if !command.save {
         return 0;
     }
-    erg saved: Result[Int,IoError] = write_text_brain(
-        path: abs command.brain_path,
-        fabric: abs fabric,
-        bindings: abs bindings
+    erg generation: u64 = brain.logical.generation + 1u64;
+    erg saved: Result[Int,IoError] = logical_teaching_save_generation(
+        brain: abs brain,
+        shard_paths: abs command.shard_paths,
+        manifest_path: abs command.brain_path,
+        generation: erg generation
     );
     erg status: Int = 5;
     case dat saved {
         Result.Ok(_) => {
-            erg message: String = "TWIN_E_SAVED";
-            println(text: abs message);
+            print_published_status();
             status = 0;
         },
         Result.Err(_) => {

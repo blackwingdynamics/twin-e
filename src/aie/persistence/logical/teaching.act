@@ -42,6 +42,10 @@ open struct LogicalTeachingBrain {
     erg cache_slots: Array[u8, 8],
 }
 
+open verb logical_teaching_shard_transitions(abs brain: LogicalTeachingBrain) -> u32 {
+    return brain.logical.shard_transitions;
+}
+
 open verb logical_teaching_empty() -> LogicalTeachingBrain {
     return LogicalTeachingBrain {initialized: false, logical: logical_brain_empty(), fabrics: Array[CorticalFabric[1024], 8](
     ), bindings: Array[Array[TokenBinding, 1024], 8](), auxiliary: Array[LogicalAuxiliaryState, 8](

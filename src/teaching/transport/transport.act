@@ -2,3 +2,5 @@
 open file;
 
 open stdin;
+
+open logical;

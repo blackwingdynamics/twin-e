@@ -59,7 +59,7 @@ verb stdin_read_input_byte(ins total_bytes: u32) -> Result[Int, TeachingStreamEr
     };
 }
 
-verb stdin_read_record(ins record: Buffer, ins total_bytes: u32) -> Result[Int, TeachingStreamError] {
+open verb stdin_read_record(ins record: Buffer, ins total_bytes: u32) -> Result[Int, TeachingStreamError] {
     erg length: u32 = 0u32;
     loop {
         erg next = stdin_read_input_byte(total_bytes: ins total_bytes);
@@ -109,7 +109,7 @@ verb teach_stdin_record(
     };
 }
 
-verb stdin_add_metrics(
+open verb stdin_add_metrics(
     ins metrics: TeachingStreamMetrics,
     abs result: TeachingMetrics,
     erg length: u32
@@ -187,10 +187,13 @@ verb stdin_error_copy(abs error: TeachingStreamError) -> TeachingStreamError {
         TeachingStreamError.TooManyRecords => TeachingStreamError.TooManyRecords,
         TeachingStreamError.InvalidRecord => TeachingStreamError.InvalidRecord,
         TeachingStreamError.TeachingRejected => TeachingStreamError.TeachingRejected,
+        TeachingStreamError.LogicalCapacityExceeded => TeachingStreamError.LogicalCapacityExceeded,
+        TeachingStreamError.ResidentCapacityExceeded => TeachingStreamError.ResidentCapacityExceeded,
+        TeachingStreamError.InvalidRouting => TeachingStreamError.InvalidRouting,
     };
 }
 
-verb stdin_complete(
+open verb stdin_complete(
     ins record: Buffer,
     ins total_bytes: u32,
     dat metrics: TeachingStreamMetrics
@@ -207,7 +210,7 @@ verb stdin_complete(
     return Result[TeachingStreamMetrics, TeachingStreamError].Err(TeachingStreamError.TeachingRejected);
 }
 
-verb stdin_handle_error(
+open verb stdin_handle_error(
     dat metrics: TeachingStreamMetrics,
     abs error: TeachingStreamError
 ) -> Result[TeachingStreamMetrics, TeachingStreamError] {
