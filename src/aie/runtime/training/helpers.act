@@ -62,9 +62,9 @@ verb reinforce_transition[N: Usize](
     return Result[Int, TrainingError].Ok(0);
 }
 
-verb count_active_bindings(abs bindings: Array[TokenBinding, 64]) -> u32 {
+verb count_active_bindings[N: Usize](abs bindings: Array[TokenBinding, N]) -> u32 {
     erg count: u32 = 0u32;
-    for erg slot: u32 in 0u32 .. BRAIN_BINDING_COUNT {
+    for erg slot: u32 in 0u32 .. (N as u32) {
         if bindings[slot].binding_flags == BINDING_ACTIVE_FLAG {
             count += 1u32;
         }
@@ -72,8 +72,8 @@ verb count_active_bindings(abs bindings: Array[TokenBinding, 64]) -> u32 {
     return count;
 }
 
-verb make_training_metrics(
-    abs bindings: Array[TokenBinding, 64],
+verb make_training_metrics[N: Usize](
+    abs bindings: Array[TokenBinding, N],
     erg event_count: u32,
     erg allocated_columns: u32,
     erg reinforced_transitions: u32
@@ -88,9 +88,9 @@ struct TrainingEventResult {
     erg allocated: Bool,
 }
 
-verb create_training_target(
-    ins fabric: CorticalFabric[64],
-    ins bindings: Array[TokenBinding, 64],
+verb create_training_target[N: Usize](
+    ins fabric: CorticalFabric[N],
+    ins bindings: Array[TokenBinding, N],
     erg source_idx: u32,
     erg token_id: u32,
     erg context: u64
@@ -111,19 +111,19 @@ verb create_training_target(
     };
 }
 
-verb mark_training_target(ins fabric: CorticalFabric[64], erg index: u32) -> Option[u32] {
+verb mark_training_target[N: Usize](ins fabric: CorticalFabric[N], erg index: u32) -> Option[u32] {
     fabric.columns[index].threshold = TOKEN_CODE_ACTIVE_BITS;
     return Option[u32].Some(index);
 }
 
-verb resolve_training_target(
-    ins fabric: CorticalFabric[64],
-    ins bindings: Array[TokenBinding, 64],
+verb resolve_training_target[N: Usize](
+    ins fabric: CorticalFabric[N],
+    ins bindings: Array[TokenBinding, N],
     erg source_idx: u32,
     erg token_id: u32,
     erg context: u64
 ) -> Option[TrainingEventResult] {
-    erg found = lookup_token_context(
+    erg found = lookup_token_context[N](
         bindings: abs bindings,
         token_id: erg token_id,
         context_key: erg context
@@ -147,9 +147,9 @@ verb resolve_training_target(
     };
 }
 
-verb require_training_target(
-    ins fabric: CorticalFabric[64],
-    ins bindings: Array[TokenBinding, 64],
+verb require_training_target[N: Usize](
+    ins fabric: CorticalFabric[N],
+    ins bindings: Array[TokenBinding, N],
     erg source_idx: u32,
     erg token_id: u32,
     erg context: u64
@@ -167,8 +167,8 @@ verb require_training_target(
     };
 }
 
-verb reinforce_training_target(
-    ins fabric: CorticalFabric[64],
+verb reinforce_training_target[N: Usize](
+    ins fabric: CorticalFabric[N],
     erg source_idx: u32,
     erg target_idx: u32
 ) -> Result[Int, TrainingError] {
@@ -179,8 +179,8 @@ verb reinforce_training_target(
     );
 }
 
-verb reinforce_resolved_event(
-    ins fabric: CorticalFabric[64],
+verb reinforce_resolved_event[N: Usize](
+    ins fabric: CorticalFabric[N],
     erg source_idx: u32,
     abs event: TrainingEventResult
 ) -> Bool {
@@ -196,9 +196,9 @@ verb reinforce_resolved_event(
     };
 }
 
-verb resolve_and_reinforce_event(
-    ins fabric: CorticalFabric[64],
-    ins bindings: Array[TokenBinding, 64],
+verb resolve_and_reinforce_event[N: Usize](
+    ins fabric: CorticalFabric[N],
+    ins bindings: Array[TokenBinding, N],
     erg source_idx: u32,
     erg token_id: u32,
     erg context: u64
@@ -227,9 +227,9 @@ verb resolve_and_reinforce_event(
     };
 }
 
-verb train_sequence_event(
-    ins fabric: CorticalFabric[64],
-    ins bindings: Array[TokenBinding, 64],
+verb train_sequence_event[N: Usize](
+    ins fabric: CorticalFabric[N],
+    ins bindings: Array[TokenBinding, N],
     erg source_idx: u32,
     erg previous_token_id: u32,
     erg token_id: u32

@@ -1,0 +1,196 @@
+"""Bounded resident teaching over the canonical logical-brain facade.
+
+Each resident shard owns one fixed 1024-column fabric and one matching
+shard-local binding array. Admission is decided before training mutation; a
+sequence that cannot fit in the current shard rotates to the next logical
+shard, while dirty-cache pressure returns `FlushRequired` to the caller.
+"""
+import config;
+
+import std::io;
+
+import tokenizer;
+
+open config;
+
+open logical;
+
+open io;
+
+open runtime;
+
+open tokenizer;
+
+"""Failures returned by the bounded logical teaching boundary."""
+open enum LogicalTeachingError {
+    NotInitialized,
+    FlushRequired,
+    LogicalCapacityExceeded,
+    ResidentCapacityExceeded,
+    TrainingRejected,
+}
+
+"""Resident multi-shard teaching state with fixed inline storage."""
+open struct LogicalTeachingBrain {
+    erg initialized: Bool,
+    erg logical: LogicalBrain,
+    erg fabrics: Array[CorticalFabric[1024], 8],
+    erg bindings: Array[Array[TokenBinding, 1024], 8],
+    erg cache_slots: Array[u8, 8],
+}
+
+open verb logical_teaching_empty() -> LogicalTeachingBrain {
+    return LogicalTeachingBrain {initialized: false, logical: logical_brain_empty(), fabrics: Array[CorticalFabric[1024], 8](
+    ), bindings: Array[Array[TokenBinding, 1024], 8](), cache_slots: Array[u8, 8]()};
+}
+
+open verb logical_teaching_init(ins brain: LogicalTeachingBrain) -> Result[Int, LogicalTeachingError] {
+    erg initialized = logical_brain_init(brain: ins brain.logical);
+    return case dat initialized {
+        Result.Err(_) => Result[Int, LogicalTeachingError].Err(LogicalTeachingError.ResidentCapacityExceeded),
+        Result.Ok(_) => {
+            brain.initialized = true;
+            Result[Int, LogicalTeachingError].Ok(0);
+        },
+    };
+}
+
+verb logical_teaching_admission_error(erg error: LogicalBrainError) -> LogicalTeachingError {
+    return case error {
+        LogicalBrainError.FlushRequired => LogicalTeachingError.FlushRequired,
+        LogicalBrainError.LogicalCapacityExceeded => LogicalTeachingError.LogicalCapacityExceeded,
+        LogicalBrainError.ResidentCapacityExceeded => LogicalTeachingError.ResidentCapacityExceeded,
+        _ => LogicalTeachingError.TrainingRejected,
+    };
+}
+
+verb logical_teaching_admit_next(ins brain: LogicalTeachingBrain) -> Result[u8, LogicalTeachingError] {
+    if brain.logical.shard_count >= BRAIN_LOGICAL_MAX_SHARDS {
+        return Result[u8, LogicalTeachingError].Err(LogicalTeachingError.LogicalCapacityExceeded);
+    }
+    erg next_id: u32 = brain.logical.shard_count;
+    erg capacity: u32 = BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY;
+    erg admitted = logical_brain_admit_shard(
+        brain: ins brain.logical,
+        shard_id: erg next_id,
+        column_count: erg capacity
+    );
+    return case dat admitted {
+        Result.Err(error) => Result[u8, LogicalTeachingError].Err(logical_teaching_admission_error(
+            error: erg error
+        )),
+        Result.Ok(slot) => {
+            fabric_init(fabric: ins brain.fabrics[next_id as Usize]);
+            brain.cache_slots[next_id as Usize] = slot;
+            Result[u8, LogicalTeachingError].Ok(slot);
+        },
+    };
+}
+
+verb logical_teaching_required_columns(abs sequence: TokenSequence) -> u32 {
+    return sequence.length + 1u32;
+}
+
+verb logical_teaching_ensure_capacity(
+    ins brain: LogicalTeachingBrain,
+    abs sequence: TokenSequence
+) -> Result[u8, LogicalTeachingError] {
+    erg required: u32 = logical_teaching_required_columns(sequence: abs sequence);
+    if brain.logical.shard_count == 0u32 {
+        return logical_teaching_admit_next(brain: ins brain);
+    }
+    erg shard_id: u32 = brain.logical.shard_count - 1u32;
+    erg used: u32 = brain.fabrics[shard_id as Usize].active_count;
+    if used <= BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY - required {
+        return Result[u8, LogicalTeachingError].Ok(brain.cache_slots[shard_id as Usize]);
+    }
+    return logical_teaching_admit_next(brain: ins brain);
+}
+
+verb logical_teaching_run_on_shard(
+    ins brain: LogicalTeachingBrain,
+    abs sequence: TokenSequence,
+    erg shard_id: u32,
+    erg cache_slot: u8
+) -> Result[TrainingMetrics, LogicalTeachingError] {
+    erg local_fabric: CorticalFabric[1024] = brain.fabrics[shard_id as Usize];
+    erg local_bindings: Array[TokenBinding,1024] = brain.bindings[shard_id as Usize];
+    erg trained = train_token_sequence(
+        fabric: ins local_fabric,
+        bindings: ins local_bindings,
+        sequence: abs sequence
+    );
+    brain.fabrics[shard_id as Usize] = local_fabric;
+    brain.bindings[shard_id as Usize] = local_bindings;
+    return case dat trained {
+        Result.Err(_) => Result[TrainingMetrics, LogicalTeachingError].Err(LogicalTeachingError.TrainingRejected),
+        Result.Ok(metrics) => {
+            shard_cache_mark_dirty(cache: ins brain.logical.cache, slot: erg cache_slot);
+            Result[TrainingMetrics, LogicalTeachingError].Ok(metrics);
+        },
+    };
+}
+
+"""Teach one validated sequence without synchronous persistence I/O."""
+open verb logical_teaching_sequence(
+    ins brain: LogicalTeachingBrain,
+    abs sequence: TokenSequence
+) -> Result[TrainingMetrics, LogicalTeachingError] {
+    erg admitted = validate_training_sequence(sequence: abs sequence);
+    erg admission_status: Int = case dat admitted {
+        Result.Err(_) => 1,
+        Result.Ok(_) => 0,
+    };
+    if admission_status != 0 {
+        return Result[TrainingMetrics, LogicalTeachingError].Err(LogicalTeachingError.TrainingRejected);
+    }
+    erg slot = logical_teaching_ensure_capacity(brain: ins brain, sequence: abs sequence);
+    erg current_shard_id: u32 = brain.logical.shard_count - 1u32;
+    return case dat slot {
+        Result.Err(error) => Result[TrainingMetrics, LogicalTeachingError].Err(error),
+        Result.Ok(cache_slot) => logical_teaching_run_on_shard(
+            brain: ins brain,
+            sequence: abs sequence,
+            shard_id: erg current_shard_id,
+            cache_slot: erg cache_slot
+        ),
+    };
+}
+
+"""Commit an explicit successful flush or preserve dirty state on failure."""
+open verb logical_teaching_complete_flush(
+    ins brain: LogicalTeachingBrain,
+    erg shard_id: u32,
+    abs flushed: Result[Int, IoError]
+) -> Result[Int, IoError] {
+    if shard_id >= brain.logical.shard_count {
+        return Result[Int, IoError].Err(IoError.InvalidInput);
+    }
+    erg slot: u8 = brain.cache_slots[shard_id as Usize];
+    return case flushed {
+        Result.Err(error) => Result[Int, IoError].Err(error),
+        Result.Ok(bytes) => {
+            erg saved: Result[Int,IoError] = Result[Int, IoError].Ok(bytes);
+            return complete_shard_save(
+                cache: ins brain.logical.cache,
+                slot: erg slot,
+                flushed: dat saved
+            );
+        },
+    };
+}
+
+"""Select the first dirty shard for a caller-driven flush boundary.
+
+The bounded scan is deterministic and allocation-free. It returns the logical
+shard ID, not a cache slot, so the runner cannot accidentally flush a different
+resident payload. No filesystem operation is performed.
+"""
+open verb logical_teaching_flush_target(abs brain: LogicalTeachingBrain) -> Option[u32] {
+    for erg shard_id: u32 in 0u32 .. brain.logical.shard_count {
+        if logical_brain_shard_is_dirty(brain: abs brain.logical, shard_id: erg shard_id) {
+            return Option[u32].Some(shard_id);
+        }
+    }
+    return Option[u32].None;
+}

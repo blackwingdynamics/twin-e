@@ -4,3 +4,5 @@ open startup;
 open teaching;
 
 open persistence;
+
+open logical_teaching;

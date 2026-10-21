@@ -87,13 +87,13 @@ filesystem I/O to the learning hot path.
 
 ## Gate 11.4 — Implement bounded shard admission and rotation
 
-- [ ] Teach into the current shard until its validated local capacity is full.
+- [x] Teach into the current shard until its validated local capacity is full.
 - [x] Allocate the next deterministic shard without replacing older knowledge.
 - [x] Preserve request ordering and report the shard transition in bounded
       metrics.
 - [x] Reject admission when the logical shard limit is reached.
 - [x] Keep resident-cache admission consistent with ADR-0012.
-- [ ] Make the Production Teaching Runner perform a bounded explicit flush
+- [x] Make the Production Teaching Runner perform a bounded explicit flush
       when the dirty high-watermark raises `shard_cache_flush_requested`,
       before retrying admission or creating another shard.
 - [x] Reject or pause teaching on flush failure without dirty eviction or an
@@ -103,18 +103,18 @@ filesystem I/O to the learning hot path.
 
 ### Required evidence
 
-- [ ] A fixture crosses at least two shards and recalls records from both.
+- [x] A fixture crosses at least two shards and recalls records from both.
 - [x] A logical-capacity fixture rejects the next record without mutation.
 - [x] A failed rotation fixture preserves the last valid resident state.
-- [ ] A high-watermark fixture proves flush-then-continue behavior, and a
+- [x] A high-watermark fixture proves flush-then-continue behavior, and a
       failed-flush fixture proves resident and published state are unchanged.
 
 The bounded logical admission boundary is covered by
-`tests/aie_shard_admission.act`. The two runner-specific items remain open:
-the Production Teaching Runner still has to route real teaching records
-through this facade and perform the explicit persistence call before retrying
-`FlushRequired`; that work belongs to the remaining Gate 11.4 runner boundary
-and Gate 11.7 integration.
+`tests/aie_shard_admission.act` and `tests/aie_logical_teaching.act`. The
+runner boundary now selects a dirty shard, commits the caller-provided explicit
+flush result, and retries admission only after successful publication. Failed
+flushes preserve dirty resident state. The CLI's legacy single-fabric file and
+stdin adapters remain part of Gate 11.7 and are not claimed as complete here.
 
 ## Gate 11.5 — Integrate shard-local bindings and auxiliary state
 

@@ -49,7 +49,7 @@ verb correction_source_index(
     erg bos_token: u32 = BPE_BOS_TOKEN_ID;
     erg event_token: u32 = event.identity;
     erg context: u64 = context_key(previous_token_id: erg bos_token, token_id: erg event_token);
-    return lookup_token_context(
+    return lookup_token_context[64](
         bindings: abs bindings,
         token_id: erg event_token,
         context_key: erg context

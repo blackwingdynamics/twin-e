@@ -181,3 +181,15 @@ open verb logical_brain_close(ins brain: LogicalBrain) -> Result[Int, LogicalBra
     shard_cache_init(cache: ins brain.cache);
     return Result[Int, LogicalBrainError].Ok(0);
 }
+
+"""Report whether one admitted logical shard still needs persistence."""
+open verb logical_brain_shard_is_dirty(abs brain: LogicalBrain, erg shard_id: u32) -> Bool {
+    if shard_id >= brain.shard_count {
+        return false;
+    }
+    erg found = shard_cache_find(cache: abs brain.cache, shard_id: erg shard_id);
+    return case dat found {
+        Option.None => false,
+        Option.Some(slot) => cache_entry_is_dirty(entry: abs brain.cache.entries[slot as Usize]),
+    };
+}

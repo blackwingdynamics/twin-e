@@ -35,13 +35,13 @@ The binding array receives an exclusive `ins` loan. The slot must be within
 the configured binding count; invalid slots return `false` without mutation.
 Valid bindings receive current tokenizer/context versions and the active flag.
 """
-open verb bind_token_context(
-    ins bindings: Array[TokenBinding, 64],
+open verb bind_token_context[N: Usize](
+    ins bindings: Array[TokenBinding, N],
     erg slot: u32,
     erg token_id: u32,
     erg context_key: u64
 ) -> Bool {
-    if slot >= BRAIN_BINDING_COUNT {
+    if slot >= (N as u32) {
         return false;
     }
     bindings[slot].token_id = token_id;
@@ -58,12 +58,12 @@ The binding array is read through `abs`. Version markers and the active flag
 must match the current configuration; a miss returns `Option.None` without
 mutating the binding array.
 """
-open verb lookup_token_context(
-    abs bindings: Array[TokenBinding, 64],
+open verb lookup_token_context[N: Usize](
+    abs bindings: Array[TokenBinding, N],
     erg token_id: u32,
     erg context_key: u64
 ) -> Option[u32] {
-    for erg slot: u32 in 0u32 .. BRAIN_BINDING_COUNT {
+    for erg slot: u32 in 0u32 .. (N as u32) {
         if bindings[slot].binding_flags == BINDING_ACTIVE_FLAG && bindings[slot].token_id == token_id && bindings[slot].context_key == context_key && bindings[slot].tokenizer_version == TOKENIZER_VERSION && bindings[slot].context_version == CONTEXT_VERSION {
             return Option[u32].Some(slot);
         }
