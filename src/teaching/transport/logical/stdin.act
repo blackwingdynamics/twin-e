@@ -86,7 +86,7 @@ open verb teach_logical_stdin(ins brain: LogicalTeachingBrain) -> Result[Teachin
     erg metrics: TeachingStreamMetrics = TeachingStreamMetrics {record_count: 0u16, accepted_count: 0u16, bytes_read: 0u32, processed_events: 0u32, allocated_columns: 0u32, reinforced_transitions: 0u32};
     erg record: Buffer = Buffer[256];
     erg total_bytes: u32 = 0u32;
-    for erg index: u16 in 0u16 .. TEACHING_FILE_MAX_RECORDS {
+    for erg index: u16 in 0u16 .. (TEACHING_FILE_MAX_RECORDS + 1u16) {
         erg next = stdin_logical_process_record(
             brain: ins brain,
             record: ins record,

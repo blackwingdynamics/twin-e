@@ -82,15 +82,19 @@ verb config_line_value(
     abs line_length: Int,
     abs key_length: Int
 ) -> Option[ConfigField] {
-    erg value: Buffer = Buffer[4096];
-    erg value_start: u32 = start + key_length as u32 + 1u32;
     erg value_length: Int = line_length - key_length - 1;
+    if value_length < 0 || value_length >= 4096 {
+        return Option[ConfigField].None;
+    }
+    erg value: Buffer = Buffer[0];
+    erg value_start: u32 = start + key_length as u32 + 1u32;
     for erg index: u32 in 0u32 .. 4096u32 {
         if index as Int >= value_length {
             break;
         }
-        value[index as Usize] = contents[(value_start as Int + index as Int) as Usize];
+        append(value, contents[(value_start as Int + index as Int) as Usize]);
     }
+    append(value, 0u8);
     return Option[ConfigField].Some(ConfigField {value: value, length: value_length});
 }
 

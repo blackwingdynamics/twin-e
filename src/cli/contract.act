@@ -1,21 +1,2 @@
-"""Typed command-line configuration and parse failures."""
-import std::path;
-
-open path;
-
-open enum RunnerParseError {
-    HelpRequested,
-    MissingArgument,
-    InvalidArgument,
-    InvalidPath,
-    InvalidConfig,
-}
-
-open struct RunnerConfig {
-    erg load: Bool,
-    erg file: Bool,
-    erg save: Bool,
-    erg brain_path: Path,
-    erg shard_paths: Array[Path, 8],
-    erg input_path: Option[Path],
-}
+"""Parent CLI facade for the public configuration contract."""
+open config;

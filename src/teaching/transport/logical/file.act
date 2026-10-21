@@ -17,7 +17,7 @@ open format;
 
 verb logical_file_validate_adapters(abs bytes: Buffer, erg record_count: u16) -> Result[Int, TeachingFileError] {
     erg cursor: u32 = TEACHING_FILE_HEADER_BYTES;
-    for erg index: u16 in 0u16 .. TEACHING_FILE_MAX_RECORDS {
+    for erg index: u16 in 0u16 .. (TEACHING_FILE_MAX_RECORDS + 1u16) {
         if index >= record_count {
             return Result[Int, TeachingFileError].Ok(0);
         }
@@ -30,7 +30,7 @@ verb logical_file_validate_adapters(abs bytes: Buffer, erg record_count: u16) ->
         );
         erg adapted = adapt_text_ka_bytes(input: abs record, input_length: erg length);
         case dat adapted {
-            Result.Err(_) => {
+            Result.Err(error) => {
                 drop(record);
                 return Result[Int, TeachingFileError].Err(TeachingFileError.InvalidRecord);
             },
@@ -103,7 +103,7 @@ verb train_logical_file_records(
 ) -> Result[TeachingFileMetrics, TeachingFileError] {
     erg metrics: TeachingFileMetrics = TeachingFileMetrics {record_count: record_count, accepted_count: 0u16, processed_events: 0u32, allocated_columns: 0u32, reinforced_transitions: 0u32};
     erg cursor: u32 = TEACHING_FILE_HEADER_BYTES;
-    for erg index: u16 in 0u16 .. TEACHING_FILE_MAX_RECORDS {
+    for erg index: u16 in 0u16 .. (TEACHING_FILE_MAX_RECORDS + 1u16) {
         if index >= metrics.record_count {
             return Result[TeachingFileMetrics, TeachingFileError].Ok(metrics);
         }
@@ -156,7 +156,7 @@ verb teach_logical_loaded_file(
     case dat structure {
         Result.Err(error) => {
             drop(bytes);
-            return Result[TeachingFileMetrics, TeachingFileError].Err(error);
+            return Result[TeachingFileMetrics, TeachingFileError].Err(TeachingFileError.InvalidRecord);
         },
         Result.Ok(record_count) => {
             return teach_logical_validated_file(

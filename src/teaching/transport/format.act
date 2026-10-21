@@ -93,7 +93,7 @@ verb file_validate_records(
     erg expected_records: u16
 ) -> Result[u16, TeachingFileError] {
     erg cursor: u32 = TEACHING_FILE_HEADER_BYTES;
-    for erg index: u16 in 0u16 .. TEACHING_FILE_MAX_RECORDS {
+    for erg index: u16 in 0u16 .. (TEACHING_FILE_MAX_RECORDS + 1u16) {
         if index >= expected_records {
             return if cursor <= total {
                 Result[u16, TeachingFileError].Ok(index);

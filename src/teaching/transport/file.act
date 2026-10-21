@@ -17,7 +17,7 @@ open format;
 
 verb file_validate_adapters(abs bytes: Buffer, erg record_count: u16) -> Result[Int, TeachingFileError] {
     erg cursor: u32 = TEACHING_FILE_HEADER_BYTES;
-    for erg index: u16 in 0u16 .. TEACHING_FILE_MAX_RECORDS {
+    for erg index: u16 in 0u16 .. (TEACHING_FILE_MAX_RECORDS + 1u16) {
         if index >= record_count {
             return Result[Int, TeachingFileError].Ok(0);
         }
@@ -77,7 +77,7 @@ verb train_file_records(
 ) -> Result[TeachingFileMetrics, TeachingFileError] {
     erg metrics: TeachingFileMetrics = TeachingFileMetrics {record_count: record_count, accepted_count: 0u16, processed_events: 0u32, allocated_columns: 0u32, reinforced_transitions: 0u32};
     erg cursor: u32 = TEACHING_FILE_HEADER_BYTES;
-    for erg index: u16 in 0u16 .. TEACHING_FILE_MAX_RECORDS {
+    for erg index: u16 in 0u16 .. (TEACHING_FILE_MAX_RECORDS + 1u16) {
         if index >= metrics.record_count {
             return Result[TeachingFileMetrics, TeachingFileError].Ok(metrics);
         }
