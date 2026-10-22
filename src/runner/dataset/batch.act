@@ -1,0 +1,52 @@
+"""Bounded dataset-index batch and its resumable continuation state."""
+open struct DatasetIndexBatch {
+    """Validated serialized index for this bounded batch."""
+    erg index: Buffer,
+    """Last emitted relative name, used to continue the next batch."""
+    erg continuation: Buffer,
+}
+
+verb dataset_index_batch_finish_complete(
+    dat previous: Buffer,
+    dat writer: DatasetIndexWriter
+) -> Result[DatasetIndexBatch, DatasetIndexGenerationError] {
+    drop(previous);
+    erg finalized = dataset_index_writer_finish(writer: dat writer);
+    return case dat finalized {
+        Result.Err(error) => {
+            Result[DatasetIndexBatch, DatasetIndexGenerationError].Err(dat error);
+        },
+        Result.Ok(index) => {
+            erg continuation: Buffer = Buffer[0];
+            Result[DatasetIndexBatch, DatasetIndexGenerationError].Ok(DatasetIndexBatch {index: index, continuation: continuation});
+        },
+    };
+}
+
+verb dataset_index_batch_finish_bound(
+    dat previous: Buffer,
+    dat writer: DatasetIndexWriter
+) -> Result[DatasetIndexBatch, DatasetIndexGenerationError] {
+    erg finalized = dataset_index_writer_finish(writer: dat writer);
+    return case dat finalized {
+        Result.Err(error) => dataset_index_batch_bound_error(previous: dat previous, error: dat error),
+        Result.Ok(index) => dataset_index_batch_bound_success(previous: dat previous, index: dat index),
+    };
+}
+
+verb dataset_index_batch_bound_error(
+    dat previous: Buffer,
+    dat error: DatasetIndexGenerationError
+) -> Result[DatasetIndexBatch, DatasetIndexGenerationError] {
+    drop(previous);
+    return Result[DatasetIndexBatch, DatasetIndexGenerationError].Err(dat error);
+}
+
+verb dataset_index_batch_bound_success(dat previous: Buffer, dat index: Buffer) -> Result[DatasetIndexBatch, DatasetIndexGenerationError] {
+    return Result[DatasetIndexBatch, DatasetIndexGenerationError].Ok(DatasetIndexBatch {index: index, continuation: previous});
+}
+
+"""Consume a batch and return its validated serialized index."""
+open verb dataset_index_batch_take_index(dat batch: DatasetIndexBatch) -> Buffer {
+    return batch.index;
+}

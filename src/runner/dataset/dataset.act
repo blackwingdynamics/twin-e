@@ -3,4 +3,6 @@ open manifest;
 
 open generation;
 
+open batch;
+
 open discovery;
