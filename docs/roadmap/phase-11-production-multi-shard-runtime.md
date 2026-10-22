@@ -206,7 +206,7 @@ recalled before continued teaching. The full strict suite passed with
 - [x] Record peak resident memory, logical columns, shard count, binding count,
       auxiliary bytes, and artifact sizes.
 - [x] Test repeated training and restart without generation corruption.
-- [ ] Test shard exhaustion, resident-cache pressure, failed save, checksum
+- [x] Test shard exhaustion, resident-cache pressure, failed save, checksum
       failure, and recovery.
 - [ ] Retain compiler revision, target, executable checksum, dataset revision,
       profile, and exact commands.
@@ -224,6 +224,14 @@ the earlier bindings, and restored a three-shard logical shape. The strict
 suite passed with `169` tests and `0` failures. See
 `docs/benchmarks/phase-11-repeated-restart.md` for the exact scenario and
 commands. Failure-matrix, native zero-float, and hot-path evidence remain open.
+
+Evidence (2026-10-22): the failure matrix passed logical shard exhaustion,
+resident-cache pressure and failed flush, failed save with unchanged live
+state, checksum-invalid generation rejection, and fallback recovery. The
+strict suite passed with `170` tests and `0` failures. See
+`docs/benchmarks/phase-11-failure-matrix.md` for the exact test mapping and
+commands. Compiler provenance, native zero-float, and hot-path evidence remain
+open.
 
 ## Gate 11.9 — Production acceptance and ADR closure
 
