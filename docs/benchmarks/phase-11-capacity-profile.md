@@ -42,12 +42,21 @@ AIE_PROFILE max_logical_shards=8
 AIE_PROFILE shard_bytes=90616
  manifest_bytes=112
  complete_bytes=90728
+ header_bytes=48
+ columns_bytes=65536
+ bindings_bytes=24576
+ auxiliary_bytes=456
+ checksum_bytes=8
+ peak_resident_payload_bytes=362272
+ logical_columns=1024 shard_count=1 binding_records=1024 auxiliary_records=8
  routing_profile=shift_mask power_of_two=1
 ```
 
 The shard measurement includes its header, 1024 column payload, shard-local
 bindings, auxiliary section, and checksum. The complete figure also includes
-the manifest descriptor and metadata.
+the manifest descriptor and metadata. `peak_resident_payload_bytes` is the
+four-shard resident payload envelope (`4 * (columns + bindings + auxiliary)`);
+it excludes language-runtime object and alignment overhead.
 
 ## Routing comparison
 

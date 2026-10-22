@@ -207,27 +207,60 @@ verb write_profile_manifest(abs manifest_path: Path, erg checksum: u64) -> Resul
     return manifest_result;
 }
 
+verb emit_profile_components() {
+    erg header_bytes: u32 = BRAIN_SHARD_HEADER_BYTES as u32;
+    erg columns_bytes: u32 = BRAIN_LOGICAL_SHARD_COLUMNS_BYTES;
+    erg bindings_bytes: u32 = BRAIN_LOGICAL_SHARD_BINDINGS_BYTES;
+    erg auxiliary_bytes: u32 = BRAIN_AUXILIARY_PAYLOAD_BYTES;
+    erg checksum_bytes: u32 = 8u32;
+    erg resident_bytes: u32 = (columns_bytes + bindings_bytes + auxiliary_bytes) * BRAIN_LOGICAL_MAX_RESIDENT_SHARDS;
+    erg header_label: String = " header_bytes=";
+    erg columns_label: String = " columns_bytes=";
+    erg bindings_label: String = " bindings_bytes=";
+    erg auxiliary_label: String = " auxiliary_bytes=";
+    erg checksum_label: String = " checksum_bytes=";
+    erg resident_label: String = " peak_resident_payload_bytes=";
+    print_u32(label: abs header_label, value: erg header_bytes);
+    print_u32(label: abs columns_label, value: erg columns_bytes);
+    print_u32(label: abs bindings_label, value: erg bindings_bytes);
+    print_u32(label: abs auxiliary_label, value: erg auxiliary_bytes);
+    print_u32(label: abs checksum_label, value: erg checksum_bytes);
+    print_u32(label: abs resident_label, value: erg resident_bytes);
+}
+
+verb emit_profile_measurements(erg shard_size: u32, erg manifest_size: u32) -> Int {
+    erg shard_label: String = "AIE_PROFILE shard_bytes=";
+    erg manifest_label: String = " manifest_bytes=";
+    erg complete_label: String = " complete_bytes=";
+    erg logical_label: String = " logical_columns=1024 shard_count=1 binding_records=1024 auxiliary_records=8";
+    erg routing_label: String = " routing_profile=shift_mask power_of_two=1";
+    erg complete_size: u32 = shard_size + manifest_size;
+    print_u32(label: abs shard_label, value: erg shard_size);
+    print_u32(label: abs manifest_label, value: erg manifest_size);
+    print_u32(label: abs complete_label, value: erg complete_size);
+    emit_profile_components();
+    println(text: abs logical_label);
+    println(text: abs routing_label);
+    return 0;
+}
+
+verb emit_manifest_size(
+    erg shard_size: u32,
+    dat manifest_bytes: Result[u32, IoError]
+) -> Int {
+    return case dat manifest_bytes {
+        Result.Err(_) => 4,
+        Result.Ok(manifest_size) => emit_profile_measurements(shard_size: erg shard_size, manifest_size: erg manifest_size),
+    };
+}
+
 verb emit_profile_sizes(abs shard_path: Path, abs manifest_path: Path) -> Int {
     erg shard_bytes = profile_file_length(path: abs shard_path);
-    erg manifest_bytes = profile_file_length(path: abs manifest_path);
     return case dat shard_bytes {
         Result.Err(_) => 3,
         Result.Ok(shard_size) => {
-            return case dat manifest_bytes {
-                Result.Err(_) => 4,
-                Result.Ok(manifest_size) => {
-                    erg shard_label: String = "AIE_PROFILE shard_bytes=";
-                    erg manifest_label: String = " manifest_bytes=";
-                    erg complete_label: String = " complete_bytes=";
-                    erg routing_label: String = " routing_profile=shift_mask power_of_two=1";
-                    erg complete_size: u32 = shard_size + manifest_size;
-                    print_u32(label: abs shard_label, value: erg shard_size);
-                    print_u32(label: abs manifest_label, value: erg manifest_size);
-                    print_u32(label: abs complete_label, value: erg complete_size);
-                    println(text: abs routing_label);
-                    0;
-                },
-            };
+            erg manifest_bytes = profile_file_length(path: abs manifest_path);
+            emit_manifest_size(shard_size: erg shard_size, manifest_bytes: dat manifest_bytes);
         },
     };
 }

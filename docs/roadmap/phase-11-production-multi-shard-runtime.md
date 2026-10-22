@@ -203,7 +203,7 @@ recalled before continued teaching. The full strict suite passed with
 - [x] Benchmark one-shard, two-shard, and configured-maximum profiles.
 - [x] Separate adapter, admission, routing, teaching, flush, and publication
       latency in benchmark output.
-- [ ] Record peak resident memory, logical columns, shard count, binding count,
+- [x] Record peak resident memory, logical columns, shard count, binding count,
       auxiliary bytes, and artifact sizes.
 - [ ] Test repeated training and restart without generation corruption.
 - [ ] Test shard exhaustion, resident-cache pressure, failed save, checksum
