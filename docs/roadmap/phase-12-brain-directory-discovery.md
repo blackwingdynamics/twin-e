@@ -38,8 +38,8 @@ from that directory without introducing a per-shard configuration list.
   manifest loading, and multi-shard fixture sources.
 - `tests/aie_shard_filename.act` covers indexes `0`, `9`, `10`, `99`, `100`,
   and `999999`.
-- `actus test --strict`: 173 passed, 0 failed, including the ordered dataset
-  index acceptance and unsorted-entry rejection tests.
+- `actus test --strict`: 174 passed, 0 failed, including ordered dataset-index
+  acceptance, unsorted-entry rejection, and public writer round-trip tests.
 - `actus check --strict`: passed.
 - `actus build --strict --emit exe -o /tmp/twin-e-engine.aie`: passed;
   generated native IR contains no floating-point instructions.

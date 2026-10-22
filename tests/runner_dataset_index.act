@@ -136,3 +136,67 @@ verb test_dataset_index_rejects_unsorted_entries() -> Int {
         Result.Ok(_) => 1,
     };
 }
+
+verb dataset_index_writer_fixture() -> Result[Buffer, DatasetIndexGenerationError] {
+    erg writer = dataset_index_writer_new();
+    erg first_selector: u8 = 0u8;
+    erg second_selector: u8 = 1u8;
+    erg first = dataset_index_name(selector: erg first_selector);
+    erg second = dataset_index_name(selector: erg second_selector);
+    erg first_append = dataset_index_writer_append(writer: ins writer, name: abs first);
+    erg second_append = dataset_index_writer_append(writer: ins writer, name: abs second);
+    drop(first);
+    drop(second);
+    case dat first_append {
+        Result.Err(_) => {
+            drop(writer);
+            return Result[Buffer, DatasetIndexGenerationError].Err(DatasetIndexGenerationError.EntryTooLarge);
+        },
+        Result.Ok(_) => {},
+    };
+    case dat second_append {
+        Result.Err(_) => {
+            drop(writer);
+            return Result[Buffer, DatasetIndexGenerationError].Err(DatasetIndexGenerationError.EntryTooLarge);
+        },
+        Result.Ok(_) => {},
+    };
+    return dataset_index_writer_finish(writer: dat writer);
+}
+
+verb dataset_index_writer_consumes_two(ins index: DatasetIndex) -> Bool {
+    erg first_path = dataset_index_next(index: ins index);
+    erg second_path = dataset_index_next(index: ins index);
+    return case dat first_path {
+        Result.Err(_) => false,
+        Result.Ok(first_value) => {
+            drop(first_value);
+            return case dat second_path {
+                Result.Err(_) => false,
+                Result.Ok(second_value) => {
+                    drop(second_value);
+                    index.consumed == 2u32;
+                },
+            };
+        },
+    };
+}
+
+meta test
+verb test_dataset_index_writer_roundtrips_through_public_facade() -> Int {
+    erg serialized = dataset_index_writer_fixture();
+    return case dat serialized {
+        Result.Err(_) => 1,
+        Result.Ok(bytes) => {
+            erg opened = dataset_index_open(bytes: dat bytes);
+            return case dat opened {
+                Result.Err(_) => 1,
+                Result.Ok(index) => if dataset_index_writer_consumes_two(index: ins index) {
+                    0;
+                } else {
+                    1;
+                },
+            };
+        },
+    };
+}

@@ -1,2 +1,4 @@
 """Canonical facade for bounded ordered training dataset indexes."""
 open manifest;
+
+open generation;
