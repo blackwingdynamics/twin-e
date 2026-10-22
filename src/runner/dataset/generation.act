@@ -7,6 +7,8 @@ open enum DatasetIndexGenerationError {
     EntryTooLarge,
     TooManyEntries,
     IndexTooLarge,
+    EmptyDirectory,
+    DirectoryFailure,
 }
 
 """Owned writer state for one bounded dataset-index batch."""
