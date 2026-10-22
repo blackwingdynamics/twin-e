@@ -488,6 +488,16 @@ only after an explicit save request.
 
 ## Definition of done
 
+### Phase 11 lifecycle handoff
+
+The production lifecycle now continues through the multi-shard runner defined
+in Phase 11: it loads one complete manifest generation, accepts bounded file
+teaching input, publishes the complete shard generation explicitly, and
+restores it into a fresh runner state. The hosted acceptance and known limits
+are recorded in `docs/benchmarks/phase-11-production-acceptance.md` and
+`docs/roadmap/phase-11-production-multi-shard-runtime.md`. This handoff does
+not mark the separate Phase 10 transport or lifecycle gates complete.
+
 Phase 10 is complete when a production runner, rather than the AIE demo entry
 point, can load a selected complete brain generation, accept bounded teaching
 data by direct API, file, stdin, and the selected framed transport, and publish

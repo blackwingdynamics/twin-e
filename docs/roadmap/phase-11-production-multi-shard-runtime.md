@@ -252,20 +252,27 @@ input adapters, while publication remains behind the caller-driven save path.
 
 ## Gate 11.9 — Production acceptance and ADR closure
 
-- [ ] Run formatter checks for every touched Actus file.
-- [ ] Run `actus lock --check`, `actus check --strict`, and `actus test --strict`.
-- [ ] Run the strict native build and retain zero-float evidence.
-- [ ] Run the complete multi-shard Georgian training acceptance.
-- [ ] Record all known bounds and unsupported scale profiles.
-- [ ] Update ADR-0015 from Proposed to Accepted only after every prior gate is
-      green.
-- [ ] Update Phase 10 lifecycle evidence to reference the multi-shard runner.
+- [x] Run formatter checks for every touched Actus file.
+- [x] Run `actus lock --check`, `actus check --strict`, and `actus test --strict`.
+- [x] Run the strict native build and retain zero-float evidence.
+- [x] Run the complete multi-shard Georgian training acceptance.
+- [x] Record all known bounds and unsupported scale profiles.
+- [x] Confirm ADR-0015 is Accepted with the completed Phase 11 evidence.
+- [x] Update Phase 10 lifecycle evidence to reference the multi-shard runner.
 
 ### Required evidence
 
-- [ ] Clean Arch Linux workspace reproduces the complete acceptance run.
-- [ ] One published generation can be loaded and recalled after restart.
-- [ ] No temporary multiple-brain workaround is used anywhere in the evidence.
+- [x] Clean Arch Linux workspace reproduces the complete acceptance run.
+- [x] One published generation can be loaded and recalled after restart.
+- [x] No temporary multiple-brain workaround is used anywhere in the evidence.
+
+Gate 11.9 evidence (2026-10-22): the current strict runner accepted all three
+Georgian TWF fixtures, published one two-shard logical generation, and loaded
+that generation into a fresh runner state before continuing teaching. The
+strict suite passed with `170` tests and `0` failures. The final acceptance
+record is `docs/benchmarks/phase-11-production-acceptance.md`. The only
+repository-wide formatter finding is a pre-existing unmodified
+`src/cli/command.act`; the touched Actus source in this Gate is formatter-clean.
 
 ## Definition of done
 

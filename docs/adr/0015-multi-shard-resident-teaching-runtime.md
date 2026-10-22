@@ -25,8 +25,9 @@ This ADR defines the missing runtime layer that makes those decisions usable
 by teaching: one logical resident brain composed of multiple bounded shards.
 
 Acceptance of this ADR records the architecture and its constraints; it does
-not claim that the Phase 11 implementation, benchmarks, or production training
-evidence are complete.
+not claim hardware behavior beyond the recorded hosted profile. Phase 11
+implementation, benchmark, and production-training evidence is recorded in
+the Phase 11 roadmap and benchmark documents.
 
 ## Decision
 
@@ -208,3 +209,12 @@ architecture. Multi-shard teaching, save/load, recovery, capacity rejection,
 and deterministic benchmark evidence must pass before the production runtime
 is declared complete; no temporary multiple-brain workaround satisfies that
 requirement.
+
+### Phase 11 closure update
+
+The Gate 11.9 hosted acceptance passed on 2026-10-22. The production runner
+trained the three accepted Georgian TWF inputs into one published logical
+generation, restored that generation into a fresh runner state, and continued
+teaching after restart. The complete command, metrics, artifact sizes, and
+hosted limitations are recorded in
+`docs/benchmarks/phase-11-production-acceptance.md`.
