@@ -164,6 +164,9 @@ verb teach_command_state(
     ins command: RunnerConfig,
     ins brain: LogicalTeachingBrain
 ) -> Int {
+    if command.directory {
+        return teach_directory_state(command: ins command, brain: ins brain);
+    }
     if command.file {
         return teach_file_state(command: ins command, brain: ins brain);
     }

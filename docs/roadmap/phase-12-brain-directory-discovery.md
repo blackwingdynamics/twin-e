@@ -45,6 +45,10 @@ from that directory without introducing a per-shard configuration list.
 - `actus build --strict --emit exe benchmarks/aie_logical_latency.act`: passed;
   generated native IR contains no floating-point instructions.
 
+Directory training evidence: `source=directory` processed all three accepted
+Georgian TWF files (23 records total) and published `manifest.brain` plus two
+shard files in the configured brain directory; the run exited with status `0`.
+
 ## Gate 12.2 — Directory-based TWF batch ingestion
 
 The current runner accepts one `input` path per invocation. That is sufficient
@@ -54,7 +58,7 @@ adds directory input without reintroducing a per-file configuration list.
 
 ### Contract
 
-- [ ] Add `source=directory` and `input_dir=<path>` to the runner config.
+- [x] Add `source=directory` and `input_dir=<directory>` to the runner config.
 - [ ] Discover only regular `.twf` files below the configured directory.
 - [ ] Sort discovered filenames deterministically before teaching them.
 - [ ] Initialize the brain for the first file, then load the published
@@ -73,14 +77,14 @@ adds directory input without reintroducing a per-file configuration list.
 
 ### External prerequisite
 
-Actus `std::fs` currently provides file and directory creation, metadata, and
-file reads, but no directory enumeration API. Gate 12.2 therefore requires an
-Actus standard-library change before Twin-e implementation can begin:
+The required bounded `std::fs` directory enumeration API is now available to
+the installed Actus compiler. Twin-e consumes it through the typed
+`read_dir`, `next_dir_entry`, `metadata`, and `close_dir` boundary; it does not
+use hardcoded filenames, shell commands, or an unbounded collection.
 
-- [ ] Add a bounded `std::fs` directory enumeration API with typed entry
-      metadata and deterministic ownership/close behavior.
-- [ ] Add Cranelift and LLVM coverage for that API before consuming it here.
-
-Twin-e must not emulate directory enumeration with hardcoded filenames,
-shell commands, or a dynamic unbounded collection. Until the Actus API exists,
-Twin-e remains on the validated one-file `input=<path>` contract.
+The remaining Gate 12.2 checkboxes are still open until deterministic sorting,
+per-file publication, batch metrics, and the public directory tests are
+implemented and evidenced. The current implementation also relies on the
+configured input directory containing only regular TWF files; exact extension
+matching remains open because the installed path-component view does not expose
+the component bytes correctly.
