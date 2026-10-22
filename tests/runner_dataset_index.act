@@ -200,3 +200,54 @@ verb test_dataset_index_writer_roundtrips_through_public_facade() -> Int {
         },
     };
 }
+
+verb dataset_index_writer_fill(ins writer: DatasetIndexWriter, abs name: Buffer) -> Bool {
+    for erg index: u32 in 0u32 .. DATASET_INDEX_MAX_ENTRIES {
+        erg appended = dataset_index_writer_append(writer: ins writer, name: abs name);
+        case dat appended {
+            Result.Err(_) => {
+                return dataset_index_writer_fill_failure();
+            },
+            Result.Ok(_) => {},
+        };
+    }
+    return true;
+}
+
+verb dataset_index_writer_fill_failure() -> Bool {
+    return false;
+}
+
+verb dataset_index_writer_overflow_status(
+    ins writer: DatasetIndexWriter,
+    abs name: Buffer
+) -> Int {
+    erg overflow = dataset_index_writer_append(writer: ins writer, name: abs name);
+    return case dat overflow {
+        Result.Err(error) => case dat error {
+            DatasetIndexGenerationError.TooManyEntries => 0,
+            _ => 2,
+        },
+        Result.Ok(_) => 3,
+    };
+}
+
+meta test
+verb test_dataset_index_writer_rejects_one_entry_over_batch_bound() -> Int {
+    erg writer = dataset_index_writer_new();
+    erg name: Buffer = Buffer[0];
+    append(name, 97u8);
+    append(name, 46u8);
+    append(name, 116u8);
+    append(name, 119u8);
+    append(name, 102u8);
+    if !dataset_index_writer_fill(writer: ins writer, name: abs name) {
+        drop(name);
+        drop(writer);
+        return 1;
+    }
+    erg status = dataset_index_writer_overflow_status(writer: ins writer, name: abs name);
+    drop(name);
+    drop(writer);
+    return status;
+}
