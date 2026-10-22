@@ -58,3 +58,19 @@ actus test --strict
 The benchmark inputs and selected bounded profile are recorded in the scale,
 latency, and capacity evidence documents. The full strict suite currently
 reports `170 passed; 0 failed`.
+
+## Repeatability
+
+Each Gate 11.8 executable was run twice. The normalized outputs compared
+byte-for-byte after replacing only timing fields (`restore_ns`, `adapter_ns`,
+`admission_ns`, `routing_ns`, `teaching_ns`, `flush_ns`, and
+`publication_ns`) with the marker `<timing>`:
+
+```text
+scale=identical_logical_results_and_bounds
+latency=identical_logical_results_and_bounds
+memory=identical_logical_results_and_bounds
+```
+
+This proves repeatable logical results and bounded profile values while keeping
+variable runtime latency measurements separate.

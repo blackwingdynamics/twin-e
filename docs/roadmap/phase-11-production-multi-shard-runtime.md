@@ -213,7 +213,7 @@ recalled before continued teaching. The full strict suite passed with
 
 ### Required evidence
 
-- [ ] Repeated runs produce identical logical results and bounded metrics.
+- [x] Repeated runs produce identical logical results and bounded metrics.
 - [ ] Native strict build confirms no floating-point instructions.
 - [ ] No hot-path filesystem operation is observed during teaching/inference.
 
@@ -236,6 +236,10 @@ Evidence (2026-10-22): compiler revision, compiler binary digest, target,
 three benchmark executable checksums, bounded profile, Georgian dataset content
 hashes, and exact build/run commands are recorded in
 `docs/benchmarks/phase-11-provenance.md`.
+
+Evidence (2026-10-22): scale, latency, and memory executables were each run
+twice. Their normalized logical/profile outputs matched byte-for-byte while
+timing fields remained explicitly variable and separate.
 
 ## Gate 11.9 — Production acceptance and ADR closure
 
