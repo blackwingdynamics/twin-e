@@ -1,0 +1,266 @@
+"""Gate 12.2 public evidence for directory-based dataset index generation."""
+import runner;
+
+import std::fs;
+
+import std::path;
+
+open fs;
+
+open path;
+
+open runner;
+
+verb dataset_discovery_prefix(ins output: Buffer) {
+    append(output, 47u8);
+    append(output, 116u8);
+    append(output, 109u8);
+    append(output, 112u8);
+    append(output, 47u8);
+    append(output, 116u8);
+    append(output, 119u8);
+    append(output, 105u8);
+    append(output, 110u8);
+    append(output, 45u8);
+    append(output, 101u8);
+    append(output, 45u8);
+    append(output, 49u8);
+    append(output, 50u8);
+    append(output, 45u8);
+    append(output, 105u8);
+    append(output, 110u8);
+    append(output, 100u8);
+    append(output, 101u8);
+    append(output, 120u8);
+    append(output, 45u8);
+    append(output, 101u8);
+}
+
+verb dataset_discovery_file_name(ins output: Buffer, erg selector: u8) {
+    if selector == 1u8 {
+        append(output, 97u8);
+        erg first_branch_done: Int = 0;
+    } else if selector == 2u8 {
+        append(output, 98u8);
+        erg second_branch_done: Int = 0;
+    } else {
+        append(output, 105u8);
+        append(output, 103u8);
+        append(output, 110u8);
+        append(output, 111u8);
+        append(output, 114u8);
+        append(output, 101u8);
+        erg other_branch_done: Int = 0;
+    }
+    append(output, 46u8);
+    if selector == 3u8 {
+        append(output, 116u8);
+        append(output, 120u8);
+        append(output, 116u8);
+        erg text_extension_done: Int = 0;
+    } else {
+        append(output, 116u8);
+        append(output, 119u8);
+        append(output, 102u8);
+        erg twf_extension_done: Int = 0;
+    }
+}
+
+verb dataset_discovery_path(erg selector: u8) -> Result[Path, PathError] {
+    erg raw: Buffer = Buffer[0];
+    dataset_discovery_prefix(output: ins raw);
+    if selector == 0u8 {
+        append(raw, 0u8);
+    } else {
+        append(raw, 47u8);
+        dataset_discovery_file_name(output: ins raw, selector: erg selector);
+        append(raw, 0u8);
+    }
+    return path_from_ascii(storage: dat raw);
+}
+
+verb dataset_discovery_path_value(erg selector: u8) -> Path {
+    erg result = dataset_discovery_path(selector: erg selector);
+    return case dat result {
+        Result.Err(_) => {
+            erg fallback: Buffer = Buffer[0];
+            append(fallback, 47u8);
+            append(fallback, 0u8);
+            drop(fallback);
+            Path {storage: Buffer[0], platform: PathPlatform.Posix, length: 0, capacity: 0, terminated: 0};
+        },
+        Result.Ok(value) => value,
+    };
+}
+
+verb dataset_discovery_write(abs path: Path) -> Bool {
+    erg contents: Buffer = Buffer[0];
+    append(contents, 1u8);
+    erg written = write_file(path: abs path, contents: abs contents);
+    return case dat written {
+        Result.Err(_) => false,
+        Result.Ok(_) => true,
+    };
+}
+
+verb dataset_discovery_name(abs path: Path, erg first: u8) -> Bool {
+    return path.length == 5 && path.storage[0u32] == first && path.storage[1u32] == 46u8 && path.storage[2u32] == 116u8 && path.storage[3u32] == 119u8 && path.storage[4u32] == 102u8;
+}
+
+verb dataset_discovery_check_second(ins index: DatasetIndex, dat first_path: Path) -> Int {
+    erg second = dataset_index_next(index: ins index);
+    return case dat second {
+        Result.Err(_) => {
+            drop(first_path);
+            1;
+        },
+        Result.Ok(second_option) => case dat second_option {
+            Option.None => {
+                drop(first_path);
+                1;
+            },
+            Option.Some(second_path) => {
+                erg first_letter: u8 = 97u8;
+                erg second_letter: u8 = 98u8;
+                erg valid = dataset_discovery_name(path: abs first_path, first: erg first_letter) && dataset_discovery_name(
+                    path: abs second_path,
+                    first: erg second_letter
+                ) && index.consumed == 2u32;
+                drop(first_path);
+                drop(second_path);
+                if valid {
+                    0;
+                } else {
+                    1;
+                }
+            },
+        },
+    };
+}
+
+verb dataset_discovery_check_paths(ins index: DatasetIndex) -> Int {
+    erg first = dataset_index_next(index: ins index);
+    return case dat first {
+        Result.Err(_) => 1,
+        Result.Ok(first_option) => case dat first_option {
+            Option.None => 1,
+            Option.Some(first_path) => dataset_discovery_check_second(index: ins index, first_path: dat first_path),
+        },
+    };
+}
+
+verb dataset_discovery_check_index(dat bytes: Buffer) -> Int {
+    erg opened = dataset_index_open(bytes: dat bytes);
+    return case dat opened {
+        Result.Err(_) => 4,
+        Result.Ok(index) => dataset_discovery_check_paths(index: ins index),
+    };
+}
+
+verb dataset_discovery_cleanup(
+    dat directory: Path,
+    dat first: Path,
+    dat second: Path,
+    dat other: Path
+) {
+    remove_file(path: abs first);
+    remove_file(path: abs second);
+    remove_file(path: abs other);
+    remove_dir(path: abs directory);
+    drop(directory);
+    drop(first);
+    drop(second);
+    drop(other);
+}
+
+verb dataset_discovery_prepare_files(
+    abs first: Path,
+    abs second: Path,
+    abs other: Path
+) -> Bool {
+    return dataset_discovery_write(path: abs first) && dataset_discovery_write(path: abs second) && dataset_discovery_write(
+        path: abs other
+    );
+}
+
+verb dataset_discovery_generated_status(abs directory: Path) -> Int {
+    erg generated = dataset_index_generate(directory_path: abs directory);
+    return case dat generated {
+        Result.Err(_) => 3,
+        Result.Ok(bytes) => dataset_discovery_check_index(bytes: dat bytes),
+    };
+}
+
+verb dataset_discovery_run_fixture(
+    dat directory: Path,
+    dat first: Path,
+    dat second: Path,
+    dat other: Path
+) -> Int {
+    remove_dir(path: abs directory);
+    erg created = create_dir(path: abs directory);
+    return case dat created {
+        Result.Err(_) => {
+            dataset_discovery_cleanup(
+                directory: dat directory,
+                first: dat first,
+                second: dat second,
+                other: dat other
+            );
+            1;
+        },
+        Result.Ok(_) => dataset_discovery_run_created(
+            directory: dat directory,
+            first: dat first,
+            second: dat second,
+            other: dat other
+        ),
+    };
+}
+
+verb dataset_discovery_run_created(
+    dat directory: Path,
+    dat first: Path,
+    dat second: Path,
+    dat other: Path
+) -> Int {
+    if !dataset_discovery_prepare_files(
+        first: abs first,
+        second: abs second,
+        other: abs other
+    ) {
+        dataset_discovery_cleanup(
+            directory: dat directory,
+            first: dat first,
+            second: dat second,
+            other: dat other
+        );
+        return 2;
+    }
+    erg status = dataset_discovery_generated_status(directory: abs directory);
+    dataset_discovery_cleanup(
+        directory: dat directory,
+        first: dat first,
+        second: dat second,
+        other: dat other
+    );
+    return status;
+}
+
+meta test
+verb test_dataset_index_generates_from_regular_twf_directory() -> Int {
+    erg directory_selector: u8 = 0u8;
+    erg first_selector: u8 = 2u8;
+    erg second_selector: u8 = 1u8;
+    erg other_selector: u8 = 3u8;
+    erg directory = dataset_discovery_path_value(selector: erg directory_selector);
+    erg first = dataset_discovery_path_value(selector: erg first_selector);
+    erg second = dataset_discovery_path_value(selector: erg second_selector);
+    erg other = dataset_discovery_path_value(selector: erg other_selector);
+    return dataset_discovery_run_fixture(
+        directory: dat directory,
+        first: dat first,
+        second: dat second,
+        other: dat other
+    );
+}

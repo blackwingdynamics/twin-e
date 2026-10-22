@@ -2,3 +2,5 @@
 open ordering;
 
 open scan;
+
+open generate;

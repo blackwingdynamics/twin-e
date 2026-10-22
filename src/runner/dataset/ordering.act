@@ -289,7 +289,7 @@ verb dataset_index_candidate_after_previous(
     abs name: Buffer,
     abs name_length: u32
 ) -> Bool {
-    return !has_previous || dataset_index_name_order(
+    return dataset_index_name_order(
         left: abs previous,
         left_length: abs previous_length,
         right: abs name,
