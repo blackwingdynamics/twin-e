@@ -205,7 +205,7 @@ recalled before continued teaching. The full strict suite passed with
       latency in benchmark output.
 - [x] Record peak resident memory, logical columns, shard count, binding count,
       auxiliary bytes, and artifact sizes.
-- [ ] Test repeated training and restart without generation corruption.
+- [x] Test repeated training and restart without generation corruption.
 - [ ] Test shard exhaustion, resident-cache pressure, failed save, checksum
       failure, and recovery.
 - [ ] Retain compiler revision, target, executable checksum, dataset revision,
@@ -216,6 +216,14 @@ recalled before continued teaching. The full strict suite passed with
 - [ ] Repeated runs produce identical logical results and bounded metrics.
 - [ ] Native strict build confirms no floating-point instructions.
 - [ ] No hot-path filesystem operation is observed during teaching/inference.
+
+Evidence (2026-10-22): the logical persistence test published generations `1`,
+`2`, and `3`, loading each continuation into a fresh brain before teaching and
+saving the next generation. The final restart restored generation `3`, recalled
+the earlier bindings, and restored a three-shard logical shape. The strict
+suite passed with `169` tests and `0` failures. See
+`docs/benchmarks/phase-11-repeated-restart.md` for the exact scenario and
+commands. Failure-matrix, native zero-float, and hot-path evidence remain open.
 
 ## Gate 11.9 — Production acceptance and ADR closure
 

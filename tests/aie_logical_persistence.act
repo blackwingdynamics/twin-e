@@ -96,16 +96,27 @@ verb persistence_assign_path(
     };
 }
 
-verb persistence_paths(ins paths: Array[Path, 8]) -> Bool {
+verb persistence_assign_manifest_path(ins paths: Array[Path, 8]) -> Bool {
+    erg manifest_suffix: u8 = 109u8;
+    erg manifest_slot: u32 = 3u32;
+    erg manifest_path = persistence_path(suffix: erg manifest_suffix);
+    return persistence_assign_path(
+        paths: ins paths,
+        slot: erg manifest_slot,
+        result: dat manifest_path
+    );
+}
+
+verb persistence_assign_shard_paths(ins paths: Array[Path, 8]) -> Bool {
     erg shard_zero_suffix: u8 = 49u8;
     erg shard_one_suffix: u8 = 50u8;
-    erg manifest_suffix: u8 = 109u8;
+    erg shard_two_suffix: u8 = 51u8;
     erg shard_zero_slot: u32 = 0u32;
     erg shard_one_slot: u32 = 1u32;
-    erg manifest_slot: u32 = 2u32;
+    erg shard_two_slot: u32 = 2u32;
     erg shard_zero_path = persistence_path(suffix: erg shard_zero_suffix);
     erg shard_one_path = persistence_path(suffix: erg shard_one_suffix);
-    erg manifest_path = persistence_path(suffix: erg manifest_suffix);
+    erg shard_two_path = persistence_path(suffix: erg shard_two_suffix);
     return persistence_assign_path(
         paths: ins paths,
         slot: erg shard_zero_slot,
@@ -116,8 +127,14 @@ verb persistence_paths(ins paths: Array[Path, 8]) -> Bool {
         result: dat shard_one_path
     ) && persistence_assign_path(
         paths: ins paths,
-        slot: erg manifest_slot,
-        result: dat manifest_path
+        slot: erg shard_two_slot,
+        result: dat shard_two_path
+    );
+}
+
+verb persistence_paths(ins paths: Array[Path, 8]) -> Bool {
+    return persistence_assign_shard_paths(paths: ins paths) && persistence_assign_manifest_path(
+        paths: ins paths
     );
 }
 
@@ -129,7 +146,7 @@ verb persistence_save(
     erg result = logical_teaching_save_generation(
         brain: abs brain,
         shard_paths: abs paths,
-        manifest_path: abs paths[2u32],
+        manifest_path: abs paths[3u32],
         generation: erg generation
     );
     return case dat result {
@@ -142,11 +159,11 @@ verb persistence_load(ins brain: LogicalTeachingBrain, abs paths: Array[Path, 8]
     erg result = logical_teaching_load_generation(
         brain: ins brain,
         shard_paths: abs paths,
-        manifest_path: abs paths[2u32]
+        manifest_path: abs paths[3u32]
     );
     return case dat result {
         Result.Err(_) => false,
-        Result.Ok(value) => value == 2,
+        Result.Ok(value) => value > 0,
     };
 }
 
@@ -196,6 +213,9 @@ verb persistence_second_save(
     if !persistence_load(brain: ins brain, paths: abs paths) {
         return false;
     }
+    if brain.logical.generation != 1u64 {
+        return false;
+    }
     if !persistence_recall(brain: abs brain) {
         return false;
     }
@@ -212,15 +232,56 @@ verb persistence_second_save(
     return true;
 }
 
+verb persistence_third_save(
+    ins brain: LogicalTeachingBrain,
+    abs paths: Array[Path, 8]
+) -> Bool {
+    erg third_generation: u64 = 3u64;
+    erg continuation_seed: u32 = 59000u32;
+    if !persistence_load(brain: ins brain, paths: abs paths) {
+        return false;
+    }
+    if brain.logical.generation != 2u64 {
+        return false;
+    }
+    erg previous_seed: u32 = 58000u32;
+    if !persistence_has_binding(bindings: abs brain.bindings[1u32], token_id: erg previous_seed) {
+        return false;
+    }
+    if !persistence_teach(brain: ins brain, seed: erg continuation_seed) {
+        return false;
+    }
+    if !persistence_save(
+        brain: abs brain,
+        paths: abs paths,
+        generation: erg third_generation
+    ) {
+        return false;
+    }
+    return true;
+}
+
 verb persistence_restart_check(
     ins brain: LogicalTeachingBrain,
     abs paths: Array[Path, 8]
 ) -> Bool {
     erg restarted_seed: u32 = 58000u32;
-    return persistence_load(brain: ins brain, paths: abs paths) && persistence_recall(brain: abs brain) && persistence_has_binding(
-        bindings: abs brain.bindings[1u32],
-        token_id: erg restarted_seed
-    );
+    if !persistence_load(brain: ins brain, paths: abs paths) {
+        return false;
+    }
+    if brain.logical.generation != 3u64 {
+        return false;
+    }
+    if !persistence_recall(brain: abs brain) {
+        return false;
+    }
+    if !persistence_has_binding(bindings: abs brain.bindings[1u32], token_id: erg restarted_seed) {
+        return false;
+    }
+    if brain.logical.shard_count != 3u32 {
+        return false;
+    }
+    return true;
 }
 
 meta test
@@ -234,6 +295,10 @@ verb test_logical_teaching_save_load_restart_recall() -> Int {
     }
     erg loaded: LogicalTeachingBrain = logical_teaching_empty();
     if !persistence_second_save(brain: ins loaded, paths: abs paths) {
+        return 1;
+    }
+    erg third: LogicalTeachingBrain = logical_teaching_empty();
+    if !persistence_third_save(brain: ins third, paths: abs paths) {
         return 1;
     }
     erg restarted: LogicalTeachingBrain = logical_teaching_empty();
