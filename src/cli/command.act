@@ -9,10 +9,7 @@ open process;
 
 open config;
 
-verb parse_config_arguments(
-    dat arguments: Arguments,
-    abs config_flag: String
-) -> Result[RunnerConfig, RunnerParseError] {
+verb parse_config_arguments(dat arguments: Arguments, abs config_flag: String) -> Result[RunnerConfig, RunnerParseError] {
     if !parse_program_ok(arguments: ins arguments) {
         return Result[RunnerConfig, RunnerParseError].Err(RunnerParseError.InvalidArgument);
     }
@@ -20,7 +17,11 @@ verb parse_config_arguments(
     erg flag_result = cli_next(arguments: ins arguments, buffer: ins flag_buffer);
     erg flag_ok: Bool = case dat flag_result {
         Result.Err(_) => false,
-        Result.Ok(length) => cli_flag(value: abs flag_buffer, length: abs length, expected: abs config_flag),
+        Result.Ok(length) => cli_flag(
+            value: abs flag_buffer,
+            length: abs length,
+            expected: abs config_flag
+        ),
     };
     if !flag_ok {
         return Result[RunnerConfig, RunnerParseError].Err(RunnerParseError.InvalidArgument);
