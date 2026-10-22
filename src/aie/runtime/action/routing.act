@@ -145,7 +145,7 @@ verb resolve_observation_source(
         },
     };
     erg current_token_id: u32 = observation_token_id(event: abs current);
-    erg found = lookup_token_context(
+    erg found = lookup_token_context[64](
         bindings: abs bindings,
         token_id: erg current_token_id,
         context_key: erg context_key_value

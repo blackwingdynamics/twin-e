@@ -23,7 +23,7 @@ open verb neurogenesis[N: Usize](
 """Allocate a novel column and bind its token/context identity atomically."""
 open verb neurogenesis_with_binding[N: Usize](
     ins fabric: CorticalFabric[N],
-    ins bindings: Array[TokenBinding, 64],
+    ins bindings: Array[TokenBinding, N],
     abs wave: Wavefront,
     erg source_idx: u32,
     erg token_id: u32,
@@ -38,12 +38,11 @@ open verb neurogenesis_with_binding[N: Usize](
     case dat allocated {
         Option.None => {},
         Option.Some(slot) => {
-            bind_token_context(
-                bindings: ins bindings,
-                slot: slot,
-                token_id: token_id,
-                context_key: context_key
-            );
+            bindings[slot].token_id = token_id;
+            bindings[slot].context_key = context_key;
+            bindings[slot].tokenizer_version = TOKENIZER_VERSION;
+            bindings[slot].context_version = CONTEXT_VERSION;
+            bindings[slot].binding_flags = BINDING_ACTIVE_FLAG;
             result = Option[u32].Some(slot);
         },
     };
@@ -57,7 +56,7 @@ verb allocate_binding_slot[N: Usize](
 ) -> Option[u32] {
     erg slot: u32 = allocate_column_index(fabric: ins fabric);
     erg available: Bool = slot != null_index();
-    if !available || slot >= BRAIN_BINDING_COUNT {
+    if !available || slot >= (N as u32) {
         if available {
             free_column(fabric: ins fabric, slot: erg slot);
         }

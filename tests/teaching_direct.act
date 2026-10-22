@@ -7,6 +7,8 @@ import teaching;
 
 import tokenizer;
 
+import adapters;
+
 verb empty_teaching_vocabulary() -> BpeVocabulary {
     erg rules: Array[BpeMergeRule,128] = Array[BpeMergeRule, 128]();
     erg records: Array[BpeTokenRecord,256] = Array[BpeTokenRecord, 256]();
@@ -34,6 +36,42 @@ verb train_direct_example(
         },
     };
     return true;
+}
+
+verb train_direct_request_example(
+    ins fabric: CorticalFabric[64],
+    ins bindings: Array[TokenBinding, 64]
+) -> Bool {
+    erg text: String = "AB";
+    erg adapted = adapt_text(text: abs text);
+    return case dat adapted {
+        Result.Err(_) => false,
+        Result.Ok(envelope) => {
+            erg envelope_valid: Bool = envelope.valid;
+            erg request: TeachingRequest = TeachingRequest {contract_version: TEACHING_CONTRACT_VERSION, mode: TeachingMode.Direct, envelope: envelope, replay_passes: 1u16, valid: envelope_valid};
+            erg taught = teach_direct_request(
+                fabric: ins fabric,
+                bindings: ins bindings,
+                request: abs request
+            );
+            case dat taught {
+                Result.Err(_) => false,
+                Result.Ok(metrics) => metrics.accepted_examples == 1u32 && metrics.processed_events == 2u32,
+            };
+        },
+    };
+}
+
+meta test
+verb test_direct_request_uses_canonical_teaching_facade() -> Int {
+    erg fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](), free_list_head: 0u32, active_count: 0u32};
+    erg bindings: Array[TokenBinding,64] = Array[TokenBinding, 64]();
+    fabric_init(fabric: ins fabric);
+    return if train_direct_request_example(fabric: ins fabric, bindings: ins bindings) {
+        0;
+    } else {
+        1;
+    };
 }
 
 meta test

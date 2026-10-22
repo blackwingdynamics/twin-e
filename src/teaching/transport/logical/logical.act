@@ -1,0 +1,4 @@
+"""Canonical facade for logical-brain teaching transports."""
+open file;
+
+open stdin;

@@ -1,0 +1,24 @@
+"""Canonical facade for bounded logical-brain state and resident teaching.
+
+The implementation is split by responsibility: `core` owns logical shard
+metadata, `teaching` owns resident teaching, `auxiliary` owns shard-local
+auxiliary records and recovery validation, and `flush` owns the explicit flush
+boundary.
+"""
+open core;
+
+open teaching;
+
+open rotation;
+
+open auxiliary;
+
+open flush;
+
+open codec;
+
+open save;
+
+open load;
+
+open restore;

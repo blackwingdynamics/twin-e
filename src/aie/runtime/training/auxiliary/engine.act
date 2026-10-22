@@ -1,0 +1,228 @@
+"""Training path that extends full inline fan-out through a bounded sidecar."""
+import config;
+
+import tokenizer;
+
+open forwarding;
+
+open config;
+
+open helpers;
+
+open input;
+
+open encoding;
+
+open fabric;
+
+open neurogenesis;
+
+open route;
+
+open tokenizer;
+
+open struct AuxiliaryTrainingCursor {
+    erg source_idx: u32,
+    erg previous_token_id: u32,
+    erg position: u32,
+    erg allocated_columns: u32,
+    erg reinforced_transitions: u32,
+}
+
+verb auxiliary_lookup_target(
+    abs bindings: Array[TokenBinding, 1024],
+    erg token_id: u32,
+    erg context: u64
+) -> Option[u32] {
+    return lookup_token_context[1024](
+        bindings: abs bindings,
+        token_id: erg token_id,
+        context_key: erg context
+    );
+}
+
+verb auxiliary_create_target(
+    ins fabric: CorticalFabric[1024],
+    ins bindings: Array[TokenBinding, 1024],
+    erg source_idx: u32,
+    erg token_id: u32,
+    erg context: u64
+) -> Option[u32] {
+    return create_training_target[1024](
+        fabric: ins fabric,
+        bindings: ins bindings,
+        source_idx: erg source_idx,
+        token_id: erg token_id,
+        context: erg context
+    );
+}
+
+verb auxiliary_create_candidate(
+    ins fabric: CorticalFabric[1024],
+    ins bindings: Array[TokenBinding, 1024],
+    erg source_idx: u32,
+    erg token_id: u32,
+    erg context: u64
+) -> Result[u32, TrainingError] {
+    erg created: Option[u32] = auxiliary_create_target(
+        fabric: ins fabric,
+        bindings: ins bindings,
+        source_idx: erg source_idx,
+        token_id: erg token_id,
+        context: erg context
+    );
+    return case dat created {
+        Option.None => Result[u32, TrainingError].Err(TrainingError.NoColumn),
+        Option.Some(index) => Result[u32, TrainingError].Ok(index),
+    };
+}
+
+verb auxiliary_create_candidate_for_cursor(
+    ins cursor: AuxiliaryTrainingCursor,
+    ins fabric: CorticalFabric[1024],
+    ins bindings: Array[TokenBinding, 1024],
+    erg source_idx: u32,
+    erg token_id: u32,
+    erg context: u64
+) -> Result[u32, TrainingError] {
+    erg created: Result[u32,TrainingError] = auxiliary_create_candidate(
+        fabric: ins fabric,
+        bindings: ins bindings,
+        source_idx: erg source_idx,
+        token_id: erg token_id,
+        context: erg context
+    );
+    return case dat created {
+        Result.Err(error) => Result[u32, TrainingError].Err(error),
+        Result.Ok(index) => {
+            cursor.allocated_columns += 1u32;
+            Result[u32, TrainingError].Ok(index);
+        },
+    };
+}
+
+verb auxiliary_resolve_candidate(
+    ins cursor: AuxiliaryTrainingCursor,
+    ins fabric: CorticalFabric[1024],
+    ins bindings: Array[TokenBinding, 1024],
+    erg source_idx: u32,
+    erg token_id: u32,
+    erg context: u64
+) -> Result[u32, TrainingError] {
+    erg found: Option[u32] = auxiliary_lookup_target(
+        bindings: abs bindings,
+        token_id: erg token_id,
+        context: erg context
+    );
+    return case dat found {
+        Option.Some(index) => Result[u32, TrainingError].Ok(index),
+        Option.None => {
+            return auxiliary_create_candidate_for_cursor(
+                cursor: ins cursor,
+                fabric: ins fabric,
+                bindings: ins bindings,
+                source_idx: erg source_idx,
+                token_id: erg token_id,
+                context: erg context
+            );
+        },
+    };
+}
+
+verb auxiliary_find_or_create_target(
+    ins cursor: AuxiliaryTrainingCursor,
+    ins fabric: CorticalFabric[1024],
+    ins bindings: Array[TokenBinding, 1024],
+    erg token_id: u32
+) -> Result[u32, TrainingError] {
+    erg source_index: u32 = cursor.source_idx;
+    erg previous_id: u32 = cursor.previous_token_id;
+    erg context: u64 = context_key(previous_token_id: erg previous_id, token_id: erg token_id);
+    return auxiliary_resolve_candidate(
+        cursor: ins cursor,
+        fabric: ins fabric,
+        bindings: ins bindings,
+        source_idx: erg source_index,
+        token_id: erg token_id,
+        context: erg context
+    );
+}
+
+verb auxiliary_train_event(
+    ins cursor: AuxiliaryTrainingCursor,
+    ins fabric: CorticalFabric[1024],
+    ins bindings: Array[TokenBinding, 1024],
+    ins table: AuxAxonTable[1024],
+    erg token_id: u32,
+    erg target_base: u32
+) -> Result[Int, TrainingError] {
+    erg resolved = auxiliary_find_or_create_target(
+        cursor: ins cursor,
+        fabric: ins fabric,
+        bindings: ins bindings,
+        token_id: erg token_id
+    );
+    erg target_index: u32 = case dat resolved {
+        Result.Err(error) => {
+            return Result[Int, TrainingError].Err(error);
+        },
+        Result.Ok(value) => value,
+    };
+    return auxiliary_commit_training_event(
+        cursor: ins cursor,
+        fabric: ins fabric,
+        table: ins table,
+        target_idx: erg target_index,
+        token_id: erg token_id,
+        target_base: erg target_base
+    );
+}
+
+verb auxiliary_commit_training_event(
+    ins cursor: AuxiliaryTrainingCursor,
+    ins fabric: CorticalFabric[1024],
+    ins table: AuxAxonTable[1024],
+    erg target_idx: u32,
+    erg token_id: u32,
+    erg target_base: u32
+) -> Result[Int, TrainingError] {
+    erg source_index: u32 = cursor.source_idx;
+    erg reinforced = auxiliary_reinforce_event(
+        fabric: ins fabric,
+        table: ins table,
+        source_idx: erg source_index,
+        target_idx: erg target_idx,
+        target_base: erg target_base
+    );
+    return case dat reinforced {
+        Result.Err(error) => Result[Int, TrainingError].Err(error),
+        Result.Ok(value) => {
+            cursor.reinforced_transitions += 1u32;
+            cursor.source_idx = target_idx;
+            cursor.previous_token_id = token_id;
+            cursor.position += 1u32;
+            Result[Int, TrainingError].Ok(value);
+        },
+    };
+}
+
+verb auxiliary_reinforce_event(
+    ins fabric: CorticalFabric[1024],
+    ins table: AuxAxonTable[1024],
+    erg source_idx: u32,
+    erg target_idx: u32,
+    erg target_base: u32
+) -> Result[Int, TrainingError] {
+    erg target_global: u32 = target_base + target_idx;
+    erg reinforced: Result[Int,TrainingError] = auxiliary_reinforce_transition(
+        fabric: ins fabric,
+        table: ins table,
+        source_idx: erg source_idx,
+        target_idx: erg target_idx,
+        target_global: erg target_global
+    );
+    return case dat reinforced {
+        Result.Err(error) => Result[Int, TrainingError].Err(error),
+        Result.Ok(value) => Result[Int, TrainingError].Ok(value),
+    };
+}

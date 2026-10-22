@@ -1,0 +1,29 @@
+"""Typed configuration state and parse failures owned by the CLI config module."""
+import std::path;
+
+open path;
+
+"""Classify bounded configuration and command-line parse failures."""
+open enum RunnerParseError {
+    HelpRequested,
+    MissingArgument,
+    InvalidArgument,
+    InvalidPath,
+    InvalidConfig,
+}
+
+"""Validated runner settings produced by command-line or file parsing."""
+open struct RunnerConfig {
+    """Whether the runner restores the manifest before teaching."""
+    erg load: Bool,
+    """Whether teaching records come from a file rather than stdin."""
+    erg file: Bool,
+    """Whether the resulting resident generation is published."""
+    erg save: Bool,
+    """Manifest path for the logical brain generation."""
+    erg brain_path: Path,
+    """Bounded shard paths used by the logical brain persistence facade."""
+    erg shard_paths: Array[Path, 8],
+    """Optional TWF input path for file-based teaching."""
+    erg input_path: Option[Path],
+}

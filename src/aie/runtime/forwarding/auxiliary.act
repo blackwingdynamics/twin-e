@@ -219,3 +219,72 @@ open verb link_aux_axon[N: Usize](
         },
     };
 }
+
+"""Link a global target through a shard-local auxiliary record.
+
+The source is local to the owning shard, while the target remains a checked
+global logical column index. This preserves cross-shard identity without
+placing a foreign pointer or local file offset in the sidecar.
+"""
+open verb link_aux_axon_global[N: Usize](
+    ins fabric: CorticalFabric[N],
+    ins table: AuxAxonTable[N],
+    erg source: u32,
+    erg target: u32
+) -> Result[Int, AuxLinkError] {
+    if source >= (N as u32) || target == NULL_INDEX {
+        return Result[Int, AuxLinkError].Err(AuxLinkError.InvalidIndex);
+    }
+    erg had_record: Bool = table.source_to_record[source] != AUX_AXON_INVALID_ID;
+    erg acquired = acquire_aux_record(table: ins table, source: erg source);
+    return case dat acquired {
+        Result.Err(error) => Result[Int, AuxLinkError].Err(error),
+        Result.Ok(record_index) => {
+            erg linked = append_aux_target(record: ins table.records[record_index], target: erg target);
+            case dat linked {
+                Result.Err(error) => {
+                    if !had_record {
+                        release_aux_record(table: ins table, source: erg source);
+                    }
+                    Result[Int, AuxLinkError].Err(error);
+                },
+                Result.Ok(value) => {
+                    fabric.columns[source].flags |= FLAG_HAS_AUX;
+                    Result[Int, AuxLinkError].Ok(value);
+                },
+            };
+        },
+    };
+}
+
+"""Link a checked global target without touching the owning fabric.
+
+This boundary is used by shard-local persistence wrappers that update the
+source marker in-place after the bounded sidecar mutation succeeds.
+"""
+open verb link_aux_axon_global_state[N: Usize](
+    ins table: AuxAxonTable[N],
+    erg source: u32,
+    erg target: u32
+) -> Result[Int, AuxLinkError] {
+    if source >= (N as u32) || target == NULL_INDEX {
+        return Result[Int, AuxLinkError].Err(AuxLinkError.InvalidIndex);
+    }
+    erg had_record: Bool = table.source_to_record[source] != AUX_AXON_INVALID_ID;
+    erg acquired = acquire_aux_record(table: ins table, source: erg source);
+    return case dat acquired {
+        Result.Err(error) => Result[Int, AuxLinkError].Err(error),
+        Result.Ok(record_index) => {
+            erg linked = append_aux_target(record: ins table.records[record_index], target: erg target);
+            case dat linked {
+                Result.Err(error) => {
+                    if !had_record {
+                        release_aux_record(table: ins table, source: erg source);
+                    }
+                    Result[Int, AuxLinkError].Err(error);
+                },
+                Result.Ok(value) => Result[Int, AuxLinkError].Ok(value),
+            };
+        },
+    };
+}

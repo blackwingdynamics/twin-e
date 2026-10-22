@@ -1,0 +1,250 @@
+"""Public-facade evidence for bounded logical-brain shard admission."""
+import aie;
+
+import config;
+
+verb admit_test_shard(
+    ins brain: LogicalBrain,
+    erg shard_id: u32,
+    erg capacity: u32
+) -> Int {
+    erg admitted = logical_brain_admit_shard(
+        brain: ins brain,
+        shard_id: erg shard_id,
+        column_count: erg capacity
+    );
+    return case dat admitted {
+        Result.Err(_) => 1,
+        Result.Ok(_) => 0,
+    };
+}
+
+verb test_ordered_admission(ins brain: LogicalBrain, erg shard_capacity: u32) -> Int {
+    erg first_shard_id: u32 = 0u32;
+    erg first_status: Int = admit_test_shard(
+        brain: ins brain,
+        shard_id: erg first_shard_id,
+        capacity: erg shard_capacity
+    );
+    if first_status != 0 {
+        return 1;
+    }
+    if brain.shard_count != 1u32 || brain.total_column_count != shard_capacity {
+        return 2;
+    }
+    if brain.descriptors[0u32].shard_id != 0u32 || brain.descriptors[0u32].first_column_index != 0u32 || brain.descriptors[0u32].column_count != shard_capacity {
+        return 5;
+    }
+    erg second_shard_id: u32 = 1u32;
+    erg second_status: Int = admit_test_shard(
+        brain: ins brain,
+        shard_id: erg second_shard_id,
+        capacity: erg shard_capacity
+    );
+    if second_status != 0 {
+        return 3;
+    }
+    if brain.shard_count != 2u32 {
+        return 4;
+    }
+    return 0;
+}
+
+meta test
+verb test_logical_brain_empty_creation() -> Int {
+    erg brain: LogicalBrain = logical_brain_empty();
+    if brain.initialized || brain.shard_count != 0u32 || brain.total_column_count != 0u32 {
+        return 1;
+    }
+    return 0;
+}
+
+verb test_lookup_and_close_state(
+    ins brain: LogicalBrain,
+    erg shard_id: u32,
+    erg capacity: u32
+) -> Int {
+    erg lookup = logical_brain_lookup_shard(brain: abs brain, shard_id: erg shard_id);
+    return case dat lookup {
+        Result.Err(_) => 1,
+        Result.Ok(descriptor) => {
+            if descriptor.shard_id != shard_id || descriptor.column_count != capacity {
+                return 2;
+            }
+            erg closed = logical_brain_close(brain: ins brain);
+            return case dat closed {
+                Result.Err(_) => 3,
+                Result.Ok(_) => {
+                    if brain.initialized || brain.shard_count != 0u32 {
+                        return 4;
+                    }
+                    0;
+                },
+            };
+        },
+    };
+}
+
+meta test
+verb test_logical_brain_lookup_and_close() -> Int {
+    erg brain: LogicalBrain = logical_brain_empty();
+    erg initialized = logical_brain_init(brain: ins brain);
+    erg initialized_status: Int = case dat initialized {
+        Result.Err(_) => 1,
+        Result.Ok(_) => 0,
+    };
+    if initialized_status != 0 {
+        return 1;
+    }
+    erg shard_id: u32 = 0u32;
+    erg capacity: u32 = BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY;
+    erg admitted = logical_brain_admit_shard(
+        brain: ins brain,
+        shard_id: erg shard_id,
+        column_count: erg capacity
+    );
+    return case dat admitted {
+        Result.Err(_) => 2,
+        Result.Ok(_) => test_lookup_and_close_state(
+            brain: ins brain,
+            shard_id: erg shard_id,
+            capacity: erg capacity
+        ),
+    };
+}
+
+meta test
+verb test_logical_brain_admits_ordered_shards() -> Int {
+    erg brain: LogicalBrain = logical_brain_empty();
+    erg initialized = logical_brain_init(brain: ins brain);
+    erg initialized_status: Int = case dat initialized {
+        Result.Err(_) => 1,
+        Result.Ok(_) => 0,
+    };
+    if initialized_status != 0 {
+        return 1;
+    }
+    erg shard_capacity: u32 = BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY;
+    return test_ordered_admission(brain: ins brain, shard_capacity: erg shard_capacity);
+}
+
+verb restored_descriptor(erg shard_id: u32) -> ManifestDescriptor {
+    erg first_column: u32 = shard_id * BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY;
+    erg payload_bytes: u32 = BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY * BRAIN_SHARD_COLUMN_STRIDE_BYTES as u32;
+    erg binding_bytes: u32 = BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY * BRAIN_SHARD_BINDING_STRIDE_BYTES as u32;
+    erg binding_offset: u32 = BRAIN_SHARD_HEADER_BYTES as u32 + payload_bytes;
+    erg auxiliary_offset: u32 = binding_offset + binding_bytes;
+    return ManifestDescriptor {shard_id: shard_id, first_column_index: first_column, column_count: BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY, payload_offset: BRAIN_SHARD_HEADER_BYTES as u32, payload_bytes: payload_bytes, binding_offset: binding_offset, binding_bytes: binding_bytes, auxiliary_offset: auxiliary_offset, auxiliary_bytes: BRAIN_AUXILIARY_PAYLOAD_BYTES, checksum: 0u64, state: 1u32};
+}
+
+meta test
+verb test_logical_brain_restores_valid_multi_shard_generation() -> Int {
+    erg descriptors: Array[ManifestDescriptor,8] = Array[ManifestDescriptor, 8]();
+    erg first_id: u32 = 0u32;
+    erg second_id: u32 = 1u32;
+    descriptors[0u32] = restored_descriptor(shard_id: erg first_id);
+    descriptors[1u32] = restored_descriptor(shard_id: erg second_id);
+    erg brain: LogicalBrain = logical_brain_empty();
+    erg generation: u64 = 8u64;
+    erg total_columns: u32 = BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY * 2u32;
+    erg shard_count: u32 = 2u32;
+    erg restored = logical_brain_restore_generation(
+        brain: ins brain,
+        generation: erg generation,
+        total_column_count: erg total_columns,
+        shard_count: erg shard_count,
+        descriptors: abs descriptors
+    );
+    return case dat restored {
+        Result.Err(_) => 1,
+        Result.Ok(_) => restored_brain_state(
+            brain: abs brain,
+            generation: erg generation,
+            shard_count: erg shard_count,
+            total_columns: erg total_columns,
+            second_id: erg second_id
+        ),
+    };
+}
+
+verb restored_brain_state(
+    abs brain: LogicalBrain,
+    erg generation: u64,
+    erg shard_count: u32,
+    erg total_columns: u32,
+    erg second_id: u32
+) -> Int {
+    if !brain.initialized || brain.generation != generation || brain.shard_count != shard_count || brain.total_column_count != total_columns {
+        return 2;
+    }
+    erg lookup = logical_brain_lookup_shard(brain: abs brain, shard_id: erg second_id);
+    return case dat lookup {
+        Result.Err(_) => 3,
+        Result.Ok(descriptor) => {
+            if descriptor.first_column_index != BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY {
+                return 4;
+            }
+            0;
+        },
+    };
+}
+
+"""Prove that the established single-shard runtime remains available through
+the canonical AIE facade while shard zero is admitted by LogicalBrain.
+
+The test deliberately keeps the legacy 64-slot fabric setup and wavefront
+expectations unchanged. It verifies the facade boundary without moving
+runtime state into the logical directory or changing the existing behavior.
+"""
+verb single_shard_wavefront_behavior() -> Int {
+    erg fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](), free_list_head: 0u32, active_count: 0u32};
+    fabric_init(fabric: ins fabric);
+    erg source_idx: u32 = allocate_column_index(fabric: ins fabric);
+    erg target_idx: u32 = allocate_column_index(fabric: ins fabric);
+    fabric.columns[source_idx].threshold = 1u8;
+    fabric.columns[source_idx].coincidence_low = 1u64;
+    fabric.columns[source_idx].payload = 41u8;
+    fabric.columns[source_idx].axons[0u32] = target_idx;
+    fabric.columns[target_idx].threshold = 1u8;
+    fabric.columns[target_idx].coincidence_low = 1u64;
+    erg wave: Wavefront = Wavefront {mask_low: 1u64, mask_high: 0u64, energy: 1u8};
+    erg result: ImpulseStepResult = step_wavefront(
+        fabric: ins fabric,
+        wave: abs wave,
+        source_idx: erg source_idx
+    );
+    if result.valid_source && result.source_fired && result.payload == 41u8 && result.destination_0 == target_idx {
+        if fabric.columns[source_idx].myelination == 1u8 && fabric.columns[target_idx].myelination == 1u8 {
+            return 0;
+        }
+    }
+    return 3;
+}
+
+meta test
+verb test_single_shard_behavior_through_logical_facade() -> Int {
+    erg brain: LogicalBrain = logical_brain_empty();
+    erg initialized = logical_brain_init(brain: ins brain);
+    erg init_ok: Bool = case dat initialized {
+        Result.Err(_) => false,
+        Result.Ok(_) => true,
+    };
+    if !init_ok {
+        return 1;
+    }
+    erg shard_id: u32 = 0u32;
+    erg shard_capacity: u32 = BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY;
+    erg admitted = logical_brain_admit_shard(
+        brain: ins brain,
+        shard_id: erg shard_id,
+        column_count: erg shard_capacity
+    );
+    erg admission_ok: Bool = case dat admitted {
+        Result.Err(_) => false,
+        Result.Ok(_) => true,
+    };
+    if !admission_ok {
+        return 2;
+    }
+    return single_shard_wavefront_behavior();
+}

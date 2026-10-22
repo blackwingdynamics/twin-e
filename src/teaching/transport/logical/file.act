@@ -1,0 +1,201 @@
+"""Logical-brain TWF ingestion kept separate from the legacy fabric adapter."""
+import adapters;
+
+import aie;
+
+import config;
+
+import std::fs;
+
+import std::path;
+
+open contract;
+
+open direct;
+
+open format;
+
+verb logical_file_validate_adapters(abs bytes: Buffer, erg record_count: u16) -> Result[Int, TeachingFileError] {
+    erg cursor: u32 = TEACHING_FILE_HEADER_BYTES;
+    for erg index: u16 in 0u16 .. (TEACHING_FILE_MAX_RECORDS + 1u16) {
+        if index >= record_count {
+            return Result[Int, TeachingFileError].Ok(0);
+        }
+        erg length: u32 = file_record_length(bytes: abs bytes, index: erg cursor);
+        cursor += 2u32;
+        erg record: Buffer = file_record_bytes(
+            bytes: abs bytes,
+            start: erg cursor,
+            length: erg length
+        );
+        erg adapted = adapt_text_ka_bytes(input: abs record, input_length: erg length);
+        case dat adapted {
+            Result.Err(error) => {
+                drop(record);
+                return Result[Int, TeachingFileError].Err(TeachingFileError.InvalidRecord);
+            },
+            Result.Ok(envelope) => {
+                drop(envelope);
+                drop(record);
+            },
+        };
+        cursor += length;
+    }
+    return Result[Int, TeachingFileError].Err(TeachingFileError.InvalidRecord);
+}
+
+verb file_logical_error(dat error: LogicalTeachingError) -> TeachingFileError {
+    return case dat error {
+        LogicalTeachingError.LogicalCapacityExceeded => TeachingFileError.LogicalCapacityExceeded,
+        LogicalTeachingError.ResidentCapacityExceeded => TeachingFileError.ResidentCapacityExceeded,
+        LogicalTeachingError.AuxiliaryCapacityExceeded => TeachingFileError.LogicalCapacityExceeded,
+        LogicalTeachingError.FlushRequired => TeachingFileError.ResidentCapacityExceeded,
+        _ => TeachingFileError.InvalidRouting,
+    };
+}
+
+verb train_logical_file_record(
+    ins brain: LogicalTeachingBrain,
+    abs record: Buffer,
+    erg length: u32
+) -> Result[TeachingMetrics, TeachingFileError] {
+    erg adapted = adapt_text_ka_bytes(input: abs record, input_length: erg length);
+    return case dat adapted {
+        Result.Err(_) => Result[TeachingMetrics, TeachingFileError].Err(TeachingFileError.InvalidRecord),
+        Result.Ok(envelope) => {
+            erg taught = teach_text_envelope_logical(brain: ins brain, envelope: abs envelope);
+            return case dat taught {
+                Result.Err(error) => Result[TeachingMetrics, TeachingFileError].Err(file_logical_error(
+                    error: dat error
+                )),
+                Result.Ok(metrics) => Result[TeachingMetrics, TeachingFileError].Ok(training_metrics_to_teaching(
+                    metrics: abs metrics
+                )),
+            };
+        },
+    };
+}
+
+verb train_logical_file_at(
+    ins brain: LogicalTeachingBrain,
+    abs bytes: Buffer,
+    erg cursor: u32
+) -> Result[TeachingMetrics, TeachingFileError] {
+    erg length: u32 = file_record_length(bytes: abs bytes, index: erg cursor);
+    erg record_start: u32 = cursor + 2u32;
+    erg record: Buffer = file_record_bytes(
+        bytes: abs bytes,
+        start: erg record_start,
+        length: erg length
+    );
+    erg taught = train_logical_file_record(
+        brain: ins brain,
+        record: abs record,
+        length: erg length
+    );
+    drop(record);
+    return taught;
+}
+
+verb train_logical_file_records(
+    ins brain: LogicalTeachingBrain,
+    abs bytes: Buffer,
+    erg record_count: u16
+) -> Result[TeachingFileMetrics, TeachingFileError] {
+    erg metrics: TeachingFileMetrics = TeachingFileMetrics {record_count: record_count, accepted_count: 0u16, processed_events: 0u32, allocated_columns: 0u32, reinforced_transitions: 0u32};
+    erg cursor: u32 = TEACHING_FILE_HEADER_BYTES;
+    for erg index: u16 in 0u16 .. (TEACHING_FILE_MAX_RECORDS + 1u16) {
+        if index >= metrics.record_count {
+            return Result[TeachingFileMetrics, TeachingFileError].Ok(metrics);
+        }
+        erg taught = train_logical_file_at(
+            brain: ins brain,
+            bytes: abs bytes,
+            cursor: erg cursor
+        );
+        case dat taught {
+            Result.Err(error) => {
+                return Result[TeachingFileMetrics, TeachingFileError].Err(error);
+            },
+            Result.Ok(result) => {
+                file_add_metrics(metrics: ins metrics, result: abs result);
+            },
+        };
+        cursor += 2u32 + file_record_length(bytes: abs bytes, index: erg cursor);
+    }
+    return Result[TeachingFileMetrics, TeachingFileError].Err(TeachingFileError.TeachingRejected);
+}
+
+verb teach_logical_validated_file(
+    ins brain: LogicalTeachingBrain,
+    dat bytes: Buffer,
+    erg record_count: u16
+) -> Result[TeachingFileMetrics, TeachingFileError] {
+    erg adapters_valid = logical_file_validate_adapters(bytes: abs bytes, record_count: erg record_count);
+    case dat adapters_valid {
+        Result.Err(error) => {
+            drop(bytes);
+            return Result[TeachingFileMetrics, TeachingFileError].Err(error);
+        },
+        Result.Ok(_) => {},
+    };
+    erg result = train_logical_file_records(
+        brain: ins brain,
+        bytes: abs bytes,
+        record_count: erg record_count
+    );
+    drop(bytes);
+    return result;
+}
+
+verb teach_logical_loaded_file(
+    ins brain: LogicalTeachingBrain,
+    dat bytes: Buffer,
+    erg file_size: u32
+) -> Result[TeachingFileMetrics, TeachingFileError] {
+    erg structure = file_validate_structure(bytes: abs bytes, total: erg file_size);
+    case dat structure {
+        Result.Err(error) => {
+            drop(bytes);
+            return Result[TeachingFileMetrics, TeachingFileError].Err(TeachingFileError.InvalidRecord);
+        },
+        Result.Ok(record_count) => {
+            return teach_logical_validated_file(
+                brain: ins brain,
+                bytes: dat bytes,
+                record_count: erg record_count
+            );
+        },
+    };
+    return Result[TeachingFileMetrics, TeachingFileError].Err(TeachingFileError.InvalidRecord);
+}
+
+"""Read and teach one bounded TWF file through the logical-brain facade."""
+open verb teach_logical_file(ins brain: LogicalTeachingBrain, abs path: Path) -> Result[TeachingFileMetrics, TeachingFileError] {
+    erg file_size: u32 = 0u32;
+    erg facts = metadata(path: abs path);
+    case dat facts {
+        Result.Err(_) => {
+            return Result[TeachingFileMetrics, TeachingFileError].Err(TeachingFileError.IoFailure);
+        },
+        Result.Ok(info) => {
+            if info.size < 0 || (info.size as u32) > TEACHING_FILE_MAX_BYTES {
+                return Result[TeachingFileMetrics, TeachingFileError].Err(TeachingFileError.FileTooLarge);
+            }
+            file_size = info.size as u32;
+        },
+    };
+    erg loaded = read_to_bytes(path: abs path);
+    return case dat loaded {
+        Result.Err(_) => {
+            return Result[TeachingFileMetrics, TeachingFileError].Err(TeachingFileError.IoFailure);
+        },
+        Result.Ok(bytes) => {
+            return teach_logical_loaded_file(
+                brain: ins brain,
+                bytes: dat bytes,
+                file_size: erg file_size
+            );
+        },
+    };
+}

@@ -1,0 +1,8 @@
+"""Public runner facade for startup, teaching, persistence, and output."""
+open startup;
+
+open teaching;
+
+open persistence;
+
+open logical_teaching;

@@ -1,0 +1,108 @@
+"""Bounded argv primitives used by the CLI parser."""
+import std::path;
+
+import std::io;
+
+import std::process;
+
+import std::string;
+
+open contract;
+
+open io;
+
+open path;
+
+open process;
+
+open string;
+
+verb cli_path_ok(dat path: Path) -> Result[Path, RunnerParseError] {
+    return Result[Path, RunnerParseError].Ok(path);
+}
+
+verb cli_take_path(dat path: Path) -> Path {
+    return path;
+}
+
+verb cli_some_path(dat path: Path) -> Option[Path] {
+    return Option[Path].Some(path);
+}
+
+verb cli_next(ins arguments: Arguments, ins buffer: Buffer) -> Result[Int, RunnerParseError] {
+    erg result: Result[Option[Int],ProcessError] = next_arg(arguments: ins arguments, buffer: ins buffer);
+    return case dat result {
+        Result.Err(_) => Result[Int, RunnerParseError].Err(RunnerParseError.InvalidArgument),
+        Result.Ok(value) => {
+            erg option: Option[Int] = value;
+            return case dat option {
+                Option.None => Result[Int, RunnerParseError].Err(RunnerParseError.MissingArgument),
+                Option.Some(length) => Result[Int, RunnerParseError].Ok(length),
+            };
+        },
+    };
+}
+
+verb cli_flag_bytes(abs value: Buffer, abs expected: String, abs size: Int) -> Bool {
+    erg index: Int = 0;
+    erg valid: Bool = true;
+    loop {
+        if index >= size || !valid {
+            break;
+        }
+        erg expected_byte: Result[Int,StringError] = string_byte_at(text: abs expected, index: erg index);
+        case dat expected_byte {
+            Result.Err(_) => {
+                valid = false;
+            },
+            Result.Ok(byte) => {
+                if value[index as Usize] as Int != byte {
+                    valid = false;
+                }
+            },
+        };
+        index += 1;
+    }
+    return valid;
+}
+
+verb cli_flag(abs value: Buffer, abs length: Int, abs expected: String) -> Bool {
+    erg expected_length: Result[Int,StringError] = string_length(text: abs expected);
+    return case dat expected_length {
+        Result.Err(_) => false,
+        Result.Ok(size) => if length != size {
+            false;
+        } else {
+            cli_flag_bytes(
+                value: abs value,
+                expected: abs expected,
+                size: abs size
+            );
+        },
+    };
+}
+
+verb cli_read_path(ins arguments: Arguments) -> Result[Path, RunnerParseError] {
+    erg buffer: Buffer = Buffer[4096];
+    erg result: Result[Int,RunnerParseError] = cli_next(arguments: ins arguments, buffer: ins buffer);
+    return case dat result {
+        Result.Err(error) => Result[Path, RunnerParseError].Err(dat error),
+        Result.Ok(length) => {
+            erg storage: Buffer = Buffer[0];
+            erg index: Int = 0;
+            loop {
+                if index >= length {
+                    break;
+                }
+                append(storage, buffer[index as Usize]);
+                index += 1;
+            }
+            append(storage, 0u8);
+            erg path_result = path_from_ascii(storage: dat storage);
+            return case dat path_result {
+                Result.Err(_) => Result[Path, RunnerParseError].Err(RunnerParseError.InvalidPath),
+                Result.Ok(path) => cli_path_ok(path: dat path),
+            };
+        },
+    };
+}

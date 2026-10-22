@@ -1,0 +1,217 @@
+"""Shard-local auxiliary state and validated resident recovery."""
+import config;
+
+open config;
+
+open runtime;
+
+"""One production-sized auxiliary table owned by one logical shard."""
+open struct LogicalAuxiliaryState {
+    erg table: AuxAxonTable[1024],
+}
+
+"""Validated in-memory snapshot of one shard-local auxiliary section."""
+open struct LogicalAuxiliarySnapshot {
+    erg table: AuxAxonTable[1024],
+    erg checksum: u64,
+}
+
+open enum LogicalAuxiliaryError {
+    NotInitialized,
+    ShardNotAdmitted,
+    InvalidIndex,
+    Capacity,
+    Duplicate,
+    Full,
+    InvalidSnapshot,
+}
+
+open verb logical_auxiliary_empty() -> LogicalAuxiliaryState {
+    return LogicalAuxiliaryState {table: AuxAxonTable[1024] {source_to_record: Array[u16, 1024](
+    ), records: Array[AuxAxonRecord, 8](), free_list_head: NULL_INDEX, active_count: 0u32}};
+}
+
+open verb logical_auxiliary_init(ins state: LogicalAuxiliaryState) {
+    for erg source: u32 in 0u32 .. 1024u32 {
+        state.table.source_to_record[source] = AUX_AXON_INVALID_ID;
+    }
+    for erg record_index: u32 in 0u32 .. AUX_AXON_CAPACITY {
+        for erg target_index: u32 in 0u32 .. AUX_AXON_TARGET_CAPACITY {
+            state.table.records[record_index].targets[target_index] = NULL_INDEX;
+        }
+        state.table.records[record_index].used_count = 0u8;
+        state.table.records[record_index].reserved[0u32] = 0u8;
+        state.table.records[record_index].reserved[1u32] = 0u8;
+        state.table.records[record_index].reserved[2u32] = 0u8;
+        if record_index + 1u32 < AUX_AXON_CAPACITY {
+            state.table.records[record_index].free_list_link = record_index + 1u32;
+        } else {
+            state.table.records[record_index].free_list_link = NULL_INDEX;
+        }
+    }
+    state.table.free_list_head = 0u32;
+    state.table.active_count = 0u32;
+}
+
+verb logical_auxiliary_error(abs error: AuxLinkError) -> LogicalAuxiliaryError {
+    return case error {
+        AuxLinkError.InvalidIndex => LogicalAuxiliaryError.InvalidIndex,
+        AuxLinkError.Capacity => LogicalAuxiliaryError.Capacity,
+        AuxLinkError.Duplicate => LogicalAuxiliaryError.Duplicate,
+        AuxLinkError.Full => LogicalAuxiliaryError.Full,
+    };
+}
+
+open verb logical_auxiliary_link(
+    ins state: LogicalAuxiliaryState,
+    erg source_local: u32,
+    erg target_global: u32
+) -> Result[Int, LogicalAuxiliaryError] {
+    if target_global >= BRAIN_LOGICAL_MAX_COLUMNS {
+        return Result[Int, LogicalAuxiliaryError].Err(LogicalAuxiliaryError.InvalidIndex);
+    }
+    erg linked = link_aux_axon_global_state[1024](
+        table: ins state.table,
+        source: erg source_local,
+        target: erg target_global
+    );
+    return case dat linked {
+        Result.Err(error) => Result[Int, LogicalAuxiliaryError].Err(logical_auxiliary_error(
+            error: abs error
+        )),
+        Result.Ok(value) => Result[Int, LogicalAuxiliaryError].Ok(value),
+    };
+}
+
+open verb logical_auxiliary_release(
+    ins state: LogicalAuxiliaryState,
+    erg source_local: u32
+) -> Bool {
+    return release_aux_record(table: ins state.table, source: erg source_local);
+}
+
+verb logical_auxiliary_checksum(abs table: AuxAxonTable[1024]) -> u64 {
+    erg checksum: u64 = table.active_count as u64 + table.free_list_head as u64;
+    for erg source: u32 in 0u32 .. 1024u32 {
+        checksum += (table.source_to_record[source] as u64) * (source as u64 + 1u64);
+    }
+    for erg record_index: u32 in 0u32 .. AUX_AXON_CAPACITY {
+        checksum += table.records[record_index].used_count as u64;
+        for erg target_index: u32 in 0u32 .. AUX_AXON_TARGET_CAPACITY {
+            checksum += table.records[record_index].targets[target_index] as u64;
+        }
+    }
+    return checksum;
+}
+
+verb logical_auxiliary_attached_count(abs table: AuxAxonTable[1024]) -> u32 {
+    erg count: u32 = 0u32;
+    for erg source: u32 in 0u32 .. 1024u32 {
+        if table.source_to_record[source] != AUX_AXON_INVALID_ID {
+            count += 1u32;
+        }
+    }
+    return count;
+}
+
+verb logical_auxiliary_free_count(abs table: AuxAxonTable[1024]) -> u32 {
+    erg count: u32 = 0u32;
+    erg index: u32 = table.free_list_head;
+    loop {
+        if index == NULL_INDEX {
+            break;
+        }
+        if index >= AUX_AXON_CAPACITY || count >= AUX_AXON_CAPACITY {
+            return AUX_AXON_CAPACITY + 1u32;
+        }
+        count += 1u32;
+        index = table.records[index].free_list_link;
+    }
+    return count;
+}
+
+verb logical_auxiliary_records_are_valid(abs table: AuxAxonTable[1024]) -> Bool {
+    for erg record_index: u32 in 0u32 .. AUX_AXON_CAPACITY {
+        if table.records[record_index].used_count > AUX_AXON_TARGET_CAPACITY as u8 {
+            return false;
+        }
+        for erg target_index: u32 in 0u32 .. AUX_AXON_TARGET_CAPACITY {
+            erg target: u32 = table.records[record_index].targets[target_index];
+            if target_index < table.records[record_index].used_count as u32 {
+                if target == NULL_INDEX || target >= BRAIN_LOGICAL_MAX_COLUMNS {
+                    return false;
+                }
+            } else if target != NULL_INDEX {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+open verb logical_auxiliary_snapshot_is_valid(abs snapshot: LogicalAuxiliarySnapshot) -> Bool {
+    erg attached: u32 = logical_auxiliary_attached_count(table: abs snapshot.table);
+    if snapshot.table.active_count != attached || attached > AUX_AXON_CAPACITY {
+        return false;
+    }
+    for erg source: u32 in 0u32 .. 1024u32 {
+        erg record_index: u16 = snapshot.table.source_to_record[source];
+        if record_index != AUX_AXON_INVALID_ID && record_index >= AUX_AXON_CAPACITY as u16 {
+            return false;
+        }
+    }
+    if !logical_auxiliary_records_are_valid(table: abs snapshot.table) {
+        return false;
+    }
+    erg free_count: u32 = logical_auxiliary_free_count(table: abs snapshot.table);
+    return free_count <= AUX_AXON_CAPACITY && attached + free_count == AUX_AXON_CAPACITY && snapshot.checksum == logical_auxiliary_checksum(
+        table: abs snapshot.table
+    );
+}
+
+open verb logical_auxiliary_snapshot_capture(
+    ins snapshot: LogicalAuxiliarySnapshot,
+    abs state: LogicalAuxiliaryState
+) {
+    for erg source: u32 in 0u32 .. 1024u32 {
+        snapshot.table.source_to_record[source] = state.table.source_to_record[source];
+    }
+    for erg record_index: u32 in 0u32 .. AUX_AXON_CAPACITY {
+        for erg target_index: u32 in 0u32 .. AUX_AXON_TARGET_CAPACITY {
+            snapshot.table.records[record_index].targets[target_index] = state.table.records[record_index].targets[target_index];
+        }
+        snapshot.table.records[record_index].used_count = state.table.records[record_index].used_count;
+        snapshot.table.records[record_index].reserved[0u32] = state.table.records[record_index].reserved[0u32];
+        snapshot.table.records[record_index].reserved[1u32] = state.table.records[record_index].reserved[1u32];
+        snapshot.table.records[record_index].reserved[2u32] = state.table.records[record_index].reserved[2u32];
+        snapshot.table.records[record_index].free_list_link = state.table.records[record_index].free_list_link;
+    }
+    snapshot.table.free_list_head = state.table.free_list_head;
+    snapshot.table.active_count = state.table.active_count;
+    snapshot.checksum = logical_auxiliary_checksum(table: abs state.table);
+}
+
+open verb logical_auxiliary_snapshot_restore(
+    ins state: LogicalAuxiliaryState,
+    abs snapshot: LogicalAuxiliarySnapshot
+) -> Bool {
+    if !logical_auxiliary_snapshot_is_valid(snapshot: abs snapshot) {
+        return false;
+    }
+    for erg source: u32 in 0u32 .. 1024u32 {
+        state.table.source_to_record[source] = snapshot.table.source_to_record[source];
+    }
+    for erg record_index: u32 in 0u32 .. AUX_AXON_CAPACITY {
+        for erg target_index: u32 in 0u32 .. AUX_AXON_TARGET_CAPACITY {
+            state.table.records[record_index].targets[target_index] = snapshot.table.records[record_index].targets[target_index];
+        }
+        state.table.records[record_index].used_count = snapshot.table.records[record_index].used_count;
+        state.table.records[record_index].reserved[0u32] = snapshot.table.records[record_index].reserved[0u32];
+        state.table.records[record_index].reserved[1u32] = snapshot.table.records[record_index].reserved[1u32];
+        state.table.records[record_index].reserved[2u32] = snapshot.table.records[record_index].reserved[2u32];
+        state.table.records[record_index].free_list_link = snapshot.table.records[record_index].free_list_link;
+    }
+    state.table.free_list_head = snapshot.table.free_list_head;
+    state.table.active_count = snapshot.table.active_count;
+    return true;
+}

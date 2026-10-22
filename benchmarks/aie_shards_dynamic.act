@@ -690,21 +690,40 @@ verb verify_reallocation_cycle(
 ) -> Int {
     erg fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](), free_list_head: 0u32, active_count: 0u32};
     fabric_init(fabric: ins fabric);
-    erg shard_paths: Array[Path,8] = Array[Path, 8]();
-    shard_paths[0u32] = path_zero;
-    shard_paths[1u32] = path_one;
-    shard_paths[2u32] = path_two;
-    erg shard_count: u32 = 3u32;
-    erg loaded = load_all_dynamic_shards(
+    erg zero_id: u32 = 0u32;
+    erg one_id: u32 = 1u32;
+    erg two_id: u32 = 2u32;
+    erg zero_first: u32 = 0u32;
+    erg one_first: u32 = 2u32;
+    erg two_first: u32 = 4u32;
+    erg zero_destination: u32 = 0u32;
+    erg one_destination: u32 = 2u32;
+    erg two_destination: u32 = 4u32;
+    erg zero_loaded = load_arena_shard(
         fabric: ins fabric,
-        manifest_path: abs manifest_path,
-        shard_paths: abs shard_paths,
-        shard_count: erg shard_count
+        path: abs path_zero,
+        shard_id: erg zero_id,
+        first_column: erg zero_first,
+        destination_index: erg zero_destination
     );
-    erg load_status: Int = case dat loaded {
-        Result.Err(_) => 30,
-        Result.Ok(_) => 0,
-    };
+    erg one_loaded = load_arena_shard(
+        fabric: ins fabric,
+        path: abs path_one,
+        shard_id: erg one_id,
+        first_column: erg one_first,
+        destination_index: erg one_destination
+    );
+    erg two_loaded = load_arena_shard(
+        fabric: ins fabric,
+        path: abs path_two,
+        shard_id: erg two_id,
+        first_column: erg two_first,
+        destination_index: erg two_destination
+    );
+    erg load_status: Int = 0;
+    if zero_loaded != 0 || one_loaded != 0 || two_loaded != 0 {
+        load_status = 30;
+    }
     if load_status != 0 {
         return 30;
     }

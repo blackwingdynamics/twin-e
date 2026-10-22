@@ -1,0 +1,261 @@
+"""Bounded newline-delimited stdin teaching ingestion."""
+import adapters;
+
+import aie;
+
+import config;
+
+import std::io;
+
+open contract;
+
+open direct;
+
+verb stdin_record_eof(erg length: u32) -> Result[Int, TeachingStreamError] {
+    return if length == 0u32 {
+        Result[Int, TeachingStreamError].Err(TeachingStreamError.CleanEndOfInput);
+    } else {
+        Result[Int, TeachingStreamError].Err(TeachingStreamError.PartialRecord);
+    };
+}
+
+verb stdin_record_error(abs error: TeachingStreamError, erg length: u32) -> Result[Int, TeachingStreamError] {
+    return case error {
+        TeachingStreamError.CleanEndOfInput => stdin_record_eof(length: erg length),
+        TeachingStreamError.PartialRecord => Result[Int, TeachingStreamError].Err(TeachingStreamError.PartialRecord),
+        TeachingStreamError.ReadFailure => Result[Int, TeachingStreamError].Err(TeachingStreamError.ReadFailure),
+        TeachingStreamError.StreamTooLarge => Result[Int, TeachingStreamError].Err(TeachingStreamError.StreamTooLarge),
+        _ => Result[Int, TeachingStreamError].Err(TeachingStreamError.InvalidRecord),
+    };
+}
+
+"""Classify one injected reader result without performing I/O.
+
+This is the deterministic transport seam used to verify read-failure mapping;
+the production reader calls the same classifier after `read_byte` returns.
+"""
+open verb stdin_classify_read_result(dat result: Result[Int, IoError]) -> Result[Int, TeachingStreamError] {
+    return case dat result {
+        Result.Err(error) => case dat error {
+            IoError.EndOfStream => Result[Int, TeachingStreamError].Err(TeachingStreamError.CleanEndOfInput),
+            _ => Result[Int, TeachingStreamError].Err(TeachingStreamError.ReadFailure),
+        },
+        Result.Ok(value) => Result[Int, TeachingStreamError].Ok(value),
+    };
+}
+
+verb stdin_read_input_byte(ins total_bytes: u32) -> Result[Int, TeachingStreamError] {
+    erg next = read_byte();
+    erg classified = stdin_classify_read_result(result: dat next);
+    return case dat classified {
+        Result.Err(error) => Result[Int, TeachingStreamError].Err(error),
+        Result.Ok(value) => {
+            total_bytes += 1u32;
+            if total_bytes > TEACHING_STDIN_MAX_BYTES {
+                return Result[Int, TeachingStreamError].Err(TeachingStreamError.StreamTooLarge);
+            }
+            return Result[Int, TeachingStreamError].Ok(value);
+        },
+    };
+}
+
+open verb stdin_read_record(ins record: Buffer, ins total_bytes: u32) -> Result[Int, TeachingStreamError] {
+    erg length: u32 = 0u32;
+    loop {
+        erg next = stdin_read_input_byte(total_bytes: ins total_bytes);
+        case dat next {
+            Result.Err(error) => {
+                return stdin_record_error(error: abs error, length: erg length);
+            },
+            Result.Ok(value) => {
+                if value == 10 {
+                    if length == 0u32 {
+                        return Result[Int, TeachingStreamError].Err(TeachingStreamError.InvalidRecord);
+                    }
+                    return Result[Int, TeachingStreamError].Ok(length as Int);
+                }
+                if length >= TEACHING_FILE_MAX_RECORD_BYTES {
+                    return Result[Int, TeachingStreamError].Err(TeachingStreamError.RecordTooLarge);
+                }
+                record[length as Usize] = value as u8;
+                length += 1u32;
+            },
+        };
+    }
+}
+
+verb teach_stdin_record(
+    ins fabric: CorticalFabric[64],
+    ins bindings: Array[TokenBinding, 64],
+    abs record: Buffer,
+    erg length: u32
+) -> Result[TeachingMetrics, TeachingStreamError] {
+    erg adapted = adapt_text_ka_bytes(input: abs record, input_length: erg length);
+    return case dat adapted {
+        Result.Err(_) => Result[TeachingMetrics, TeachingStreamError].Err(TeachingStreamError.InvalidRecord),
+        Result.Ok(envelope) => {
+            erg envelope_valid: Bool = envelope.valid;
+            erg request: TeachingRequest = TeachingRequest {contract_version: TEACHING_CONTRACT_VERSION, mode: TeachingMode.Direct, envelope: envelope, replay_passes: 1u16, valid: envelope_valid};
+            erg taught = teach_direct_request(
+                fabric: ins fabric,
+                bindings: ins bindings,
+                request: abs request
+            );
+            return case dat taught {
+                Result.Err(_) => Result[TeachingMetrics, TeachingStreamError].Err(TeachingStreamError.TeachingRejected),
+                Result.Ok(result) => Result[TeachingMetrics, TeachingStreamError].Ok(result),
+            };
+        },
+    };
+}
+
+open verb stdin_add_metrics(
+    ins metrics: TeachingStreamMetrics,
+    abs result: TeachingMetrics,
+    erg length: u32
+) {
+    metrics.record_count += 1u16;
+    metrics.accepted_count += 1u16;
+    metrics.bytes_read += length;
+    metrics.processed_events += result.processed_events;
+    metrics.allocated_columns += result.allocated_columns;
+    metrics.reinforced_transitions += result.reinforced_transitions;
+}
+
+verb stdin_record_metrics(
+    ins metrics: TeachingStreamMetrics,
+    abs result: TeachingMetrics,
+    erg length: u32
+) -> Result[Int, TeachingStreamError] {
+    stdin_add_metrics(
+        metrics: ins metrics,
+        result: abs result,
+        length: erg length
+    );
+    return Result[Int, TeachingStreamError].Ok(0);
+}
+
+verb stdin_process_record(
+    ins fabric: CorticalFabric[64],
+    ins bindings: Array[TokenBinding, 64],
+    ins record: Buffer,
+    ins total_bytes: u32,
+    ins metrics: TeachingStreamMetrics
+) -> Result[Int, TeachingStreamError] {
+    erg next = stdin_read_record(record: ins record, total_bytes: ins total_bytes);
+    return case dat next {
+        Result.Err(error) => Result[Int, TeachingStreamError].Err(error),
+        Result.Ok(length) => {
+            erg record_length: u32 = length as u32;
+            erg taught = teach_stdin_record(
+                fabric: ins fabric,
+                bindings: ins bindings,
+                record: abs record,
+                length: erg record_length
+            );
+            return case dat taught {
+                Result.Err(error) => Result[Int, TeachingStreamError].Err(error),
+                Result.Ok(result) => stdin_record_metrics(
+                    metrics: ins metrics,
+                    result: abs result,
+                    length: erg record_length
+                ),
+            };
+        },
+    };
+}
+
+verb stdin_finish(ins record: Buffer, ins total_bytes: u32) -> Result[Int, TeachingStreamError] {
+    erg extra = stdin_read_record(record: ins record, total_bytes: ins total_bytes);
+    return case dat extra {
+        Result.Err(error) => case error {
+            TeachingStreamError.CleanEndOfInput => Result[Int, TeachingStreamError].Ok(0),
+            _ => Result[Int, TeachingStreamError].Err(error),
+        },
+        Result.Ok(_) => Result[Int, TeachingStreamError].Err(TeachingStreamError.TooManyRecords),
+    };
+}
+
+verb stdin_error_copy(abs error: TeachingStreamError) -> TeachingStreamError {
+    return case error {
+        TeachingStreamError.CleanEndOfInput => TeachingStreamError.CleanEndOfInput,
+        TeachingStreamError.EmptyInput => TeachingStreamError.EmptyInput,
+        TeachingStreamError.ReadFailure => TeachingStreamError.ReadFailure,
+        TeachingStreamError.PartialRecord => TeachingStreamError.PartialRecord,
+        TeachingStreamError.RecordTooLarge => TeachingStreamError.RecordTooLarge,
+        TeachingStreamError.StreamTooLarge => TeachingStreamError.StreamTooLarge,
+        TeachingStreamError.TooManyRecords => TeachingStreamError.TooManyRecords,
+        TeachingStreamError.InvalidRecord => TeachingStreamError.InvalidRecord,
+        TeachingStreamError.TeachingRejected => TeachingStreamError.TeachingRejected,
+        TeachingStreamError.LogicalCapacityExceeded => TeachingStreamError.LogicalCapacityExceeded,
+        TeachingStreamError.ResidentCapacityExceeded => TeachingStreamError.ResidentCapacityExceeded,
+        TeachingStreamError.InvalidRouting => TeachingStreamError.InvalidRouting,
+    };
+}
+
+open verb stdin_complete(
+    ins record: Buffer,
+    ins total_bytes: u32,
+    dat metrics: TeachingStreamMetrics
+) -> Result[TeachingStreamMetrics, TeachingStreamError] {
+    erg finished = stdin_finish(record: ins record, total_bytes: ins total_bytes);
+    case dat finished {
+        Result.Ok(_) => {
+            return Result[TeachingStreamMetrics, TeachingStreamError].Ok(metrics);
+        },
+        Result.Err(error) => {
+            return Result[TeachingStreamMetrics, TeachingStreamError].Err(error);
+        },
+    };
+    return Result[TeachingStreamMetrics, TeachingStreamError].Err(TeachingStreamError.TeachingRejected);
+}
+
+open verb stdin_handle_error(
+    dat metrics: TeachingStreamMetrics,
+    abs error: TeachingStreamError
+) -> Result[TeachingStreamMetrics, TeachingStreamError] {
+    if error == TeachingStreamError.CleanEndOfInput {
+        if metrics.record_count == 0u16 {
+            return Result[TeachingStreamMetrics, TeachingStreamError].Err(TeachingStreamError.EmptyInput);
+        }
+        return Result[TeachingStreamMetrics, TeachingStreamError].Ok(dat metrics);
+    }
+    return Result[TeachingStreamMetrics, TeachingStreamError].Err(stdin_error_copy(error: abs error));
+}
+
+"""Read newline-delimited teaching records from stdin with fixed bounds.
+
+Each non-empty line is one text record and must end with `\\n`. The reader uses
+one fixed `256`-byte buffer, accepts at most eight records and `2069` input
+bytes, and calls the canonical direct teaching contract for every record.
+Clean EOF after a complete record is success; empty input, a partial final
+record, malformed input, and read failures are typed rejections.
+"""
+open verb teach_stdin(
+    ins fabric: CorticalFabric[64],
+    ins bindings: Array[TokenBinding, 64]
+) -> Result[TeachingStreamMetrics, TeachingStreamError] {
+    erg metrics: TeachingStreamMetrics = TeachingStreamMetrics {record_count: 0u16, accepted_count: 0u16, bytes_read: 0u32, processed_events: 0u32, allocated_columns: 0u32, reinforced_transitions: 0u32};
+    erg record: Buffer = Buffer[256];
+    erg total_bytes: u32 = 0u32;
+    for erg index: u16 in 0u16 .. (TEACHING_FILE_MAX_RECORDS + 1u16) {
+        erg next = stdin_process_record(
+            fabric: ins fabric,
+            bindings: ins bindings,
+            record: ins record,
+            total_bytes: ins total_bytes,
+            metrics: ins metrics
+        );
+        case dat next {
+            Result.Err(error) => {
+                return stdin_handle_error(metrics: dat metrics, error: abs error);
+            },
+            Result.Ok(_) => {},
+        };
+    }
+    return stdin_complete(
+        record: ins record,
+        total_bytes: ins total_bytes,
+        metrics: dat metrics
+    );
+}

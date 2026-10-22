@@ -1,0 +1,6 @@
+"""Canonical facade for bounded teaching input transports."""
+open file;
+
+open stdin;
+
+open logical;

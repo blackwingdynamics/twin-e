@@ -66,7 +66,7 @@ verb generate_associative_core(
         erg lookup_context: u64 = 0u64;
         lookup_token_id = current_token_id;
         lookup_context = context;
-        erg source: Option[u32] = lookup_token_context(
+        erg source: Option[u32] = lookup_token_context[64](
             bindings: abs bindings,
             token_id: erg lookup_token_id,
             context_key: erg lookup_context

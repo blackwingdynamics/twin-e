@@ -1,0 +1,2 @@
+"""Parent CLI facade for the public configuration contract."""
+open config;

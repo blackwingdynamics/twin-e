@@ -1,0 +1,26 @@
+"""Render the bounded Twin-e command-line usage text."""
+import std::io;
+
+open io;
+
+open verb print_help() -> Int {
+    erg usage: String = "Usage: twin-e --load <brain.brain> (--stdin | --file <teaching.twf>) [--save]";
+    erg create: String = "       twin-e --init <brain.brain> (--stdin | --file <teaching.twf>) [--save]";
+    erg options: String = "Options:";
+    erg load: String = "  --load <path>          Load an existing brain file.";
+    erg init: String = "  --init <path>           Create a new empty brain file.";
+    erg stdin: String = "  --stdin                Read bounded teaching records from standard input.";
+    erg file: String = "  --file <path>          Read bounded teaching records from a TWF file.";
+    erg save: String = "  --save                 Persist the resulting brain state.";
+    erg help: String = "  --help                 Show this help text.";
+    println(text: abs usage);
+    println(text: abs create);
+    println(text: abs options);
+    println(text: abs load);
+    println(text: abs init);
+    println(text: abs stdin);
+    println(text: abs file);
+    println(text: abs save);
+    println(text: abs help);
+    return 0;
+}

@@ -230,6 +230,26 @@ open const TEACHING_MAX_REPLAY_PASSES: u16 = 16u16;
 open const TEACHING_MAX_BATCH_ITEMS: u16 = 8u16;
 
 
+"""Byte length of the bounded teaching file magic and version header."""
+open const TEACHING_FILE_HEADER_BYTES: u32 = 5u32;
+
+
+"""Maximum UTF-8 payload bytes in one offline teaching file record."""
+open const TEACHING_FILE_MAX_RECORD_BYTES: u32 = 256u32;
+
+
+"""Maximum length-delimited records accepted in one teaching file."""
+open const TEACHING_FILE_MAX_RECORDS: u16 = 8u16;
+
+
+"""Maximum complete byte length accepted for one offline teaching file."""
+open const TEACHING_FILE_MAX_BYTES: u32 = 2069u32;
+
+
+"""Maximum bytes consumed by one bounded stdin teaching stream."""
+open const TEACHING_STDIN_MAX_BYTES: u32 = 2069u32;
+
+
 """Version marker for the bounded modality-neutral observation contract."""
 open const OBSERVATION_VERSION: u16 = 1u16;
 
@@ -394,102 +414,4 @@ open const GENERATION_STOP_INVALID_PROMPT: u8 = 5u8;
 open const GENERATION_STOP_MISSING_CONTEXT: u8 = 6u8;
 
 
-"""Magic value identifying a serialized `.brain` shard."""
-open const BRAIN_SHARD_MAGIC: u32 = 1146247763u32;
-
-
-"""Version of the serialized `.brain` shard format."""
-open const BRAIN_SHARD_VERSION: u16 = 1u16;
-
-
-"""Serialized byte length of a shard header."""
-open const BRAIN_SHARD_HEADER_BYTES: u16 = 48u16;
-
-
-"""Serialized byte stride of one shard minicolumn."""
-open const BRAIN_SHARD_COLUMN_STRIDE_BYTES: u16 = 64u16;
-
-
-"""Serialized byte stride of one shard-local token binding."""
-open const BRAIN_SHARD_BINDING_STRIDE_BYTES: u16 = 24u16;
-
-
-"""Fixed number of minicolumns in a regular shard."""
-open const BRAIN_SHARD_COLUMN_COUNT: u32 = 32u32;
-
-
-"""Serialized byte length of regular shard minicolumn storage."""
-open const BRAIN_SHARD_COLUMN_PAYLOAD_BYTES: u32 = 2048u32;
-
-
-"""Serialized byte length reserved for regular shard bindings."""
-open const BRAIN_SHARD_BINDING_PAYLOAD_BYTES: u32 = 0u32;
-
-
-"""Total serialized byte length of a regular shard file."""
-open const BRAIN_SHARD_FILE_BYTES: u32 = 2096u32;
-
-
-"""Maximum minicolumn count accepted in one dynamic shard."""
-open const BRAIN_SHARD_DYNAMIC_MAX_COLUMNS: u32 = 1024u32;
-
-
-"""Maximum serialized byte length accepted for a dynamic shard."""
-open const BRAIN_SHARD_DYNAMIC_MAX_BYTES: u32 = 65584u32;
-
-
-"""Magic value identifying a serialized shard manifest."""
-open const BRAIN_MANIFEST_MAGIC: u32 = 1296645709u32;
-
-
-"""Version of the serialized shard manifest format."""
-open const BRAIN_MANIFEST_VERSION: u16 = 1u16;
-
-
-"""Serialized byte length of a manifest header."""
-open const BRAIN_MANIFEST_HEADER_BYTES: u16 = 64u16;
-
-
-"""Serialized byte length of one manifest shard descriptor."""
-open const BRAIN_MANIFEST_DESCRIPTOR_BYTES: u16 = 48u16;
-
-
-"""Number of descriptors in the fixed two-shard manifest."""
-open const BRAIN_MANIFEST_SHARD_COUNT: u32 = 2u32;
-
-
-"""Maximum shard count supported by the fixed manifest contract."""
-open const BRAIN_MANIFEST_MAX_SHARDS: u32 = 2u32;
-
-
-"""Total serialized byte length of the fixed manifest."""
-open const BRAIN_MANIFEST_FILE_BYTES: u32 = 160u32;
-
-
-"""Maximum descriptor count accepted by a dynamic manifest."""
-open const BRAIN_MANIFEST_DYNAMIC_MAX_SHARDS: u32 = 8u32;
-
-
-"""Maximum total column count accepted by a dynamic manifest."""
-open const BRAIN_MANIFEST_DYNAMIC_MAX_COLUMNS: u32 = 8192u32;
-
-
-"""Maximum serialized byte length accepted by a dynamic manifest."""
-open const BRAIN_MANIFEST_DYNAMIC_MAX_BYTES: u32 = 448u32;
-
-
-"""Number of inline shard metadata entries in the bounded cache."""
-open const BRAIN_CACHE_CAPACITY: u8 = 4u8;
-
-
-"""Dirty-entry count that requests caller-driven flush before full capacity."""
-open const BRAIN_CACHE_DIRTY_HIGH_WATERMARK: u8 = 3u8;
-
-
-"""Pinned eviction policy: zero means pinned entries are never evicted."""
-open const BRAIN_CACHE_PINNED_EVICTION_POLICY: u8 = 0u8;
-
-
-"""Bounded background flush queue capacity; zero selects caller-driven flush."""
-open const BRAIN_CACHE_FLUSH_QUEUE_CAPACITY: u8 = 0u8;
-
+open persistence_values;

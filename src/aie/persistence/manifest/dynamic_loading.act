@@ -23,7 +23,8 @@ verb load_dynamic_path_from_plan(
     abs shard_paths: Array[Path, 8],
     erg shard_count: u32,
     abs plan: DynamicLoadPlan,
-    erg destination_index: u32
+    erg destination_index: u32,
+    erg require_complete_sections: Bool
 ) -> Result[Int, IoError] {
     if plan.shard_id >= shard_count || plan.shard_id >= BRAIN_MANIFEST_DYNAMIC_MAX_SHARDS {
         return Err(IoError.InvalidInput);
@@ -35,22 +36,62 @@ verb load_dynamic_path_from_plan(
             fabric: ins fabric,
             shard: dat shard,
             plan: abs plan,
-            destination_index: erg destination_index
+            destination_index: erg destination_index,
+            require_complete_sections: erg require_complete_sections
         ),
     };
 }
 
 """Validate one loaded shard and copy its checked columns into the fabric."""
-verb load_dynamic_shard_from_plan(
+verb validate_complete_dynamic_shard(
     ins fabric: CorticalFabric[64],
     dat shard: Buffer,
     abs plan: DynamicLoadPlan,
     erg destination_index: u32
 ) -> Result[Int, IoError] {
+    erg shard_id: u32 = plan.shard_id + 0u32;
+    erg first_column: u32 = plan.first_column_index + 0u32;
+    erg column_count: u32 = plan.column_count + 0u32;
+    erg valid: Bool = dynamic_shard_with_bindings_and_auxiliary_is_valid(
+        bytes: abs shard,
+        expected_shard_id: erg shard_id,
+        expected_first_column_index: erg first_column,
+        expected_column_count: erg column_count
+    );
+    if !valid {
+        drop(shard);
+        return Err(IoError.InvalidData);
+    }
+    erg length: Int = buffer_length_or_negative(input: abs shard);
+    copy_dynamic_shard_columns(
+        fabric: ins fabric,
+        bytes: abs shard,
+        destination_index: erg destination_index,
+        expected_column_count: erg column_count
+    );
+    drop(shard);
+    return Ok(length);
+}
+
+verb load_dynamic_shard_from_plan(
+    ins fabric: CorticalFabric[64],
+    dat shard: Buffer,
+    abs plan: DynamicLoadPlan,
+    erg destination_index: u32,
+    erg require_complete_sections: Bool
+) -> Result[Int, IoError] {
     erg selected_shard_id: u32 = plan.shard_id + 0u32;
     erg selected_first: u32 = plan.first_column_index + 0u32;
     erg selected_count: u32 = plan.column_count + 0u32;
-    erg loaded_result = load_dynamic_shard_bytes(
+    if require_complete_sections {
+        return validate_complete_dynamic_shard(
+            fabric: ins fabric,
+            shard: dat shard,
+            plan: abs plan,
+            destination_index: erg destination_index
+        );
+    }
+    return load_dynamic_shard_bytes(
         fabric: ins fabric,
         bytes: dat shard,
         destination_index: erg destination_index,
@@ -58,10 +99,6 @@ verb load_dynamic_shard_from_plan(
         expected_first_column_index: erg selected_first,
         expected_column_count: erg selected_count
     );
-    return case dat loaded_result {
-        Result.Err(error) => Err(error),
-        Result.Ok(bytes_loaded) => Ok(bytes_loaded),
-    };
 }
 
 """Resolve one dynamic manifest descriptor and load its shard into the fabric.
@@ -76,7 +113,8 @@ verb load_dynamic_manifest_descriptor(
     abs manifest: Buffer,
     abs shard_paths: Array[Path, 8],
     erg shard_count: u32,
-    erg descriptor_index: u32
+    erg descriptor_index: u32,
+    erg require_complete_sections: Bool
 ) -> Result[Int, IoError] {
     if descriptor_index >= shard_count {
         return Err(IoError.InvalidInput);
@@ -91,7 +129,8 @@ verb load_dynamic_manifest_descriptor(
             shard_paths: abs shard_paths,
             shard_count: erg shard_count,
             plan: abs plan,
-            destination_index: erg first_column
+            destination_index: erg first_column,
+            require_complete_sections: erg require_complete_sections
         ),
     };
 }
@@ -107,7 +146,8 @@ verb load_dynamic_manifest_buffer(
     ins fabric: CorticalFabric[64],
     dat manifest: Buffer,
     abs shard_paths: Array[Path, 8],
-    erg shard_count: u32
+    erg shard_count: u32,
+    erg require_complete_sections: Bool
 ) -> Result[Int, IoError] {
     if shard_count == 0u32 || shard_count > BRAIN_MANIFEST_DYNAMIC_MAX_SHARDS {
         drop(manifest);
@@ -121,7 +161,8 @@ verb load_dynamic_manifest_buffer(
         fabric: ins fabric,
         manifest: dat manifest,
         shard_paths: abs shard_paths,
-        shard_count: erg shard_count
+        shard_count: erg shard_count,
+        require_complete_sections: erg require_complete_sections
     );
 }
 
@@ -130,7 +171,8 @@ verb load_dynamic_manifest_descriptors(
     ins fabric: CorticalFabric[64],
     dat manifest: Buffer,
     abs shard_paths: Array[Path, 8],
-    erg shard_count: u32
+    erg shard_count: u32,
+    erg require_complete_sections: Bool
 ) -> Result[Int, IoError] {
     erg descriptor_index: u32 = 0u32;
     loop {
@@ -142,7 +184,8 @@ verb load_dynamic_manifest_descriptors(
             manifest: abs manifest,
             shard_paths: abs shard_paths,
             shard_count: erg shard_count,
-            descriptor_index: erg descriptor_index
+            descriptor_index: erg descriptor_index,
+            require_complete_sections: erg require_complete_sections
         );
         if !succeeded {
             drop(manifest);
@@ -160,14 +203,16 @@ verb load_dynamic_manifest_descriptor_succeeded(
     abs manifest: Buffer,
     abs shard_paths: Array[Path, 8],
     erg shard_count: u32,
-    erg descriptor_index: u32
+    erg descriptor_index: u32,
+    erg require_complete_sections: Bool
 ) -> Bool {
     erg result = load_dynamic_manifest_descriptor(
         fabric: ins fabric,
         manifest: abs manifest,
         shard_paths: abs shard_paths,
         shard_count: erg shard_count,
-        descriptor_index: erg descriptor_index
+        descriptor_index: erg descriptor_index,
+        require_complete_sections: erg require_complete_sections
     );
     return case dat result {
         Result.Err(_) => false,
@@ -189,13 +234,15 @@ open verb load_all_dynamic_shards(
     erg shard_count: u32
 ) -> Result[Int, IoError] {
     erg loaded = read_to_bytes(path: abs manifest_path);
+    erg require_complete_sections: Bool = true;
     return case dat loaded {
         Result.Err(error) => Err(error),
         Result.Ok(manifest) => load_dynamic_manifest_buffer(
             fabric: ins fabric,
             manifest: dat manifest,
             shard_paths: abs shard_paths,
-            shard_count: erg shard_count
+            shard_count: erg shard_count,
+            require_complete_sections: erg require_complete_sections
         ),
     };
 }
@@ -243,12 +290,14 @@ verb load_dynamic_column_from_manifest(
         Result.Err(error) => Err(error),
         Result.Ok(plan) => {
             erg destination_index: u32 = 0u32;
+            erg require_complete_sections: Bool = false;
             return load_dynamic_path_from_plan(
                 fabric: ins fabric,
                 shard_paths: abs shard_paths,
                 shard_count: erg shard_count,
                 plan: abs plan,
-                destination_index: erg destination_index
+                destination_index: erg destination_index,
+                require_complete_sections: erg require_complete_sections
             );
         },
     };

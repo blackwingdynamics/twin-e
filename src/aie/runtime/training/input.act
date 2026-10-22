@@ -50,7 +50,7 @@ open verb validate_training_sequence(abs sequence: TokenSequence) -> Result[Int,
     return Result[Int, TrainingInputError].Ok(sequence.length as Int);
 }
 
-verb training_error_from_input(erg error: TrainingInputError) -> TrainingError {
+open verb training_error_from_input(erg error: TrainingInputError) -> TrainingError {
     return case error {
         TrainingInputError.EmptySequence => TrainingError.EmptySequence,
         TrainingInputError.InvalidSequence => TrainingError.InvalidSequence,

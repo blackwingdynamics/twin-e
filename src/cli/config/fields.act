@@ -1,0 +1,189 @@
+"""Bounded key/value extraction for the runner configuration file."""
+import std::string;
+
+open string;
+
+open struct ConfigField {
+    erg value: Buffer,
+    erg length: Int,
+}
+
+verb config_key_matches(
+    abs contents: Buffer,
+    erg offset: u32,
+    abs key: String,
+    abs key_length: Int
+) -> Bool {
+    erg index: Int = 0;
+    loop {
+        if index >= key_length {
+            break;
+        }
+        erg expected = string_byte_at(text: abs key, index: erg index);
+        erg expected_byte: Int = case dat expected {
+            Result.Err(_) => -1,
+            Result.Ok(byte) => byte,
+        };
+        if expected_byte < 0 || contents[(offset as Int + index) as Usize] as Int != expected_byte {
+            return false;
+        }
+        index += 1;
+    }
+    return true;
+}
+
+verb config_line_length(abs contents: Buffer, abs start: u32, abs total: u32) -> Int {
+    erg scan: u32 = copy(value: abs start);
+    erg length: Int = 0;
+    loop {
+        if scan >= total || contents[scan as Usize] == 10u8 {
+            break;
+        }
+        scan += 1u32;
+        length += 1;
+    }
+    return length;
+}
+
+verb config_line_matches(
+    abs contents: Buffer,
+    abs start: u32,
+    abs line_length: Int,
+    abs key: String,
+    abs key_length: Int
+) -> Bool {
+    if start > 0u32 && contents[(start - 1u32) as Usize] != 10u8 {
+        return false;
+    }
+    if line_length <= key_length {
+        return false;
+    }
+    erg index: Int = 0;
+    loop {
+        if index >= key_length {
+            break;
+        }
+        erg expected = string_byte_at(text: abs key, index: erg index);
+        erg expected_byte: Int = case dat expected {
+            Result.Err(_) => -1,
+            Result.Ok(byte) => byte,
+        };
+        if expected_byte < 0 || contents[(start as Int + index) as Usize] as Int != expected_byte {
+            return false;
+        }
+        index += 1;
+    }
+    return contents[(start as Int + key_length) as Usize] == 61u8;
+}
+
+verb config_line_value(
+    abs contents: Buffer,
+    abs start: u32,
+    abs line_length: Int,
+    abs key_length: Int
+) -> Option[ConfigField] {
+    erg value_length: Int = line_length - key_length - 1;
+    if value_length < 0 || value_length >= 4096 {
+        return Option[ConfigField].None;
+    }
+    erg value: Buffer = Buffer[0];
+    erg value_start: u32 = start + key_length as u32 + 1u32;
+    for erg index: u32 in 0u32 .. 4096u32 {
+        if index as Int >= value_length {
+            break;
+        }
+        append(value, contents[(value_start as Int + index as Int) as Usize]);
+    }
+    append(value, 0u8);
+    return Option[ConfigField].Some(ConfigField {value: value, length: value_length});
+}
+
+verb config_key_length(abs key: String) -> Int {
+    erg result = string_length(text: abs key);
+    return case dat result {
+        Result.Err(_) => -1,
+        Result.Ok(length) => length,
+    };
+}
+
+verb config_buffer_length(abs contents: Buffer) -> u32 {
+    erg result = buffer_size(buffer: abs contents);
+    return case dat result {
+        Result.Err(_) => 0u32,
+        Result.Ok(length) => length as u32,
+    };
+}
+
+verb config_field_in_lines(
+    abs contents: Buffer,
+    abs key: String,
+    abs key_length: Int,
+    abs total: u32
+) -> Option[ConfigField] {
+    for erg cursor: u32 in 0u32 .. total {
+        erg line_length = config_line_length(
+            contents: abs contents,
+            start: abs cursor,
+            total: abs total
+        );
+        if config_line_matches(
+            contents: abs contents,
+            start: abs cursor,
+            line_length: abs line_length,
+            key: abs key,
+            key_length: abs key_length
+        ) {
+            return config_line_value(
+                contents: abs contents,
+                start: abs cursor,
+                line_length: abs line_length,
+                key_length: abs key_length
+            );
+        }
+    }
+    return Option[ConfigField].None;
+}
+
+verb config_field(abs contents: Buffer, abs key: String) -> Option[ConfigField] {
+    erg key_length: Int = config_key_length(key: abs key);
+    if key_length < 0 {
+        return Option[ConfigField].None;
+    }
+    erg total: u32 = config_buffer_length(contents: abs contents);
+    return config_field_in_lines(
+        contents: abs contents,
+        key: abs key,
+        key_length: abs key_length,
+        total: abs total
+    );
+}
+
+verb config_field_is(abs field: ConfigField, abs expected: String) -> Bool {
+    erg expected_length = string_length(text: abs expected);
+    return case dat expected_length {
+        Result.Err(_) => false,
+        Result.Ok(length) => {
+            if length != field.length {
+                false;
+            } else {
+                erg matches: Bool = true;
+                erg index: Int = 0;
+                loop {
+                    if index >= length || !matches {
+                        break;
+                    }
+                    erg byte = string_byte_at(text: abs expected, index: erg index);
+                    erg expected_byte: Int = case dat byte {
+                        Result.Err(_) => -1,
+                        Result.Ok(value) => value,
+                    };
+                    if expected_byte < 0 || field.value[index as Usize] as Int != expected_byte {
+                        matches = false;
+                    }
+                    index += 1;
+                }
+                matches;
+            }
+        },
+    };
+}

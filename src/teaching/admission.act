@@ -27,3 +27,17 @@ open verb validate_teaching_request(abs request: TeachingRequest) -> Result[Int,
         Result.Ok(event_count) => Result[Int, TeachingError].Ok(event_count),
     };
 }
+
+"""Validate one adapter envelope before a direct pipeline mutates state.
+
+The envelope is borrowed and remains caller-owned. This helper exists for
+pipeline wrappers that already receive an envelope and must not manufacture
+an owned TeachingRequest just to repeat the adapter validation.
+"""
+open verb validate_teaching_envelope(abs envelope: AdapterEnvelope) -> Result[Int, TeachingError] {
+    erg envelope_result = validate_adapter_envelope(envelope: abs envelope);
+    return case dat envelope_result {
+        Result.Err(_) => Result[Int, TeachingError].Err(TeachingError.InvalidAdapterEnvelope),
+        Result.Ok(event_count) => Result[Int, TeachingError].Ok(event_count),
+    };
+}

@@ -1,0 +1,285 @@
+"""Load a bounded runner command from a line-oriented configuration file."""
+import std::fs;
+
+import std::path;
+
+open fields;
+
+open contract;
+
+open fs;
+
+open path;
+
+verb config_path_field(abs contents: Buffer, abs key: String) -> Result[Path, RunnerParseError] {
+    erg field = config_field(contents: abs contents, key: abs key);
+    return case dat field {
+        Option.None => Result[Path, RunnerParseError].Err(RunnerParseError.InvalidConfig),
+        Option.Some(found) => {
+            erg path_result = path_from_ascii(storage: dat found.value);
+            return case dat path_result {
+                Result.Err(_) => Result[Path, RunnerParseError].Err(RunnerParseError.InvalidPath),
+                Result.Ok(path) => Result[Path, RunnerParseError].Ok(dat path),
+            };
+        },
+    };
+}
+
+verb config_mode_value(
+    abs field: ConfigField,
+    abs load_value: String,
+    abs init_value: String
+) -> Result[Bool, RunnerParseError] {
+    if config_field_is(field: abs field, expected: abs load_value) {
+        return Result[Bool, RunnerParseError].Ok(true);
+    }
+    if config_field_is(field: abs field, expected: abs init_value) {
+        return Result[Bool, RunnerParseError].Ok(false);
+    }
+    return Result[Bool, RunnerParseError].Err(RunnerParseError.InvalidConfig);
+}
+
+verb config_source_value(
+    abs field: ConfigField,
+    abs file_value: String,
+    abs stdin_value: String
+) -> Result[Bool, RunnerParseError] {
+    if config_field_is(field: abs field, expected: abs file_value) {
+        return Result[Bool, RunnerParseError].Ok(true);
+    }
+    if config_field_is(field: abs field, expected: abs stdin_value) {
+        return Result[Bool, RunnerParseError].Ok(false);
+    }
+    return Result[Bool, RunnerParseError].Err(RunnerParseError.InvalidConfig);
+}
+
+verb config_save_value(
+    abs field: ConfigField,
+    abs true_value: String,
+    abs false_value: String
+) -> Result[Bool, RunnerParseError] {
+    if config_field_is(field: abs field, expected: abs true_value) {
+        return Result[Bool, RunnerParseError].Ok(true);
+    }
+    if config_field_is(field: abs field, expected: abs false_value) {
+        return Result[Bool, RunnerParseError].Ok(false);
+    }
+    return Result[Bool, RunnerParseError].Err(RunnerParseError.InvalidConfig);
+}
+
+verb config_mode(abs contents: Buffer) -> Result[Bool, RunnerParseError] {
+    erg key: String = "mode";
+    erg load_value: String = "load";
+    erg init_value: String = "init";
+    erg field = config_field(contents: abs contents, key: abs key);
+    return case dat field {
+        Option.None => Result[Bool, RunnerParseError].Err(RunnerParseError.InvalidConfig),
+        Option.Some(found) => config_mode_value(
+            field: abs found,
+            load_value: abs load_value,
+            init_value: abs init_value
+        ),
+    };
+}
+
+verb config_source_is_file(abs contents: Buffer) -> Result[Bool, RunnerParseError] {
+    erg key: String = "source";
+    erg file_value: String = "file";
+    erg stdin_value: String = "stdin";
+    erg field = config_field(contents: abs contents, key: abs key);
+    return case dat field {
+        Option.None => Result[Bool, RunnerParseError].Err(RunnerParseError.InvalidConfig),
+        Option.Some(found) => config_source_value(
+            field: abs found,
+            file_value: abs file_value,
+            stdin_value: abs stdin_value
+        ),
+    };
+}
+
+verb config_save(abs contents: Buffer) -> Result[Bool, RunnerParseError] {
+    erg key: String = "save";
+    erg true_value: String = "true";
+    erg false_value: String = "false";
+    erg field = config_field(contents: abs contents, key: abs key);
+    return case dat field {
+        Option.None => Result[Bool, RunnerParseError].Ok(false),
+        Option.Some(found) => config_save_value(
+            field: abs found,
+            true_value: abs true_value,
+            false_value: abs false_value
+        ),
+    };
+}
+
+verb config_input(abs contents: Buffer, abs file: Bool) -> Result[Option[Path], RunnerParseError] {
+    if !file {
+        return Result[Option[Path], RunnerParseError].Ok(Option[Path].None);
+    }
+    erg key: String = "input";
+    erg path = config_path_field(contents: abs contents, key: abs key);
+    return case dat path {
+        Result.Err(error) => Result[Option[Path], RunnerParseError].Err(dat error),
+        Result.Ok(value) => Result[Option[Path], RunnerParseError].Ok(Option[Path].Some(dat value)),
+    };
+}
+
+verb config_shard_path(abs contents: Buffer, erg index: u32) -> Result[Path, RunnerParseError] {
+    erg key: String = case index {
+        0 => "shard0",
+        1 => "shard1",
+        2 => "shard2",
+        3 => "shard3",
+        4 => "shard4",
+        5 => "shard5",
+        6 => "shard6",
+        7 => "shard7",
+        _ => "",
+    };
+    if index > 7u32 {
+        return Result[Path, RunnerParseError].Err(RunnerParseError.InvalidConfig);
+    }
+    return config_path_field(contents: abs contents, key: abs key);
+}
+
+verb config_shard_paths(abs contents: Buffer) -> Result[Array[Path, 8], RunnerParseError] {
+    erg paths: Array[Path,8] = Array[Path, 8]();
+    for erg index: u32 in 0u32 .. 8u32 {
+        erg path = config_shard_path(contents: abs contents, index: erg index);
+        case dat path {
+            Result.Err(error) => {
+                return Result[Array[Path, 8], RunnerParseError].Err(dat error);
+            },
+            Result.Ok(value) => {
+                paths[index as Usize] = value;
+            },
+        };
+    }
+    return Result[Array[Path, 8], RunnerParseError].Ok(paths);
+}
+
+verb config_load_value(abs contents: Buffer) -> Result[Bool, RunnerParseError] {
+    erg mode = config_mode(contents: abs contents);
+    return case dat mode {
+        Result.Err(error) => Result[Bool, RunnerParseError].Err(dat error),
+        Result.Ok(value) => Result[Bool, RunnerParseError].Ok(value),
+    };
+}
+
+verb config_values_load(abs contents: Buffer) -> Result[Bool, RunnerParseError] {
+    erg value = config_load_value(contents: abs contents);
+    return case dat value {
+        Result.Err(error) => Result[Bool, RunnerParseError].Err(dat error),
+        Result.Ok(parsed) => Result[Bool, RunnerParseError].Ok(dat parsed),
+    };
+}
+
+verb config_values_file(abs contents: Buffer) -> Result[Bool, RunnerParseError] {
+    erg value = config_source_is_file(contents: abs contents);
+    return case dat value {
+        Result.Err(error) => Result[Bool, RunnerParseError].Err(dat error),
+        Result.Ok(parsed) => Result[Bool, RunnerParseError].Ok(dat parsed),
+    };
+}
+
+verb config_values_input(abs contents: Buffer, abs file: Bool) -> Result[Option[Path], RunnerParseError] {
+    erg value = config_input(contents: abs contents, file: abs file);
+    return case dat value {
+        Result.Err(error) => Result[Option[Path], RunnerParseError].Err(dat error),
+        Result.Ok(parsed) => Result[Option[Path], RunnerParseError].Ok(dat parsed),
+    };
+}
+
+verb config_values_save(abs contents: Buffer) -> Result[Bool, RunnerParseError] {
+    erg value = config_save(contents: abs contents);
+    return case dat value {
+        Result.Err(error) => Result[Bool, RunnerParseError].Err(dat error),
+        Result.Ok(parsed) => Result[Bool, RunnerParseError].Ok(dat parsed),
+    };
+}
+
+verb finish_config_values(
+    abs contents: Buffer,
+    dat brain_path: Path,
+    dat load: Bool,
+    dat file: Bool,
+    dat input_path: Option[Path],
+    dat save: Bool
+) -> Result[RunnerConfig, RunnerParseError] {
+    erg shards = config_shard_paths(contents: abs contents);
+    erg shard_paths: Array[Path,8] = case dat shards {
+        Result.Err(error) => {
+            return Result[RunnerConfig, RunnerParseError].Err(dat error);
+        },
+        Result.Ok(value) => value,
+    };
+    return Result[RunnerConfig, RunnerParseError].Ok(RunnerConfig {load: load, file: file, save: save, brain_path: brain_path, shard_paths: shard_paths, input_path: input_path});
+}
+
+verb finish_config_input(
+    abs contents: Buffer,
+    dat brain_path: Path,
+    dat load: Bool,
+    dat file: Bool
+) -> Result[RunnerConfig, RunnerParseError] {
+    erg input = config_input(contents: abs contents, file: abs file);
+    erg input_path: Option[Path] = case dat input {
+        Result.Err(error) => {
+            return Result[RunnerConfig, RunnerParseError].Err(dat error);
+        },
+        Result.Ok(value) => value,
+    };
+    erg save_result = config_save(contents: abs contents);
+    erg save: Bool = case dat save_result {
+        Result.Err(error) => {
+            return Result[RunnerConfig, RunnerParseError].Err(dat error);
+        },
+        Result.Ok(value) => value,
+    };
+    return finish_config_values(
+        contents: abs contents,
+        brain_path: dat brain_path,
+        load: dat load,
+        file: dat file,
+        input_path: dat input_path,
+        save: dat save
+    );
+}
+
+verb finish_config(abs contents: Buffer, dat brain_path: Path) -> Result[RunnerConfig, RunnerParseError] {
+    erg mode = config_mode(contents: abs contents);
+    erg load: Bool = case dat mode {
+        Result.Err(error) => {
+            return Result[RunnerConfig, RunnerParseError].Err(dat error);
+        },
+        Result.Ok(value) => value,
+    };
+    erg source = config_source_is_file(contents: abs contents);
+    erg file: Bool = case dat source {
+        Result.Err(error) => {
+            return Result[RunnerConfig, RunnerParseError].Err(dat error);
+        },
+        Result.Ok(value) => value,
+    };
+    return finish_config_input(
+        contents: abs contents,
+        brain_path: dat brain_path,
+        load: dat load,
+        file: dat file
+    );
+}
+
+open verb parse_config(dat config_path: Path) -> Result[RunnerConfig, RunnerParseError] {
+    erg loaded = read_to_bytes(path: abs config_path);
+    return case dat loaded {
+        Result.Err(_) => Result[RunnerConfig, RunnerParseError].Err(RunnerParseError.InvalidConfig),
+        Result.Ok(contents) => {
+            erg brain_key: String = "brain";
+            erg brain = config_path_field(contents: abs contents, key: abs brain_key);
+            return case dat brain {
+                Result.Err(error) => Result[RunnerConfig, RunnerParseError].Err(dat error),
+                Result.Ok(path) => finish_config(contents: abs contents, brain_path: dat path),
+            };
+        },
+    };
+}

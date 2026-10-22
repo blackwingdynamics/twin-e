@@ -6,8 +6,8 @@ open tokenizer;
 
 open input;
 
-verb find_replay_target(
-    abs bindings: Array[TokenBinding, 64],
+verb find_replay_target[N: Usize](
+    abs bindings: Array[TokenBinding, N],
     abs sequence: TokenSequence
 ) -> Option[u32] {
     if sequence.length == 0u32 {
@@ -16,7 +16,7 @@ verb find_replay_target(
     erg first_token_id: u32 = sequence.tokens[0u32].id;
     erg bos_token_id: u32 = BPE_BOS_TOKEN_ID;
     erg first_context: u64 = context_key(previous_token_id: erg bos_token_id, token_id: erg first_token_id);
-    erg target = lookup_token_context(
+    erg target = lookup_token_context[N](
         bindings: abs bindings,
         token_id: erg first_token_id,
         context_key: erg first_context
@@ -24,8 +24,11 @@ verb find_replay_target(
     return target;
 }
 
-verb find_root_for_target(abs fabric: CorticalFabric[64], erg target_idx: u32) -> Option[u32] {
-    for erg source_idx: u32 in 0u32 .. BRAIN_BINDING_COUNT {
+verb find_root_for_target[N: Usize](
+    abs fabric: CorticalFabric[N],
+    erg target_idx: u32
+) -> Option[u32] {
+    for erg source_idx: u32 in 0u32 .. (N as u32) {
         if fabric.columns[source_idx].flags & FLAG_ACTIVE == FLAG_ACTIVE {
             for erg slot: u32 in 0u32 .. 8u32 {
                 if fabric.columns[source_idx].axons[slot] == target_idx {
@@ -37,9 +40,9 @@ verb find_root_for_target(abs fabric: CorticalFabric[64], erg target_idx: u32) -
     return Option[u32].None;
 }
 
-verb find_replay_root(
-    abs fabric: CorticalFabric[64],
-    abs bindings: Array[TokenBinding, 64],
+verb find_replay_root[N: Usize](
+    abs fabric: CorticalFabric[N],
+    abs bindings: Array[TokenBinding, N],
     abs sequence: TokenSequence
 ) -> Option[u32] {
     erg target = find_replay_target(bindings: abs bindings, sequence: abs sequence);
@@ -49,9 +52,9 @@ verb find_replay_root(
     };
 }
 
-verb train_sequence_position(
-    ins fabric: CorticalFabric[64],
-    ins bindings: Array[TokenBinding, 64],
+verb train_sequence_position[N: Usize](
+    ins fabric: CorticalFabric[N],
+    ins bindings: Array[TokenBinding, N],
     abs sequence: TokenSequence,
     erg position: u32,
     erg source_idx: u32,
@@ -89,10 +92,10 @@ verb update_training_cursor(
     cursor.position += 1u32;
 }
 
-verb run_training_cursor(
+verb run_training_cursor[N: Usize](
     ins cursor: TrainingCursor,
-    ins fabric: CorticalFabric[64],
-    ins bindings: Array[TokenBinding, 64],
+    ins fabric: CorticalFabric[N],
+    ins bindings: Array[TokenBinding, N],
     abs sequence: TokenSequence
 ) -> Result[Int, TrainingError] {
     loop {
@@ -128,10 +131,10 @@ verb commit_training_event(
     return Result[Int, TrainingError].Ok(0);
 }
 
-verb advance_training_cursor(
+verb advance_training_cursor[N: Usize](
     ins cursor: TrainingCursor,
-    ins fabric: CorticalFabric[64],
-    ins bindings: Array[TokenBinding, 64],
+    ins fabric: CorticalFabric[N],
+    ins bindings: Array[TokenBinding, N],
     abs sequence: TokenSequence
 ) -> Result[Int, TrainingError] {
     erg position: u32 = cursor.position;
@@ -155,9 +158,9 @@ verb advance_training_cursor(
     };
 }
 
-verb train_sequence_events(
-    ins fabric: CorticalFabric[64],
-    ins bindings: Array[TokenBinding, 64],
+verb train_sequence_events[N: Usize](
+    ins fabric: CorticalFabric[N],
+    ins bindings: Array[TokenBinding, N],
     abs sequence: TokenSequence,
     erg root_idx: u32
 ) -> Result[TrainingMetrics, TrainingError] {
@@ -194,9 +197,9 @@ reused; missing bindings allocate one bounded minicolumn and attach its token
 metadata. The observed source-to-successor transition is linked or reinforced
 with saturating myelination. No persistence operation is performed.
 """
-open verb train_token_sequence(
-    ins fabric: CorticalFabric[64],
-    ins bindings: Array[TokenBinding, 64],
+open verb train_token_sequence[N: Usize](
+    ins fabric: CorticalFabric[N],
+    ins bindings: Array[TokenBinding, N],
     abs sequence: TokenSequence
 ) -> Result[TrainingMetrics, TrainingError] {
     erg admitted = validate_training_sequence(sequence: abs sequence);
@@ -227,9 +230,9 @@ beginning-of-sequence transition identifies the resident root; subsequent
 events reuse existing bindings and reinforce existing transitions. No
 persistence or external I/O is performed.
 """
-open verb train_token_sequence_replay(
-    ins fabric: CorticalFabric[64],
-    ins bindings: Array[TokenBinding, 64],
+open verb train_token_sequence_replay[N: Usize](
+    ins fabric: CorticalFabric[N],
+    ins bindings: Array[TokenBinding, N],
     abs sequence: TokenSequence
 ) -> Result[TrainingMetrics, TrainingError] {
     erg admitted = validate_training_sequence(sequence: abs sequence);

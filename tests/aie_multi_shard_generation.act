@@ -1,0 +1,168 @@
+"""Gate 11.6 evidence for a complete two-shard generation."""
+import aie;
+
+import config;
+
+import std::fs;
+
+import std::path;
+
+verb generation_test_path(erg suffix: u8) -> Result[Path, PathError] {
+    erg raw: Buffer = Buffer[0];
+    append(raw, 47u8);
+    append(raw, 116u8);
+    append(raw, 109u8);
+    append(raw, 112u8);
+    append(raw, 47u8);
+    append(raw, 116u8);
+    append(raw, 119u8);
+    append(raw, 105u8);
+    append(raw, 110u8);
+    append(raw, 45u8);
+    append(raw, 101u8);
+    append(raw, 45u8);
+    append(raw, 103u8);
+    append(raw, 101u8);
+    append(raw, 110u8);
+    append(raw, 45u8);
+    append(raw, suffix);
+    append(raw, 0u8);
+    return path_from_ascii(storage: dat raw);
+}
+
+verb generation_cleanup(abs manifest: Path, abs first: Path, abs second: Path) {
+    remove_file(path: abs manifest);
+    remove_file(path: abs first);
+    remove_file(path: abs second);
+}
+
+verb generation_store_paths(
+    ins paths: Array[Path, 8],
+    dat first: Path,
+    dat second: Path,
+    dat manifest: Path
+) -> Bool {
+    paths[0u32] = first;
+    paths[1u32] = second;
+    paths[2u32] = manifest;
+    return true;
+}
+
+verb generation_manifest_path(
+    ins paths: Array[Path, 8],
+    dat first: Path,
+    dat second: Path
+) -> Bool {
+    erg manifest_suffix: u8 = 63u8;
+    erg manifest_result = generation_test_path(suffix: erg manifest_suffix);
+    return case dat manifest_result {
+        Result.Err(_) => {
+            drop(first);
+            drop(second);
+            return false;
+        },
+        Result.Ok(manifest) => generation_store_paths(
+            paths: ins paths,
+            first: dat first,
+            second: dat second,
+            manifest: dat manifest
+        ),
+    };
+}
+
+verb generation_second_path(ins paths: Array[Path, 8], dat first: Path) -> Bool {
+    erg second_suffix: u8 = 62u8;
+    erg second_result = generation_test_path(suffix: erg second_suffix);
+    return case dat second_result {
+        Result.Err(_) => {
+            drop(first);
+            return false;
+        },
+        Result.Ok(second) => generation_manifest_path(
+            paths: ins paths,
+            first: dat first,
+            second: dat second
+        ),
+    };
+}
+
+verb generation_paths(ins paths: Array[Path, 8]) -> Bool {
+    erg first_suffix: u8 = 61u8;
+    erg first_result = generation_test_path(suffix: erg first_suffix);
+    return case dat first_result {
+        Result.Err(_) => false,
+        Result.Ok(first) => generation_second_path(paths: ins paths, first: dat first),
+    };
+}
+
+verb generation_zero_columns() -> Array[u8, 4096] {
+    erg columns: Array[u8,4096] = Array[u8, 4096]();
+    columns[0u32] = 41u8;
+    columns[2048u32] = 99u8;
+    return columns;
+}
+
+verb generation_zero_bindings() -> Array[u8, 1536] {
+    erg bindings: Array[u8,1536] = Array[u8, 1536]();
+    bindings[0u32] = BINDING_ACTIVE_FLAG;
+    bindings[768u32] = BINDING_ACTIVE_FLAG;
+    return bindings;
+}
+
+verb generation_result_ok(dat result: Result[Int, IoError]) -> Bool {
+    return case dat result {
+        Result.Err(_) => false,
+        Result.Ok(_) => true,
+    };
+}
+
+verb generation_load_and_check(abs manifest: Path, abs paths: Array[Path, 8]) -> Int {
+    erg fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](), free_list_head: 0u32, active_count: 0u32};
+    erg shard_count: u32 = 2u32;
+    fabric_init(fabric: ins fabric);
+    erg loaded = load_all_dynamic_shards(
+        fabric: ins fabric,
+        manifest_path: abs manifest,
+        shard_paths: abs paths,
+        shard_count: erg shard_count
+    );
+    if !generation_result_ok(result: dat loaded) {
+        return 10;
+    }
+    if fabric.columns[0u32].storage[0u32] != 41u8 || fabric.columns[32u32].storage[0u32] != 99u8 {
+        return 11;
+    }
+    return 0;
+}
+
+meta test
+verb test_complete_two_shard_generation_loads_in_descriptor_order() -> Int {
+    erg paths: Array[Path,8] = Array[Path, 8]();
+    if !generation_paths(paths: ins paths) {
+        return 1;
+    }
+    erg columns: Array[u8,4096] = generation_zero_columns();
+    erg bindings: Array[u8,1536] = generation_zero_bindings();
+    erg active_count: u32 = 4u32;
+    erg free_list_head: u32 = NULL_INDEX;
+    erg generation: u64 = 7u64;
+    erg generated = write_sharded_snapshot(
+        manifest_path: abs paths[2u32],
+        shard_paths: abs paths,
+        columns: abs columns,
+        entries: abs bindings,
+        active_count: erg active_count,
+        free_list_head: erg free_list_head,
+        generation: erg generation
+    );
+    erg result: Int = case dat generated {
+        Result.Err(_) => 2,
+        Result.Ok(_) => generation_load_and_check(manifest: abs paths[2u32], paths: abs paths),
+    };
+    generation_cleanup(
+        manifest: abs paths[2u32],
+        first: abs paths[0u32],
+        second: abs paths[1u32]
+    );
+    return result;
+}

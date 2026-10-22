@@ -1,0 +1,294 @@
+"""Executable evidence for bounded logical shard admission and rotation.
+
+These fixtures exercise the in-memory boundary only. A successful flush is
+represented by the existing save-completion transition; filesystem work stays
+behind the explicit persistence API and is never performed by admission.
+"""
+import aie;
+
+import config;
+
+import std::io;
+
+open io;
+
+verb admit_shard_for_test(ins brain: LogicalBrain, erg shard_id: u32) -> Bool {
+    erg capacity: u32 = BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY;
+    erg admitted = logical_brain_admit_shard(
+        brain: ins brain,
+        shard_id: erg shard_id,
+        column_count: erg capacity
+    );
+    return case dat admitted {
+        Result.Err(_) => false,
+        Result.Ok(_) => true,
+    };
+}
+
+verb admit_and_mark_dirty_for_test(ins brain: LogicalBrain, erg shard_id: u32) -> Bool {
+    erg capacity: u32 = BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY;
+    erg admitted = logical_brain_admit_shard(
+        brain: ins brain,
+        shard_id: erg shard_id,
+        column_count: erg capacity
+    );
+    return case dat admitted {
+        Result.Err(_) => false,
+        Result.Ok(slot) => {
+            erg marked = shard_cache_mark_dirty(cache: ins brain.cache, slot: erg slot);
+            return case dat marked {
+                Result.Err(_) => false,
+                Result.Ok(_) => true,
+            };
+        },
+    };
+}
+
+verb initialize_admission_brain(ins brain: LogicalBrain) -> Bool {
+    erg initialized = logical_brain_init(brain: ins brain);
+    return case dat initialized {
+        Result.Err(_) => false,
+        Result.Ok(_) => true,
+    };
+}
+
+verb cross_shards_are_recalled(abs brain: LogicalBrain) -> Int {
+    erg first_id: u32 = 0u32;
+    erg second_id: u32 = 1u32;
+    erg first = logical_brain_lookup_shard(brain: abs brain, shard_id: erg first_id);
+    erg first_valid: Bool = case dat first {
+        Result.Err(_) => false,
+        Result.Ok(first_descriptor) => first_descriptor.first_column_index == 0u32,
+    };
+    if !first_valid {
+        return 4;
+    }
+    erg second = logical_brain_lookup_shard(brain: abs brain, shard_id: erg second_id);
+    return case dat second {
+        Result.Err(_) => 5,
+        Result.Ok(second_descriptor) => {
+            if second_descriptor.first_column_index != BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY {
+                return 6;
+            }
+            if brain.shard_count != 2u32 || brain.shard_transitions != 1u32 {
+                return 7;
+            }
+            0;
+        },
+    };
+}
+
+meta test
+verb test_admission_crosses_two_shards_and_recalls_both() -> Int {
+    erg brain: LogicalBrain = logical_brain_empty();
+    if !initialize_admission_brain(brain: ins brain) {
+        return 1;
+    }
+    erg first_id: u32 = 0u32;
+    erg second_id: u32 = 1u32;
+    if !admit_shard_for_test(brain: ins brain, shard_id: erg first_id) {
+        return 2;
+    }
+    if !admit_shard_for_test(brain: ins brain, shard_id: erg second_id) {
+        return 3;
+    }
+    return cross_shards_are_recalled(brain: abs brain);
+}
+
+verb admit_all_configured_shards(ins brain: LogicalBrain) -> Bool {
+    erg shard_id: u32 = 0u32;
+    loop {
+        if shard_id >= BRAIN_LOGICAL_MAX_SHARDS {
+            break;
+        }
+        if !admit_shard_for_test(brain: ins brain, shard_id: erg shard_id) {
+            return false;
+        }
+        shard_id += 1u32;
+    }
+    return true;
+}
+
+meta test
+verb test_logical_capacity_rejects_without_mutation() -> Int {
+    erg brain: LogicalBrain = logical_brain_empty();
+    if !initialize_admission_brain(brain: ins brain) {
+        return 1;
+    }
+    if !admit_all_configured_shards(brain: ins brain) {
+        return 2;
+    }
+    erg count_before: u32 = brain.shard_count;
+    erg terminal_id: u32 = brain.descriptors[7u32].shard_id;
+    erg rejected_id: u32 = BRAIN_LOGICAL_MAX_SHARDS;
+    erg capacity: u32 = BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY;
+    erg rejected = logical_brain_admit_shard(
+        brain: ins brain,
+        shard_id: erg rejected_id,
+        column_count: erg capacity
+    );
+    return case dat rejected {
+        Result.Ok(_) => 3,
+        Result.Err(_) => {
+            if brain.shard_count != count_before || brain.total_column_count != count_before * capacity {
+                return 4;
+            }
+            if brain.descriptors[7u32].shard_id != terminal_id {
+                return 5;
+            }
+            0;
+        },
+    };
+}
+
+verb admit_dirty_prefix(ins brain: LogicalBrain) -> Bool {
+    erg shard_id: u32 = 0u32;
+    loop {
+        if shard_id >= BRAIN_CACHE_DIRTY_HIGH_WATERMARK as u32 {
+            break;
+        }
+        if !admit_and_mark_dirty_for_test(brain: ins brain, shard_id: erg shard_id) {
+            return false;
+        }
+        shard_id += 1u32;
+    }
+    return true;
+}
+
+meta test
+verb test_failed_rotation_preserves_previous_resident_state() -> Int {
+    erg brain: LogicalBrain = logical_brain_empty();
+    if !initialize_admission_brain(brain: ins brain) {
+        return 1;
+    }
+    if !admit_dirty_prefix(brain: ins brain) {
+        return 2;
+    }
+    erg count_before: u32 = brain.shard_count;
+    erg last_before: u32 = brain.descriptors[2u32].first_column_index;
+    erg next_id: u32 = BRAIN_CACHE_DIRTY_HIGH_WATERMARK as u32;
+    erg capacity: u32 = BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY;
+    erg rejected = logical_brain_admit_shard(
+        brain: ins brain,
+        shard_id: erg next_id,
+        column_count: erg capacity
+    );
+    return case dat rejected {
+        Result.Ok(_) => 3,
+        Result.Err(_) => {
+            if brain.shard_count != count_before || brain.total_column_count != count_before * capacity {
+                return 4;
+            }
+            if brain.descriptors[2u32].first_column_index != last_before {
+                return 5;
+            }
+            0;
+        },
+    };
+}
+
+verb complete_dirty_prefix_flush(ins brain: LogicalBrain) -> Int {
+    erg slot: u8 = 0u8;
+    loop {
+        if slot >= BRAIN_CACHE_DIRTY_HIGH_WATERMARK {
+            break;
+        }
+        erg flushed: Result[Int,IoError] = Result[Int, IoError].Ok(0);
+        erg completed = complete_shard_save(
+            cache: ins brain.cache,
+            slot: erg slot,
+            flushed: dat flushed
+        );
+        erg completion_status: Int = case dat completed {
+            Result.Err(_) => 3,
+            Result.Ok(_) => 0,
+        };
+        if completion_status != 0 {
+            return completion_status;
+        }
+        slot += 1u8;
+    }
+    return 0;
+}
+
+meta test
+verb test_explicit_flush_then_rotation_continues() -> Int {
+    erg brain: LogicalBrain = logical_brain_empty();
+    if !initialize_admission_brain(brain: ins brain) {
+        return 1;
+    }
+    if !admit_dirty_prefix(brain: ins brain) {
+        return 2;
+    }
+    erg flush_status: Int = complete_dirty_prefix_flush(brain: ins brain);
+    if flush_status != 0 {
+        return flush_status;
+    }
+    erg next_id: u32 = BRAIN_CACHE_DIRTY_HIGH_WATERMARK as u32;
+    erg capacity: u32 = BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY;
+    erg admitted = logical_brain_admit_shard(
+        brain: ins brain,
+        shard_id: erg next_id,
+        column_count: erg capacity
+    );
+    return case dat admitted {
+        Result.Err(_) => 4,
+        Result.Ok(_) => {
+            if brain.shard_count != 4u32 || brain.shard_transitions != 3u32 {
+                return 5;
+            }
+            0;
+        },
+    };
+}
+
+verb failed_flush_preserves_dirty_entry(ins brain: LogicalBrain) -> Bool {
+    erg failed_flush: Result[Int,IoError] = Result[Int, IoError].Err(IoError.Failed);
+    erg first_slot: u8 = 0u8;
+    erg completed = complete_shard_save(
+        cache: ins brain.cache,
+        slot: erg first_slot,
+        flushed: dat failed_flush
+    );
+    return case dat completed {
+        Result.Ok(_) => false,
+        Result.Err(_) => true,
+    };
+}
+
+verb rejected_rotation_keeps_failed_flush_state(ins brain: LogicalBrain) -> Int {
+    erg next_id: u32 = BRAIN_CACHE_DIRTY_HIGH_WATERMARK as u32;
+    erg capacity: u32 = BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY;
+    erg rejected = logical_brain_admit_shard(
+        brain: ins brain,
+        shard_id: erg next_id,
+        column_count: erg capacity
+    );
+    return case dat rejected {
+        Result.Ok(_) => 4,
+        Result.Err(_) => {
+            if brain.shard_count != BRAIN_CACHE_DIRTY_HIGH_WATERMARK as u32 {
+                return 5;
+            }
+            if !shard_cache_flush_requested(cache: abs brain.cache) {
+                return 6;
+            }
+            0;
+        },
+    };
+}
+
+meta test
+verb test_failed_flush_keeps_resident_state_dirty_and_usable() -> Int {
+    erg brain: LogicalBrain = logical_brain_empty();
+    if !initialize_admission_brain(brain: ins brain) {
+        return 1;
+    }
+    if !admit_dirty_prefix(brain: ins brain) {
+        return 2;
+    }
+    if !failed_flush_preserves_dirty_entry(brain: ins brain) {
+        return 3;
+    }
+    return rejected_rotation_keeps_failed_flush_state(brain: ins brain);
+}

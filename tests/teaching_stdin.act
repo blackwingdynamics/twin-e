@@ -1,0 +1,30 @@
+"""Acceptance tests for deterministic stdin transport error mapping."""
+import std::io;
+
+import teaching;
+
+meta test
+verb test_stdin_injected_end_of_stream_is_clean_eof() -> Int {
+    erg injected: Result[Int,IoError] = Result[Int, IoError].Err(IoError.EndOfStream);
+    erg result = stdin_classify_read_result(result: dat injected);
+    return case dat result {
+        Result.Err(error) => case error {
+            TeachingStreamError.CleanEndOfInput => 0,
+            _ => 1,
+        },
+        Result.Ok(_) => 1,
+    };
+}
+
+meta test
+verb test_stdin_injected_failure_is_read_failure() -> Int {
+    erg injected: Result[Int,IoError] = Result[Int, IoError].Err(IoError.Failed);
+    erg result = stdin_classify_read_result(result: dat injected);
+    return case dat result {
+        Result.Err(error) => case error {
+            TeachingStreamError.ReadFailure => 0,
+            _ => 1,
+        },
+        Result.Ok(_) => 1,
+    };
+}

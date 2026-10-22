@@ -1,0 +1,64 @@
+"""Production runner boundary for bounded multi-shard teaching.
+
+This boundary owns resident logical teaching state. Persistence I/O remains
+caller-driven: the caller supplies the result of an explicit shard flush. A
+successful flush is committed before the pending sequence is retried; a
+failed flush returns the typed teaching error and leaves the dirty resident
+state available for retry.
+"""
+import aie;
+
+import std::io;
+
+open aie;
+
+open io;
+
+open aie;
+
+verb runner_retry_after_flush(
+    ins brain: LogicalTeachingBrain,
+    abs sequence: TokenSequence,
+    abs flushed: Result[Int, IoError]
+) -> Result[TrainingMetrics, LogicalTeachingError] {
+    erg target = logical_teaching_flush_target(brain: abs brain);
+    return case dat target {
+        Option.None => Result[TrainingMetrics, LogicalTeachingError].Err(LogicalTeachingError.FlushRequired),
+        Option.Some(shard_id) => {
+            erg completed = logical_teaching_complete_flush(
+                brain: ins brain,
+                shard_id: erg shard_id,
+                flushed: abs flushed
+            );
+            return case dat completed {
+                Result.Err(_) => Result[TrainingMetrics, LogicalTeachingError].Err(LogicalTeachingError.FlushRequired),
+                Result.Ok(_) => logical_teaching_sequence(brain: ins brain, sequence: abs sequence),
+            };
+        },
+    };
+}
+
+"""Teach one sequence and retry once after a required explicit flush.
+
+The sequence is borrowed, the brain is exclusively borrowed, and the flush
+result is consumed only at the flush boundary. No unbounded queue or implicit
+filesystem operation is introduced.
+"""
+open verb runner_teach_sequence(
+    ins brain: LogicalTeachingBrain,
+    abs sequence: TokenSequence,
+    abs flushed: Result[Int, IoError]
+) -> Result[TrainingMetrics, LogicalTeachingError] {
+    erg first = logical_teaching_sequence(brain: ins brain, sequence: abs sequence);
+    return case dat first {
+        Result.Ok(metrics) => Result[TrainingMetrics, LogicalTeachingError].Ok(metrics),
+        Result.Err(error) => case error {
+            LogicalTeachingError.FlushRequired => runner_retry_after_flush(
+                brain: ins brain,
+                sequence: abs sequence,
+                flushed: abs flushed
+            ),
+            _ => Result[TrainingMetrics, LogicalTeachingError].Err(error),
+        },
+    };
+}

@@ -3,4 +3,6 @@ open input;
 
 open helpers;
 
+open auxiliary;
+
 open sequence;

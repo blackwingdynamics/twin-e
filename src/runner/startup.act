@@ -1,0 +1,103 @@
+"""Runner startup, brain loading, and lifecycle orchestration."""
+import aie;
+
+import cli;
+
+import std::io;
+
+import std::path;
+
+import teaching;
+
+open aie;
+
+open cli;
+
+open io;
+
+open path;
+
+open teaching;
+
+open enum RunnerStartupError {
+    MissingBrain,
+    IncompatibleBrain,
+    CorruptBrain,
+    PartialBrain,
+}
+
+verb startup_error(dat error: IoError) -> RunnerStartupError {
+    return case dat error {
+        IoError.Failed => RunnerStartupError.MissingBrain,
+        IoError.InvalidInput => RunnerStartupError.IncompatibleBrain,
+        IoError.InvalidData => RunnerStartupError.CorruptBrain,
+        IoError.EndOfStream => RunnerStartupError.PartialBrain,
+    };
+}
+
+verb load_command_state(
+    abs command: RunnerConfig,
+    ins brain: LogicalTeachingBrain
+) -> Int {
+    if !command.load {
+        return 0;
+    }
+    erg loaded: Result[Int,IoError] = logical_teaching_load_generation(
+        brain: ins brain,
+        shard_paths: abs command.shard_paths,
+        manifest_path: abs command.brain_path
+    );
+    return case dat loaded {
+        Result.Ok(_) => 0,
+        Result.Err(_) => {
+            erg message: String = "TWIN_E_ERROR code=3 kind=brain_load_failed";
+            println(text: abs message);
+            3;
+        },
+    };
+}
+
+verb run_command(ins command: RunnerConfig) -> Int {
+    erg brain: LogicalTeachingBrain = logical_teaching_empty();
+    erg initialized = logical_teaching_init(brain: ins brain);
+    case dat initialized {
+        Result.Err(_) => {
+            return 3;
+        },
+        Result.Ok(_) => {},
+    };
+    erg load_status: Int = load_command_state(command: abs command, brain: ins brain);
+    if load_status != 0 {
+        return load_status;
+    }
+    erg teach_status: Int = teach_command_state(command: ins command, brain: ins brain);
+    if teach_status != 0 {
+        return teach_status;
+    }
+    return save_command_state(command: abs command, brain: abs brain);
+}
+
+verb run_owned_command(dat command: RunnerConfig) -> Int {
+    return run_command(command: ins command);
+}
+
+"""Run the explicit CLI command and return its stable exit code."""
+open verb run() -> Int {
+    erg parsed: Result[RunnerConfig,RunnerParseError] = parse();
+    erg status: Int = 2;
+    case dat parsed {
+        Result.Err(error) => case error {
+            RunnerParseError.HelpRequested => {
+                status = print_help();
+            },
+            _ => {
+                erg message: String = "TWIN_E_ERROR code=2 kind=invalid_config";
+                println(text: abs message);
+            },
+        },
+        Result.Ok(command) => {
+            status = run_owned_command(command: dat command);
+        },
+    };
+    return status;
+}

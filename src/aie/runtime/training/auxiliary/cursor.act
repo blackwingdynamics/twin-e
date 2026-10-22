@@ -1,0 +1,152 @@
+"""Bounded cursor orchestration for auxiliary-backed sequence teaching."""
+import config;
+
+import tokenizer;
+
+open engine;
+
+open helpers;
+
+open input;
+
+open forwarding;
+
+open tokenizer;
+
+verb auxiliary_validate_sequence(abs sequence: TokenSequence) -> Result[Int, TrainingError] {
+    erg admitted: Result[Int,TrainingInputError] = validate_training_sequence(sequence: abs sequence);
+    return case dat admitted {
+        Result.Err(error) => {
+            erg input_error: TrainingInputError = error;
+            Result[Int, TrainingError].Err(training_error_from_input(error: erg input_error));
+        },
+        Result.Ok(value) => Result[Int, TrainingError].Ok(value),
+    };
+}
+
+verb auxiliary_advance_cursor(
+    ins cursor: AuxiliaryTrainingCursor,
+    ins fabric: CorticalFabric[1024],
+    ins bindings: Array[TokenBinding, 1024],
+    ins table: AuxAxonTable[1024],
+    abs sequence: TokenSequence,
+    erg target_base: u32
+) -> Result[Int, TrainingError] {
+    erg token_id: u32 = sequence.tokens[cursor.position].id;
+    erg training_result: Result[Int,TrainingError] = auxiliary_train_event(
+        cursor: ins cursor,
+        fabric: ins fabric,
+        bindings: ins bindings,
+        table: ins table,
+        token_id: erg token_id,
+        target_base: erg target_base
+    );
+    return case dat training_result {
+        Result.Err(error) => Result[Int, TrainingError].Err(error),
+        Result.Ok(_) => Result[Int, TrainingError].Ok(0),
+    };
+}
+
+verb auxiliary_training_metrics(
+    abs bindings: Array[TokenBinding, 1024],
+    abs sequence: TokenSequence,
+    abs cursor: AuxiliaryTrainingCursor
+) -> TrainingMetrics {
+    erg event_count: u32 = sequence.length;
+    erg allocated_columns: u32 = cursor.allocated_columns;
+    erg reinforced_transitions: u32 = cursor.reinforced_transitions;
+    return make_training_metrics(
+        bindings: abs bindings,
+        event_count: erg event_count,
+        allocated_columns: erg allocated_columns,
+        reinforced_transitions: erg reinforced_transitions
+    );
+}
+
+verb auxiliary_run_cursor(
+    ins cursor: AuxiliaryTrainingCursor,
+    ins fabric: CorticalFabric[1024],
+    ins bindings: Array[TokenBinding, 1024],
+    ins table: AuxAxonTable[1024],
+    abs sequence: TokenSequence,
+    erg target_base: u32
+) -> Result[Int, TrainingError] {
+    loop {
+        if cursor.position >= sequence.length {
+            break;
+        }
+        erg advanced: Result[Int,TrainingError] = auxiliary_advance_cursor(
+            cursor: ins cursor,
+            fabric: ins fabric,
+            bindings: ins bindings,
+            table: ins table,
+            sequence: abs sequence,
+            target_base: erg target_base
+        );
+        case dat advanced {
+            Result.Err(error) => {
+                return Result[Int, TrainingError].Err(error);
+            },
+            Result.Ok(_) => {},
+        };
+    }
+    return Result[Int, TrainingError].Ok(0);
+}
+
+verb auxiliary_run_sequence(
+    ins fabric: CorticalFabric[1024],
+    ins bindings: Array[TokenBinding, 1024],
+    ins table: AuxAxonTable[1024],
+    abs sequence: TokenSequence,
+    erg root_idx: u32,
+    erg target_base: u32
+) -> Result[TrainingMetrics, TrainingError] {
+    erg cursor: AuxiliaryTrainingCursor = AuxiliaryTrainingCursor {source_idx: root_idx, previous_token_id: BPE_BOS_TOKEN_ID, position: 0u32, allocated_columns: 0u32, reinforced_transitions: 0u32};
+    erg completed: Result[Int,TrainingError] = auxiliary_run_cursor(
+        cursor: ins cursor,
+        fabric: ins fabric,
+        bindings: ins bindings,
+        table: ins table,
+        sequence: abs sequence,
+        target_base: erg target_base
+    );
+    case dat completed {
+        Result.Err(error) => {
+            return Result[TrainingMetrics, TrainingError].Err(error);
+        },
+        Result.Ok(_) => {},
+    };
+    return Result[TrainingMetrics, TrainingError].Ok(auxiliary_training_metrics(
+        bindings: abs bindings,
+        sequence: abs sequence,
+        cursor: abs cursor
+    ));
+}
+
+open verb train_token_sequence_with_auxiliary(
+    ins fabric: CorticalFabric[1024],
+    ins bindings: Array[TokenBinding, 1024],
+    ins table: AuxAxonTable[1024],
+    abs sequence: TokenSequence,
+    erg target_base: u32
+) -> Result[TrainingMetrics, TrainingError] {
+    erg admitted: Result[Int,TrainingError] = auxiliary_validate_sequence(sequence: abs sequence);
+    case dat admitted {
+        Result.Err(error) => {
+            return Result[TrainingMetrics, TrainingError].Err(error);
+        },
+        Result.Ok(_) => {},
+    };
+    erg root_idx: u32 = allocate_column_index(fabric: ins fabric);
+    if root_idx == null_index() {
+        return Result[TrainingMetrics, TrainingError].Err(TrainingError.NoRootColumn);
+    }
+    return auxiliary_run_sequence(
+        fabric: ins fabric,
+        bindings: ins bindings,
+        table: ins table,
+        sequence: abs sequence,
+        root_idx: erg root_idx,
+        target_base: erg target_base
+    );
+}

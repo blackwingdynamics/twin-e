@@ -1,0 +1,152 @@
+"""Typed constants for shard, manifest, and resident-cache persistence."""
+"""Magic value identifying a serialized `.brain` shard."""
+open const BRAIN_SHARD_MAGIC: u32 = 1146247763u32;
+
+
+"""Version of the serialized `.brain` shard format."""
+open const BRAIN_SHARD_VERSION: u16 = 1u16;
+
+
+"""Serialized byte length of a shard header."""
+open const BRAIN_SHARD_HEADER_BYTES: u16 = 48u16;
+
+
+"""Serialized byte stride of one shard minicolumn."""
+open const BRAIN_SHARD_COLUMN_STRIDE_BYTES: u16 = 64u16;
+
+
+"""Serialized byte stride of one shard-local token binding."""
+open const BRAIN_SHARD_BINDING_STRIDE_BYTES: u16 = 24u16;
+
+
+"""Fixed number of minicolumns in a regular shard."""
+open const BRAIN_SHARD_COLUMN_COUNT: u32 = 32u32;
+
+
+"""Serialized byte length of regular shard minicolumn storage."""
+open const BRAIN_SHARD_COLUMN_PAYLOAD_BYTES: u32 = 2048u32;
+
+
+"""Serialized byte length reserved for regular shard bindings."""
+open const BRAIN_SHARD_BINDING_PAYLOAD_BYTES: u32 = 0u32;
+
+
+"""Total serialized byte length of a regular shard file."""
+open const BRAIN_SHARD_FILE_BYTES: u32 = 2096u32;
+
+
+"""Maximum minicolumn count accepted in one dynamic shard."""
+open const BRAIN_SHARD_DYNAMIC_MAX_COLUMNS: u32 = 1024u32;
+
+
+"""Maximum serialized byte length accepted for a complete dynamic shard."""
+open const BRAIN_SHARD_DYNAMIC_MAX_BYTES: u32 = 90616u32;
+
+
+"""Production logical shard capacity; must remain a power of two."""
+open const BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY: u32 = 1024u32;
+
+
+"""Right shift used to derive a production logical shard ID."""
+open const BRAIN_LOGICAL_SHARD_SHIFT: u32 = 10u32;
+
+
+"""Mask used to derive a production shard-local column index."""
+open const BRAIN_LOGICAL_SHARD_MASK: u32 = 1023u32;
+
+
+"""Maximum logical shard count in the initial production host profile."""
+open const BRAIN_LOGICAL_MAX_SHARDS: u32 = 8u32;
+
+
+"""Maximum logical column count in the initial production host profile."""
+open const BRAIN_LOGICAL_MAX_COLUMNS: u32 = 8192u32;
+
+
+"""Serialized bytes occupied by 1024 production shard columns."""
+open const BRAIN_LOGICAL_SHARD_COLUMNS_BYTES: u32 = 65536u32;
+
+
+"""Serialized bytes occupied by production shard-local bindings."""
+open const BRAIN_LOGICAL_SHARD_BINDINGS_BYTES: u32 = 24576u32;
+
+
+"""Complete measured production shard artifact size before filesystem padding."""
+open const BRAIN_LOGICAL_SHARD_ARTIFACT_BYTES: u32 = 90616u32;
+
+
+"""Maximum resident shard working-set capacity in the production profile."""
+open const BRAIN_LOGICAL_MAX_RESIDENT_SHARDS: u32 = 4u32;
+
+
+"""Maximum shard-local binding records in the production profile."""
+open const BRAIN_LOGICAL_MAX_BINDINGS_PER_SHARD: u32 = 1024u32;
+
+
+"""Maximum shard-local auxiliary records in the production profile."""
+open const BRAIN_LOGICAL_MAX_AUXILIARY_RECORDS: u32 = 8u32;
+
+
+"""Maximum teaching items in one logical-brain request."""
+open const BRAIN_LOGICAL_MAX_REQUEST_ITEMS: u32 = 8u32;
+
+
+"""Maximum manifest descriptors in the production profile."""
+open const BRAIN_LOGICAL_MAX_MANIFEST_DESCRIPTORS: u32 = 8u32;
+
+
+"""Magic value identifying a serialized shard manifest."""
+open const BRAIN_MANIFEST_MAGIC: u32 = 1296645709u32;
+
+
+"""Version of the serialized shard manifest format."""
+open const BRAIN_MANIFEST_VERSION: u16 = 1u16;
+
+
+"""Serialized byte length of a manifest header."""
+open const BRAIN_MANIFEST_HEADER_BYTES: u16 = 64u16;
+
+
+"""Serialized byte length of one manifest shard descriptor."""
+open const BRAIN_MANIFEST_DESCRIPTOR_BYTES: u16 = 48u16;
+
+
+"""Number of descriptors in the fixed two-shard manifest."""
+open const BRAIN_MANIFEST_SHARD_COUNT: u32 = 2u32;
+
+
+"""Maximum shard count supported by the fixed manifest contract."""
+open const BRAIN_MANIFEST_MAX_SHARDS: u32 = 2u32;
+
+
+"""Total serialized byte length of the fixed manifest."""
+open const BRAIN_MANIFEST_FILE_BYTES: u32 = 160u32;
+
+
+"""Maximum descriptor count accepted by a dynamic manifest."""
+open const BRAIN_MANIFEST_DYNAMIC_MAX_SHARDS: u32 = 8u32;
+
+
+"""Maximum total column count accepted by a dynamic manifest."""
+open const BRAIN_MANIFEST_DYNAMIC_MAX_COLUMNS: u32 = 8192u32;
+
+
+"""Maximum serialized byte length accepted by a dynamic manifest."""
+open const BRAIN_MANIFEST_DYNAMIC_MAX_BYTES: u32 = 448u32;
+
+
+"""Number of inline shard metadata entries in the bounded cache."""
+open const BRAIN_CACHE_CAPACITY: u8 = 4u8;
+
+
+"""Dirty-entry count that requests caller-driven flush before full capacity."""
+open const BRAIN_CACHE_DIRTY_HIGH_WATERMARK: u8 = 3u8;
+
+
+"""Pinned eviction policy: zero means pinned entries are never evicted."""
+open const BRAIN_CACHE_PINNED_EVICTION_POLICY: u8 = 0u8;
+
+
+"""Bounded background flush queue capacity; zero selects caller-driven flush."""
+open const BRAIN_CACHE_FLUSH_QUEUE_CAPACITY: u8 = 0u8;
+

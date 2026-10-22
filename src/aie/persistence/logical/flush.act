@@ -1,0 +1,43 @@
+"""Explicit flush boundary for resident logical teaching state."""
+import std::io;
+
+open io;
+
+open teaching;
+
+open verb logical_teaching_complete_flush(
+    ins brain: LogicalTeachingBrain,
+    erg shard_id: u32,
+    abs flushed: Result[Int, IoError]
+) -> Result[Int, IoError] {
+    if shard_id >= brain.logical.shard_count {
+        return Result[Int, IoError].Err(IoError.InvalidInput);
+    }
+    erg slot: u8 = brain.cache_slots[shard_id as Usize];
+    return case flushed {
+        Result.Err(error) => Result[Int, IoError].Err(error),
+        Result.Ok(bytes) => {
+            erg saved: Result[Int,IoError] = Result[Int, IoError].Ok(bytes);
+            return complete_shard_save(
+                cache: ins brain.logical.cache,
+                slot: erg slot,
+                flushed: dat saved
+            );
+        },
+    };
+}
+
+"""Select the first dirty shard for a caller-driven flush boundary.
+
+The bounded scan is deterministic and allocation-free. It returns the logical
+shard ID, not a cache slot, so the runner cannot accidentally flush a different
+resident payload. No filesystem operation is performed.
+"""
+open verb logical_teaching_flush_target(abs brain: LogicalTeachingBrain) -> Option[u32] {
+    for erg shard_id: u32 in 0u32 .. brain.logical.shard_count {
+        if logical_brain_shard_is_dirty(brain: abs brain.logical, shard_id: erg shard_id) {
+            return Option[u32].Some(shard_id);
+        }
+    }
+    return Option[u32].None;
+}

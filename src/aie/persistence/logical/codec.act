@@ -1,0 +1,294 @@
+"""Bounded codecs for logical shard payload sections."""
+import config;
+
+import std::io;
+
+open config;
+
+open io;
+
+open auxiliary;
+
+verb logical_persistence_zero_buffer(ins output: Buffer, erg length: u32) {
+    erg requested_capacity: Int = length as Int;
+    erg reserved = reserve(buffer: ins output, capacity: erg requested_capacity);
+    for erg index: u32 in 0u32 .. length {
+        append(output, 0u8);
+    }
+}
+
+verb logical_persistence_write_u16(
+    ins output: Buffer,
+    erg offset: u32,
+    abs value: u16
+) {
+    output[offset] = (value as u32 & 255u32) as u8;
+    output[offset + 1u32] = ((value as u32 / 256u32) & 255u32) as u8;
+}
+
+verb logical_persistence_write_u32(
+    ins output: Buffer,
+    erg offset: u32,
+    abs value: u32
+) {
+    output[offset] = (value & 255u32) as u8;
+    output[offset + 1u32] = ((value / 256u32) & 255u32) as u8;
+    output[offset + 2u32] = ((value / 65536u32) & 255u32) as u8;
+    output[offset + 3u32] = ((value / 16777216u32) & 255u32) as u8;
+}
+
+verb logical_persistence_write_u64(
+    ins output: Buffer,
+    erg offset: u32,
+    abs value: u64
+) {
+    erg high_offset: u32 = offset + 4u32;
+    logical_persistence_write_u32(
+        output: ins output,
+        offset: erg offset,
+        value: abs (value & 4294967295u64) as u32
+    );
+    logical_persistence_write_u32(
+        output: ins output,
+        offset: erg high_offset,
+        value: abs (value / 4294967296u64) as u32
+    );
+}
+
+verb logical_persistence_read_u16(abs input: Buffer, erg offset: u32) -> u16 {
+    return (input[offset] as u16) + ((input[offset + 1u32] as u16) * 256u16);
+}
+
+verb logical_persistence_read_u32(abs input: Buffer, erg offset: u32) -> u32 {
+    return (input[offset] as u32) + ((input[offset + 1u32] as u32) * 256u32) + ((input[offset + 2u32] as u32) * 65536u32) + ((input[offset + 3u32] as u32) * 16777216u32);
+}
+
+verb logical_persistence_read_u64(abs input: Buffer, erg offset: u32) -> u64 {
+    erg high_offset: u32 = offset + 4u32;
+    return logical_persistence_read_u32(input: abs input, offset: erg offset) as u64 + (logical_persistence_read_u32(
+        input: abs input,
+        offset: erg high_offset
+    ) as u64 * 4294967296u64);
+}
+
+open verb logical_persistence_columns(abs fabric: CorticalFabric[1024]) -> Buffer {
+    erg output: Buffer = Buffer[0];
+    erg columns_length: u32 = BRAIN_LOGICAL_SHARD_COLUMNS_BYTES;
+    logical_persistence_zero_buffer(output: ins output, length: erg columns_length);
+    for erg column: u32 in 0u32 .. BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY {
+        for erg byte: u32 in 0u32 .. 64u32 {
+            output[column * 64u32 + byte] = fabric.columns[column].storage[byte];
+        }
+    }
+    return output;
+}
+
+open verb logical_persistence_bindings(abs bindings: Array[TokenBinding, 1024]) -> Buffer {
+    erg output: Buffer = Buffer[0];
+    erg bindings_length: u32 = BRAIN_LOGICAL_SHARD_BINDINGS_BYTES;
+    logical_persistence_zero_buffer(output: ins output, length: erg bindings_length);
+    for erg binding: u32 in 0u32 .. BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY {
+        for erg byte: u32 in 0u32 .. 24u32 {
+            output[binding * 24u32 + byte] = bindings[binding].storage[byte];
+        }
+    }
+    return output;
+}
+
+verb logical_persistence_write_auxiliary_pairs(
+    ins output: Buffer,
+    abs state: LogicalAuxiliaryState
+) {
+    erg pair: u32 = 0u32;
+    for erg source: u32 in 0u32 .. BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY {
+        erg record: u16 = state.table.source_to_record[source];
+        if record != AUX_AXON_INVALID_ID && pair < AUX_AXON_CAPACITY {
+            erg offset: u32 = 20u32 + pair * 4u32;
+            logical_persistence_write_u16(
+                output: ins output,
+                offset: erg offset,
+                value: abs source as u16
+            );
+            erg record_offset: u32 = offset + 2u32;
+            logical_persistence_write_u16(
+                output: ins output,
+                offset: erg record_offset,
+                value: abs record
+            );
+            pair += 1u32;
+        }
+    }
+    erg pair_count_offset: u32 = 16u32;
+    logical_persistence_write_u32(
+        output: ins output,
+        offset: erg pair_count_offset,
+        value: abs pair
+    );
+}
+
+verb logical_persistence_write_auxiliary_records(
+    ins output: Buffer,
+    abs state: LogicalAuxiliaryState
+) {
+    for erg record_index: u32 in 0u32 .. AUX_AXON_CAPACITY {
+        erg record_offset: u32 = 52u32 + record_index * 40u32;
+        for erg target_index: u32 in 0u32 .. AUX_AXON_TARGET_CAPACITY {
+            erg target_offset: u32 = record_offset + target_index * 4u32;
+            logical_persistence_write_u32(
+                output: ins output,
+                offset: erg target_offset,
+                value: abs state.table.records[record_index].targets[target_index]
+            );
+        }
+        output[record_offset + 32u32] = state.table.records[record_index].used_count;
+        output[record_offset + 33u32] = state.table.records[record_index].reserved[0u32];
+        output[record_offset + 34u32] = state.table.records[record_index].reserved[1u32];
+        output[record_offset + 35u32] = state.table.records[record_index].reserved[2u32];
+        erg free_link_offset: u32 = record_offset + 36u32;
+        logical_persistence_write_u32(
+            output: ins output,
+            offset: erg free_link_offset,
+            value: abs state.table.records[record_index].free_list_link
+        );
+    }
+}
+
+"""Encode the shard-local 1024-column auxiliary state into 456 bytes."""
+verb logical_persistence_write_auxiliary_header(
+    ins output: Buffer,
+    abs state: LogicalAuxiliaryState
+) {
+    erg magic_offset: u32 = 0u32;
+    erg version_offset: u32 = 4u32;
+    erg active_count_offset: u32 = 8u32;
+    erg free_head_offset: u32 = 12u32;
+    logical_persistence_write_u32(
+        output: ins output,
+        offset: erg magic_offset,
+        value: abs BRAIN_MAGIC
+    );
+    logical_persistence_write_u16(
+        output: ins output,
+        offset: erg version_offset,
+        value: abs BRAIN_AUXILIARY_VERSION
+    );
+    logical_persistence_write_u32(
+        output: ins output,
+        offset: erg active_count_offset,
+        value: abs state.table.active_count
+    );
+    logical_persistence_write_u32(
+        output: ins output,
+        offset: erg free_head_offset,
+        value: abs state.table.free_list_head
+    );
+}
+
+open verb logical_persistence_auxiliary(abs state: LogicalAuxiliaryState) -> Buffer {
+    erg output: Buffer = Buffer[0];
+    erg auxiliary_length: u32 = BRAIN_AUXILIARY_PAYLOAD_BYTES;
+    erg checksum_offset: u32 = 372u32;
+    erg checksum: u64 = logical_auxiliary_checksum(table: abs state.table);
+    logical_persistence_zero_buffer(output: ins output, length: erg auxiliary_length);
+    logical_persistence_write_auxiliary_header(output: ins output, state: abs state);
+    logical_persistence_write_auxiliary_pairs(output: ins output, state: abs state);
+    logical_persistence_write_auxiliary_records(output: ins output, state: abs state);
+    logical_persistence_write_u64(
+        output: ins output,
+        offset: erg checksum_offset,
+        value: abs checksum
+    );
+    return output;
+}
+
+verb logical_persistence_restore_pairs(
+    ins state: LogicalAuxiliaryState,
+    abs input: Buffer
+) -> Bool {
+    erg pair_count_offset: u32 = 16u32;
+    erg pair_count: u32 = logical_persistence_read_u32(input: abs input, offset: erg pair_count_offset);
+    if pair_count > AUX_AXON_CAPACITY {
+        return false;
+    }
+    for erg pair: u32 in 0u32 .. AUX_AXON_CAPACITY {
+        if pair < pair_count {
+            erg offset: u32 = 20u32 + pair * 4u32;
+            erg source: u16 = logical_persistence_read_u16(input: abs input, offset: erg offset);
+            erg record_offset: u32 = offset + 2u32;
+            erg record: u16 = logical_persistence_read_u16(input: abs input, offset: erg record_offset);
+            if source >= BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY as u16 || record >= AUX_AXON_CAPACITY as u16 || state.table.source_to_record[source as Usize] != AUX_AXON_INVALID_ID {
+                return false;
+            }
+            state.table.source_to_record[source as Usize] = record;
+        }
+    }
+    return true;
+}
+
+verb logical_persistence_restore_records(
+    ins state: LogicalAuxiliaryState,
+    abs input: Buffer
+) {
+    for erg record_index: u32 in 0u32 .. AUX_AXON_CAPACITY {
+        erg record_offset: u32 = 52u32 + record_index * 40u32;
+        for erg target_index: u32 in 0u32 .. AUX_AXON_TARGET_CAPACITY {
+            erg target_offset: u32 = record_offset + target_index * 4u32;
+            state.table.records[record_index].targets[target_index] = logical_persistence_read_u32(
+                input: abs input,
+                offset: erg target_offset
+            );
+        }
+        state.table.records[record_index].used_count = input[record_offset + 32u32];
+        state.table.records[record_index].reserved[0u32] = input[record_offset + 33u32];
+        state.table.records[record_index].reserved[1u32] = input[record_offset + 34u32];
+        state.table.records[record_index].reserved[2u32] = input[record_offset + 35u32];
+        erg free_link_offset: u32 = record_offset + 36u32;
+        state.table.records[record_index].free_list_link = logical_persistence_read_u32(input: abs input, offset: erg free_link_offset);
+    }
+    erg active_count_offset: u32 = 8u32;
+    erg free_head_offset: u32 = 12u32;
+    state.table.active_count = logical_persistence_read_u32(input: abs input, offset: erg active_count_offset);
+    state.table.free_list_head = logical_persistence_read_u32(input: abs input, offset: erg free_head_offset);
+}
+
+"""Validate and restore one encoded auxiliary section before publication."""
+verb logical_persistence_auxiliary_header_is_valid(
+    abs input: Buffer,
+    erg length: Int
+) -> Bool {
+    erg magic_offset: u32 = 0u32;
+    erg version_offset: u32 = 4u32;
+    return length == BRAIN_AUXILIARY_PAYLOAD_BYTES as Int && logical_persistence_read_u32(input: abs input, offset: erg magic_offset) == BRAIN_MAGIC && logical_persistence_read_u16(
+        input: abs input,
+        offset: erg version_offset
+    ) == BRAIN_AUXILIARY_VERSION;
+}
+
+open verb logical_persistence_restore_auxiliary(
+    ins state: LogicalAuxiliaryState,
+    abs input: Buffer
+) -> Bool {
+    erg checksum_offset: u32 = 372u32;
+    erg length_result = buffer_size(buffer: abs input);
+    erg length: Int = case dat length_result {
+        Result.Err(_) => -1,
+        Result.Ok(value) => value,
+    };
+    if !logical_persistence_auxiliary_header_is_valid(input: abs input, length: erg length) {
+        return false;
+    }
+    erg restored: LogicalAuxiliaryState = logical_auxiliary_empty();
+    logical_auxiliary_init(state: ins restored);
+    if !logical_persistence_restore_pairs(state: ins restored, input: abs input) {
+        return false;
+    }
+    logical_persistence_restore_records(state: ins restored, input: abs input);
+    erg snapshot = LogicalAuxiliarySnapshot {table: restored.table, checksum: logical_persistence_read_u64(
+        input: abs input,
+        offset: erg checksum_offset
+    )};
+    if !logical_auxiliary_snapshot_is_valid(snapshot: abs snapshot) {
+        return false;
+    }
+    return logical_auxiliary_snapshot_restore(state: ins state, snapshot: abs snapshot);
+}

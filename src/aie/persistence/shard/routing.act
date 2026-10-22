@@ -1,0 +1,118 @@
+"""Checked position-independent routing for the logical shard profile."""
+import config;
+
+open config;
+
+"""Typed failures for global-to-shard and shard-to-global conversion."""
+open enum LogicalProfileError {
+    ZeroBound,
+    CapacityNotPowerOfTwo,
+    ShiftMismatch,
+    MaskMismatch,
+    ColumnCountOverflow,
+    InconsistentBounds,
+}
+
+"""Typed failures for global-to-shard and shard-to-global conversion."""
+open enum ShardRoutingError {
+    InvalidProfile,
+    GlobalIndexOutOfRange,
+    ShardIndexOutOfRange,
+    LocalIndexOutOfRange,
+}
+
+"""Complete bounded production profile validated before resident creation."""
+open struct LogicalShardProfile {
+    erg max_shards: u32,
+    erg shard_capacity: u32,
+    erg max_resident_shards: u32,
+    erg max_bindings_per_shard: u32,
+    erg max_auxiliary_records: u32,
+    erg max_request_items: u32,
+    erg max_manifest_descriptors: u32,
+}
+
+"""Return the canonical production profile from package constants."""
+open verb production_logical_shard_profile() -> LogicalShardProfile {
+    return LogicalShardProfile {max_shards: BRAIN_LOGICAL_MAX_SHARDS, shard_capacity: BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY, max_resident_shards: BRAIN_LOGICAL_MAX_RESIDENT_SHARDS, max_bindings_per_shard: BRAIN_LOGICAL_MAX_BINDINGS_PER_SHARD, max_auxiliary_records: BRAIN_LOGICAL_MAX_AUXILIARY_RECORDS, max_request_items: BRAIN_LOGICAL_MAX_REQUEST_ITEMS, max_manifest_descriptors: BRAIN_LOGICAL_MAX_MANIFEST_DESCRIPTORS};
+}
+
+"""Validate every bound and relationship before resident state exists."""
+open verb validate_logical_shard_profile(erg profile: LogicalShardProfile) -> Result[Int, LogicalProfileError] {
+    if profile.max_shards == 0u32 || profile.shard_capacity == 0u32 || profile.max_resident_shards == 0u32 || profile.max_bindings_per_shard == 0u32 || profile.max_auxiliary_records == 0u32 || profile.max_request_items == 0u32 || profile.max_manifest_descriptors == 0u32 {
+        return Result[Int, LogicalProfileError].Err(LogicalProfileError.ZeroBound);
+    }
+    if (profile.shard_capacity & (profile.shard_capacity - 1u32)) != 0u32 {
+        return Result[Int, LogicalProfileError].Err(LogicalProfileError.CapacityNotPowerOfTwo);
+    }
+    if (1u32 << BRAIN_LOGICAL_SHARD_SHIFT) != profile.shard_capacity {
+        return Result[Int, LogicalProfileError].Err(LogicalProfileError.ShiftMismatch);
+    }
+    if BRAIN_LOGICAL_SHARD_MASK != profile.shard_capacity - 1u32 {
+        return Result[Int, LogicalProfileError].Err(LogicalProfileError.MaskMismatch);
+    }
+    if profile.max_shards > 4294967295u32 / profile.shard_capacity {
+        return Result[Int, LogicalProfileError].Err(LogicalProfileError.ColumnCountOverflow);
+    }
+    if profile.max_resident_shards != BRAIN_LOGICAL_MAX_RESIDENT_SHARDS || profile.max_resident_shards > profile.max_shards || profile.max_bindings_per_shard != profile.shard_capacity || profile.max_auxiliary_records != AUX_AXON_CAPACITY || profile.max_request_items != BRAIN_LOGICAL_MAX_REQUEST_ITEMS || profile.max_manifest_descriptors != profile.max_shards || profile.max_shards * profile.shard_capacity != BRAIN_LOGICAL_MAX_COLUMNS || BRAIN_LOGICAL_SHARD_COLUMNS_BYTES != profile.shard_capacity * BRAIN_SHARD_COLUMN_STRIDE_BYTES as u32 || BRAIN_LOGICAL_SHARD_BINDINGS_BYTES != profile.max_bindings_per_shard * BRAIN_SHARD_BINDING_STRIDE_BYTES as u32 || BRAIN_LOGICAL_SHARD_ARTIFACT_BYTES != BRAIN_SHARD_HEADER_BYTES as u32 + BRAIN_LOGICAL_SHARD_COLUMNS_BYTES + BRAIN_LOGICAL_SHARD_BINDINGS_BYTES + BRAIN_AUXILIARY_PAYLOAD_BYTES {
+        return Result[Int, LogicalProfileError].Err(LogicalProfileError.InconsistentBounds);
+    }
+    return Result[Int, LogicalProfileError].Ok(0);
+}
+
+"""Stable location of one global column inside the logical shard set."""
+open struct LogicalColumnLocation {
+    erg global_index: u32,
+    erg shard_id: u32,
+    erg local_index: u32,
+}
+
+"""Validate the fixed production routing profile before resident creation."""
+open verb logical_shard_profile_is_valid() -> Bool {
+    erg profile: LogicalShardProfile = production_logical_shard_profile();
+    erg checked = validate_logical_shard_profile(profile: erg profile);
+    return case dat checked {
+        Result.Err(_) => false,
+        Result.Ok(_) => true,
+    };
+}
+
+"""Map a checked global column index to a deterministic shard location.
+
+The operation is pure and does not allocate or mutate resident state. It uses
+the production shift/mask profile only after validating that profile and the
+global index bound.
+"""
+open verb logical_column_location(erg global_index: u32) -> Result[LogicalColumnLocation, ShardRoutingError] {
+    if !logical_shard_profile_is_valid() {
+        return Result[LogicalColumnLocation, ShardRoutingError].Err(ShardRoutingError.InvalidProfile);
+    }
+    if global_index >= BRAIN_LOGICAL_MAX_COLUMNS {
+        return Result[LogicalColumnLocation, ShardRoutingError].Err(ShardRoutingError.GlobalIndexOutOfRange);
+    }
+    erg shard_id: u32 = global_index >> BRAIN_LOGICAL_SHARD_SHIFT;
+    erg local_index: u32 = global_index & BRAIN_LOGICAL_SHARD_MASK;
+    return Result[LogicalColumnLocation, ShardRoutingError].Ok(LogicalColumnLocation {global_index: global_index, shard_id: shard_id, local_index: local_index});
+}
+
+"""Rebuild a global index from checked shard and local indexes.
+
+The operation rejects indexes outside the configured logical brain before
+returning a value and does not mutate resident state.
+"""
+open verb logical_global_index(erg shard_id: u32, erg local_index: u32) -> Result[u32, ShardRoutingError] {
+    if !logical_shard_profile_is_valid() {
+        return Result[u32, ShardRoutingError].Err(ShardRoutingError.InvalidProfile);
+    }
+    if shard_id >= BRAIN_LOGICAL_MAX_SHARDS {
+        return Result[u32, ShardRoutingError].Err(ShardRoutingError.ShardIndexOutOfRange);
+    }
+    if local_index >= BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY {
+        return Result[u32, ShardRoutingError].Err(ShardRoutingError.LocalIndexOutOfRange);
+    }
+    erg global_index: u32 = (shard_id << BRAIN_LOGICAL_SHARD_SHIFT) | local_index;
+    if global_index >= BRAIN_LOGICAL_MAX_COLUMNS {
+        return Result[u32, ShardRoutingError].Err(ShardRoutingError.GlobalIndexOutOfRange);
+    }
+    return Result[u32, ShardRoutingError].Ok(global_index);
+}

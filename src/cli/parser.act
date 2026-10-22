@@ -1,0 +1,303 @@
+"""Parse the bounded operator command into a typed runner configuration."""
+import std::process;
+
+open arguments;
+
+open contract;
+
+open process;
+
+verb parse_source_mode(
+    ins arguments: Arguments,
+    abs file_flag: String,
+    abs stdin_flag: String
+) -> Result[Bool, RunnerParseError] {
+    erg source: Buffer = Buffer[4096];
+    erg result: Result[Int,RunnerParseError] = cli_next(arguments: ins arguments, buffer: ins source);
+    return case dat result {
+        Result.Err(_) => Result[Bool, RunnerParseError].Err(RunnerParseError.MissingArgument),
+        Result.Ok(length) => if cli_flag(
+            value: abs source,
+            length: abs length,
+            expected: abs file_flag
+        ) {
+            Result[Bool, RunnerParseError].Ok(true);
+        } else if cli_flag(
+            value: abs source,
+            length: abs length,
+            expected: abs stdin_flag
+        ) {
+            Result[Bool, RunnerParseError].Ok(false);
+        } else {
+            Result[Bool, RunnerParseError].Err(RunnerParseError.InvalidArgument);
+        },
+    };
+}
+
+verb parse_mode(
+    ins arguments: Arguments,
+    abs load_flag: String,
+    abs init_flag: String
+) -> Result[Bool, RunnerParseError] {
+    erg mode: Buffer = Buffer[4096];
+    erg result: Result[Int,RunnerParseError] = cli_next(arguments: ins arguments, buffer: ins mode);
+    return case dat result {
+        Result.Err(_) => Result[Bool, RunnerParseError].Err(RunnerParseError.InvalidArgument),
+        Result.Ok(length) => if cli_flag(
+            value: abs mode,
+            length: abs length,
+            expected: abs load_flag
+        ) {
+            Result[Bool, RunnerParseError].Ok(true);
+        } else if cli_flag(
+            value: abs mode,
+            length: abs length,
+            expected: abs init_flag
+        ) {
+            Result[Bool, RunnerParseError].Ok(false);
+        } else {
+            Result[Bool, RunnerParseError].Err(RunnerParseError.InvalidArgument);
+        },
+    };
+}
+
+verb parse_file_input(ins arguments: Arguments) -> Result[Option[Path], RunnerParseError] {
+    erg result: Result[Path,RunnerParseError] = cli_read_path(arguments: ins arguments);
+    return case dat result {
+        Result.Err(error) => Result[Option[Path], RunnerParseError].Err(dat error),
+        Result.Ok(path) => Result[Option[Path], RunnerParseError].Ok(cli_some_path(path: dat path)),
+    };
+}
+
+verb parse_after_mode(
+    dat arguments: Arguments,
+    abs total: Int,
+    dat mode_result: Result[Bool, RunnerParseError],
+    abs file_flag: String,
+    abs stdin_flag: String,
+    abs save_flag: String
+) -> Result[RunnerConfig, RunnerParseError] {
+    erg load: Bool = case dat mode_result {
+        Result.Err(error) => {
+            return Result[RunnerConfig, RunnerParseError].Err(dat error);
+        },
+        Result.Ok(value) => value,
+    };
+    erg brain_result: Result[Path,RunnerParseError] = cli_read_path(arguments: ins arguments);
+    return case dat brain_result {
+        Result.Err(error) => {
+            return Result[RunnerConfig, RunnerParseError].Err(dat error);
+        },
+        Result.Ok(path) => parse_remaining(
+            brain_path: dat path,
+            arguments: ins arguments,
+            total: abs total,
+            load: dat load,
+            file_flag: abs file_flag,
+            stdin_flag: abs stdin_flag,
+            save_flag: abs save_flag
+        ),
+    };
+}
+
+verb parse_input(ins arguments: Arguments, abs file: Bool) -> Result[Option[Path], RunnerParseError] {
+    if !file {
+        return Result[Option[Path], RunnerParseError].Ok(Option[Path].None);
+    }
+    return parse_file_input(arguments: ins arguments);
+}
+
+verb parse_save_flag(ins arguments: Arguments, abs save_flag: String) -> Result[Bool, RunnerParseError] {
+    erg buffer: Buffer = Buffer[4096];
+    erg result: Result[Int,RunnerParseError] = cli_next(arguments: ins arguments, buffer: ins buffer);
+    return case dat result {
+        Result.Ok(length) => if cli_flag(
+            value: abs buffer,
+            length: abs length,
+            expected: abs save_flag
+        ) {
+            Result[Bool, RunnerParseError].Ok(true);
+        } else {
+            Result[Bool, RunnerParseError].Err(RunnerParseError.InvalidArgument);
+        },
+        _ => Result[Bool, RunnerParseError].Err(RunnerParseError.InvalidArgument),
+    };
+}
+
+verb parse_program(ins arguments: Arguments) -> Result[Int, RunnerParseError] {
+    erg buffer: Buffer = Buffer[4096];
+    erg result: Result[Int,RunnerParseError] = cli_next(arguments: ins arguments, buffer: ins buffer);
+    return case dat result {
+        Result.Ok(length) => Result[Int, RunnerParseError].Ok(length),
+        _ => Result[Int, RunnerParseError].Err(RunnerParseError.InvalidArgument),
+    };
+}
+
+verb parse_program_ok(ins arguments: Arguments) -> Bool {
+    erg result = parse_program(arguments: ins arguments);
+    return case dat result {
+        Result.Ok(_) => true,
+        Result.Err(_) => false,
+    };
+}
+
+verb resolve_save(
+    ins arguments: Arguments,
+    abs total: Int,
+    abs base_count: Int,
+    abs save_flag: String
+) -> Result[Bool, RunnerParseError] {
+    if total == base_count {
+        return Result[Bool, RunnerParseError].Ok(false);
+    }
+    if total != base_count + 1 {
+        return Result[Bool, RunnerParseError].Err(RunnerParseError.InvalidArgument);
+    }
+    return parse_save_flag(arguments: ins arguments, save_flag: abs save_flag);
+}
+
+verb resolve_command_save(
+    ins arguments: Arguments,
+    abs total: Int,
+    abs file: Bool,
+    abs save_flag: String
+) -> Result[Bool, RunnerParseError] {
+    erg base_count: Int = 4;
+    if file {
+        base_count = 5;
+    }
+    return resolve_save(
+        arguments: ins arguments,
+        total: abs total,
+        base_count: abs base_count,
+        save_flag: abs save_flag
+    );
+}
+
+verb parse_source_input(
+    ins arguments: Arguments,
+    abs file_flag: String,
+    abs stdin_flag: String
+) -> Result[Option[Path], RunnerParseError] {
+    erg source_result: Result[Bool,RunnerParseError] = parse_source_mode(
+        arguments: ins arguments,
+        file_flag: abs file_flag,
+        stdin_flag: abs stdin_flag
+    );
+    erg file: Bool = case dat source_result {
+        Result.Err(error) => {
+            return Result[Option[Path], RunnerParseError].Err(dat error);
+        },
+        Result.Ok(value) => value,
+    };
+    return parse_input(arguments: ins arguments, file: abs file);
+}
+
+verb input_is_file(abs input_path: Option[Path]) -> Bool {
+    return case input_path {
+        Option.None => false,
+        Option.Some(_) => true,
+    };
+}
+
+verb finish_command_save(
+    ins arguments: Arguments,
+    abs total: Int,
+    abs input_path: Option[Path],
+    abs save_flag: String
+) -> Result[Bool, RunnerParseError] {
+    erg file: Bool = input_is_file(input_path: abs input_path);
+    return resolve_command_save(
+        arguments: ins arguments,
+        total: abs total,
+        file: abs file,
+        save_flag: abs save_flag
+    );
+}
+
+verb finish_command_input(
+    ins arguments: Arguments,
+    abs file_flag: String,
+    abs stdin_flag: String
+) -> Result[Option[Path], RunnerParseError] {
+    return parse_source_input(
+        arguments: ins arguments,
+        file_flag: abs file_flag,
+        stdin_flag: abs stdin_flag
+    );
+}
+
+verb finish_command_finalize(
+    dat brain_path: Path,
+    ins arguments: Arguments,
+    abs total: Int,
+    dat load: Bool,
+    dat input_path: Option[Path],
+    abs save_flag: String
+) -> Result[RunnerConfig, RunnerParseError] {
+    erg file: Bool = input_is_file(input_path: abs input_path);
+    erg save_result: Result[Bool,RunnerParseError] = finish_command_save(
+        arguments: ins arguments,
+        total: abs total,
+        input_path: abs input_path,
+        save_flag: abs save_flag
+    );
+    erg save: Bool = case dat save_result {
+        Result.Err(error) => {
+            return Result[RunnerConfig, RunnerParseError].Err(dat error);
+        },
+        Result.Ok(value) => value,
+    };
+    return Result[RunnerConfig, RunnerParseError].Ok(RunnerConfig {load: load, file: file, save: save, brain_path: brain_path, shard_paths: Array[Path, 8](
+    ), input_path: input_path});
+}
+
+verb finish_command(
+    dat brain_path: Path,
+    ins arguments: Arguments,
+    abs total: Int,
+    dat load: Bool,
+    abs file_flag: String,
+    abs stdin_flag: String,
+    abs save_flag: String
+) -> Result[RunnerConfig, RunnerParseError] {
+    erg input_result: Result[Option[Path],RunnerParseError] = finish_command_input(
+        arguments: ins arguments,
+        file_flag: abs file_flag,
+        stdin_flag: abs stdin_flag
+    );
+    erg input_path: Option[Path] = case dat input_result {
+        Result.Err(error) => {
+            return Result[RunnerConfig, RunnerParseError].Err(dat error);
+        },
+        Result.Ok(value) => value,
+    };
+    return finish_command_finalize(
+        brain_path: dat brain_path,
+        arguments: ins arguments,
+        total: abs total,
+        load: dat load,
+        input_path: dat input_path,
+        save_flag: abs save_flag
+    );
+}
+
+verb parse_remaining(
+    dat brain_path: Path,
+    ins arguments: Arguments,
+    abs total: Int,
+    dat load: Bool,
+    abs file_flag: String,
+    abs stdin_flag: String,
+    abs save_flag: String
+) -> Result[RunnerConfig, RunnerParseError] {
+    return finish_command(
+        brain_path: dat brain_path,
+        arguments: ins arguments,
+        total: abs total,
+        load: dat load,
+        file_flag: abs file_flag,
+        stdin_flag: abs stdin_flag,
+        save_flag: abs save_flag
+    );
+}
