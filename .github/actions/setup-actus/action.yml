@@ -4,7 +4,7 @@ inputs:
   actus-ref:
     description: Actus repository commit or tag
     required: false
-    default: ed64884b3c1c235e85c1fe7fdd114d4074a94898
+    default: be2a0042e521548eeb21fda581f77b509b8f38ed
 runs:
   using: composite
   steps:
