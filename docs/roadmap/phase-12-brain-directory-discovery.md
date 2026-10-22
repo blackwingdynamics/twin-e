@@ -70,7 +70,7 @@ bounded, resumable batches without reintroducing a per-file configuration list.
       index, then consume the published index order during teaching.
 - [x] Enforce one named per-batch index bound without limiting total corpus
       size or the number of published brain generations.
-- [ ] Initialize the brain for the first file, then load the published
+- [x] Initialize the brain for the first file, then load the published
       generation before each subsequent indexed file and preserve the same
       `brain_dir`.
 - [ ] Publish a mandatory checkpoint after each successful indexed file so an

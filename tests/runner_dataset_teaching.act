@@ -1,0 +1,342 @@
+meta limitless("file")
+
+
+"""Gate 12.2 public evidence for indexed teaching checkpoint and reload."""
+import aie;
+
+import cli;
+
+import runner;
+
+import std::fs;
+
+import std::path;
+
+open aie;
+
+open cli;
+
+open fs;
+
+open path;
+
+open runner;
+
+verb runner_teaching_path_root(ins raw: Buffer, erg selector: u8) {
+    if selector == 0u8 {
+        append(raw, 98u8);
+        append(raw, 114u8);
+        append(raw, 97u8);
+        append(raw, 105u8);
+        append(raw, 110u8);
+    } else {
+        append(raw, 105u8);
+        append(raw, 110u8);
+        append(raw, 112u8);
+        append(raw, 117u8);
+        append(raw, 116u8);
+    }
+}
+
+verb runner_teaching_path(erg selector: u8) -> Result[Path, PathError] {
+    erg raw: Buffer = Buffer[0];
+    append(raw, 47u8);
+    append(raw, 116u8);
+    append(raw, 109u8);
+    append(raw, 112u8);
+    append(raw, 47u8);
+    append(raw, 116u8);
+    append(raw, 119u8);
+    append(raw, 105u8);
+    append(raw, 110u8);
+    append(raw, 45u8);
+    append(raw, 101u8);
+    append(raw, 45u8);
+    runner_teaching_path_root(raw: ins raw, selector: erg selector);
+    if selector >= 2u8 {
+        append(raw, 47u8);
+        if selector == 2u8 {
+            append(raw, 97u8);
+        } else {
+            append(raw, 98u8);
+        }
+        append(raw, 46u8);
+        append(raw, 116u8);
+        append(raw, 119u8);
+        append(raw, 102u8);
+    }
+    append(raw, 0u8);
+    return path_from_ascii(storage: dat raw);
+}
+
+verb runner_teaching_file_bytes() -> Buffer {
+    erg bytes: Buffer = Buffer[0];
+    append(bytes, 84u8);
+    append(bytes, 87u8);
+    append(bytes, 70u8);
+    append(bytes, 49u8);
+    append(bytes, 2u8);
+    append(bytes, 2u8);
+    append(bytes, 0u8);
+    append(bytes, 65u8);
+    append(bytes, 66u8);
+    append(bytes, 2u8);
+    append(bytes, 0u8);
+    append(bytes, 67u8);
+    append(bytes, 68u8);
+    return bytes;
+}
+
+verb runner_teaching_path_value(erg selector: u8) -> Path {
+    erg result = runner_teaching_path(selector: erg selector);
+    return case dat result {
+        Result.Err(_) => Path {storage: Buffer[0], platform: PathPlatform.Posix, length: 0, capacity: 0, terminated: 0},
+        Result.Ok(path) => path,
+    };
+}
+
+verb runner_teaching_write(abs path: Path) -> Bool {
+    erg bytes = runner_teaching_file_bytes();
+    erg written = write_file(path: abs path, contents: abs bytes);
+    return case dat written {
+        Result.Err(_) => false,
+        Result.Ok(_) => true,
+    };
+}
+
+verb runner_teaching_cleanup(
+    dat brain_dir: Path,
+    dat input_dir: Path,
+    dat first: Path,
+    dat second: Path
+) {
+    remove_file(path: abs first);
+    remove_file(path: abs second);
+    remove_dir(path: abs input_dir);
+    remove_dir(path: abs brain_dir);
+    drop(brain_dir);
+    drop(input_dir);
+    drop(first);
+    drop(second);
+}
+
+verb runner_teaching_run(
+    dat brain_dir: Path,
+    dat input_dir: Path,
+    dat first: Path,
+    dat second: Path
+) -> Int {
+    remove_dir(path: abs brain_dir);
+    remove_dir(path: abs input_dir);
+    erg created = create_dir(path: abs input_dir);
+    return case dat created {
+        Result.Err(_) => {
+            runner_teaching_cleanup(
+                brain_dir: dat brain_dir,
+                input_dir: dat input_dir,
+                first: dat first,
+                second: dat second
+            );
+            1;
+        },
+        Result.Ok(_) => runner_teaching_run_created(
+            brain_dir: dat brain_dir,
+            input_dir: dat input_dir,
+            first: dat first,
+            second: dat second
+        ),
+    };
+}
+
+verb runner_teaching_run_created(
+    dat brain_dir: Path,
+    dat input_dir: Path,
+    dat first: Path,
+    dat second: Path
+) -> Int {
+    if !runner_teaching_write(path: abs first) || !runner_teaching_write(path: abs second) {
+        runner_teaching_cleanup(
+            brain_dir: dat brain_dir,
+            input_dir: dat input_dir,
+            first: dat first,
+            second: dat second
+        );
+        return 2;
+    }
+    erg brain: LogicalTeachingBrain = logical_teaching_empty();
+    return runner_teaching_initialize(
+        brain_dir: dat brain_dir,
+        input_dir: dat input_dir,
+        first: dat first,
+        second: dat second,
+        brain: ins brain
+    );
+}
+
+verb runner_teaching_initialize(
+    dat brain_dir: Path,
+    dat input_dir: Path,
+    dat first: Path,
+    dat second: Path,
+    ins brain: LogicalTeachingBrain
+) -> Int {
+    erg initialized = logical_teaching_init(brain: ins brain);
+    return case dat initialized {
+        Result.Err(_) => runner_teaching_init_failed(
+            brain_dir: dat brain_dir,
+            input_dir: dat input_dir,
+            first: dat first,
+            second: dat second
+        ),
+        Result.Ok(_) => {
+            erg input = Option[Path].Some(dat input_dir);
+            erg command = RunnerConfig {load: false, file: false, directory: true, save: true, brain_dir: brain_dir, input_path: input};
+            runner_teaching_run_initialized(
+                command: dat command,
+                first: dat first,
+                second: dat second,
+                brain: ins brain
+            );
+        },
+    };
+}
+
+verb runner_teaching_init_failed(
+    dat brain_dir: Path,
+    dat input_dir: Path,
+    dat first: Path,
+    dat second: Path
+) -> Int {
+    runner_teaching_cleanup(
+        brain_dir: dat brain_dir,
+        input_dir: dat input_dir,
+        first: dat first,
+        second: dat second
+    );
+    return 3;
+}
+
+verb runner_teaching_run_initialized(
+    dat command: RunnerConfig,
+    dat first: Path,
+    dat second: Path,
+    ins brain: LogicalTeachingBrain
+) -> Int {
+    erg taught = teach_dataset_directory_state(command: abs command, brain: ins brain);
+    if taught != 0 {
+        return runner_teaching_failed_command(
+            command: dat command,
+            first: dat first,
+            second: dat second
+        );
+    }
+    erg result = runner_teaching_reload_check(command: abs command, brain: ins brain);
+    return runner_teaching_cleanup_command(
+        command: dat command,
+        first: dat first,
+        second: dat second,
+        result: erg result
+    );
+}
+
+verb runner_teaching_failed_command(
+    dat command: RunnerConfig,
+    dat first: Path,
+    dat second: Path
+) -> Int {
+    erg result: Int = 4;
+    return runner_teaching_cleanup_command(
+        command: dat command,
+        first: dat first,
+        second: dat second,
+        result: erg result
+    );
+}
+
+verb runner_teaching_cleanup_command(
+    dat command: RunnerConfig,
+    dat first: Path,
+    dat second: Path,
+    erg result: Int
+) -> Int {
+    erg brain_dir: Path = command.brain_dir;
+    erg input = command.input_path;
+    erg first_path: Path = first;
+    erg second_path: Path = second;
+    return case dat input {
+        Option.None => runner_teaching_cleanup_missing(
+            brain_dir: dat brain_dir,
+            first: dat first_path,
+            second: dat second_path,
+            result: erg result
+        ),
+        Option.Some(input_dir) => runner_teaching_cleanup_present(
+            brain_dir: dat brain_dir,
+            input_dir: dat input_dir,
+            first: dat first_path,
+            second: dat second_path,
+            result: erg result
+        ),
+    };
+}
+
+verb runner_teaching_cleanup_missing(
+    dat brain_dir: Path,
+    dat first: Path,
+    dat second: Path,
+    erg result: Int
+) -> Int {
+    drop(brain_dir);
+    drop(first);
+    drop(second);
+    return result;
+}
+
+verb runner_teaching_cleanup_present(
+    dat brain_dir: Path,
+    dat input_dir: Path,
+    dat first: Path,
+    dat second: Path,
+    erg result: Int
+) -> Int {
+    runner_teaching_cleanup(
+        brain_dir: dat brain_dir,
+        input_dir: dat input_dir,
+        first: dat first,
+        second: dat second
+    );
+    return result;
+}
+
+verb runner_teaching_reload_check(
+    abs command: RunnerConfig,
+    ins brain: LogicalTeachingBrain
+) -> Int {
+    erg loaded = logical_teaching_load_generation(brain: ins brain, brain_dir: abs command.brain_dir);
+    return case dat loaded {
+        Result.Err(_) => 5,
+        Result.Ok(_) => if brain.logical.generation == 2u64 {
+            0;
+        } else {
+            6;
+        },
+    };
+}
+
+meta test
+verb test_indexed_directory_teaching_checkpoints_and_reloads() -> Int {
+    erg brain_selector: u8 = 0u8;
+    erg input_selector: u8 = 1u8;
+    erg first_selector: u8 = 2u8;
+    erg second_selector: u8 = 3u8;
+    erg brain_dir = runner_teaching_path_value(selector: erg brain_selector);
+    erg input_dir = runner_teaching_path_value(selector: erg input_selector);
+    erg first = runner_teaching_path_value(selector: erg first_selector);
+    erg second = runner_teaching_path_value(selector: erg second_selector);
+    return runner_teaching_run(
+        brain_dir: dat brain_dir,
+        input_dir: dat input_dir,
+        first: dat first,
+        second: dat second
+    );
+}
