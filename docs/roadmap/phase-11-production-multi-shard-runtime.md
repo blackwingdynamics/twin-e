@@ -171,14 +171,14 @@ strict suite is 168 tests with zero failures.
 
 ## Gate 11.7 — Replace the runner's single-fabric teaching path
 
-- [ ] Make the production runner own the logical-brain facade, not one raw
+- [x] Make the production runner own the logical-brain facade, not one raw
       `CorticalFabric[64]`.
-- [ ] Route direct, file, and stdin teaching through the canonical facade.
-- [ ] Keep configuration explicit and independent of developer home paths.
-- [ ] Distinguish resident acceptance from published persistence in output.
-- [ ] Preserve stable exit codes for routing, capacity, teaching, and save
+- [x] Route direct, file, and stdin teaching through the canonical facade.
+- [x] Keep configuration explicit and independent of developer home paths.
+- [x] Distinguish resident acceptance from published persistence in output.
+- [x] Preserve stable exit codes for routing, capacity, teaching, and save
       failures.
-- [ ] Ensure default output never prints raw source records.
+- [x] Ensure default output never prints raw source records.
 
 ### Required evidence
 

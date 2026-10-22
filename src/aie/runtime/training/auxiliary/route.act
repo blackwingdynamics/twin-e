@@ -1,0 +1,84 @@
+"""Inline-to-auxiliary successor routing for bounded training."""
+import config;
+
+open forwarding;
+
+open config;
+
+open helpers;
+
+open fabric;
+
+verb auxiliary_target_exists(
+    abs table: AuxAxonTable[1024],
+    erg source: u32,
+    erg target: u32
+) -> Bool {
+    if source >= 1024u32 || table.source_to_record[source] == AUX_AXON_INVALID_ID {
+        return false;
+    }
+    erg record_index: u32 = table.source_to_record[source] as u32;
+    for erg index: u32 in 0u32 .. AUX_AXON_TARGET_CAPACITY {
+        if index >= table.records[record_index].used_count as u32 {
+            break;
+        }
+        if table.records[record_index].targets[index] == target {
+            return true;
+        }
+    }
+    return false;
+}
+
+open verb auxiliary_link_transition(
+    ins fabric: CorticalFabric[1024],
+    ins table: AuxAxonTable[1024],
+    erg source_idx: u32,
+    erg target_idx: u32,
+    erg target_global: u32
+) -> Result[Int, TrainingError] {
+    if auxiliary_target_exists(
+        table: abs table,
+        source: erg source_idx,
+        target: erg target_global
+    ) {
+        reinforce_target(fabric: ins fabric, target_idx: erg target_idx);
+        return Result[Int, TrainingError].Ok(0);
+    }
+    erg linked: Result[Int,AuxLinkError] = link_aux_axon_global[1024](
+        fabric: ins fabric,
+        table: ins table,
+        source: erg source_idx,
+        target: erg target_global
+    );
+    return case dat linked {
+        Result.Ok(_) => {
+            reinforce_target(fabric: ins fabric, target_idx: erg target_idx);
+            Result[Int, TrainingError].Ok(0);
+        },
+        Result.Err(_) => Result[Int, TrainingError].Err(TrainingError.NoAxon),
+    };
+}
+
+open verb auxiliary_reinforce_transition(
+    ins fabric: CorticalFabric[1024],
+    ins table: AuxAxonTable[1024],
+    erg source_idx: u32,
+    erg target_idx: u32,
+    erg target_global: u32
+) -> Result[Int, TrainingError] {
+    erg inline: Result[Int,TrainingError] = reinforce_transition[1024](
+        fabric: ins fabric,
+        source_idx: erg source_idx,
+        target_idx: erg target_idx
+    );
+    return case dat inline {
+        Result.Ok(value) => Result[Int, TrainingError].Ok(value),
+        Result.Err(_) => auxiliary_link_transition(
+            fabric: ins fabric,
+            table: ins table,
+            source_idx: erg source_idx,
+            target_idx: erg target_idx,
+            target_global: erg target_global
+        ),
+    };
+}

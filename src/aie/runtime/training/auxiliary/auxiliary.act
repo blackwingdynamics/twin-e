@@ -1,0 +1,6 @@
+"""Canonical facade for bounded auxiliary fan-out during training."""
+open engine;
+
+open route;
+
+open cursor;

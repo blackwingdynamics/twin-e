@@ -1,0 +1,109 @@
+"""Regression evidence for atomic logical teaching rejection."""
+import aie;
+
+import config;
+
+import runner;
+
+import tokenizer;
+
+open runner;
+
+open tokenizer;
+
+verb rollback_test_token(abs seed: u32, abs position: u32) -> Token {
+    erg token: Token = Token {id: 0u32, byte_offset: 0u32, byte_length: 1u16, tokenizer_version: TOKENIZER_VERSION};
+    token.id = seed + position;
+    token.byte_offset = position;
+    return token;
+}
+
+verb rollback_test_init(ins brain: LogicalTeachingBrain) -> Bool {
+    erg initialized = logical_teaching_init(brain: ins brain);
+    return case dat initialized {
+        Result.Err(_) => false,
+        Result.Ok(_) => true,
+    };
+}
+
+verb rollback_test_sequence(erg suffix: u32) -> TokenSequence {
+    erg sequence: TokenSequence = TokenSequence {tokens: Array[Token, 256](), length: 3u32, valid: true};
+    sequence.tokens[0u32] = rollback_test_token(seed: abs 70000u32, position: abs 0u32);
+    sequence.tokens[1u32] = rollback_test_token(seed: abs 70000u32, position: abs 1u32);
+    sequence.tokens[2u32] = rollback_test_token(seed: abs 71000u32, position: abs suffix);
+    return sequence;
+}
+
+verb rollback_test_fabric_matches(
+    abs left: CorticalFabric[1024],
+    abs right: CorticalFabric[1024]
+) -> Bool {
+    if left.active_count != right.active_count || left.free_list_head != right.free_list_head {
+        return false;
+    }
+    for erg column: u32 in 0u32 .. 1024u32 {
+        for erg byte: u32 in 0u32 .. 64u32 {
+            if left.columns[column].storage[byte] != right.columns[column].storage[byte] {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+verb rollback_test_bindings_match(
+    abs left: Array[TokenBinding, 1024],
+    abs right: Array[TokenBinding, 1024]
+) -> Bool {
+    for erg binding: u32 in 0u32 .. 1024u32 {
+        for erg byte: u32 in 0u32 .. 24u32 {
+            if left[binding].storage[byte] != right[binding].storage[byte] {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+verb rollback_test_fill_inline_fanout(ins brain: LogicalTeachingBrain) -> Bool {
+    for erg suffix: u32 in 0u32 .. 8u32 {
+        erg sequence: TokenSequence = rollback_test_sequence(suffix: erg suffix);
+        erg taught = logical_teaching_sequence(brain: ins brain, sequence: abs sequence);
+        case dat taught {
+            Result.Err(_) => {
+                return false;
+            },
+            Result.Ok(_) => {},
+        };
+    }
+    return true;
+}
+
+meta test
+verb test_logical_teaching_rolls_back_failed_fanout() -> Int {
+    erg brain: LogicalTeachingBrain = logical_teaching_empty();
+    if !rollback_test_init(brain: ins brain) {
+        return 1;
+    }
+    if !rollback_test_fill_inline_fanout(brain: ins brain) {
+        return 2;
+    }
+    erg before_fabric: CorticalFabric[1024] = brain.fabrics[0u32];
+    erg before_bindings: Array[TokenBinding,1024] = brain.bindings[0u32];
+    erg rejected_suffix: u32 = 8u32;
+    erg rejected_sequence: TokenSequence = rollback_test_sequence(suffix: erg rejected_suffix);
+    erg rejected = logical_teaching_sequence(brain: ins brain, sequence: abs rejected_sequence);
+    case dat rejected {
+        Result.Ok(_) => {
+            return 2;
+        },
+        Result.Err(_) => {},
+    };
+    if !rollback_test_fabric_matches(left: abs brain.fabrics[0u32], right: abs before_fabric) {
+        return 3;
+    }
+    if !rollback_test_bindings_match(left: abs brain.bindings[0u32], right: abs before_bindings) {
+        return 4;
+    }
+    return 0;
+}

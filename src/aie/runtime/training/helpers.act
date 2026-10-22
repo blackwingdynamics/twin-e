@@ -6,7 +6,7 @@ open tokenizer;
 
 open input;
 
-verb reinforce_target[N: Usize](
+open verb reinforce_target[N: Usize](
     ins fabric: CorticalFabric[N],
     erg target_idx: u32
 ) {
@@ -34,7 +34,7 @@ verb find_transition_slot[N: Usize](
     return 8u32;
 }
 
-verb reinforce_transition[N: Usize](
+open verb reinforce_transition[N: Usize](
     ins fabric: CorticalFabric[N],
     erg source_idx: u32,
     erg target_idx: u32
@@ -72,7 +72,7 @@ verb count_active_bindings[N: Usize](abs bindings: Array[TokenBinding, N]) -> u3
     return count;
 }
 
-verb make_training_metrics[N: Usize](
+open verb make_training_metrics[N: Usize](
     abs bindings: Array[TokenBinding, N],
     erg event_count: u32,
     erg allocated_columns: u32,
@@ -83,7 +83,7 @@ verb make_training_metrics[N: Usize](
     )};
 }
 
-struct TrainingEventResult {
+open struct TrainingEventResult {
     erg index: u32,
     erg allocated: Bool,
 }
@@ -116,7 +116,7 @@ verb mark_training_target[N: Usize](ins fabric: CorticalFabric[N], erg index: u3
     return Option[u32].Some(index);
 }
 
-verb resolve_training_target[N: Usize](
+open verb resolve_training_target[N: Usize](
     ins fabric: CorticalFabric[N],
     ins bindings: Array[TokenBinding, N],
     erg source_idx: u32,
@@ -147,7 +147,7 @@ verb resolve_training_target[N: Usize](
     };
 }
 
-verb require_training_target[N: Usize](
+open verb require_training_target[N: Usize](
     ins fabric: CorticalFabric[N],
     ins bindings: Array[TokenBinding, N],
     erg source_idx: u32,

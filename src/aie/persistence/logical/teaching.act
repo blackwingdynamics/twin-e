@@ -124,16 +124,21 @@ verb logical_teaching_run_on_shard(
 ) -> Result[TrainingMetrics, LogicalTeachingError] {
     erg local_fabric: CorticalFabric[1024] = brain.fabrics[shard_id as Usize];
     erg local_bindings: Array[TokenBinding,1024] = brain.bindings[shard_id as Usize];
-    erg trained = train_token_sequence(
+    erg local_auxiliary: LogicalAuxiliaryState = brain.auxiliary[shard_id as Usize];
+    erg target_base: u32 = shard_id * BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY;
+    erg trained = train_token_sequence_with_auxiliary(
         fabric: ins local_fabric,
         bindings: ins local_bindings,
-        sequence: abs sequence
+        table: ins local_auxiliary.table,
+        sequence: abs sequence,
+        target_base: erg target_base
     );
-    brain.fabrics[shard_id as Usize] = local_fabric;
-    brain.bindings[shard_id as Usize] = local_bindings;
     return case dat trained {
         Result.Err(_) => Result[TrainingMetrics, LogicalTeachingError].Err(LogicalTeachingError.TrainingRejected),
         Result.Ok(metrics) => {
+            brain.fabrics[shard_id as Usize] = local_fabric;
+            brain.bindings[shard_id as Usize] = local_bindings;
+            brain.auxiliary[shard_id as Usize] = local_auxiliary;
             shard_cache_mark_dirty(cache: ins brain.logical.cache, slot: erg cache_slot);
             Result[TrainingMetrics, LogicalTeachingError].Ok(metrics);
         },
