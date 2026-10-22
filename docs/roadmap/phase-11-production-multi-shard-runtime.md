@@ -200,7 +200,7 @@ recalled before continued teaching. The full strict suite passed with
 
 ## Gate 11.8 — Add scale, failure, and performance evidence
 
-- [ ] Benchmark one-shard, two-shard, and configured-maximum profiles.
+- [x] Benchmark one-shard, two-shard, and configured-maximum profiles.
 - [ ] Separate adapter, admission, routing, teaching, flush, and publication
       latency in benchmark output.
 - [ ] Record peak resident memory, logical columns, shard count, binding count,
