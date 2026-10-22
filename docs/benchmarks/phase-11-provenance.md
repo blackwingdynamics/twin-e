@@ -15,6 +15,18 @@ Recorded on 2026-10-22 from the clean Twin-e workspace on branch
 - Native verification: the strict benchmark builds reported no floating-point
   instructions.
 
+Fresh verification command:
+
+```sh
+actus build --strict --emit exe \
+  -o /tmp/twin-e-gate-11-8-native-evidence \
+  benchmarks/aie_logical_scale_profiles.act
+```
+
+Observed compiler result: `verified generated native IR: no floating-point
+instructions`. The resulting executable SHA-256 is
+`b4192449028f0dc71c64683757accb8ce93cbc66a379a17559537d351eb0f10d`.
+
 ## Benchmark artifacts
 
 | Evidence | Build output SHA-256 |
@@ -74,3 +86,19 @@ memory=identical_logical_results_and_bounds
 
 This proves repeatable logical results and bounded profile values while keeping
 variable runtime latency measurements separate.
+
+## Hot-path audit
+
+Audit command:
+
+```sh
+rg -n "write_file|read_to_bytes|rename|delete|open_file|path_from" \
+  src/aie/runtime src/aie/persistence/logical/teaching.act \
+  src/runner/teaching.act src/runner/logical_teaching.act src/teaching
+```
+
+The runtime/training and logical teaching paths contain no filesystem calls.
+`read_to_bytes` appears only in the explicit file-input transport adapters;
+publication remains in the separate save path. The runner teaching boundary
+passes an explicit flush result and does not open, write, rename, or publish a
+file during inference or teaching.

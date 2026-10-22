@@ -214,8 +214,8 @@ recalled before continued teaching. The full strict suite passed with
 ### Required evidence
 
 - [x] Repeated runs produce identical logical results and bounded metrics.
-- [ ] Native strict build confirms no floating-point instructions.
-- [ ] No hot-path filesystem operation is observed during teaching/inference.
+- [x] Native strict build confirms no floating-point instructions.
+- [x] No hot-path filesystem operation is observed during teaching/inference.
 
 Evidence (2026-10-22): the logical persistence test published generations `1`,
 `2`, and `3`, loading each continuation into a fresh brain before teaching and
@@ -240,6 +240,15 @@ hashes, and exact build/run commands are recorded in
 Evidence (2026-10-22): scale, latency, and memory executables were each run
 twice. Their normalized logical/profile outputs matched byte-for-byte while
 timing fields remained explicitly variable and separate.
+
+Evidence (2026-10-22): a fresh strict native build of
+`benchmarks/aie_logical_scale_profiles.act` reported
+`verified generated native IR: no floating-point instructions`; its executable
+checksum is recorded in `docs/benchmarks/phase-11-provenance.md`.
+
+Evidence (2026-10-22): static call-path audit found no filesystem operation in
+runtime/training or logical teaching. File reads are confined to explicit file
+input adapters, while publication remains behind the caller-driven save path.
 
 ## Gate 11.9 — Production acceptance and ADR closure
 
