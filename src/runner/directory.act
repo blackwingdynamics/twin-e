@@ -27,7 +27,14 @@ verb runner_is_twf(abs path: Path) -> Bool {
             if component.length != 3 {
                 return false;
             }
-            return true;
+            return case component.source.platform {
+                PathPlatform.Posix => {
+                    component.source.storage[component.offset as Usize] == 116u8 && component.source.storage[(component.offset + 1) as Usize] == 119u8 && component.source.storage[(component.offset + 2) as Usize] == 102u8;
+                },
+                PathPlatform.Windows => {
+                    component.source.storage[(component.offset * 2) as Usize] == 116u8 && component.source.storage[((component.offset * 2) + 1) as Usize] == 0u8 && component.source.storage[((component.offset + 1) * 2) as Usize] == 119u8 && component.source.storage[(((component.offset + 1) * 2) + 1) as Usize] == 0u8 && component.source.storage[((component.offset + 2) * 2) as Usize] == 102u8 && component.source.storage[(((component.offset + 2) * 2) + 1) as Usize] == 0u8;
+                },
+            };
         },
     };
 }

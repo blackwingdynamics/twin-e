@@ -61,6 +61,8 @@ bounded, resumable batches without reintroducing a per-file configuration list.
 ### Contract
 
 - [x] Add `source=directory` and `input_dir=<directory>` to the runner config.
+- [x] Match the final path extension exactly as `.twf` for POSIX and Windows
+      path storage; unrelated three-letter extensions are rejected.
 - [ ] Generate a validated dataset manifest index from only regular `.twf`
       files below the configured directory.
 - [ ] Sort discovered relative filenames deterministically when generating the
