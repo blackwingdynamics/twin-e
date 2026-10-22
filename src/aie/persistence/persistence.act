@@ -3,6 +3,8 @@ import config;
 
 open serialization;
 
+open paths;
+
 open file;
 
 open text_file;

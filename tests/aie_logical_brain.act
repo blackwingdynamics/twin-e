@@ -19,6 +19,15 @@ verb admit_test_shard(
     };
 }
 
+verb first_descriptor_is_valid(abs brain: LogicalBrain, erg capacity: u32) -> Bool {
+    erg zero_id: u32 = 0u32;
+    erg lookup = logical_brain_lookup_shard(brain: abs brain, shard_id: erg zero_id);
+    return case dat lookup {
+        Result.Err(_) => false,
+        Result.Ok(descriptor) => descriptor.first_column_index == 0u32 && descriptor.column_count == capacity,
+    };
+}
+
 verb test_ordered_admission(ins brain: LogicalBrain, erg shard_capacity: u32) -> Int {
     erg first_shard_id: u32 = 0u32;
     erg first_status: Int = admit_test_shard(
@@ -32,7 +41,7 @@ verb test_ordered_admission(ins brain: LogicalBrain, erg shard_capacity: u32) ->
     if brain.shard_count != 1u32 || brain.total_column_count != shard_capacity {
         return 2;
     }
-    if brain.descriptors[0u32].shard_id != 0u32 || brain.descriptors[0u32].first_column_index != 0u32 || brain.descriptors[0u32].column_count != shard_capacity {
+    if !first_descriptor_is_valid(brain: abs brain, capacity: erg shard_capacity) {
         return 5;
     }
     erg second_shard_id: u32 = 1u32;
@@ -139,11 +148,8 @@ verb restored_descriptor(erg shard_id: u32) -> ManifestDescriptor {
 
 meta test
 verb test_logical_brain_restores_valid_multi_shard_generation() -> Int {
-    erg descriptors: Array[ManifestDescriptor,8] = Array[ManifestDescriptor, 8]();
     erg first_id: u32 = 0u32;
     erg second_id: u32 = 1u32;
-    descriptors[0u32] = restored_descriptor(shard_id: erg first_id);
-    descriptors[1u32] = restored_descriptor(shard_id: erg second_id);
     erg brain: LogicalBrain = logical_brain_empty();
     erg generation: u64 = 8u64;
     erg total_columns: u32 = BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY * 2u32;
@@ -152,8 +158,7 @@ verb test_logical_brain_restores_valid_multi_shard_generation() -> Int {
         brain: ins brain,
         generation: erg generation,
         total_column_count: erg total_columns,
-        shard_count: erg shard_count,
-        descriptors: abs descriptors
+        shard_count: abs shard_count
     );
     return case dat restored {
         Result.Err(_) => 1,

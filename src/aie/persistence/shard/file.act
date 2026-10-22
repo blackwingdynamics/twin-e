@@ -13,6 +13,8 @@ open dynamic_shard;
 
 open snapshot;
 
+open paths;
+
 verb append_sharded_descriptor(
     ins output: Buffer,
     erg shard_id: u32,
@@ -85,22 +87,40 @@ verb build_shard_descriptors(erg checksum_zero: u64, erg checksum_one: u64) -> B
     return descriptors;
 }
 
+verb write_shard_pair_item(
+    abs brain_dir: Path,
+    abs columns: Array[u8, 4096],
+    abs entries: Array[u8, 1536],
+    erg shard_id: u32
+) -> Result[u64, IoError] {
+    erg shard_path = persistence_format_shard_path(brain_dir: abs brain_dir, shard_id: erg shard_id);
+    return case dat shard_path {
+        Result.Err(_) => Err(IoError.InvalidInput),
+        Result.Ok(path) => write_one_sharded_file(
+            path: abs path,
+            shard_id: erg shard_id,
+            columns: abs columns,
+            entries: abs entries
+        ),
+    };
+}
+
 verb write_shard_pair(
-    abs shard_paths: Array[Path, 8],
+    abs brain_dir: Path,
     abs columns: Array[u8, 4096],
     abs entries: Array[u8, 1536]
 ) -> Result[Array[u64, 2], IoError] {
     erg checksums: Array[u64,2] = Array[u64, 2]();
     for erg index: u32 in 0u32 .. 2u32 {
-        erg write_result = write_one_sharded_file(
-            path: abs shard_paths[index],
-            shard_id: erg index,
+        erg write_result = write_shard_pair_item(
+            brain_dir: abs brain_dir,
             columns: abs columns,
-            entries: abs entries
+            entries: abs entries,
+            shard_id: erg index
         );
         case dat write_result {
             Result.Err(error) => {
-                return Result[Array[u64, 2], IoError].Err(error);
+                return Result[Array[u64, 2], IoError].Err(dat error);
             },
             Result.Ok(value) => {
                 checksums[index] = value;
@@ -135,8 +155,7 @@ verb publish_shard_manifest(
 
 """Write both shard payloads and publish the complete manifest."""
 open verb write_sharded_snapshot(
-    abs manifest_path: Path,
-    abs shard_paths: Array[Path, 8],
+    abs brain_dir: Path,
     abs columns: Array[u8, 4096],
     abs entries: Array[u8, 1536],
     erg active_count: u32,
@@ -144,18 +163,24 @@ open verb write_sharded_snapshot(
     erg generation: u64
 ) -> Result[Int, IoError] {
     erg pair = write_shard_pair(
-        shard_paths: abs shard_paths,
+        brain_dir: abs brain_dir,
         columns: abs columns,
         entries: abs entries
     );
     return case dat pair {
         Result.Err(error) => Err(error),
-        Result.Ok(checksums) => publish_shard_manifest(
-            manifest_path: abs manifest_path,
-            generation: erg generation,
-            active_count: erg active_count,
-            free_list_head: erg free_list_head,
-            checksums: abs checksums
-        ),
+        Result.Ok(checksums) => {
+            erg manifest_path = persistence_manifest_path(brain_dir: abs brain_dir);
+            return case dat manifest_path {
+                Result.Err(_) => Err(IoError.InvalidInput),
+                Result.Ok(path) => publish_shard_manifest(
+                    manifest_path: abs path,
+                    generation: erg generation,
+                    active_count: erg active_count,
+                    free_list_head: erg free_list_head,
+                    checksums: abs checksums
+                ),
+            };
+        },
     };
 }

@@ -37,10 +37,9 @@ open enum LogicalTeachingError {
 open struct LogicalTeachingBrain {
     erg initialized: Bool,
     erg logical: LogicalBrain,
-    erg fabrics: Array[CorticalFabric[1024], 8],
-    erg bindings: Array[Array[TokenBinding, 1024], 8],
-    erg auxiliary: Array[LogicalAuxiliaryState, 8],
-    erg cache_slots: Array[u8, 8],
+    erg fabrics: Array[CorticalFabric[1024], 4],
+    erg bindings: Array[Array[TokenBinding, 1024], 4],
+    erg auxiliary: Array[LogicalAuxiliaryState, 4],
 }
 
 open verb logical_teaching_shard_transitions(abs brain: LogicalTeachingBrain) -> u32 {
@@ -48,9 +47,9 @@ open verb logical_teaching_shard_transitions(abs brain: LogicalTeachingBrain) ->
 }
 
 open verb logical_teaching_empty() -> LogicalTeachingBrain {
-    return LogicalTeachingBrain {initialized: false, logical: logical_brain_empty(), fabrics: Array[CorticalFabric[1024], 8](
-    ), bindings: Array[Array[TokenBinding, 1024], 8](), auxiliary: Array[LogicalAuxiliaryState, 8](
-    ), cache_slots: Array[u8, 8]()};
+    return LogicalTeachingBrain {initialized: false, logical: logical_brain_empty(), fabrics: Array[CorticalFabric[1024], 4](
+    ), bindings: Array[Array[TokenBinding, 1024], 4](), auxiliary: Array[LogicalAuxiliaryState, 4](
+    )};
 }
 
 open verb logical_teaching_init(ins brain: LogicalTeachingBrain) -> Result[Int, LogicalTeachingError] {
@@ -89,9 +88,8 @@ verb logical_teaching_admit_next(ins brain: LogicalTeachingBrain) -> Result[u8, 
             error: erg error
         )),
         Result.Ok(slot) => {
-            fabric_init(fabric: ins brain.fabrics[next_id as Usize]);
-            logical_auxiliary_init(state: ins brain.auxiliary[next_id as Usize]);
-            brain.cache_slots[next_id as Usize] = slot;
+            fabric_init(fabric: ins brain.fabrics[slot as Usize]);
+            logical_auxiliary_init(state: ins brain.auxiliary[slot as Usize]);
             Result[u8, LogicalTeachingError].Ok(slot);
         },
     };
@@ -110,9 +108,19 @@ verb logical_teaching_ensure_capacity(
         return logical_teaching_admit_next(brain: ins brain);
     }
     erg shard_id: u32 = brain.logical.shard_count - 1u32;
-    erg used: u32 = brain.fabrics[shard_id as Usize].active_count;
+    erg slot = logical_brain_resident_slot(brain: abs brain.logical, shard_id: erg shard_id);
+    erg resident_slot: u8 = 0u8;
+    case dat slot {
+        Option.None => {
+            return Result[u8, LogicalTeachingError].Err(LogicalTeachingError.ResidentCapacityExceeded);
+        },
+        Option.Some(value) => {
+            resident_slot = value;
+        },
+    };
+    erg used: u32 = brain.fabrics[resident_slot as Usize].active_count;
     if used <= BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY - required {
-        return Result[u8, LogicalTeachingError].Ok(brain.cache_slots[shard_id as Usize]);
+        return Result[u8, LogicalTeachingError].Ok(resident_slot);
     }
     return logical_teaching_admit_next(brain: ins brain);
 }
@@ -144,25 +152,50 @@ verb logical_teaching_auxiliary_location(
     return Result[LogicalColumnLocation, LogicalAuxiliaryError].Ok(location);
 }
 
-verb logical_teaching_apply_auxiliary_link(
+verb logical_teaching_link_auxiliary_at_slot(
     ins brain: LogicalTeachingBrain,
     abs source: LogicalColumnLocation,
-    abs target: LogicalColumnLocation
+    erg target_global: u32,
+    erg slot: u8
 ) -> Result[Int, LogicalAuxiliaryError] {
     erg source_local: u32 = source.local_index;
-    erg target_global: u32 = target.global_index;
     erg linked = logical_auxiliary_link(
-        state: ins brain.auxiliary[source.shard_id as Usize],
+        state: ins brain.auxiliary[slot as Usize],
         source_local: erg source_local,
         target_global: erg target_global
     );
     return case dat linked {
         Result.Err(error) => Result[Int, LogicalAuxiliaryError].Err(error),
         Result.Ok(value) => {
-            brain.fabrics[source.shard_id as Usize].columns[source_local].flags |= FLAG_HAS_AUX;
+            brain.fabrics[slot as Usize].columns[source_local].flags |= FLAG_HAS_AUX;
             Result[Int, LogicalAuxiliaryError].Ok(value);
         },
     };
+}
+
+verb logical_teaching_apply_auxiliary_link(
+    ins brain: LogicalTeachingBrain,
+    abs source: LogicalColumnLocation,
+    abs target: LogicalColumnLocation
+) -> Result[Int, LogicalAuxiliaryError] {
+    erg target_global: u32 = target.global_index;
+    erg source_shard_id: u32 = source.shard_id;
+    erg source_slot = logical_brain_resident_slot(brain: abs brain.logical, shard_id: erg source_shard_id);
+    erg slot: u8 = 0u8;
+    case dat source_slot {
+        Option.None => {
+            return Result[Int, LogicalAuxiliaryError].Err(LogicalAuxiliaryError.ShardNotAdmitted);
+        },
+        Option.Some(value) => {
+            slot = value;
+        },
+    };
+    return logical_teaching_link_auxiliary_at_slot(
+        brain: ins brain,
+        source: abs source,
+        target_global: erg target_global,
+        slot: erg slot
+    );
 }
 
 struct LogicalAuxiliaryLocations {
@@ -241,6 +274,21 @@ open verb logical_teaching_auxiliary_link(
 }
 
 """Release one source sidecar and its marker as one bounded operation."""
+verb logical_teaching_release_auxiliary_at_slot(
+    ins brain: LogicalTeachingBrain,
+    abs source: LogicalColumnLocation,
+    erg slot: u8
+) -> Bool {
+    erg local_auxiliary: LogicalAuxiliaryState = brain.auxiliary[slot as Usize];
+    erg source_local: u32 = source.local_index;
+    erg released = logical_auxiliary_release(state: ins local_auxiliary, source_local: erg source_local);
+    brain.auxiliary[slot as Usize] = local_auxiliary;
+    if released {
+        brain.fabrics[slot as Usize].columns[source.local_index].flags &= ~FLAG_HAS_AUX;
+    }
+    return released;
+}
+
 open verb logical_teaching_auxiliary_release(
     ins brain: LogicalTeachingBrain,
     erg source_global: u32
@@ -248,22 +296,20 @@ open verb logical_teaching_auxiliary_release(
     if !brain.initialized {
         return false;
     }
-    erg source: LogicalColumnLocation = LogicalColumnLocation {global_index: 0u32, shard_id: 0u32, local_index: 0u32};
     erg source_result = logical_teaching_auxiliary_location(brain: abs brain, global_index: erg source_global);
-    case dat source_result {
-        Result.Err(_) => {
-            return false;
-        },
-        Result.Ok(value) => {
-            source = value;
+    return case dat source_result {
+        Result.Err(_) => false,
+        Result.Ok(source) => {
+            erg source_shard_id: u32 = source.shard_id;
+            erg source_slot = logical_brain_resident_slot(brain: abs brain.logical, shard_id: erg source_shard_id);
+            return case dat source_slot {
+                Option.None => false,
+                Option.Some(slot) => logical_teaching_release_auxiliary_at_slot(
+                    brain: ins brain,
+                    source: abs source,
+                    slot: erg slot
+                ),
+            };
         },
     };
-    erg local_auxiliary: LogicalAuxiliaryState = brain.auxiliary[source.shard_id as Usize];
-    erg source_local: u32 = source.local_index;
-    erg released = logical_auxiliary_release(state: ins local_auxiliary, source_local: erg source_local);
-    brain.auxiliary[source.shard_id as Usize] = local_auxiliary;
-    if released {
-        brain.fabrics[source.shard_id as Usize].columns[source_local].flags &= ~FLAG_HAS_AUX;
-    }
-    return released;
 }

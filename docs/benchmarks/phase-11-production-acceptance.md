@@ -1,4 +1,8 @@
-# Phase 11 production acceptance
+# Phase 11 production acceptance (historical baseline)
+
+This document records the pre-ADR-0016 eight-path-slot baseline. It remains
+historical evidence; the current shard-directory contract is defined by
+ADR-0016 and Phase 12.
 
 Recorded on 2026-10-22 from a clean Arch Linux workspace at Twin-e commit
 `89d8cdc`.
@@ -13,9 +17,9 @@ actus build --strict --emit exe -o /tmp/twin-e-gate-11-9-runner src/main.act
 /tmp/twin-e-gate-11-9-runner --config /tmp/twin-e-gate-11-7-restart.conf
 ```
 
-The configs use one manifest and the bounded `shard0` through `shard7` path
-slots. The three accepted Georgian TWF inputs are the content-hashed files
-listed in `phase-11-provenance.md`.
+The configs used one manifest and the then-current bounded `shard0` through
+`shard7` path slots. Current runs use one `brain_dir`, discover
+`manifest.brain`, and derive six-digit shard filenames.
 
 ## Observed output
 
@@ -42,8 +46,7 @@ cfa7020c2f5eeece27c7b81c485df13e89cf05debeaf11bf8e850cc86aedc095
 This is hosted Linux evidence only; it does not claim Cortex-M behavior or
 large-scale performance beyond the recorded bounded profile.
 
-The supported profile is eight logical shards, 1024 columns per shard, four
-resident shards, 1024 bindings per shard, eight auxiliary records per shard,
-eight request items, and eight manifest descriptors. Larger logical or resident
-profiles are unsupported until a new bounded profile is validated; no
-unbounded or multiple-brain fallback is part of this acceptance.
+The historical disk profile was eight logical shards. ADR-0016 replaces that
+disk-path limit with a manifest-driven maximum of 1,000,000 six-digit shard
+IDs while retaining the four-shard resident-cache bound. Fresh Phase 12
+runtime evidence is required before the new profile is called accepted.

@@ -71,15 +71,11 @@ verb failed_save_paths(ins paths: Array[Path, 8]) -> Bool {
     };
 }
 
-verb failed_save_attempt(
-    abs brain: LogicalTeachingBrain,
-    abs paths: Array[Path, 8]
-) -> Bool {
+verb failed_save_attempt(abs brain: LogicalTeachingBrain, abs brain_dir: Path) -> Bool {
     erg generation: u64 = 1u64;
     erg saved = logical_teaching_save_generation(
         brain: abs brain,
-        shard_paths: abs paths,
-        manifest_path: abs paths[3u32],
+        brain_dir: abs brain_dir,
         generation: erg generation
     );
     return case dat saved {
@@ -100,7 +96,7 @@ verb test_failed_logical_save_preserves_state() -> Int {
     if !failed_save_paths(paths: ins paths) {
         return 3;
     }
-    if !failed_save_attempt(brain: abs brain, paths: abs paths) {
+    if !failed_save_attempt(brain: abs brain, brain_dir: abs paths[0u32]) {
         return 4;
     }
     if brain.logical.shard_count != shard_count_before || brain.logical.total_column_count != columns_before || brain.logical.generation != generation_before {

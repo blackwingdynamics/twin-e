@@ -89,7 +89,7 @@ verb parse_after_mode(
             return Result[RunnerConfig, RunnerParseError].Err(dat error);
         },
         Result.Ok(path) => parse_remaining(
-            brain_path: dat path,
+            brain_dir: dat path,
             arguments: ins arguments,
             total: abs total,
             load: dat load,
@@ -228,7 +228,7 @@ verb finish_command_input(
 }
 
 verb finish_command_finalize(
-    dat brain_path: Path,
+    dat brain_dir: Path,
     ins arguments: Arguments,
     abs total: Int,
     dat load: Bool,
@@ -248,12 +248,11 @@ verb finish_command_finalize(
         },
         Result.Ok(value) => value,
     };
-    return Result[RunnerConfig, RunnerParseError].Ok(RunnerConfig {load: load, file: file, save: save, brain_path: brain_path, shard_paths: Array[Path, 8](
-    ), input_path: input_path});
+    return Result[RunnerConfig, RunnerParseError].Ok(RunnerConfig {load: load, file: file, save: save, brain_dir: brain_dir, input_path: input_path});
 }
 
 verb finish_command(
-    dat brain_path: Path,
+    dat brain_dir: Path,
     ins arguments: Arguments,
     abs total: Int,
     dat load: Bool,
@@ -273,7 +272,7 @@ verb finish_command(
         Result.Ok(value) => value,
     };
     return finish_command_finalize(
-        brain_path: dat brain_path,
+        brain_dir: dat brain_dir,
         arguments: ins arguments,
         total: abs total,
         load: dat load,
@@ -283,7 +282,7 @@ verb finish_command(
 }
 
 verb parse_remaining(
-    dat brain_path: Path,
+    dat brain_dir: Path,
     ins arguments: Arguments,
     abs total: Int,
     dat load: Bool,
@@ -292,7 +291,7 @@ verb parse_remaining(
     abs save_flag: String
 ) -> Result[RunnerConfig, RunnerParseError] {
     return finish_command(
-        brain_path: dat brain_path,
+        brain_dir: dat brain_dir,
         arguments: ins arguments,
         total: abs total,
         load: dat load,

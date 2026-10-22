@@ -513,7 +513,7 @@ verb verify_dynamic_loader(
     erg loaded = load_column_from_dynamic_shards(
         fabric: ins fabric,
         manifest_path: abs manifest_path,
-        shard_paths: abs shard_paths,
+        brain_dir: abs shard_paths[0u32],
         shard_count: erg dynamic_shard_count,
         global_index: erg query
     );
@@ -528,7 +528,7 @@ verb verify_dynamic_loader(
     erg invalid_loaded = load_column_from_dynamic_shards(
         fabric: ins fabric,
         manifest_path: abs manifest_path,
-        shard_paths: abs shard_paths,
+        brain_dir: abs shard_paths[0u32],
         shard_count: erg invalid_shard_count,
         global_index: erg query
     );

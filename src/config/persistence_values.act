@@ -55,12 +55,12 @@ open const BRAIN_LOGICAL_SHARD_SHIFT: u32 = 10u32;
 open const BRAIN_LOGICAL_SHARD_MASK: u32 = 1023u32;
 
 
-"""Maximum logical shard count in the initial production host profile."""
-open const BRAIN_LOGICAL_MAX_SHARDS: u32 = 8u32;
+"""Maximum logical shard count addressable by the six-digit file profile."""
+open const BRAIN_LOGICAL_MAX_SHARDS: u32 = 1000000u32;
 
 
-"""Maximum logical column count in the initial production host profile."""
-open const BRAIN_LOGICAL_MAX_COLUMNS: u32 = 8192u32;
+"""Maximum logical column count addressable by the six-digit file profile."""
+open const BRAIN_LOGICAL_MAX_COLUMNS: u32 = 1024000000u32;
 
 
 """Serialized bytes occupied by 1024 production shard columns."""
@@ -91,8 +91,8 @@ open const BRAIN_LOGICAL_MAX_AUXILIARY_RECORDS: u32 = 8u32;
 open const BRAIN_LOGICAL_MAX_REQUEST_ITEMS: u32 = 8u32;
 
 
-"""Maximum manifest descriptors in the production profile."""
-open const BRAIN_LOGICAL_MAX_MANIFEST_DESCRIPTORS: u32 = 8u32;
+"""Maximum manifest descriptors in the six-digit production profile."""
+open const BRAIN_LOGICAL_MAX_MANIFEST_DESCRIPTORS: u32 = 1000000u32;
 
 
 """Magic value identifying a serialized shard manifest."""
@@ -123,16 +123,16 @@ open const BRAIN_MANIFEST_MAX_SHARDS: u32 = 2u32;
 open const BRAIN_MANIFEST_FILE_BYTES: u32 = 160u32;
 
 
-"""Maximum descriptor count accepted by a dynamic manifest."""
-open const BRAIN_MANIFEST_DYNAMIC_MAX_SHARDS: u32 = 8u32;
+"""Maximum descriptor count accepted by a six-digit dynamic manifest."""
+open const BRAIN_MANIFEST_DYNAMIC_MAX_SHARDS: u32 = 1000000u32;
 
 
-"""Maximum total column count accepted by a dynamic manifest."""
-open const BRAIN_MANIFEST_DYNAMIC_MAX_COLUMNS: u32 = 8192u32;
+"""Maximum total column count accepted by a six-digit dynamic manifest."""
+open const BRAIN_MANIFEST_DYNAMIC_MAX_COLUMNS: u32 = 1024000000u32;
 
 
-"""Maximum serialized byte length accepted by a dynamic manifest."""
-open const BRAIN_MANIFEST_DYNAMIC_MAX_BYTES: u32 = 448u32;
+"""Maximum serialized byte length accepted by a six-digit dynamic manifest."""
+open const BRAIN_MANIFEST_DYNAMIC_MAX_BYTES: u32 = 48000064u32;
 
 
 """Number of inline shard metadata entries in the bounded cache."""

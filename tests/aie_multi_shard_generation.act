@@ -30,69 +30,31 @@ verb generation_test_path(erg suffix: u8) -> Result[Path, PathError] {
     return path_from_ascii(storage: dat raw);
 }
 
-verb generation_cleanup(abs manifest: Path, abs first: Path, abs second: Path) {
-    remove_file(path: abs manifest);
-    remove_file(path: abs first);
-    remove_file(path: abs second);
-}
-
-verb generation_store_paths(
-    ins paths: Array[Path, 8],
-    dat first: Path,
-    dat second: Path,
-    dat manifest: Path
-) -> Bool {
-    paths[0u32] = first;
-    paths[1u32] = second;
-    paths[2u32] = manifest;
-    return true;
-}
-
-verb generation_manifest_path(
-    ins paths: Array[Path, 8],
-    dat first: Path,
-    dat second: Path
-) -> Bool {
-    erg manifest_suffix: u8 = 63u8;
-    erg manifest_result = generation_test_path(suffix: erg manifest_suffix);
-    return case dat manifest_result {
-        Result.Err(_) => {
-            drop(first);
-            drop(second);
-            return false;
-        },
-        Result.Ok(manifest) => generation_store_paths(
-            paths: ins paths,
-            first: dat first,
-            second: dat second,
-            manifest: dat manifest
-        ),
+verb generation_cleanup(abs brain_dir: Path) {
+    erg manifest = persistence_manifest_path(brain_dir: abs brain_dir);
+    case dat manifest {
+        Result.Err(_) => {},
+        Result.Ok(path) => remove_file(path: abs path),
     };
+    for erg shard_id: u32 in 0u32 .. 2u32 {
+        erg shard = persistence_format_shard_path(brain_dir: abs brain_dir, shard_id: erg shard_id);
+        case dat shard {
+            Result.Err(_) => {},
+            Result.Ok(path) => remove_file(path: abs path),
+        };
+    }
+    remove_dir(path: abs brain_dir);
 }
 
-verb generation_second_path(ins paths: Array[Path, 8], dat first: Path) -> Bool {
-    erg second_suffix: u8 = 62u8;
-    erg second_result = generation_test_path(suffix: erg second_suffix);
-    return case dat second_result {
-        Result.Err(_) => {
-            drop(first);
-            return false;
-        },
-        Result.Ok(second) => generation_manifest_path(
-            paths: ins paths,
-            first: dat first,
-            second: dat second
-        ),
+verb generation_run_with_directory(dat brain_dir: Path) -> Int {
+    remove_dir(path: abs brain_dir);
+    erg created = create_dir(path: abs brain_dir);
+    erg status: Int = case dat created {
+        Result.Err(_) => 1,
+        Result.Ok(_) => generation_run_test(brain_dir: erg brain_dir),
     };
-}
-
-verb generation_paths(ins paths: Array[Path, 8]) -> Bool {
-    erg first_suffix: u8 = 61u8;
-    erg first_result = generation_test_path(suffix: erg first_suffix);
-    return case dat first_result {
-        Result.Err(_) => false,
-        Result.Ok(first) => generation_second_path(paths: ins paths, first: dat first),
-    };
+    drop(brain_dir);
+    return status;
 }
 
 verb generation_zero_columns() -> Array[u8, 4096] {
@@ -116,16 +78,20 @@ verb generation_result_ok(dat result: Result[Int, IoError]) -> Bool {
     };
 }
 
-verb generation_load_and_check(abs manifest: Path, abs paths: Array[Path, 8]) -> Int {
+verb generation_load_and_check(abs brain_dir: Path) -> Int {
     erg fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](), free_list_head: 0u32, active_count: 0u32};
     erg shard_count: u32 = 2u32;
     fabric_init(fabric: ins fabric);
-    erg loaded = load_all_dynamic_shards(
-        fabric: ins fabric,
-        manifest_path: abs manifest,
-        shard_paths: abs paths,
-        shard_count: erg shard_count
-    );
+    erg manifest_path = persistence_manifest_path(brain_dir: abs brain_dir);
+    erg loaded = case dat manifest_path {
+        Result.Err(_) => Result[Int, IoError].Err(IoError.InvalidInput),
+        Result.Ok(path) => load_all_dynamic_shards(
+            fabric: ins fabric,
+            manifest_path: abs path,
+            brain_dir: abs brain_dir,
+            shard_count: erg shard_count
+        ),
+    };
     if !generation_result_ok(result: dat loaded) {
         return 10;
     }
@@ -135,20 +101,14 @@ verb generation_load_and_check(abs manifest: Path, abs paths: Array[Path, 8]) ->
     return 0;
 }
 
-meta test
-verb test_complete_two_shard_generation_loads_in_descriptor_order() -> Int {
-    erg paths: Array[Path,8] = Array[Path, 8]();
-    if !generation_paths(paths: ins paths) {
-        return 1;
-    }
+verb generation_run_test(erg brain_dir: Path) -> Int {
     erg columns: Array[u8,4096] = generation_zero_columns();
     erg bindings: Array[u8,1536] = generation_zero_bindings();
     erg active_count: u32 = 4u32;
     erg free_list_head: u32 = NULL_INDEX;
     erg generation: u64 = 7u64;
     erg generated = write_sharded_snapshot(
-        manifest_path: abs paths[2u32],
-        shard_paths: abs paths,
+        brain_dir: abs brain_dir,
         columns: abs columns,
         entries: abs bindings,
         active_count: erg active_count,
@@ -157,12 +117,18 @@ verb test_complete_two_shard_generation_loads_in_descriptor_order() -> Int {
     );
     erg result: Int = case dat generated {
         Result.Err(_) => 2,
-        Result.Ok(_) => generation_load_and_check(manifest: abs paths[2u32], paths: abs paths),
+        Result.Ok(_) => generation_load_and_check(brain_dir: abs brain_dir),
     };
-    generation_cleanup(
-        manifest: abs paths[2u32],
-        first: abs paths[0u32],
-        second: abs paths[1u32]
-    );
+    generation_cleanup(brain_dir: abs brain_dir);
     return result;
+}
+
+meta test
+verb test_complete_two_shard_generation_loads_in_descriptor_order() -> Int {
+    erg suffix: u8 = 61u8;
+    erg brain_dir_result = generation_test_path(suffix: erg suffix);
+    return case dat brain_dir_result {
+        Result.Err(_) => 1,
+        Result.Ok(brain_dir) => generation_run_with_directory(brain_dir: dat brain_dir),
+    };
 }

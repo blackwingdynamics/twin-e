@@ -20,10 +20,8 @@ open struct RunnerConfig {
     erg file: Bool,
     """Whether the resulting resident generation is published."""
     erg save: Bool,
-    """Manifest path for the logical brain generation."""
-    erg brain_path: Path,
-    """Bounded shard paths used by the logical brain persistence facade."""
-    erg shard_paths: Array[Path, 8],
+    """Directory containing manifest.brain and the published shard files."""
+    erg brain_dir: Path,
     """Optional TWF input path for file-based teaching."""
     erg input_path: Option[Path],
 }

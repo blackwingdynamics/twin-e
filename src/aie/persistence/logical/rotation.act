@@ -17,9 +17,9 @@ verb logical_teaching_commit_shard(
     erg shard_id: u32,
     erg cache_slot: u8
 ) {
-    brain.fabrics[shard_id as Usize] = fabric;
-    brain.bindings[shard_id as Usize] = bindings;
-    brain.auxiliary[shard_id as Usize] = auxiliary;
+    brain.fabrics[cache_slot as Usize] = fabric;
+    brain.bindings[cache_slot as Usize] = bindings;
+    brain.auxiliary[cache_slot as Usize] = auxiliary;
     shard_cache_mark_dirty(cache: ins brain.logical.cache, slot: erg cache_slot);
 }
 
@@ -108,9 +108,9 @@ verb logical_teaching_run_on_shard(
     erg shard_id: u32,
     erg cache_slot: u8
 ) -> Result[TrainingMetrics, LogicalTeachingError] {
-    erg local_fabric: CorticalFabric[1024] = brain.fabrics[shard_id as Usize];
-    erg local_bindings: Array[TokenBinding,1024] = brain.bindings[shard_id as Usize];
-    erg local_auxiliary: LogicalAuxiliaryState = brain.auxiliary[shard_id as Usize];
+    erg local_fabric: CorticalFabric[1024] = brain.fabrics[cache_slot as Usize];
+    erg local_bindings: Array[TokenBinding,1024] = brain.bindings[cache_slot as Usize];
+    erg local_auxiliary: LogicalAuxiliaryState = brain.auxiliary[cache_slot as Usize];
     return logical_teaching_run_local_shard(
         brain: ins brain,
         fabric: ins local_fabric,

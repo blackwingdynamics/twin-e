@@ -13,16 +13,6 @@ open io;
 
 open time;
 
-verb scale_descriptors(erg shard_count: u32) -> Array[ManifestDescriptor, 8] {
-    erg descriptors: Array[ManifestDescriptor,8] = Array[ManifestDescriptor, 8]();
-    for erg shard_id: u32 in 0u32 .. shard_count {
-        erg slot: Usize = shard_id as Usize;
-        erg first_column: u32 = shard_id * BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY;
-        descriptors[slot] = ManifestDescriptor {shard_id: shard_id, first_column_index: first_column, column_count: BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY, payload_offset: BRAIN_SHARD_HEADER_BYTES as u32, payload_bytes: BRAIN_LOGICAL_SHARD_COLUMNS_BYTES, binding_offset: BRAIN_SHARD_HEADER_BYTES as u32 + BRAIN_LOGICAL_SHARD_COLUMNS_BYTES, binding_bytes: BRAIN_LOGICAL_SHARD_BINDINGS_BYTES, auxiliary_offset: 0u32, auxiliary_bytes: BRAIN_AUXILIARY_PAYLOAD_BYTES, checksum: 0u64, state: 1u32};
-    }
-    return descriptors;
-}
-
 verb print_u32(abs label: String, erg value: u32) {
     print(string: abs label);
     erg display: Int = value as Int;
@@ -65,7 +55,6 @@ verb emit_profile_metrics(
 }
 
 verb restore_profile(ins brain: LogicalBrain, erg requested_shards: u32) -> Result[Int, LogicalBrainError] {
-    erg descriptors: Array[ManifestDescriptor,8] = scale_descriptors(shard_count: erg requested_shards);
     erg initialized = logical_brain_init(brain: ins brain);
     case dat initialized {
         Result.Err(_) => {
@@ -79,8 +68,7 @@ verb restore_profile(ins brain: LogicalBrain, erg requested_shards: u32) -> Resu
         brain: ins brain,
         generation: erg generation,
         total_column_count: erg total_columns,
-        shard_count: erg requested_shards,
-        descriptors: abs descriptors
+        shard_count: abs requested_shards
     );
 }
 

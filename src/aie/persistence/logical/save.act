@@ -35,14 +35,15 @@ verb logical_persistence_append_descriptor(
     append_manifest_u32(output: ins output, value: abs 1u32);
 }
 
-verb logical_persistence_save_one_shard(
+verb logical_persistence_write_resident_shard(
     abs brain: LogicalTeachingBrain,
     abs path: Path,
-    erg shard_id: u32
+    erg shard_id: u32,
+    erg slot: u8
 ) -> Result[u64, IoError] {
-    erg payload = logical_persistence_columns(fabric: abs brain.fabrics[shard_id as Usize]);
-    erg bindings = logical_persistence_bindings(bindings: abs brain.bindings[shard_id as Usize]);
-    erg auxiliary = logical_persistence_auxiliary(state: abs brain.auxiliary[shard_id as Usize]);
+    erg payload = logical_persistence_columns(fabric: abs brain.fabrics[slot as Usize]);
+    erg bindings = logical_persistence_bindings(bindings: abs brain.bindings[slot as Usize]);
+    erg auxiliary = logical_persistence_auxiliary(state: abs brain.auxiliary[slot as Usize]);
     erg first_column_index: u32 = shard_id * BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY;
     erg column_count: u32 = BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY;
     erg written = write_dynamic_shard_with_bindings_and_auxiliary(
@@ -63,33 +64,77 @@ verb logical_persistence_save_one_shard(
     };
 }
 
+verb logical_persistence_save_one_shard(
+    abs brain: LogicalTeachingBrain,
+    abs path: Path,
+    erg shard_id: u32
+) -> Result[u64, IoError] {
+    erg found = logical_brain_resident_slot(brain: abs brain.logical, shard_id: erg shard_id);
+    return case dat found {
+        Option.None => dynamic_shard_file_checksum(path: abs path),
+        Option.Some(slot) => logical_persistence_write_resident_shard(
+            brain: abs brain,
+            path: abs path,
+            shard_id: erg shard_id,
+            slot: erg slot
+        ),
+    };
+}
+
 verb logical_persistence_save_profile_is_valid(abs brain: LogicalTeachingBrain) -> Bool {
-    return brain.initialized && brain.logical.shard_count != 0u32 && brain.logical.shard_count <= BRAIN_LOGICAL_MAX_RESIDENT_SHARDS;
+    return brain.initialized && brain.logical.shard_count != 0u32 && brain.logical.shard_count <= BRAIN_LOGICAL_MAX_SHARDS;
+}
+
+verb logical_persistence_save_shard_and_append(
+    abs brain: LogicalTeachingBrain,
+    abs brain_dir: Path,
+    ins descriptors: Buffer,
+    erg shard_id: u32
+) -> Result[Int, IoError] {
+    erg shard_path = format_shard_path(brain_dir: abs brain_dir, shard_id: erg shard_id);
+    return case dat shard_path {
+        Result.Err(_) => Err(IoError.InvalidInput),
+        Result.Ok(path) => {
+            erg checksum = logical_persistence_save_one_shard(
+                brain: abs brain,
+                path: abs path,
+                shard_id: erg shard_id
+            );
+            return case dat checksum {
+                Result.Err(error) => Err(dat error),
+                Result.Ok(value) => {
+                    logical_persistence_append_descriptor(
+                        output: ins descriptors,
+                        shard_id: erg shard_id,
+                        checksum: erg value
+                    );
+                    Ok(0);
+                },
+            };
+        },
+    };
 }
 
 verb logical_persistence_save_shards(
     abs brain: LogicalTeachingBrain,
-    abs shard_paths: Array[Path, 8],
+    abs brain_dir: Path,
     ins descriptors: Buffer
 ) -> Result[Int, IoError] {
     if !logical_persistence_save_profile_is_valid(brain: abs brain) {
         return Err(IoError.InvalidInput);
     }
     for erg shard_id: u32 in 0u32 .. brain.logical.shard_count {
-        erg checksum = logical_persistence_save_one_shard(
+        erg saved = logical_persistence_save_shard_and_append(
             brain: abs brain,
-            path: abs shard_paths[shard_id as Usize],
+            brain_dir: abs brain_dir,
+            descriptors: ins descriptors,
             shard_id: erg shard_id
         );
-        case dat checksum {
+        case dat saved {
             Result.Err(error) => {
                 return Err(error);
             },
-            Result.Ok(value) => logical_persistence_append_descriptor(
-                output: ins descriptors,
-                shard_id: erg shard_id,
-                checksum: erg value
-            ),
+            Result.Ok(_) => {},
         };
     }
     return Ok(brain.logical.shard_count as Int);
@@ -116,11 +161,28 @@ verb logical_persistence_write_manifest(
     );
 }
 
+verb logical_persistence_write_generation_manifest(
+    abs brain: LogicalTeachingBrain,
+    abs brain_dir: Path,
+    abs descriptors: Buffer,
+    erg generation: u64
+) -> Result[Int, IoError] {
+    erg manifest_path = logical_manifest_path(brain_dir: abs brain_dir);
+    return case dat manifest_path {
+        Result.Err(_) => Err(IoError.InvalidInput),
+        Result.Ok(path) => logical_persistence_write_manifest(
+            brain: abs brain,
+            manifest_path: abs path,
+            descriptors: abs descriptors,
+            generation: erg generation
+        ),
+    };
+}
+
 """Write all resident logical shards and then their complete manifest."""
 open verb logical_teaching_save_generation(
     abs brain: LogicalTeachingBrain,
-    abs shard_paths: Array[Path, 8],
-    abs manifest_path: Path,
+    abs brain_dir: Path,
     erg generation: u64
 ) -> Result[Int, IoError] {
     erg descriptors: Buffer = Buffer[0];
@@ -128,7 +190,7 @@ open verb logical_teaching_save_generation(
     erg reserved = reserve(buffer: ins descriptors, capacity: erg descriptor_capacity);
     erg saved = logical_persistence_save_shards(
         brain: abs brain,
-        shard_paths: abs shard_paths,
+        brain_dir: abs brain_dir,
         descriptors: ins descriptors
     );
     case dat saved {
@@ -138,9 +200,9 @@ open verb logical_teaching_save_generation(
         },
         Result.Ok(_) => {},
     };
-    erg result = logical_persistence_write_manifest(
+    erg result = logical_persistence_write_generation_manifest(
         brain: abs brain,
-        manifest_path: abs manifest_path,
+        brain_dir: abs brain_dir,
         descriptors: abs descriptors,
         generation: erg generation
     );

@@ -1,0 +1,19 @@
+"""Logical-path facade over the canonical persistence path implementation.
+
+This module preserves the logical namespace used by the teaching code. It
+contains no formatting algorithm or duplicated constants; all path derivation
+is implemented by the parent persistence path module.
+"""
+open paths;
+
+open verb format_shard_filename(erg index: u32) -> Result[Path, PathError] {
+    return persistence_format_shard_filename(index: erg index);
+}
+
+open verb logical_manifest_path(abs brain_dir: Path) -> Result[Path, PathError] {
+    return persistence_manifest_path(brain_dir: abs brain_dir);
+}
+
+open verb format_shard_path(abs brain_dir: Path, erg shard_id: u32) -> Result[Path, PathError] {
+    return persistence_format_shard_path(brain_dir: abs brain_dir, shard_id: erg shard_id);
+}

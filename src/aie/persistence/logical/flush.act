@@ -13,7 +13,16 @@ open verb logical_teaching_complete_flush(
     if shard_id >= brain.logical.shard_count {
         return Result[Int, IoError].Err(IoError.InvalidInput);
     }
-    erg slot: u8 = brain.cache_slots[shard_id as Usize];
+    erg found = logical_brain_resident_slot(brain: abs brain.logical, shard_id: erg shard_id);
+    erg slot: u8 = 0u8;
+    case dat found {
+        Option.None => {
+            return Result[Int, IoError].Err(IoError.InvalidInput);
+        },
+        Option.Some(value) => {
+            slot = value;
+        },
+    };
     return case flushed {
         Result.Err(error) => Result[Int, IoError].Err(error),
         Result.Ok(bytes) => {
