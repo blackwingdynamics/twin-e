@@ -5,11 +5,26 @@ import cli;
 
 import std::io;
 
+import std::fs;
+
 open aie;
 
 open cli;
 
 open io;
+
+open fs;
+
+verb prepare_save_directory(abs command: RunnerConfig) -> Bool {
+    if command.load {
+        return true;
+    }
+    erg created = create_dir(path: abs command.brain_dir);
+    return case dat created {
+        Result.Err(_) => false,
+        Result.Ok(_) => true,
+    };
+}
 
 verb save_resolved_generation(
     abs command: RunnerConfig,
@@ -40,6 +55,11 @@ verb save_command_state(
 ) -> Int {
     if !command.save {
         return 0;
+    }
+    if !prepare_save_directory(command: abs command) {
+        erg message: String = "TWIN_E_ERROR code=5 kind=save_directory_failed";
+        println(text: abs message);
+        return 5;
     }
     return save_resolved_generation(command: abs command, brain: abs brain);
 }

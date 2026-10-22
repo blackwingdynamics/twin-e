@@ -44,3 +44,43 @@ from that directory without introducing a per-shard configuration list.
   generated native IR contains no floating-point instructions.
 - `actus build --strict --emit exe benchmarks/aie_logical_latency.act`: passed;
   generated native IR contains no floating-point instructions.
+
+## Gate 12.2 — Directory-based TWF batch ingestion
+
+The current runner accepts one `input` path per invocation. That is sufficient
+for validating one TWF publication step, but it is not sufficient for a
+training dataset directory containing multiple teaching files. The next gate
+adds directory input without reintroducing a per-file configuration list.
+
+### Contract
+
+- [ ] Add `source=directory` and `input_dir=<path>` to the runner config.
+- [ ] Discover only regular `.twf` files below the configured directory.
+- [ ] Sort discovered filenames deterministically before teaching them.
+- [ ] Initialize the brain for the first file, then load the published
+      generation before each subsequent file and preserve the same
+      `brain_dir`.
+- [ ] Publish after each successful file so an interrupted batch does not
+      discard already published generations.
+- [ ] Reject an empty directory, unreadable entries, malformed TWF input, and
+      a failed intermediate publication without silently continuing.
+- [ ] Add batch metrics identifying file count, record count, accepted count,
+      and the final generation.
+- [ ] Add public config and runner tests covering one, multiple, unordered,
+      empty, malformed, and partially failing directories.
+- [ ] Update the training-repository instructions to use `input_dir` for a
+      multi-file dataset.
+
+### External prerequisite
+
+Actus `std::fs` currently provides file and directory creation, metadata, and
+file reads, but no directory enumeration API. Gate 12.2 therefore requires an
+Actus standard-library change before Twin-e implementation can begin:
+
+- [ ] Add a bounded `std::fs` directory enumeration API with typed entry
+      metadata and deterministic ownership/close behavior.
+- [ ] Add Cranelift and LLVM coverage for that API before consuming it here.
+
+Twin-e must not emulate directory enumeration with hardcoded filenames,
+shell commands, or a dynamic unbounded collection. Until the Actus API exists,
+Twin-e remains on the validated one-file `input=<path>` contract.
