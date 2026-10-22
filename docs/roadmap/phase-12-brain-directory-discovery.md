@@ -38,7 +38,8 @@ from that directory without introducing a per-shard configuration list.
   manifest loading, and multi-shard fixture sources.
 - `tests/aie_shard_filename.act` covers indexes `0`, `9`, `10`, `99`, `100`,
   and `999999`.
-- `actus test --strict`: 171 passed, 0 failed.
+- `actus test --strict`: 173 passed, 0 failed, including the ordered dataset
+  index acceptance and unsorted-entry rejection tests.
 - `actus check --strict`: passed.
 - `actus build --strict --emit exe -o /tmp/twin-e-engine.aie`: passed;
   generated native IR contains no floating-point instructions.
@@ -51,29 +52,34 @@ shard files in the configured brain directory; the run exited with status `0`.
 
 ## Gate 12.2 — Directory-based TWF batch ingestion
 
-The current runner accepts one `input` path per invocation. That is sufficient
-for validating one TWF publication step, but it is not sufficient for a
-training dataset directory containing multiple teaching files. The next gate
-adds directory input without reintroducing a per-file configuration list.
+The runner accepts one `input` path per invocation and has an initial directory
+enumerator. That is sufficient for a prototype publication step, but it is not
+the production contract for a training dataset directory. Gate 12.2 adds a
+deterministic dataset manifest index so large corpora can be split into
+bounded, resumable batches without reintroducing a per-file configuration list.
 
 ### Contract
 
 - [x] Add `source=directory` and `input_dir=<directory>` to the runner config.
-- [ ] Discover only regular `.twf` files below the configured directory.
-- [ ] Sort discovered filenames deterministically before teaching them.
+- [ ] Generate a validated dataset manifest index from only regular `.twf`
+      files below the configured directory.
+- [ ] Sort discovered relative filenames deterministically when generating the
+      index, then consume the published index order during teaching.
+- [ ] Enforce one named per-batch index bound without limiting total corpus
+      size or the number of published brain generations.
 - [ ] Initialize the brain for the first file, then load the published
-      generation before each subsequent file and preserve the same
+      generation before each subsequent indexed file and preserve the same
       `brain_dir`.
-- [ ] Publish after each successful file so an interrupted batch does not
-      discard already published generations.
+- [ ] Publish a mandatory checkpoint after each successful indexed file so an
+      interrupted batch does not discard already published generations.
 - [ ] Reject an empty directory, unreadable entries, malformed TWF input, and
       a failed intermediate publication without silently continuing.
 - [ ] Add batch metrics identifying file count, record count, accepted count,
       and the final generation.
 - [ ] Add public config and runner tests covering one, multiple, unordered,
       empty, malformed, and partially failing directories.
-- [ ] Update the training-repository instructions to use `input_dir` for a
-      multi-file dataset.
+- [ ] Update the training-repository instructions to generate and consume a
+      dataset manifest index for a multi-file dataset.
 
 ### External prerequisite
 
@@ -82,9 +88,9 @@ the installed Actus compiler. Twin-e consumes it through the typed
 `read_dir`, `next_dir_entry`, `metadata`, and `close_dir` boundary; it does not
 use hardcoded filenames, shell commands, or an unbounded collection.
 
-The remaining Gate 12.2 checkboxes are still open until deterministic sorting,
-per-file publication, batch metrics, and the public directory tests are
-implemented and evidenced. The current implementation also relies on the
-configured input directory containing only regular TWF files; exact extension
-matching remains open because the installed path-component view does not expose
-the component bytes correctly.
+The remaining Gate 12.2 checkboxes are still open until directory-driven index
+generation, per-file checkpoint/reload, batch metrics, and the public manifest
+tests are implemented and evidenced. The current tests validate the published
+index reader, deterministic consumption of ordered entries, and rejection of
+unsorted entries; they do not yet prove directory scanning or checkpointed
+batch teaching.

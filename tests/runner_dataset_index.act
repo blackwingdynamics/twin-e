@@ -1,0 +1,138 @@
+"""Gate 12.2 evidence for the bounded ordered dataset index contract."""
+import config;
+
+import runner;
+
+import std::path;
+
+open config;
+
+open path;
+
+open runner;
+
+verb dataset_index_append_u16(ins output: Buffer, erg value: u16) {
+    append(output, (value & 255u16) as u8);
+    append(output, ((value / 256u16) & 255u16) as u8);
+}
+
+verb dataset_index_append_u32(ins output: Buffer, erg value: u32) {
+    append(output, (value & 255u32) as u8);
+    append(output, ((value / 256u32) & 255u32) as u8);
+    append(output, ((value / 65536u32) & 255u32) as u8);
+    append(output, ((value / 16777216u32) & 255u32) as u8);
+}
+
+verb dataset_index_append_name(ins output: Buffer, abs name: Buffer) {
+    erg length = buffer_size(buffer: abs name);
+    case dat length {
+        Result.Err(_) => {},
+        Result.Ok(value) => {
+            erg length_value: u32 = value as u32;
+            dataset_index_append_u32(output: ins output, value: erg length_value);
+            for erg index: u32 in 0u32 .. length_value {
+                append(output, name[index]);
+            }
+        },
+    };
+}
+
+verb dataset_index_header(ins output: Buffer, erg count: u32) {
+    erg magic: u32 = DATASET_INDEX_MAGIC;
+    erg version: u16 = DATASET_INDEX_VERSION;
+    erg reserved: u16 = 0u16;
+    erg empty_total: u32 = 0u32;
+    dataset_index_append_u32(output: ins output, value: erg magic);
+    dataset_index_append_u16(output: ins output, value: erg version);
+    dataset_index_append_u16(output: ins output, value: erg reserved);
+    dataset_index_append_u32(output: ins output, value: erg count);
+    dataset_index_append_u32(output: ins output, value: erg empty_total);
+}
+
+verb dataset_index_set_total(ins output: Buffer) {
+    erg total = buffer_size(buffer: abs output);
+    case dat total {
+        Result.Err(_) => {},
+        Result.Ok(value) => {
+            output[12u32] = (value & 255) as u8;
+            output[13u32] = ((value / 256) & 255) as u8;
+            output[14u32] = ((value / 65536) & 255) as u8;
+            output[15u32] = ((value / 16777216) & 255) as u8;
+        },
+    };
+}
+
+verb dataset_index_name(erg selector: u8) -> Buffer {
+    erg value: Buffer = Buffer[0];
+    if selector == 0u8 {
+        append(value, 97u8);
+    } else {
+        append(value, 98u8);
+    }
+    append(value, 46u8);
+    append(value, 116u8);
+    append(value, 119u8);
+    append(value, 102u8);
+    return value;
+}
+
+verb dataset_index_fixture(erg reversed: Bool) -> Buffer {
+    erg output: Buffer = Buffer[0];
+    erg count: u32 = 2u32;
+    dataset_index_header(output: ins output, count: erg count);
+    erg first_selector: u8 = 0u8;
+    erg second_selector: u8 = 1u8;
+    if reversed {
+        first_selector = 1u8;
+        second_selector = 0u8;
+    }
+    erg first = dataset_index_name(selector: erg first_selector);
+    erg second = dataset_index_name(selector: erg second_selector);
+    dataset_index_append_name(output: ins output, name: abs first);
+    dataset_index_append_name(output: ins output, name: abs second);
+    drop(first);
+    drop(second);
+    dataset_index_set_total(output: ins output);
+    return output;
+}
+
+meta test
+verb test_dataset_index_returns_sorted_paths_in_order() -> Int {
+    erg reversed: Bool = false;
+    erg fixture = dataset_index_fixture(reversed: erg reversed);
+    erg opened = dataset_index_open(bytes: dat fixture);
+    return case dat opened {
+        Result.Err(_) => 1,
+        Result.Ok(index) => {
+            erg first = dataset_index_next(index: ins index);
+            erg second = dataset_index_next(index: ins index);
+            erg first_ok: Bool = case dat first {
+                Result.Err(_) => false,
+                Result.Ok(_) => true,
+            };
+            erg second_ok: Bool = case dat second {
+                Result.Err(_) => false,
+                Result.Ok(_) => true,
+            };
+            if first_ok && second_ok && index.consumed == 2u32 {
+                0;
+            } else {
+                1;
+            }
+        },
+    };
+}
+
+meta test
+verb test_dataset_index_rejects_unsorted_entries() -> Int {
+    erg reversed: Bool = true;
+    erg fixture = dataset_index_fixture(reversed: erg reversed);
+    erg opened = dataset_index_open(bytes: dat fixture);
+    return case dat opened {
+        Result.Err(error) => case error {
+            DatasetIndexError.UnsortedEntries => 0,
+            _ => 1,
+        },
+        Result.Ok(_) => 1,
+    };
+}
