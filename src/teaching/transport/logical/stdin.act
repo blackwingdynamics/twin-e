@@ -11,6 +11,7 @@ verb stdin_logical_error(dat error: LogicalTeachingError) -> TeachingStreamError
     return case dat error {
         LogicalTeachingError.LogicalCapacityExceeded => TeachingStreamError.LogicalCapacityExceeded,
         LogicalTeachingError.ResidentCapacityExceeded => TeachingStreamError.ResidentCapacityExceeded,
+        LogicalTeachingError.AuxiliaryCapacityExceeded => TeachingStreamError.LogicalCapacityExceeded,
         LogicalTeachingError.FlushRequired => TeachingStreamError.ResidentCapacityExceeded,
         _ => TeachingStreamError.InvalidRouting,
     };

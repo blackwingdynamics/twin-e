@@ -9,6 +9,8 @@ open core;
 
 open teaching;
 
+open rotation;
+
 open auxiliary;
 
 open flush;

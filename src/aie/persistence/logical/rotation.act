@@ -1,0 +1,192 @@
+"""Rotate logical teaching when a resident shard reaches bounded fan-out."""
+import std::io;
+
+open io;
+
+open core;
+
+open teaching;
+
+open runtime;
+
+verb logical_teaching_commit_shard(
+    ins brain: LogicalTeachingBrain,
+    ins fabric: CorticalFabric[1024],
+    ins bindings: Array[TokenBinding, 1024],
+    ins auxiliary: LogicalAuxiliaryState,
+    erg shard_id: u32,
+    erg cache_slot: u8
+) {
+    brain.fabrics[shard_id as Usize] = fabric;
+    brain.bindings[shard_id as Usize] = bindings;
+    brain.auxiliary[shard_id as Usize] = auxiliary;
+    shard_cache_mark_dirty(cache: ins brain.logical.cache, slot: erg cache_slot);
+}
+
+verb logical_teaching_train_shard(
+    ins fabric: CorticalFabric[1024],
+    ins bindings: Array[TokenBinding, 1024],
+    ins auxiliary: LogicalAuxiliaryState,
+    abs sequence: TokenSequence,
+    erg shard_id: u32
+) -> Result[TrainingMetrics, TrainingError] {
+    erg target_base: u32 = shard_id * BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY;
+    return train_token_sequence_with_auxiliary(
+        fabric: ins fabric,
+        bindings: ins bindings,
+        table: ins auxiliary.table,
+        sequence: abs sequence,
+        target_base: erg target_base
+    );
+}
+
+verb logical_teaching_training_error(dat error: TrainingError) -> LogicalTeachingError {
+    return case dat error {
+        TrainingError.NoAxon => LogicalTeachingError.AuxiliaryCapacityExceeded,
+        TrainingError.NoColumn => LogicalTeachingError.AuxiliaryCapacityExceeded,
+        _ => LogicalTeachingError.TrainingRejected,
+    };
+}
+
+verb logical_teaching_finish_local_shard(
+    ins brain: LogicalTeachingBrain,
+    ins fabric: CorticalFabric[1024],
+    ins bindings: Array[TokenBinding, 1024],
+    ins auxiliary: LogicalAuxiliaryState,
+    dat trained: Result[TrainingMetrics, TrainingError],
+    erg shard_id: u32,
+    erg cache_slot: u8
+) -> Result[TrainingMetrics, LogicalTeachingError] {
+    return case dat trained {
+        Result.Err(error) => Result[TrainingMetrics, LogicalTeachingError].Err(logical_teaching_training_error(
+            error: dat error
+        )),
+        Result.Ok(metrics) => {
+            logical_teaching_commit_shard(
+                brain: ins brain,
+                fabric: ins fabric,
+                bindings: ins bindings,
+                auxiliary: ins auxiliary,
+                shard_id: erg shard_id,
+                cache_slot: erg cache_slot
+            );
+            Result[TrainingMetrics, LogicalTeachingError].Ok(metrics);
+        },
+    };
+}
+
+verb logical_teaching_run_local_shard(
+    ins brain: LogicalTeachingBrain,
+    ins fabric: CorticalFabric[1024],
+    ins bindings: Array[TokenBinding, 1024],
+    ins auxiliary: LogicalAuxiliaryState,
+    abs sequence: TokenSequence,
+    erg shard_id: u32,
+    erg cache_slot: u8
+) -> Result[TrainingMetrics, LogicalTeachingError] {
+    erg trained = logical_teaching_train_shard(
+        fabric: ins fabric,
+        bindings: ins bindings,
+        auxiliary: ins auxiliary,
+        sequence: abs sequence,
+        shard_id: erg shard_id
+    );
+    return logical_teaching_finish_local_shard(
+        brain: ins brain,
+        fabric: ins fabric,
+        bindings: ins bindings,
+        auxiliary: ins auxiliary,
+        trained: dat trained,
+        shard_id: erg shard_id,
+        cache_slot: erg cache_slot
+    );
+}
+
+verb logical_teaching_run_on_shard(
+    ins brain: LogicalTeachingBrain,
+    abs sequence: TokenSequence,
+    erg shard_id: u32,
+    erg cache_slot: u8
+) -> Result[TrainingMetrics, LogicalTeachingError] {
+    erg local_fabric: CorticalFabric[1024] = brain.fabrics[shard_id as Usize];
+    erg local_bindings: Array[TokenBinding,1024] = brain.bindings[shard_id as Usize];
+    erg local_auxiliary: LogicalAuxiliaryState = brain.auxiliary[shard_id as Usize];
+    return logical_teaching_run_local_shard(
+        brain: ins brain,
+        fabric: ins local_fabric,
+        bindings: ins local_bindings,
+        auxiliary: ins local_auxiliary,
+        sequence: abs sequence,
+        shard_id: erg shard_id,
+        cache_slot: erg cache_slot
+    );
+}
+
+verb logical_teaching_rotate_after_auxiliary_capacity(
+    ins brain: LogicalTeachingBrain,
+    abs sequence: TokenSequence
+) -> Result[TrainingMetrics, LogicalTeachingError] {
+    erg admitted = logical_teaching_admit_next(brain: ins brain);
+    return case dat admitted {
+        Result.Err(error) => Result[TrainingMetrics, LogicalTeachingError].Err(error),
+        Result.Ok(cache_slot) => {
+            erg shard_id: u32 = brain.logical.shard_count - 1u32;
+            logical_teaching_run_on_shard(
+                brain: ins brain,
+                sequence: abs sequence,
+                shard_id: erg shard_id,
+                cache_slot: erg cache_slot
+            );
+        },
+    };
+}
+
+verb logical_teaching_run_current_or_rotate(
+    ins brain: LogicalTeachingBrain,
+    abs sequence: TokenSequence,
+    erg shard_id: u32,
+    erg cache_slot: u8
+) -> Result[TrainingMetrics, LogicalTeachingError] {
+    erg trained = logical_teaching_run_on_shard(
+        brain: ins brain,
+        sequence: abs sequence,
+        shard_id: erg shard_id,
+        cache_slot: erg cache_slot
+    );
+    return case dat trained {
+        Result.Err(error) => case error {
+            LogicalTeachingError.AuxiliaryCapacityExceeded => logical_teaching_rotate_after_auxiliary_capacity(
+                brain: ins brain,
+                sequence: abs sequence
+            ),
+            _ => Result[TrainingMetrics, LogicalTeachingError].Err(error),
+        },
+        Result.Ok(metrics) => Result[TrainingMetrics, LogicalTeachingError].Ok(metrics),
+    };
+}
+
+"""Teach one validated sequence without synchronous persistence I/O."""
+open verb logical_teaching_sequence(
+    ins brain: LogicalTeachingBrain,
+    abs sequence: TokenSequence
+) -> Result[TrainingMetrics, LogicalTeachingError] {
+    erg admitted = validate_training_sequence(sequence: abs sequence);
+    erg admission_status: Int = case dat admitted {
+        Result.Err(_) => 1,
+        Result.Ok(_) => 0,
+    };
+    if admission_status != 0 {
+        return Result[TrainingMetrics, LogicalTeachingError].Err(LogicalTeachingError.TrainingRejected);
+    }
+    erg slot = logical_teaching_ensure_capacity(brain: ins brain, sequence: abs sequence);
+    erg current_shard_id: u32 = brain.logical.shard_count - 1u32;
+    return case dat slot {
+        Result.Err(error) => Result[TrainingMetrics, LogicalTeachingError].Err(error),
+        Result.Ok(cache_slot) => logical_teaching_run_current_or_rotate(
+            brain: ins brain,
+            sequence: abs sequence,
+            shard_id: erg current_shard_id,
+            cache_slot: erg cache_slot
+        ),
+    };
+}

@@ -48,6 +48,7 @@ verb file_logical_error(dat error: LogicalTeachingError) -> TeachingFileError {
     return case dat error {
         LogicalTeachingError.LogicalCapacityExceeded => TeachingFileError.LogicalCapacityExceeded,
         LogicalTeachingError.ResidentCapacityExceeded => TeachingFileError.ResidentCapacityExceeded,
+        LogicalTeachingError.AuxiliaryCapacityExceeded => TeachingFileError.LogicalCapacityExceeded,
         LogicalTeachingError.FlushRequired => TeachingFileError.ResidentCapacityExceeded,
         _ => TeachingFileError.InvalidRouting,
     };

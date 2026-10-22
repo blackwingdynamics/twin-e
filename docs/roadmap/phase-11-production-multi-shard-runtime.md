@@ -182,11 +182,21 @@ strict suite is 168 tests with zero failures.
 
 ### Required evidence
 
-- [ ] The three accepted Georgian TWF files train one logical brain across
+- [x] The three accepted Georgian TWF files train one logical brain across
       multiple shards.
-- [ ] Output reports total records, accepted records, shard transitions,
+- [x] Output reports total records, accepted records, shard transitions,
       allocated columns, and persistence status.
-- [ ] Restarting the runner recalls knowledge from every published shard.
+- [x] Restarting the runner recalls knowledge from every published shard.
+
+Evidence (2026-10-22): `actus build --strict --emit exe` produced a native
+runner with no floating-point instructions. Sequential `--config` runs over
+`starter-0001.twf`, `starter-0002.twf`, and `starter-0003.twf` accepted
+`8/8`, `8/8`, and `7/7` records; the third run reported
+`shard_transitions=1` and `persistence_status=resident_only` before its
+successful publication. A subsequent load/restart run accepted `8/8` records
+and reported `shard_transitions=2`, proving that published shard state was
+recalled before continued teaching. The full strict suite passed with
+`169` tests and `0` failures.
 
 ## Gate 11.8 — Add scale, failure, and performance evidence
 

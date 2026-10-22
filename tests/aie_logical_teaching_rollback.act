@@ -79,31 +79,60 @@ verb rollback_test_fill_inline_fanout(ins brain: LogicalTeachingBrain) -> Bool {
     return true;
 }
 
-meta test
-verb test_logical_teaching_rolls_back_failed_fanout() -> Int {
-    erg brain: LogicalTeachingBrain = logical_teaching_empty();
-    if !rollback_test_init(brain: ins brain) {
-        return 1;
-    }
-    if !rollback_test_fill_inline_fanout(brain: ins brain) {
-        return 2;
-    }
-    erg before_fabric: CorticalFabric[1024] = brain.fabrics[0u32];
-    erg before_bindings: Array[TokenBinding,1024] = brain.bindings[0u32];
+verb rollback_test_rejection_preserves_state(
+    ins brain: LogicalTeachingBrain,
+    abs before_fabric: CorticalFabric[1024],
+    abs before_bindings: Array[TokenBinding, 1024]
+) -> Bool {
     erg rejected_suffix: u32 = 8u32;
     erg rejected_sequence: TokenSequence = rollback_test_sequence(suffix: erg rejected_suffix);
+    rejected_sequence.valid = false;
     erg rejected = logical_teaching_sequence(brain: ins brain, sequence: abs rejected_sequence);
     case dat rejected {
         Result.Ok(_) => {
-            return 2;
+            return false;
         },
         Result.Err(_) => {},
     };
     if !rollback_test_fabric_matches(left: abs brain.fabrics[0u32], right: abs before_fabric) {
-        return 3;
+        return false;
     }
     if !rollback_test_bindings_match(left: abs brain.bindings[0u32], right: abs before_bindings) {
-        return 4;
+        return false;
+    }
+    return true;
+}
+
+verb rollback_test_rotates_after_fanout(ins brain: LogicalTeachingBrain) -> Bool {
+    erg rotated_suffix: u32 = 8u32;
+    erg rotated_sequence: TokenSequence = rollback_test_sequence(suffix: erg rotated_suffix);
+    erg rotated = logical_teaching_sequence(brain: ins brain, sequence: abs rotated_sequence);
+    case dat rotated {
+        Result.Err(_) => {
+            return false;
+        },
+        Result.Ok(_) => {},
+    };
+    return brain.logical.shard_count == 2u32 && brain.logical.shard_transitions == 1u32;
+}
+
+meta test
+verb test_logical_teaching_rolls_back_rejection_and_rotates_fanout() -> Int {
+    erg brain: LogicalTeachingBrain = logical_teaching_empty();
+    if !rollback_test_init(brain: ins brain) || !rollback_test_fill_inline_fanout(brain: ins brain) {
+        return 1;
+    }
+    erg before_fabric: CorticalFabric[1024] = brain.fabrics[0u32];
+    erg before_bindings: Array[TokenBinding,1024] = brain.bindings[0u32];
+    if !rollback_test_rejection_preserves_state(
+        brain: ins brain,
+        before_fabric: abs before_fabric,
+        before_bindings: abs before_bindings
+    ) {
+        return 2;
+    }
+    if !rollback_test_rotates_after_fanout(brain: ins brain) {
+        return 3;
     }
     return 0;
 }
