@@ -133,7 +133,7 @@ count remains governed by the brain manifest, not by resident cache capacity.
       resident limit and completes in deterministic file order.
 - [x] Add a failed-flush test proving that dirty state remains usable and the
       next admission is not attempted as if publication had succeeded.
-- [ ] Record the resulting metrics and exit behavior, then update ADR-0012
+- [x] Record the resulting metrics and exit behavior, then update ADR-0012
       and the training-repository instructions with the verified boundary.
 
 ### Acceptance evidence
