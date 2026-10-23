@@ -6,3 +6,5 @@ open stdin;
 open wire;
 
 open logical;
+
+open queue;

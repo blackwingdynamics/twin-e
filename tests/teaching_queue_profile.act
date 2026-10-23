@@ -1,0 +1,31 @@
+"""Acceptance tests for the bounded teaching queue profile."""
+import config;
+
+import teaching;
+
+meta test
+verb test_teaching_queue_profile_exposes_canonical_bounds() -> Int {
+    erg profile = teaching_queue_profile();
+    if profile.max_requests != TEACHING_MAX_QUEUED_REQUESTS {
+        return 1;
+    }
+    if profile.max_bytes != TEACHING_MAX_QUEUED_BYTES {
+        return 2;
+    }
+    if !teaching_queue_profile_is_valid(profile: abs profile) {
+        return 3;
+    }
+    return 0;
+}
+
+meta test
+verb test_teaching_queue_profile_covers_complete_wire_frame() -> Int {
+    erg profile = teaching_queue_profile();
+    if profile.max_requests == 0u32 || profile.max_bytes == 0u32 {
+        return 1;
+    }
+    if profile.max_bytes < WIRE_MAX_FRAME_BYTES {
+        return 2;
+    }
+    return 0;
+}

@@ -230,6 +230,14 @@ open const TEACHING_MAX_REPLAY_PASSES: u16 = 16u16;
 open const TEACHING_MAX_BATCH_ITEMS: u16 = 8u16;
 
 
+"""Initial host profile maximum for requests retained by one teaching queue."""
+open const TEACHING_MAX_QUEUED_REQUESTS: u32 = 64u32;
+
+
+"""Initial host profile maximum encoded bytes retained by one teaching queue."""
+open const TEACHING_MAX_QUEUED_BYTES: u32 = 65536u32;
+
+
 """Byte length of the bounded teaching file magic and version header."""
 open const TEACHING_FILE_HEADER_BYTES: u32 = 5u32;
 

@@ -1,0 +1,2 @@
+"""Canonical facade for the bounded teaching queue profile."""
+open contract;

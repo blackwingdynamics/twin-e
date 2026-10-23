@@ -421,7 +421,7 @@ profile is checked before resident state loading.
 
 ## Gate 10.6 — Define transport-independent batching and backpressure
 
-- [ ] Define the maximum number of queued requests and maximum queued bytes.
+- [x] Define the maximum number of queued requests and maximum queued bytes.
 - [ ] Choose caller-driven processing, bounded polling, or another explicit
       scheduler boundary.
 - [ ] Define what happens at queue capacity: reject, stop, or report partial

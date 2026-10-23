@@ -1,0 +1,34 @@
+"""Bounded queue capacity contract for caller-owned teaching transport state.
+
+The profile limits one queue instance by both complete request count and
+encoded bytes. It does not limit the number of queues or shards in a Twin-e
+deployment; those are deployment and manifest concerns. Queue storage and
+processing policy remain separate contracts.
+"""
+import config;
+
+import std::wire;
+
+"""The configured request and byte bounds for one teaching queue instance."""
+open struct TeachingQueueProfile {
+    erg max_requests: u32,
+    erg max_bytes: u32,
+}
+
+"""Return the canonical bounded teaching queue profile.
+
+The result is configuration-only metadata. It allocates no queue storage and
+does not perform filesystem or transport I/O.
+"""
+open verb teaching_queue_profile() -> TeachingQueueProfile {
+    return TeachingQueueProfile {max_requests: TEACHING_MAX_QUEUED_REQUESTS, max_bytes: TEACHING_MAX_QUEUED_BYTES};
+}
+
+"""Validate that a queue profile can retain at least one complete wire frame.
+
+Both dimensions must be non-zero, and the byte bound must cover the maximum
+complete teaching frame. This check does not allocate state or accept data.
+"""
+open verb teaching_queue_profile_is_valid(abs profile: TeachingQueueProfile) -> Bool {
+    return profile.max_requests > 0u32 && profile.max_bytes >= WIRE_MAX_FRAME_BYTES;
+}
