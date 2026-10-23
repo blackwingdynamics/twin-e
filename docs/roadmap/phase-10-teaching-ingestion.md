@@ -331,7 +331,7 @@ contract. A `.brain` artifact is learned state, not an executable. The runner
 must load it from an explicit manifest and publish a new complete generation
 only after an explicit save request.
 
-- [ ] Define the lifecycle states `Loaded`, `ResidentDirty`, `SaveRequested`,
+- [Completed in Phase 10] Define the lifecycle states `Loaded`, `ResidentDirty`, `SaveRequested`,
       `Published`, and `SaveFailed` at the runner boundary.
 - [Completed in Phase 11] Load the selected complete generation before accepting teaching input.
 - [Completed in Phase 11] Keep teaching in resident memory; do not write synchronously from the
