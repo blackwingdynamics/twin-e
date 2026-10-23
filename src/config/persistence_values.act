@@ -103,6 +103,10 @@ open const BRAIN_MANIFEST_MAGIC: u32 = 1296645709u32;
 open const BRAIN_MANIFEST_VERSION: u16 = 1u16;
 
 
+"""Runtime compatibility profile required by the compiled Twin-e loader."""
+open const BRAIN_RUNTIME_COMPATIBILITY_VERSION: u16 = 1u16;
+
+
 """Serialized byte length of a manifest header."""
 open const BRAIN_MANIFEST_HEADER_BYTES: u16 = 64u16;
 

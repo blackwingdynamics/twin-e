@@ -355,8 +355,15 @@ only after an explicit save request.
       dataset.
 - [Completed in Phase 11] Failed-save and interrupted-publication fixtures preserve the previous
       published generation and the live resident state.
-- [ ] The run manifest and shard checksums identify the exact executable and
+- [x] The run manifest and shard checksums identify the exact executable and
       input dataset used for the run.
+
+      Evidence: `docs/benchmarks/phase-11-provenance.md` records the compiler
+      and executable SHA-256, the ordered content hashes for every accepted
+      TWF input, and the exact build/run commands. The published manifest and
+      shard descriptors recorded by the Phase 11 production-acceptance run
+      carry the shard count, ranges, and per-shard checksums before restart
+      recovery.
 
 ## Gate 10.4.3 — Package a reproducible production release
 
@@ -367,12 +374,18 @@ only after an explicit save request.
 - [Completed in Phase 11] Publish a checksum for every executable and runtime manifest.
 - [Completed in Phase 11] Provide a clean-workspace smoke command that loads a known complete brain
       generation and performs one bounded teaching or recall operation.
-- [ ] Reject a binary/manifest/compiler compatibility mismatch before loading
+- [x] Reject a binary/manifest/compiler compatibility mismatch before loading
       resident state.
 - [ ] Define the rollback procedure to the previous executable and previous
       complete brain generation.
 - [Completed in Phase 11] Record target, profile, compiler revision, source revision, and all
       input limits in the release evidence.
+
+Evidence: ADR-0019 defines the compiled runtime compatibility profile in the
+dynamic manifest header. Writers publish the profile version and validators
+reject a mismatched value before logical state admission; the strict regression
+test also recomputes the manifest checksum after tampering to prove the check
+is not only checksum failure handling.
 
 ### Required evidence
 

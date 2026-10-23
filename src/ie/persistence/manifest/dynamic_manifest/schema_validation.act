@@ -142,13 +142,17 @@ verb manifest_dynamic_layout_is_valid(abs bytes: Buffer) -> Bool {
     erg tokenizer_version_offset: u32 = 36u32;
     erg context_version_offset: u32 = 38u32;
     erg code_version_offset: u32 = 40u32;
+    erg runtime_compatibility_offset: u32 = 42u32;
     return read_manifest_u16(input: abs bytes, offset: abs column_stride_offset) == BRAIN_SHARD_COLUMN_STRIDE_BYTES && read_manifest_u16(
         input: abs bytes,
         offset: abs binding_stride_offset
     ) == BRAIN_SHARD_BINDING_STRIDE_BYTES && read_manifest_u16(input: abs bytes, offset: abs tokenizer_version_offset) == TOKENIZER_VERSION && read_manifest_u16(
         input: abs bytes,
         offset: abs context_version_offset
-    ) == CONTEXT_VERSION && read_manifest_u16(input: abs bytes, offset: abs code_version_offset) == TOKEN_CODE_VERSION;
+    ) == CONTEXT_VERSION && read_manifest_u16(input: abs bytes, offset: abs code_version_offset) == TOKEN_CODE_VERSION && read_manifest_u16(
+        input: abs bytes,
+        offset: abs runtime_compatibility_offset
+    ) == BRAIN_RUNTIME_COMPATIBILITY_VERSION;
 }
 
 """Validate dynamic manifest identity, version, size, stride, and checksum metadata."""

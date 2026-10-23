@@ -1,0 +1,143 @@
+import ie;
+
+import std::fs;
+
+import std::path;
+
+verb compatibility_test_path() -> Result[Path, PathError] {
+    erg raw: Buffer = Buffer[0];
+    append(raw, 47u8);
+    append(raw, 116u8);
+    append(raw, 109u8);
+    append(raw, 112u8);
+    append(raw, 47u8);
+    append(raw, 116u8);
+    append(raw, 116u8);
+    append(raw, 105u8);
+    append(raw, 110u8);
+    append(raw, 45u8);
+    append(raw, 101u8);
+    append(raw, 45u8);
+    append(raw, 99u8);
+    append(raw, 111u8);
+    append(raw, 109u8);
+    append(raw, 112u8);
+    append(raw, 97u8);
+    append(raw, 116u8);
+    append(raw, 45u8);
+    append(raw, 49u8);
+    append(raw, 0u8);
+    return path_from_ascii(storage: dat raw);
+}
+
+verb compatibility_append_u32(ins output: Buffer, abs value: u32) {
+    append(output, (value & 255u32) as u8);
+    append(output, ((value / 256u32) & 255u32) as u8);
+    append(output, ((value / 65536u32) & 255u32) as u8);
+    append(output, ((value / 16777216u32) & 255u32) as u8);
+}
+
+verb compatibility_append_u64(ins output: Buffer, abs value: u64) {
+    erg low: u32 = (value & 4294967295u64) as u32;
+    erg high: u32 = (value / 4294967296u64) as u32;
+    compatibility_append_u32(output: ins output, value: abs low);
+    compatibility_append_u32(output: ins output, value: abs high);
+}
+
+verb compatibility_descriptor() -> Buffer {
+    erg descriptor: Buffer = Buffer[0];
+    compatibility_append_u32(output: ins descriptor, value: abs 0u32);
+    compatibility_append_u32(output: ins descriptor, value: abs 0u32);
+    compatibility_append_u32(output: ins descriptor, value: abs 2u32);
+    compatibility_append_u32(output: ins descriptor, value: abs 48u32);
+    compatibility_append_u32(output: ins descriptor, value: abs 128u32);
+    compatibility_append_u32(output: ins descriptor, value: abs 176u32);
+    compatibility_append_u32(output: ins descriptor, value: abs 48u32);
+    compatibility_append_u32(output: ins descriptor, value: abs 224u32);
+    compatibility_append_u32(output: ins descriptor, value: abs BRAIN_AUXILIARY_PAYLOAD_BYTES);
+    compatibility_append_u64(output: ins descriptor, value: abs 1u64);
+    compatibility_append_u32(output: ins descriptor, value: abs 1u32);
+    return descriptor;
+}
+
+verb compatibility_write_manifest(abs path: Path) -> Result[Int, IoError] {
+    erg descriptor = compatibility_descriptor();
+    erg generation: u64 = 1u64;
+    erg active_count: u32 = 2u32;
+    erg free_list_head: u32 = NULL_INDEX;
+    erg total_column_count: u32 = 2u32;
+    erg shard_count: u32 = 1u32;
+    return write_manifest_dynamic(
+        path: abs path,
+        generation: erg generation,
+        active_count: erg active_count,
+        free_list_head: erg free_list_head,
+        total_column_count: erg total_column_count,
+        shard_count: erg shard_count,
+        descriptors: abs descriptor
+    );
+}
+
+verb compatibility_checksum(abs bytes: Buffer) -> u64 {
+    erg checksum: u64 = 0u64;
+    erg index: u32 = 0u32;
+    loop {
+        if index >= 112u32 {
+            break;
+        }
+        if index < 44u32 || index >= 52u32 {
+            checksum += (bytes[index] as u64) * ((index + 1u32) as u64);
+        }
+        index += 1u32;
+    }
+    return checksum;
+}
+
+verb compatibility_write_u64(ins output: Buffer, abs value: u64) {
+    erg low: u32 = (value & 4294967295u64) as u32;
+    erg high: u32 = (value / 4294967296u64) as u32;
+    output[44u32] = (low & 255u32) as u8;
+    output[45u32] = ((low / 256u32) & 255u32) as u8;
+    output[46u32] = ((low / 65536u32) & 255u32) as u8;
+    output[47u32] = ((low / 16777216u32) & 255u32) as u8;
+    output[48u32] = (high & 255u32) as u8;
+    output[49u32] = ((high / 256u32) & 255u32) as u8;
+    output[50u32] = ((high / 65536u32) & 255u32) as u8;
+    output[51u32] = ((high / 16777216u32) & 255u32) as u8;
+}
+
+verb compatibility_reject_mutated_manifest(dat bytes: Buffer) -> Int {
+    bytes[42u32] = 255u8;
+    erg checksum: u64 = compatibility_checksum(bytes: abs bytes);
+    compatibility_write_u64(output: ins bytes, value: abs checksum);
+    erg validated = read_manifest_dynamic_bytes(bytes: dat bytes);
+    return case dat validated {
+        Result.Err(_) => 0,
+        Result.Ok(_) => 4,
+    };
+}
+
+meta test
+verb test_manifest_rejects_runtime_compatibility_mismatch() -> Int {
+    erg path_result = compatibility_test_path();
+    return case dat path_result {
+        Result.Err(_) => 1,
+        Result.Ok(path) => {
+            erg written = compatibility_write_manifest(path: abs path);
+            return case dat written {
+                Result.Err(_) => {
+                    remove_file(path: abs path);
+                    2;
+                },
+                Result.Ok(_) => {
+                    erg loaded = read_to_bytes(path: abs path);
+                    remove_file(path: abs path);
+                    return case dat loaded {
+                        Result.Err(_) => 3,
+                        Result.Ok(bytes) => compatibility_reject_mutated_manifest(bytes: dat bytes),
+                    };
+                },
+            };
+        },
+    };
+}
