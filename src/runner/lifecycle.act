@@ -1,0 +1,79 @@
+"""Typed lifecycle contract for the production runner.
+
+The lifecycle describes runner-visible persistence intent. It does not perform
+filesystem I/O and does not replace the IE persistence transaction. Teaching
+changes the resident state; an explicit save request moves the runner through
+publication or a typed save failure.
+"""
+open enum RunnerLifecycleState {
+    Loaded,
+    ResidentDirty,
+    SaveRequested,
+    Published,
+    SaveFailed,
+}
+
+"""Failure returned when a runner lifecycle transition is not permitted."""
+open enum RunnerLifecycleError {
+    InvalidTransition,
+}
+
+"""Mutable runner-owned lifecycle state with no filesystem or IE ownership."""
+open struct RunnerLifecycle {
+    erg state: RunnerLifecycleState,
+}
+
+"""Create the lifecycle state after a complete brain generation is loaded."""
+open verb runner_lifecycle_loaded() -> RunnerLifecycle {
+    return RunnerLifecycle {state: RunnerLifecycleState.Loaded};
+}
+
+"""Check whether one runner-visible lifecycle transition is valid.
+
+This is a pure bounded check. It does not mutate the resident brain, publish
+files, or allocate storage.
+"""
+verb runner_lifecycle_can_dirty_or_save(abs next: RunnerLifecycleState) -> Bool {
+    return case next {
+        RunnerLifecycleState.ResidentDirty => true,
+        RunnerLifecycleState.SaveRequested => true,
+        _ => false,
+    };
+}
+
+open verb runner_lifecycle_can_transition(
+    abs current: RunnerLifecycleState,
+    abs next: RunnerLifecycleState
+) -> Bool {
+    return case current {
+        RunnerLifecycleState.Loaded => runner_lifecycle_can_dirty_or_save(next: abs next),
+        RunnerLifecycleState.ResidentDirty => case next {
+            RunnerLifecycleState.SaveRequested => true,
+            _ => false,
+        },
+        RunnerLifecycleState.SaveRequested => case next {
+            RunnerLifecycleState.Published => true,
+            RunnerLifecycleState.SaveFailed => true,
+            _ => false,
+        },
+        RunnerLifecycleState.Published => runner_lifecycle_can_dirty_or_save(next: abs next),
+        RunnerLifecycleState.SaveFailed => runner_lifecycle_can_dirty_or_save(next: abs next),
+    };
+}
+
+"""Apply one validated lifecycle transition.
+
+The transition mutates only the runner lifecycle record. Callers must perform
+teaching, save, and publication through their existing boundaries and publish
+this state only after those operations return their corresponding result.
+"""
+open verb runner_lifecycle_transition(
+    ins lifecycle: RunnerLifecycle,
+    abs next: RunnerLifecycleState
+) -> Result[RunnerLifecycleState, RunnerLifecycleError] {
+    if !runner_lifecycle_can_transition(current: abs lifecycle.state, next: abs next) {
+        return Result[RunnerLifecycleState, RunnerLifecycleError].Err(RunnerLifecycleError.InvalidTransition);
+    }
+    lifecycle.state = next;
+    return Result[RunnerLifecycleState, RunnerLifecycleError].Ok(lifecycle.state);
+}

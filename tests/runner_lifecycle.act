@@ -1,0 +1,97 @@
+"""Public runner lifecycle transition tests."""
+import runner;
+
+open runner;
+
+verb lifecycle_test_step(
+    ins lifecycle: RunnerLifecycle,
+    abs next: RunnerLifecycleState,
+    abs expected: RunnerLifecycleState
+) -> Bool {
+    erg result: Result[RunnerLifecycleState,RunnerLifecycleError] = runner_lifecycle_transition(
+        lifecycle: ins lifecycle,
+        next: abs next
+    );
+    return case dat result {
+        Result.Err(_) => false,
+        Result.Ok(state) => state == expected,
+    };
+}
+
+meta test
+verb test_runner_lifecycle_accepts_production_transitions() -> Int {
+    erg lifecycle: RunnerLifecycle = runner_lifecycle_loaded();
+    erg resident_dirty: RunnerLifecycleState = RunnerLifecycleState.ResidentDirty;
+    erg save_requested: RunnerLifecycleState = RunnerLifecycleState.SaveRequested;
+    erg published: RunnerLifecycleState = RunnerLifecycleState.Published;
+    if !lifecycle_test_step(
+        lifecycle: ins lifecycle,
+        next: abs resident_dirty,
+        expected: abs resident_dirty
+    ) {
+        return 1;
+    }
+    if !lifecycle_test_step(
+        lifecycle: ins lifecycle,
+        next: abs save_requested,
+        expected: abs save_requested
+    ) {
+        return 1;
+    }
+    if !lifecycle_test_step(
+        lifecycle: ins lifecycle,
+        next: abs published,
+        expected: abs published
+    ) {
+        return 1;
+    }
+    return 0;
+}
+
+meta test
+verb test_runner_lifecycle_accepts_save_failure_and_retry() -> Int {
+    erg lifecycle: RunnerLifecycle = runner_lifecycle_loaded();
+    erg save_requested: RunnerLifecycleState = RunnerLifecycleState.SaveRequested;
+    erg save_failed: RunnerLifecycleState = RunnerLifecycleState.SaveFailed;
+    if !lifecycle_test_step(
+        lifecycle: ins lifecycle,
+        next: abs save_requested,
+        expected: abs save_requested
+    ) {
+        return 1;
+    }
+    if !lifecycle_test_step(
+        lifecycle: ins lifecycle,
+        next: abs save_failed,
+        expected: abs save_failed
+    ) {
+        return 1;
+    }
+    if !lifecycle_test_step(
+        lifecycle: ins lifecycle,
+        next: abs save_requested,
+        expected: abs save_requested
+    ) {
+        return 1;
+    }
+    return 0;
+}
+
+meta test
+verb test_runner_lifecycle_rejects_invalid_transition() -> Int {
+    erg lifecycle: RunnerLifecycle = runner_lifecycle_loaded();
+    erg published: RunnerLifecycleState = RunnerLifecycleState.Published;
+    erg result: Result[RunnerLifecycleState,RunnerLifecycleError] = runner_lifecycle_transition(
+        lifecycle: ins lifecycle,
+        next: abs published
+    );
+    if lifecycle.state != RunnerLifecycleState.Loaded {
+        return 1;
+    }
+    return case dat result {
+        Result.Err(error) => case error {
+            RunnerLifecycleError.InvalidTransition => 0,
+        },
+        Result.Ok(_) => 1,
+    };
+}

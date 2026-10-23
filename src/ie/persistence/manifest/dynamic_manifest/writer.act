@@ -53,17 +53,17 @@ verb append_dynamic_manifest_identity(
 }
 
 """
-Purpose: Append dynamic manifest state fields, including the free-list head and reserved values.
+Purpose: Append dynamic manifest state fields, including runtime compatibility and the free-list head.
 Inputs: The typed value arguments declared by the signature and the destination Buffer.
 Outputs: Extends the destination Buffer in canonical little-endian order.
 Invariants: The destination remains the only mutable owner and field ordering is preserved.
 Failure behavior: This low-level encoder has no error result; callers must provide valid typed values and capacity.
 """
 verb append_dynamic_manifest_state(ins output: Buffer, erg free_list_head: u32) {
-    erg zero_u16: u16 = 0u16;
+    erg runtime_compatibility: u16 = BRAIN_RUNTIME_COMPATIBILITY_VERSION;
     erg zero_u32: u32 = 0u32;
     erg zero_u64: u64 = 0u64;
-    append_manifest_u16(output: ins output, value: abs zero_u16);
+    append_manifest_u16(output: ins output, value: abs runtime_compatibility);
     append_manifest_u64(output: ins output, value: abs zero_u64);
     append_manifest_u32(output: ins output, value: abs free_list_head);
     append_manifest_u32(output: ins output, value: abs zero_u32);

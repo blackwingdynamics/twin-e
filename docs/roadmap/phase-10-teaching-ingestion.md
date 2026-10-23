@@ -331,7 +331,7 @@ contract. A `.brain` artifact is learned state, not an executable. The runner
 must load it from an explicit manifest and publish a new complete generation
 only after an explicit save request.
 
-- [ ] Define the lifecycle states `Loaded`, `ResidentDirty`, `SaveRequested`,
+- [Completed in Phase 10] Define the lifecycle states `Loaded`, `ResidentDirty`, `SaveRequested`,
       `Published`, and `SaveFailed` at the runner boundary.
 - [Completed in Phase 11] Load the selected complete generation before accepting teaching input.
 - [Completed in Phase 11] Keep teaching in resident memory; do not write synchronously from the
@@ -355,8 +355,15 @@ only after an explicit save request.
       dataset.
 - [Completed in Phase 11] Failed-save and interrupted-publication fixtures preserve the previous
       published generation and the live resident state.
-- [ ] The run manifest and shard checksums identify the exact executable and
+- [x] The run manifest and shard checksums identify the exact executable and
       input dataset used for the run.
+
+      Evidence: `docs/benchmarks/phase-11-provenance.md` records the compiler
+      and executable SHA-256, the ordered content hashes for every accepted
+      TWF input, and the exact build/run commands. The published manifest and
+      shard descriptors recorded by the Phase 11 production-acceptance run
+      carry the shard count, ranges, and per-shard checksums before restart
+      recovery.
 
 ## Gate 10.4.3 — Package a reproducible production release
 
@@ -367,19 +374,31 @@ only after an explicit save request.
 - [Completed in Phase 11] Publish a checksum for every executable and runtime manifest.
 - [Completed in Phase 11] Provide a clean-workspace smoke command that loads a known complete brain
       generation and performs one bounded teaching or recall operation.
-- [ ] Reject a binary/manifest/compiler compatibility mismatch before loading
+- [x] Reject a binary/manifest/compiler compatibility mismatch before loading
       resident state.
-- [ ] Define the rollback procedure to the previous executable and previous
+- [x] Define the rollback procedure to the previous executable and previous
       complete brain generation.
 - [Completed in Phase 11] Record target, profile, compiler revision, source revision, and all
       input limits in the release evidence.
+
+Evidence: ADR-0019 defines the compiled runtime compatibility profile in the
+dynamic manifest header. Writers publish the profile version and validators
+reject a mismatched value before logical state admission; the strict regression
+test also recomputes the manifest checksum after tampering to prove the check
+is not only checksum failure handling.
+
+Rollback evidence: ADR-0020 defines the non-destructive executable/brain-pair
+rollback procedure. `test_restart_recovery_selects_complete_auxiliary_generation`
+rejects the newer incomplete generation and selects the previous complete one;
+the compatibility regression test verifies that the selected executable
+profile is checked before resident state loading.
 
 ### Required evidence
 
 - [Completed in Phase 11] A clean Arch Linux workspace reproduces the release build and smoke run.
 - [Completed in Phase 11] The published checksum and runtime metadata match the executable that
       produced the evidence.
-- [ ] A rollback fixture restores the previous executable/brain pair without
+- [x] A rollback fixture restores the previous executable/brain pair without
       mutating the newer generation.
 
 ## Gate 10.5 — Add framed `std::wire` transport
