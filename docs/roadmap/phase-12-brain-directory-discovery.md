@@ -125,7 +125,7 @@ count remains governed by the brain manifest, not by resident cache capacity.
       resident slot; never discard dirty state before publication succeeds.
 - [x] Retry the pending shard admission after a successful flush without
       replaying or skipping the current TWF record.
-- [ ] Preserve resident and published state unchanged when flush or admission
+- [x] Preserve resident and published state unchanged when flush or admission
       fails, and return the typed failure instead of a generic success.
 - [ ] Keep the resident cache bounded while allowing the manifest to reference
       every successfully published logical shard.
@@ -165,3 +165,10 @@ whole file, and ordinary file/stdin teaching remains free of implicit flush
 I/O. `tests/aie_logical_flush.act::test_logical_teaching_retries_current_twf_record_after_flush`
 proves one record is accepted exactly once after crossing the resident
 boundary; the strict suite remains at 186 passed and 0 failed.
+
+Gate 12.3 fourth-check evidence: a failed explicit flush returns an error
+before resident lifecycle state changes. `tests/aie_logical_flush.act::test_logical_teaching_failed_flush_preserves_dirty_state`
+proves the dirty resident count is unchanged, while
+`tests/aie_logical_teaching.act::test_runner_failed_flush_preserves_dirty_state`
+proves a pending admission is not treated as successful after a failed
+flush. The strict suite remains at 187 passed and 0 failed.

@@ -260,3 +260,42 @@ verb test_logical_teaching_retries_current_twf_record_after_flush() -> Int {
         },
     };
 }
+
+meta test
+verb test_logical_teaching_failed_flush_preserves_dirty_state() -> Int {
+    erg directory_result = flush_test_path();
+    return case dat directory_result {
+        Result.Err(_) => 1,
+        Result.Ok(directory) => {
+            erg input_result = flush_test_input_path();
+            return case dat input_result {
+                Result.Err(_) => {
+                    flush_test_cleanup(brain_dir: abs directory);
+                    2;
+                },
+                Result.Ok(input) => {
+                    erg brain: LogicalTeachingBrain = logical_teaching_empty();
+                    erg prepared = flush_test_prepare(brain: ins brain, brain_dir: abs directory);
+                    if prepared != 0 {
+                        remove_file(path: abs input);
+                        flush_test_cleanup(brain_dir: abs directory);
+                        return 3;
+                    }
+                    erg before: u8 = shard_cache_dirty_count(cache: abs brain.logical.cache);
+                    erg result = logical_teaching_flush_dirty_residents(brain: ins brain, brain_dir: abs input);
+                    erg after: u8 = shard_cache_dirty_count(cache: abs brain.logical.cache);
+                    remove_file(path: abs input);
+                    flush_test_cleanup(brain_dir: abs directory);
+                    return case dat result {
+                        Result.Ok(_) => 4,
+                        Result.Err(_) => if before > 0u8 && before == after {
+                            0;
+                        } else {
+                            5;
+                        },
+                    };
+                },
+            };
+        },
+    };
+}
