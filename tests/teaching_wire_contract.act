@@ -91,3 +91,111 @@ verb test_teaching_wire_frame_carries_one_request_only() -> Int {
     }
     return 0;
 }
+
+verb teaching_wire_test_frame(ins output: Buffer) -> Result[u32, WireError] {
+    erg header = WireHeader {storage: Array[u8, 12]()};
+    header.magic_0 = WIRE_MAGIC_0;
+    header.magic_1 = WIRE_MAGIC_1;
+    header.version = WIRE_VERSION;
+    header.flags = 0u8;
+    header.message_id = TEACHING_WIRE_MESSAGE_ID;
+    header.channel_id = 0u8;
+    header.sequence_num = 21u32;
+    header.payload_len = 1u16;
+    erg payload: Buffer = Buffer[1];
+    payload[0] = 42u8;
+    return wire_frame_encode(
+        header: abs header,
+        payload: abs payload,
+        output: ins output
+    );
+}
+
+meta test
+verb test_teaching_wire_decoder_accepts_valid_frame() -> Int {
+    erg frame: Buffer = Buffer[15];
+    erg encoded = teaching_wire_test_frame(output: ins frame);
+    case dat encoded {
+        Result.Err(_) => {
+            return 1;
+        },
+        Result.Ok(_) => {},
+    };
+    erg payload: Buffer = Buffer[1];
+    erg decoded = teaching_wire_decode_request(frame: abs frame, payload_output: ins payload);
+    return case dat decoded {
+        Result.Err(_) => 2,
+        Result.Ok(message) => if message.sequence_num == 21u32 && message.payload_length == 1u32 && payload[0] == 42u8 {
+            0;
+        } else {
+            3;
+        },
+    };
+}
+
+meta test
+verb test_teaching_wire_decoder_rejects_corrupt_frame() -> Int {
+    erg frame: Buffer = Buffer[15];
+    erg encoded = teaching_wire_test_frame(output: ins frame);
+    case dat encoded {
+        Result.Err(_) => {
+            return 1;
+        },
+        Result.Ok(_) => {},
+    };
+    frame[12] = 43u8;
+    erg payload: Buffer = Buffer[1];
+    erg corrupt = teaching_wire_decode_request(frame: abs frame, payload_output: ins payload);
+    erg corrupt_rejected: Bool = case dat corrupt {
+        Result.Err(error) => error == WireError.ChecksumMismatch,
+        Result.Ok(_) => false,
+    };
+    if !corrupt_rejected {
+        return 2;
+    }
+    return 0;
+}
+
+meta test
+verb test_teaching_wire_decoder_rejects_truncated_frame() -> Int {
+    erg frame: Buffer = Buffer[15];
+    erg encoded = teaching_wire_test_frame(output: ins frame);
+    case dat encoded {
+        Result.Err(_) => {
+            return 1;
+        },
+        Result.Ok(_) => {},
+    };
+    erg truncated: Buffer = Buffer[12];
+    for erg index: u32 in 0u32 .. 12u32 {
+        truncated[index] = frame[index];
+    }
+    erg payload: Buffer = Buffer[1];
+    erg truncated_result = teaching_wire_decode_request(frame: abs truncated, payload_output: ins payload);
+    erg truncated_rejected: Bool = case dat truncated_result {
+        Result.Err(error) => error == WireError.Truncated,
+        Result.Ok(_) => false,
+    };
+    if !truncated_rejected {
+        return 3;
+    }
+    return 0;
+}
+
+meta test
+verb test_teaching_wire_decoder_rejects_unsupported_version() -> Int {
+    erg unsupported: Buffer = Buffer[12];
+    unsupported[0] = WIRE_MAGIC_0;
+    unsupported[1] = WIRE_MAGIC_1;
+    unsupported[2] = WIRE_VERSION + 1u8;
+    erg payload: Buffer = Buffer[1];
+    erg unsupported_result = teaching_wire_decode_request(frame: abs unsupported, payload_output: ins payload);
+    erg unsupported_rejected: Bool = case dat unsupported_result {
+        Result.Err(error) => error == WireError.UnsupportedVersion,
+        Result.Ok(_) => false,
+    };
+    if !unsupported_rejected {
+        return 1;
+    }
+    return 0;
+}

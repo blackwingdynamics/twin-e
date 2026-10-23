@@ -407,7 +407,7 @@ profile is checked before resident state loading.
 - [x] Define frame length, payload length, checksum, and maximum frame size.
 - [x] Define whether one frame is one request or whether a frame may contain a
       bounded batch.
-- [ ] Reject unsupported versions, bad checksums, truncated frames, and
+- [x] Reject unsupported versions, bad checksums, truncated frames, and
       oversized payloads before admission.
 - [ ] Preserve request ordering and deterministic response correlation.
 - [ ] Keep wire parsing independent from modality adapters and IE state.

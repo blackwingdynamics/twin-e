@@ -26,6 +26,9 @@ maximum frame size, and CRC validation. Twin-e owns:
   `WIRE_MAX_FRAME_BYTES`;
 - one frame carries exactly one teaching request; bounded batches use a
   separate transport-level contract and are not concatenated into one frame;
+- complete-frame decoding delegates unsupported versions, bad checksums,
+  truncation, and payload bounds to `std::wire` before the teaching message is
+  exposed to admission;
 - validation that the frame and application message versions match the
   supported contract and that the payload fits `std::wire`'s maximum.
 
@@ -39,4 +42,5 @@ module, while framing and checksum implementation remain in `std::wire`.
 exact frame sizing, the maximum-frame boundary, and oversized-payload
 rejection, plus the one-request-per-frame boundary. CRC calculation and
 validation remain covered by `std::wire`'s canonical codec rather than being
-duplicated in Twin-e.
+duplicated in Twin-e. The decoder tests additionally cover valid delivery and
+typed rejection of corrupt, truncated, and unsupported frames.
