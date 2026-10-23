@@ -1,7 +1,7 @@
 meta limitless("file")
 
 
-"""Gate 12.2 public evidence for indexed teaching checkpoint and reload."""
+"""Gate 12.3 public evidence for multi-file bounded-cache teaching."""
 import aie;
 
 import cli;
@@ -22,8 +22,8 @@ open path;
 
 open runner;
 
-verb runner_teaching_path_root(ins raw: Buffer, erg selector: u8) {
-    if selector == 0u8 {
+verb runner_teaching_path_root(ins raw: Buffer, erg selector: u16) {
+    if selector == 0u16 {
         append(raw, 98u8);
         append(raw, 114u8);
         append(raw, 97u8);
@@ -38,7 +38,7 @@ verb runner_teaching_path_root(ins raw: Buffer, erg selector: u8) {
     }
 }
 
-verb runner_teaching_path(erg selector: u8) -> Result[Path, PathError] {
+verb runner_teaching_path(erg selector: u16) -> Result[Path, PathError] {
     erg raw: Buffer = Buffer[0];
     append(raw, 47u8);
     append(raw, 116u8);
@@ -53,13 +53,13 @@ verb runner_teaching_path(erg selector: u8) -> Result[Path, PathError] {
     append(raw, 101u8);
     append(raw, 45u8);
     runner_teaching_path_root(raw: ins raw, selector: erg selector);
-    if selector >= 2u8 {
+    if selector >= 2u16 {
         append(raw, 47u8);
-        if selector == 2u8 {
-            append(raw, 97u8);
-        } else {
-            append(raw, 98u8);
-        }
+        erg file_number: u16 = selector - 2u16;
+        append(raw, 102u8);
+        append(raw, 48u8 + (file_number as u32 / 100u32) as u8);
+        append(raw, 48u8 + ((file_number as u32 / 10u32) % 10u32) as u8);
+        append(raw, 48u8 + (file_number as u32 % 10u32) as u8);
         append(raw, 46u8);
         append(raw, 116u8);
         append(raw, 119u8);
@@ -69,39 +69,37 @@ verb runner_teaching_path(erg selector: u8) -> Result[Path, PathError] {
     return path_from_ascii(storage: dat raw);
 }
 
-verb runner_teaching_file_bytes() -> Buffer {
+verb runner_teaching_file_bytes(erg seed: u16) -> Buffer {
     erg bytes: Buffer = Buffer[0];
     append(bytes, 84u8);
     append(bytes, 87u8);
     append(bytes, 70u8);
     append(bytes, 49u8);
-    append(bytes, 2u8);
-    append(bytes, 2u8);
-    append(bytes, 0u8);
-    append(bytes, 65u8);
-    append(bytes, 66u8);
-    append(bytes, 2u8);
-    append(bytes, 0u8);
-    append(bytes, 67u8);
-    append(bytes, 68u8);
+    append(bytes, 4u8);
+    for erg record_index: u32 in 0u32 .. 4u32 {
+        append(bytes, 1u8);
+        append(bytes, 0u8);
+        append(bytes, 1u8 + ((seed as u32 * 8u32 + record_index) % 127u32) as u8);
+    }
     return bytes;
 }
 
 verb runner_teaching_remove_brain_files(abs brain_dir: Path) {
     erg manifest_path = persistence_manifest_path(brain_dir: abs brain_dir);
-    erg cleanup_shard_id: u32 = 0u32;
-    erg shard_path = persistence_format_shard_path(brain_dir: abs brain_dir, shard_id: erg cleanup_shard_id);
     case dat manifest_path {
         Result.Err(_) => {},
         Result.Ok(path) => remove_file(path: abs path),
     };
-    case dat shard_path {
-        Result.Err(_) => {},
-        Result.Ok(path) => remove_file(path: abs path),
-    };
+    for erg shard_id: u32 in 0u32 .. 8u32 {
+        erg shard_path = persistence_format_shard_path(brain_dir: abs brain_dir, shard_id: erg shard_id);
+        case dat shard_path {
+            Result.Err(_) => {},
+            Result.Ok(path) => remove_file(path: abs path),
+        };
+    }
 }
 
-verb runner_teaching_path_value(erg selector: u8) -> Path {
+verb runner_teaching_path_value(erg selector: u16) -> Path {
     erg result = runner_teaching_path(selector: erg selector);
     return case dat result {
         Result.Err(_) => Path {storage: Buffer[0], platform: PathPlatform.Posix, length: 0, capacity: 0, terminated: 0},
@@ -109,8 +107,8 @@ verb runner_teaching_path_value(erg selector: u8) -> Path {
     };
 }
 
-verb runner_teaching_write(abs path: Path) -> Bool {
-    erg bytes = runner_teaching_file_bytes();
+verb runner_teaching_write(abs path: Path, erg seed: u16) -> Bool {
+    erg bytes = runner_teaching_file_bytes(seed: erg seed);
     erg written = write_file(path: abs path, contents: abs bytes);
     return case dat written {
         Result.Err(_) => false,
@@ -125,6 +123,11 @@ verb runner_teaching_cleanup(
     dat second: Path
 ) {
     runner_teaching_remove_brain_files(brain_dir: abs brain_dir);
+    for erg file_index: u16 in 0u16 .. 1000u16 {
+        erg selector: u16 = 2u16 + file_index;
+        erg file_path = runner_teaching_path_value(selector: erg selector);
+        remove_file(path: abs file_path);
+    }
     remove_file(path: abs first);
     remove_file(path: abs second);
     remove_dir(path: abs input_dir);
@@ -170,14 +173,19 @@ verb runner_teaching_run_created(
     dat first: Path,
     dat second: Path
 ) -> Int {
-    if !runner_teaching_write(path: abs first) || !runner_teaching_write(path: abs second) {
-        runner_teaching_cleanup(
-            brain_dir: dat brain_dir,
-            input_dir: dat input_dir,
-            first: dat first,
-            second: dat second
-        );
-        return 2;
+    for erg ordinal: u16 in 0u16 .. 1000u16 {
+        erg file_index: u16 = 999u16 - ordinal;
+        erg selector: u16 = 2u16 + file_index;
+        erg path = runner_teaching_path_value(selector: erg selector);
+        if !runner_teaching_write(path: abs path, seed: erg file_index) {
+            runner_teaching_cleanup(
+                brain_dir: dat brain_dir,
+                input_dir: dat input_dir,
+                first: dat first,
+                second: dat second
+            );
+            return 2;
+        }
     }
     erg brain: LogicalTeachingBrain = logical_teaching_empty();
     return runner_teaching_initialize(
@@ -332,7 +340,9 @@ verb runner_teaching_reload_check(
     erg loaded = logical_teaching_load_generation(brain: ins brain, brain_dir: abs command.brain_dir);
     return case dat loaded {
         Result.Err(_) => 5,
-        Result.Ok(_) => if brain.logical.generation == 2u64 {
+        Result.Ok(_) => if brain.logical.generation == 1000u64 && brain.logical.shard_count > BRAIN_LOGICAL_MAX_RESIDENT_SHARDS && shard_cache_resident_count(
+            cache: abs brain.logical.cache
+        ) <= BRAIN_LOGICAL_MAX_RESIDENT_SHARDS as u8 {
             0;
         } else {
             6;
@@ -341,11 +351,11 @@ verb runner_teaching_reload_check(
 }
 
 meta test
-verb test_indexed_directory_teaching_checkpoints_and_reloads() -> Int {
-    erg brain_selector: u8 = 0u8;
-    erg input_selector: u8 = 1u8;
-    erg first_selector: u8 = 2u8;
-    erg second_selector: u8 = 3u8;
+verb test_directory_teaching_crosses_resident_cache_and_reloads_in_order() -> Int {
+    erg brain_selector: u16 = 0u16;
+    erg input_selector: u16 = 1u16;
+    erg first_selector: u16 = 2u16;
+    erg second_selector: u16 = 3u16;
     erg brain_dir = runner_teaching_path_value(selector: erg brain_selector);
     erg input_dir = runner_teaching_path_value(selector: erg input_selector);
     erg first = runner_teaching_path_value(selector: erg first_selector);

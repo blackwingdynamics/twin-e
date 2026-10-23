@@ -129,7 +129,7 @@ count remains governed by the brain manifest, not by resident cache capacity.
       fails, and return the typed failure instead of a generic success.
 - [x] Keep the resident cache bounded while allowing the manifest to reference
       every successfully published logical shard.
-- [ ] Add a multi-file directory-training test that crosses the four-slot
+- [x] Add a multi-file directory-training test that crosses the four-slot
       resident limit and completes in deterministic file order.
 - [ ] Add a failed-flush test proving that dirty state remains usable and the
       next admission is not attempted as if publication had succeeded.
@@ -180,3 +180,12 @@ verifies that the live cache never exceeds four entries. A fresh brain then
 reloads the published manifest and confirms five logical shards with four
 resident entries. With the rebuilt Actus compiler, the strict suite reports
 188 passed and 0 failed.
+
+Gate 12.3 sixth-check evidence: `tests/runner_dataset_teaching.act::test_directory_teaching_crosses_resident_cache_and_reloads_in_order`
+creates 1,000 `.twf` files in reverse creation order, lets the dataset index
+consume them in sorted filename order, checkpoints each accepted file, and
+crosses the four-slot resident cache. The test confirms generation 1,000,
+more than four published logical shards, and no more than four resident
+entries after reload. The restore boundary now loads the newest resident
+window rather than the first four shards, so the next file continues from the
+current shard. The strict suite reports 188 passed and 0 failed.
