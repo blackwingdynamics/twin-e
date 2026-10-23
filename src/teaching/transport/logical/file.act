@@ -49,7 +49,7 @@ verb file_logical_error(dat error: LogicalTeachingError) -> TeachingFileError {
         LogicalTeachingError.LogicalCapacityExceeded => TeachingFileError.LogicalCapacityExceeded,
         LogicalTeachingError.ResidentCapacityExceeded => TeachingFileError.ResidentCapacityExceeded,
         LogicalTeachingError.AuxiliaryCapacityExceeded => TeachingFileError.LogicalCapacityExceeded,
-        LogicalTeachingError.FlushRequired => TeachingFileError.ResidentCapacityExceeded,
+        LogicalTeachingError.FlushRequired => TeachingFileError.FlushRequired,
         _ => TeachingFileError.InvalidRouting,
     };
 }

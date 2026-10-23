@@ -2,8 +2,10 @@
 
 ## Status
 
-Implementation complete. The runner and logical persistence boundaries use a
-single brain directory; runtime and native acceptance evidence is green.
+Gates 12.1 and 12.2 are complete. Gate 12.3 is the next implementation gate:
+it closes the production directory-training flush boundary so a published
+shard can leave the bounded resident working set before the next shard is
+admitted.
 
 ## Objective
 
@@ -105,3 +107,45 @@ The public error-boundary and metrics tests bring the strict suite to 183
 passed and 0 failed. The training repository documents directory input and
 the generated deterministic manifest-index workflow without enumerating shard
 paths in configuration.
+
+## Gate 12.3 — Stream training across the bounded resident cache
+
+Directory ingestion must remain continuous when the logical brain grows beyond
+the four-slot resident working set. A successful shard publication is the
+eviction boundary: the runner must flush the dirty resident shard, validate
+the published artifact, mark the resident entry clean, and release its cache
+slot before retrying admission for the next shard. Disk-backed logical shard
+count remains governed by the brain manifest, not by resident cache capacity.
+
+### Contract
+
+- [x] Detect `FlushRequired` or an equivalent dirty high-watermark signal at
+      the dataset teaching boundary before the next shard admission.
+- [ ] Flush and validate the selected dirty shard before releasing its
+      resident slot; never discard dirty state before publication succeeds.
+- [ ] Retry the pending shard admission after a successful flush without
+      replaying or skipping the current TWF record.
+- [ ] Preserve resident and published state unchanged when flush or admission
+      fails, and return the typed failure instead of a generic success.
+- [ ] Keep the resident cache bounded while allowing the manifest to reference
+      every successfully published logical shard.
+- [ ] Add a multi-file directory-training test that crosses the four-slot
+      resident limit and completes in deterministic file order.
+- [ ] Add a failed-flush test proving that dirty state remains usable and the
+      next admission is not attempted as if publication had succeeded.
+- [ ] Record the resulting metrics and exit behavior, then update ADR-0012
+      and the training-repository instructions with the verified boundary.
+
+### Acceptance evidence
+
+- [ ] The existing three-file Georgian directory run completes without
+      `ResidentCapacityExceeded`.
+- [ ] All prior strict checks remain green and no filesystem I/O is added to
+      inference, impulse forwarding, or neurogenesis hot paths.
+
+Gate 12.3 first-check evidence: the dataset boundary now preserves the typed
+`FlushRequired` signal from logical admission instead of collapsing it into
+`ResidentCapacityExceeded`. `tests/aie_logical_teaching.act::test_dataset_boundary_reports_flush_request`
+proves that three dirty resident shards are detected before the next dataset
+file is admitted. The check is allocation-free and performs no filesystem I/O;
+flush, publication, and resident-slot release remain the next unchecked work.

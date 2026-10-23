@@ -17,6 +17,7 @@ open enum DatasetTeachingError {
     UnreadableTwf,
     CheckpointLoadFailed,
     PublicationFailed,
+    FlushRequired,
     TeachingRejected,
 }
 
@@ -62,6 +63,7 @@ verb dataset_teaching_file_failure(dat error: TeachingFileError) -> DatasetTeach
         TeachingFileError.TeachingRejected => DatasetTeachingError.TeachingRejected,
         TeachingFileError.LogicalCapacityExceeded => DatasetTeachingError.TeachingRejected,
         TeachingFileError.ResidentCapacityExceeded => DatasetTeachingError.TeachingRejected,
+        TeachingFileError.FlushRequired => DatasetTeachingError.FlushRequired,
         TeachingFileError.InvalidRouting => DatasetTeachingError.TeachingRejected,
     };
 }

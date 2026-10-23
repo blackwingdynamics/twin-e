@@ -27,6 +27,19 @@ verb dataset_teaching_status(dat error: DatasetTeachingError) -> Int {
     };
 }
 
+"""Detect dirty-cache pressure at the dataset-file boundary.
+
+This bounded metadata check performs no filesystem I/O. It exposes the
+existing caller-driven flush request; a later gate owns flush, publication,
+and resident-slot release.
+"""
+open verb dataset_teaching_boundary_error(abs brain: LogicalTeachingBrain) -> Option[DatasetTeachingError] {
+    if shard_cache_flush_requested(cache: abs brain.logical.cache) {
+        return Option[DatasetTeachingError].Some(DatasetTeachingError.FlushRequired);
+    }
+    return Option[DatasetTeachingError].None;
+}
+
 verb dataset_teaching_load_next(
     abs command: RunnerConfig,
     ins brain: LogicalTeachingBrain
@@ -58,6 +71,14 @@ verb dataset_teaching_file(
     return case dat full {
         Result.Err(_) => Result[TeachingFileMetrics, TeachingFileError].Err(TeachingFileError.InvalidRecord),
         Result.Ok(path) => teach_logical_file(brain: ins brain, path: abs path),
+    };
+}
+
+verb dataset_teaching_check_boundary(abs brain: LogicalTeachingBrain) -> Result[Bool, DatasetTeachingError] {
+    erg boundary = dataset_teaching_boundary_error(brain: abs brain);
+    return case dat boundary {
+        Option.Some(error) => Result[Bool, DatasetTeachingError].Err(dat error),
+        Option.None => Result[Bool, DatasetTeachingError].Ok(true),
     };
 }
 
@@ -93,6 +114,31 @@ verb dataset_teaching_entry(
 }
 
 verb dataset_teaching_entry_after_load(
+    abs directory_path: Path,
+    dat relative_path: Path,
+    abs command: RunnerConfig,
+    ins brain: LogicalTeachingBrain,
+    ins first_file: Bool,
+    ins aggregate: DatasetTeachingMetrics
+) -> Result[Bool, DatasetTeachingError] {
+    erg boundary = dataset_teaching_check_boundary(brain: abs brain);
+    case dat boundary {
+        Result.Err(error) => {
+            return Result[Bool, DatasetTeachingError].Err(dat error);
+        },
+        Result.Ok(_) => {},
+    };
+    return dataset_teaching_teach_after_boundary(
+        directory_path: abs directory_path,
+        relative_path: dat relative_path,
+        command: abs command,
+        brain: ins brain,
+        first_file: ins first_file,
+        aggregate: ins aggregate
+    );
+}
+
+verb dataset_teaching_teach_after_boundary(
     abs directory_path: Path,
     dat relative_path: Path,
     abs command: RunnerConfig,

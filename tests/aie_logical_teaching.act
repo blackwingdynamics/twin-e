@@ -282,3 +282,23 @@ verb test_high_watermark_requires_flush_before_rotation() -> Int {
     }
     return logical_test_flush_and_resume(brain: ins brain, sequence: abs blocked_sequence);
 }
+
+meta test
+verb test_dataset_boundary_reports_flush_request() -> Int {
+    erg brain: LogicalTeachingBrain = logical_teaching_empty();
+    if !logical_test_init(brain: ins brain) {
+        return 1;
+    }
+    if !logical_test_teach_three_shards(brain: ins brain) {
+        return 2;
+    }
+    erg boundary = dataset_teaching_boundary_error(brain: abs brain);
+    return case dat boundary {
+        Option.Some(error) => if error == DatasetTeachingError.FlushRequired {
+            0;
+        } else {
+            3;
+        },
+        Option.None => 4,
+    };
+}

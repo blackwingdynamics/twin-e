@@ -410,6 +410,7 @@ verb runner_error_metrics_case(erg suite: u8) -> Int {
                     DatasetTeachingError.UnreadableTwf => 15,
                     DatasetTeachingError.CheckpointLoadFailed => 16,
                     DatasetTeachingError.PublicationFailed => 17,
+                    DatasetTeachingError.FlushRequired => 19,
                     DatasetTeachingError.TeachingRejected => 18,
                 },
                 Result.Ok(metrics) => runner_error_metrics_status(metrics: abs metrics),
