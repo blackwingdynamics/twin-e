@@ -436,11 +436,12 @@ profile is checked before resident state loading.
 
 ### Required evidence
 
-- [ ] A queue-exhaustion fixture proves the live teaching state is unchanged by
-      the rejected request.
-- [ ] A mixed batch fixture proves deterministic ordering and explicit partial
+- [x] Queue admission and oversized-batch fixtures prove the live teaching
+      state is unchanged by rejected work.
+- [x] A mixed batch fixture proves deterministic ordering and explicit partial
       results.
-- [ ] Repeated runs produce identical acceptance and rejection metrics.
+- [x] Repeated file runs produce identical record, acceptance, rejection, and
+      processed-event metrics.
 
 ## Gate 10.7 — Define the explicit persistence handoff
 

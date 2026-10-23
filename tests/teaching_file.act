@@ -272,18 +272,22 @@ verb test_teaching_file_replay_is_deterministic() -> Int {
     erg first_suffix: u8 = 4u8;
     erg first = replay_teaching_file(suffix: erg first_suffix);
     erg second = replay_teaching_file(suffix: erg first_suffix);
+    erg first_records: u16 = 0u16;
+    erg first_accepted: u16 = 0u16;
     erg first_events: u32 = 0u32;
     case dat first {
         Result.Err(_) => {
             return 1;
         },
         Result.Ok(metrics) => {
+            first_records = metrics.record_count;
+            first_accepted = metrics.accepted_count;
             first_events = metrics.processed_events;
         },
     };
     return case dat second {
         Result.Err(_) => 1,
-        Result.Ok(metrics) => if first_events == metrics.processed_events {
+        Result.Ok(metrics) => if first_records == metrics.record_count && first_accepted == metrics.accepted_count && first_records - first_accepted == metrics.record_count - metrics.accepted_count && first_events == metrics.processed_events {
             0;
         } else {
             1;
