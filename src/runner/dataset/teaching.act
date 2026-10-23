@@ -3,6 +3,8 @@ import aie;
 
 import cli;
 
+import config;
+
 import std::path;
 
 import teaching;
@@ -11,36 +13,40 @@ open aie;
 
 open cli;
 
+open config;
+
 open path;
 
 open teaching;
 
-verb dataset_teaching_error(abs brain: LogicalTeachingBrain) -> Int {
-    erg message: String = "TWIN_E_ERROR code=4 kind=dataset_teaching_rejected";
-    println(text: abs message);
-    return 4;
+verb dataset_teaching_status(dat error: DatasetTeachingError) -> Int {
+    return case dat error {
+        DatasetTeachingError.CheckpointLoadFailed => RUNNER_EXIT_CHECKPOINT_LOAD_FAILED,
+        DatasetTeachingError.PublicationFailed => RUNNER_EXIT_PERSISTENCE_FAILED,
+        _ => RUNNER_EXIT_TEACHING_REJECTED,
+    };
 }
 
 verb dataset_teaching_load_next(
     abs command: RunnerConfig,
     ins brain: LogicalTeachingBrain
-) -> Int {
+) -> Result[Bool, DatasetTeachingError] {
     erg loaded = logical_teaching_load_generation(brain: ins brain, brain_dir: abs command.brain_dir);
     return case dat loaded {
-        Result.Err(_) => {
-            erg message: String = "TWIN_E_ERROR code=3 kind=brain_checkpoint_load_failed";
-            println(text: abs message);
-            3;
-        },
-        Result.Ok(_) => 0,
+        Result.Err(_) => Result[Bool, DatasetTeachingError].Err(DatasetTeachingError.CheckpointLoadFailed),
+        Result.Ok(_) => Result[Bool, DatasetTeachingError].Ok(true),
     };
 }
 
 verb dataset_teaching_checkpoint(
     abs command: RunnerConfig,
     abs brain: LogicalTeachingBrain
-) -> Int {
-    return save_resolved_generation(command: abs command, brain: abs brain);
+) -> Result[Bool, DatasetTeachingError] {
+    erg saved = save_resolved_generation(command: abs command, brain: abs brain);
+    if saved == RUNNER_EXIT_OK {
+        return Result[Bool, DatasetTeachingError].Ok(true);
+    }
+    return Result[Bool, DatasetTeachingError].Err(DatasetTeachingError.PublicationFailed);
 }
 
 verb dataset_teaching_file(
@@ -61,27 +67,54 @@ verb dataset_teaching_entry(
     abs command: RunnerConfig,
     ins brain: LogicalTeachingBrain,
     ins first_file: Bool,
-    ins file_count: u32
-) -> Int {
+    ins aggregate: DatasetTeachingMetrics
+) -> Result[Bool, DatasetTeachingError] {
+    erg load_failed: Bool = false;
     if !first_file {
         erg loaded = dataset_teaching_load_next(command: abs command, brain: ins brain);
-        if loaded != 0 {
-            return loaded;
-        }
+        case dat loaded {
+            Result.Err(_) => {
+                load_failed = true;
+            },
+            Result.Ok(_) => {},
+        };
     }
+    if load_failed {
+        return Result[Bool, DatasetTeachingError].Err(DatasetTeachingError.CheckpointLoadFailed);
+    }
+    return dataset_teaching_entry_after_load(
+        directory_path: abs directory_path,
+        relative_path: dat relative_path,
+        command: abs command,
+        brain: ins brain,
+        first_file: ins first_file,
+        aggregate: ins aggregate
+    );
+}
+
+verb dataset_teaching_entry_after_load(
+    abs directory_path: Path,
+    dat relative_path: Path,
+    abs command: RunnerConfig,
+    ins brain: LogicalTeachingBrain,
+    ins first_file: Bool,
+    ins aggregate: DatasetTeachingMetrics
+) -> Result[Bool, DatasetTeachingError] {
     erg taught = dataset_teaching_file(
         directory_path: abs directory_path,
         relative_path: dat relative_path,
         brain: ins brain
     );
     return case dat taught {
-        Result.Err(error) => dataset_teaching_error(brain: abs brain),
-        Result.Ok(metrics) => dataset_teaching_finish_entry(
-            metrics: abs metrics,
+        Result.Err(error) => Result[Bool, DatasetTeachingError].Err(dataset_teaching_file_failure(
+            dat error
+        )),
+        Result.Ok(file_metrics) => dataset_teaching_finish_entry(
+            metrics: abs file_metrics,
             command: abs command,
             brain: abs brain,
             first_file: ins first_file,
-            file_count: ins file_count
+            aggregate: ins aggregate
         ),
     };
 }
@@ -91,16 +124,24 @@ verb dataset_teaching_finish_entry(
     abs command: RunnerConfig,
     abs brain: LogicalTeachingBrain,
     ins first_file: Bool,
-    ins file_count: u32
-) -> Int {
+    ins aggregate: DatasetTeachingMetrics
+) -> Result[Bool, DatasetTeachingError] {
     print_logical_file_result(metrics: abs metrics, brain: abs brain);
     erg saved = dataset_teaching_checkpoint(command: abs command, brain: abs brain);
-    if saved != 0 {
-        return saved;
+    erg save_failed: Bool = false;
+    case dat saved {
+        Result.Err(_) => {
+            save_failed = true;
+        },
+        Result.Ok(_) => {},
+    };
+    if save_failed {
+        return Result[Bool, DatasetTeachingError].Err(DatasetTeachingError.PublicationFailed);
     }
+    aggregate.final_generation = brain.logical.generation + 1u64;
     first_file = false;
-    file_count += 1u32;
-    return 0;
+    dataset_teaching_add_metrics(aggregate: ins aggregate, metrics: abs metrics);
+    return Result[Bool, DatasetTeachingError].Ok(true);
 }
 
 verb dataset_teaching_index_loop(
@@ -109,26 +150,39 @@ verb dataset_teaching_index_loop(
     abs command: RunnerConfig,
     ins brain: LogicalTeachingBrain,
     ins first_file: Bool,
-    ins file_count: u32
-) -> Int {
-    loop {
-        erg next = dataset_index_next(index: ins index);
-        erg path_option: Option[Path] = case dat next {
-            Result.Err(_) => {
-                return dataset_teaching_error(brain: abs brain);
-            },
-            Result.Ok(option) => option,
-        };
-        return dataset_teaching_index_option(
+    ins aggregate: DatasetTeachingMetrics
+) -> Result[Bool, DatasetTeachingError] {
+    return dataset_teaching_index_step(
+        index: ins index,
+        directory_path: abs directory_path,
+        command: abs command,
+        brain: ins brain,
+        first_file: ins first_file,
+        aggregate: ins aggregate
+    );
+}
+
+verb dataset_teaching_index_step(
+    ins index: DatasetIndex,
+    abs directory_path: Path,
+    abs command: RunnerConfig,
+    ins brain: LogicalTeachingBrain,
+    ins first_file: Bool,
+    ins aggregate: DatasetTeachingMetrics
+) -> Result[Bool, DatasetTeachingError] {
+    erg next = dataset_index_next(index: ins index);
+    return case dat next {
+        Result.Err(_) => Result[Bool, DatasetTeachingError].Err(DatasetTeachingError.InvalidIndex),
+        Result.Ok(path_option) => dataset_teaching_index_option(
             index: ins index,
             directory_path: abs directory_path,
             command: abs command,
             brain: ins brain,
             first_file: ins first_file,
-            file_count: ins file_count,
+            aggregate: ins aggregate,
             path_option: dat path_option
-        );
-    }
+        ),
+    };
 }
 
 verb dataset_teaching_index_option(
@@ -137,14 +191,14 @@ verb dataset_teaching_index_option(
     abs command: RunnerConfig,
     ins brain: LogicalTeachingBrain,
     ins first_file: Bool,
-    ins file_count: u32,
+    ins aggregate: DatasetTeachingMetrics,
     dat path_option: Option[Path]
-) -> Int {
+) -> Result[Bool, DatasetTeachingError] {
     return case dat path_option {
-        Option.None => if file_count == 0u32 {
-            4;
+        Option.None => if aggregate.file_count == 0u32 {
+            Result[Bool, DatasetTeachingError].Err(DatasetTeachingError.EmptyDirectory);
         } else {
-            0;
+            Result[Bool, DatasetTeachingError].Ok(true);
         },
         Option.Some(relative_path) => dataset_teaching_index_some(
             index: ins index,
@@ -152,7 +206,7 @@ verb dataset_teaching_index_option(
             command: abs command,
             brain: ins brain,
             first_file: ins first_file,
-            file_count: ins file_count,
+            aggregate: ins aggregate,
             relative_path: dat relative_path
         ),
     };
@@ -164,86 +218,26 @@ verb dataset_teaching_index_some(
     abs command: RunnerConfig,
     ins brain: LogicalTeachingBrain,
     ins first_file: Bool,
-    ins file_count: u32,
+    ins aggregate: DatasetTeachingMetrics,
     dat relative_path: Path
-) -> Int {
+) -> Result[Bool, DatasetTeachingError] {
     erg status = dataset_teaching_entry(
         directory_path: abs directory_path,
         relative_path: dat relative_path,
         command: abs command,
         brain: ins brain,
         first_file: ins first_file,
-        file_count: ins file_count
+        aggregate: ins aggregate
     );
-    if status != 0 {
-        return status;
-    }
-    return dataset_teaching_index_loop(
-        index: ins index,
-        directory_path: abs directory_path,
-        command: abs command,
-        brain: ins brain,
-        first_file: ins first_file,
-        file_count: ins file_count
-    );
-}
-
-"""Teach the published deterministic index and reload the prior checkpoint before each later file."""
-open verb teach_dataset_directory_state(
-    abs command: RunnerConfig,
-    ins brain: LogicalTeachingBrain
-) -> Int {
-    if !prepare_save_directory(command: abs command) {
-        return 5;
-    }
-    erg input_path: Option[Path] = command.input_path;
-    return case dat input_path {
-        Option.None => 4,
-        Option.Some(directory_path) => teach_dataset_directory_index(
+    return case dat status {
+        Result.Err(error) => Result[Bool, DatasetTeachingError].Err(dat error),
+        Result.Ok(_) => dataset_teaching_index_loop(
+            index: ins index,
             directory_path: abs directory_path,
             command: abs command,
-            brain: ins brain
+            brain: ins brain,
+            first_file: ins first_file,
+            aggregate: ins aggregate
         ),
-    };
-}
-
-verb teach_dataset_directory_index(
-    abs directory_path: Path,
-    abs command: RunnerConfig,
-    ins brain: LogicalTeachingBrain
-) -> Int {
-    erg generated = dataset_index_generate(directory_path: abs directory_path);
-    return case dat generated {
-        Result.Err(_) => 4,
-        Result.Ok(bytes) => teach_dataset_open_index(
-            bytes: dat bytes,
-            directory_path: abs directory_path,
-            command: abs command,
-            brain: ins brain
-        ),
-    };
-}
-
-verb teach_dataset_open_index(
-    dat bytes: Buffer,
-    abs directory_path: Path,
-    abs command: RunnerConfig,
-    ins brain: LogicalTeachingBrain
-) -> Int {
-    erg opened = dataset_index_open(bytes: dat bytes);
-    return case dat opened {
-        Result.Err(_) => 4,
-        Result.Ok(index) => {
-            erg first_file: Bool = true;
-            erg file_count: u32 = 0u32;
-            dataset_teaching_index_loop(
-                index: ins index,
-                directory_path: abs directory_path,
-                command: abs command,
-                brain: ins brain,
-                first_file: ins first_file,
-                file_count: ins file_count
-            );
-        },
     };
 }

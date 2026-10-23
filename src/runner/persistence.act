@@ -15,6 +15,8 @@ open io;
 
 open fs;
 
+open config;
+
 verb prepare_save_directory(abs command: RunnerConfig) -> Bool {
     if command.load {
         return true;
@@ -39,12 +41,12 @@ verb save_resolved_generation(
     return case dat saved {
         Result.Ok(_) => {
             print_published_status();
-            0;
+            RUNNER_EXIT_OK;
         },
         Result.Err(_) => {
             erg message: String = "TWIN_E_ERROR code=5 kind=save_failed";
             println(text: abs message);
-            5;
+            RUNNER_EXIT_PERSISTENCE_FAILED;
         },
     };
 }

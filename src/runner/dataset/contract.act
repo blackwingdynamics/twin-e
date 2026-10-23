@@ -1,0 +1,75 @@
+"""Typed outcomes and aggregate evidence for directory teaching."""
+import aie;
+
+import teaching;
+
+open aie;
+
+open teaching;
+
+"""Typed failures that stop one directory-training transaction."""
+open enum DatasetTeachingError {
+    MissingInput,
+    EmptyDirectory,
+    UnreadableDirectory,
+    InvalidIndex,
+    MalformedTwf,
+    UnreadableTwf,
+    CheckpointLoadFailed,
+    PublicationFailed,
+    TeachingRejected,
+}
+
+"""Bounded aggregate evidence for one successful directory-training run."""
+open struct DatasetTeachingMetrics {
+    """Number of indexed TWF files successfully published."""
+    erg file_count: u32,
+    """Sum of records declared by successfully taught files."""
+    erg record_count: u32,
+    """Sum of records admitted by the teaching pipeline."""
+    erg accepted_count: u32,
+    """Generation published by the final successful checkpoint."""
+    erg final_generation: u64,
+}
+
+verb dataset_teaching_metrics_new() -> DatasetTeachingMetrics {
+    return DatasetTeachingMetrics {file_count: 0u32, record_count: 0u32, accepted_count: 0u32, final_generation: 0u64};
+}
+
+verb dataset_teaching_add_metrics(
+    ins aggregate: DatasetTeachingMetrics,
+    abs metrics: TeachingFileMetrics
+) {
+    aggregate.file_count += 1u32;
+    aggregate.record_count += metrics.record_count as u32;
+    aggregate.accepted_count += metrics.accepted_count as u32;
+}
+
+verb dataset_teaching_finish_metrics(abs aggregate: DatasetTeachingMetrics) -> DatasetTeachingMetrics {
+    return DatasetTeachingMetrics {file_count: aggregate.file_count, record_count: aggregate.record_count, accepted_count: aggregate.accepted_count, final_generation: aggregate.final_generation};
+}
+
+verb dataset_teaching_file_failure(dat error: TeachingFileError) -> DatasetTeachingError {
+    return case dat error {
+        TeachingFileError.IoFailure => DatasetTeachingError.UnreadableTwf,
+        TeachingFileError.EmptyFile => DatasetTeachingError.MalformedTwf,
+        TeachingFileError.InvalidHeader => DatasetTeachingError.MalformedTwf,
+        TeachingFileError.FileTooLarge => DatasetTeachingError.MalformedTwf,
+        TeachingFileError.TruncatedRecord => DatasetTeachingError.MalformedTwf,
+        TeachingFileError.RecordTooLarge => DatasetTeachingError.MalformedTwf,
+        TeachingFileError.TooManyRecords => DatasetTeachingError.MalformedTwf,
+        TeachingFileError.InvalidRecord => DatasetTeachingError.MalformedTwf,
+        TeachingFileError.TeachingRejected => DatasetTeachingError.TeachingRejected,
+        TeachingFileError.LogicalCapacityExceeded => DatasetTeachingError.TeachingRejected,
+        TeachingFileError.ResidentCapacityExceeded => DatasetTeachingError.TeachingRejected,
+        TeachingFileError.InvalidRouting => DatasetTeachingError.TeachingRejected,
+    };
+}
+
+verb dataset_teaching_generation_failure(dat error: DatasetIndexGenerationError) -> DatasetTeachingError {
+    return case dat error {
+        DatasetIndexGenerationError.EmptyDirectory => DatasetTeachingError.EmptyDirectory,
+        DatasetIndexGenerationError.DirectoryFailure => DatasetTeachingError.UnreadableDirectory,
+        _ => DatasetTeachingError.InvalidIndex,
+    };
+}

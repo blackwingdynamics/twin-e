@@ -107,3 +107,25 @@ open verb print_published_status() {
     erg message: String = "TWIN_E_PERSISTENCE status=published";
     println(text: abs message);
 }
+
+"""Print aggregate evidence for a completed directory-training run."""
+open verb print_dataset_metrics(
+    abs file_count: u32,
+    abs record_count: u32,
+    abs accepted_count: u32,
+    abs final_generation: u64
+) {
+    erg prefix: String = "TWIN_E_DATASET_METRICS files=";
+    erg records: String = " records=";
+    erg accepted: String = " accepted=";
+    erg generation: String = " final_generation=";
+    print(string: abs prefix);
+    print(int: erg file_count as Int);
+    print(string: abs records);
+    print(int: erg record_count as Int);
+    print(string: abs accepted);
+    print(int: erg accepted_count as Int);
+    print(string: abs generation);
+    print(int: erg final_generation as Int);
+    print_file_end();
+}

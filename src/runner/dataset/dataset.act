@@ -7,4 +7,8 @@ open batch;
 
 open discovery;
 
+open contract;
+
 open teaching;
+
+open run;

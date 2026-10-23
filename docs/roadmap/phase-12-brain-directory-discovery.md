@@ -76,13 +76,14 @@ bounded, resumable batches without reintroducing a per-file configuration list.
       `brain_dir`.
 - [x] Publish a mandatory checkpoint after each successful indexed file so an
       interrupted batch does not discard already published generations.
-- [ ] Reject an empty directory, unreadable entries, malformed TWF input, and
-      a failed intermediate publication without silently continuing.
-- [ ] Add batch metrics identifying file count, record count, accepted count,
+- [x] Reject an empty directory, unreadable entries, malformed TWF input, and
+      a failed publication without silently continuing; a malformed later file
+      leaves the prior published generation intact.
+- [x] Add batch metrics identifying file count, record count, accepted count,
       and the final generation.
-- [ ] Add public config and runner tests covering one, multiple, unordered,
+- [x] Add public config and runner tests covering one, multiple, unordered,
       empty, malformed, and partially failing directories.
-- [ ] Update the training-repository instructions to generate and consume a
+- [x] Update the training-repository instructions to generate and consume a
       dataset manifest index for a multi-file dataset.
 
 ### External prerequisite
@@ -92,8 +93,15 @@ the installed Actus compiler. Twin-e consumes it through the typed
 `read_dir`, `next_dir_entry`, `metadata`, and `close_dir` boundary; it does not
 use hardcoded filenames, shell commands, or an unbounded collection.
 
-The remaining Gate 12.2 checkboxes are still open until batch metrics and the
-full malformed/partial-publication error matrix are implemented and evidenced.
-The current tests validate directory scanning, published-index reading,
-deterministic ordering, per-batch continuation, checkpoint/reload between two
-files, and rejection of unsorted entries.
+The typed directory runner now stops on empty or unreadable directories,
+invalid indexes, malformed or unreadable TWF files, checkpoint-load failures,
+publication failures, and teaching rejection. Successful runs emit one bounded
+`TWIN_E_DATASET_METRICS` record containing file count, record count, accepted
+count, and final generation. The runner publishes after every accepted file;
+the malformed-second-file test verifies that the first generation remains
+loadable after the batch stops.
+
+The public error-boundary and metrics tests bring the strict suite to 183
+passed and 0 failed. The training repository documents directory input and
+the generated deterministic manifest-index workflow without enumerating shard
+paths in configuration.

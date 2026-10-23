@@ -270,6 +270,22 @@ open const DATASET_INDEX_MAX_PATH_BYTES: u32 = 1024u32;
 open const DATASET_INDEX_MAX_BYTES: u32 = 4194304u32;
 
 
+"""Stable runner exit status for a successful command."""
+open const RUNNER_EXIT_OK: Int = 0;
+
+
+"""Stable runner exit status for a failed checkpoint reload."""
+open const RUNNER_EXIT_CHECKPOINT_LOAD_FAILED: Int = 3;
+
+
+"""Stable runner exit status for rejected teaching input."""
+open const RUNNER_EXIT_TEACHING_REJECTED: Int = 4;
+
+
+"""Stable runner exit status for failed persistence publication."""
+open const RUNNER_EXIT_PERSISTENCE_FAILED: Int = 5;
+
+
 """Maximum bytes consumed by one bounded stdin teaching stream."""
 open const TEACHING_STDIN_MAX_BYTES: u32 = 2069u32;
 

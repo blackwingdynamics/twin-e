@@ -87,6 +87,20 @@ verb runner_teaching_file_bytes() -> Buffer {
     return bytes;
 }
 
+verb runner_teaching_remove_brain_files(abs brain_dir: Path) {
+    erg manifest_path = persistence_manifest_path(brain_dir: abs brain_dir);
+    erg cleanup_shard_id: u32 = 0u32;
+    erg shard_path = persistence_format_shard_path(brain_dir: abs brain_dir, shard_id: erg cleanup_shard_id);
+    case dat manifest_path {
+        Result.Err(_) => {},
+        Result.Ok(path) => remove_file(path: abs path),
+    };
+    case dat shard_path {
+        Result.Err(_) => {},
+        Result.Ok(path) => remove_file(path: abs path),
+    };
+}
+
 verb runner_teaching_path_value(erg selector: u8) -> Path {
     erg result = runner_teaching_path(selector: erg selector);
     return case dat result {
@@ -110,6 +124,7 @@ verb runner_teaching_cleanup(
     dat first: Path,
     dat second: Path
 ) {
+    runner_teaching_remove_brain_files(brain_dir: abs brain_dir);
     remove_file(path: abs first);
     remove_file(path: abs second);
     remove_dir(path: abs input_dir);
@@ -126,6 +141,7 @@ verb runner_teaching_run(
     dat first: Path,
     dat second: Path
 ) -> Int {
+    runner_teaching_remove_brain_files(brain_dir: abs brain_dir);
     remove_dir(path: abs brain_dir);
     remove_dir(path: abs input_dir);
     erg created = create_dir(path: abs input_dir);
@@ -224,10 +240,11 @@ verb runner_teaching_run_initialized(
 ) -> Int {
     erg taught = teach_dataset_directory_state(command: abs command, brain: ins brain);
     if taught != 0 {
-        return runner_teaching_failed_command(
+        return runner_teaching_cleanup_command(
             command: dat command,
             first: dat first,
-            second: dat second
+            second: dat second,
+            result: erg taught
         );
     }
     erg result = runner_teaching_reload_check(command: abs command, brain: ins brain);
