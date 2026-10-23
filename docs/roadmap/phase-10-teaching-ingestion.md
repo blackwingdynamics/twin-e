@@ -294,34 +294,34 @@ Stable exit codes are `0` for success, `2` for invalid command/configuration,
 `3` for a missing, incompatible, corrupt, or partial brain, `4` for rejected
 teaching input, and `5` for a failed explicit save.
 
-- [ ] Define the production command contract for loading a published brain,
+- [Completed in Phase 11] Define the production command contract for loading a published brain,
       accepting bounded teaching input, reporting metrics, and requesting an
       explicit save.
-- [ ] Replace the demo-only package entry behavior with a production runner;
+- [Completed in Phase 11] Replace the demo-only package entry behavior with a production runner;
       keep the demonstration as a separate benchmark or example.
-- [ ] Define an explicit workspace/configuration input; do not hardcode the
+- [Completed in Phase 11] Define an explicit workspace/configuration input; do not hardcode the
       developer's home directory, dataset path, or brain path in source.
-- [ ] Require an explicit brain manifest or an explicit empty-brain creation
+- [Completed in Phase 11] Require an explicit brain manifest or an explicit empty-brain creation
       mode; never silently start with an empty brain when a published brain was
       requested.
-- [ ] Define typed startup failures for missing, incompatible, corrupt, or
+- [Completed in Phase 11] Define typed startup failures for missing, incompatible, corrupt, or
       partially published brain generations.
-- [ ] Route file and stdin teaching through the canonical `teaching::` facade;
+- [Completed in Phase 11] Route file and stdin teaching through the canonical `teaching::` facade;
       the runner must not access resident AIE state directly.
-- [ ] Define stable process exit codes and bounded operator output. Default
+- [Completed in Phase 11] Define stable process exit codes and bounded operator output. Default
       output must not print raw source records.
-- [ ] Keep the demo output and all fixed benchmark paths out of the production
+- [Completed in Phase 11] Keep the demo output and all fixed benchmark paths out of the production
       runner.
 
 ### Required evidence
 
-- [ ] A Linux executable starts from a clean workspace using only its explicit
+- [Completed in Phase 11] A Linux executable starts from a clean workspace using only its explicit
       configuration.
-- [ ] Startup loads a valid published brain and rejects a missing or corrupt
+- [Completed in Phase 11] Startup loads a valid published brain and rejects a missing or corrupt
       manifest before teaching begins.
-- [ ] A teaching request reaches the canonical facade and reports bounded
+- [Completed in Phase 11] A teaching request reaches the canonical facade and reports bounded
       metrics without source leakage.
-- [ ] Invalid configuration and invalid input produce stable non-zero exit
+- [Completed in Phase 11] Invalid configuration and invalid input produce stable non-zero exit
       codes without resident-state mutation.
 
 ## Gate 10.4.2 — Define the production brain lifecycle
@@ -333,51 +333,51 @@ only after an explicit save request.
 
 - [ ] Define the lifecycle states `Loaded`, `ResidentDirty`, `SaveRequested`,
       `Published`, and `SaveFailed` at the runner boundary.
-- [ ] Load the selected complete generation before accepting teaching input.
-- [ ] Keep teaching in resident memory; do not write synchronously from the
+- [Completed in Phase 11] Load the selected complete generation before accepting teaching input.
+- [Completed in Phase 11] Keep teaching in resident memory; do not write synchronously from the
       inference or teaching mutation path.
-- [ ] Publish shard files before the manifest and never expose a partial
+- [Completed in Phase 11] Publish shard files before the manifest and never expose a partial
       generation as current.
-- [ ] Distinguish “accepted into resident memory” from “published to disk” in
+- [Completed in Phase 11] Distinguish “accepted into resident memory” from “published to disk” in
       the public result and metrics.
-- [ ] Prove that a failed save leaves the live resident brain unchanged and
+- [Completed in Phase 11] Prove that a failed save leaves the live resident brain unchanged and
       does not claim persistence.
-- [ ] Prove that restart selects the newest complete generation and ignores an
+- [Completed in Phase 11] Prove that restart selects the newest complete generation and ignores an
       incomplete or incompatible generation.
-- [ ] Record dataset revision, Twin-e revision, compiler revision, target,
+- [Completed in Phase 11] Record dataset revision, Twin-e revision, compiler revision, target,
       binary checksum, limits, and output generation in the run manifest.
-- [ ] Keep the brain artifact repository separate from Twin-e source and from
+- [Completed in Phase 12] Keep the brain artifact repository separate from Twin-e source and from
       Actus source; connect them only through paths, manifests, and checksums.
 
 ### Required evidence
 
-- [ ] Load → teach → save → restart → recall passes with a real bounded
+- [Completed in Phase 11] Load → teach → save → restart → recall passes with a real bounded
       dataset.
-- [ ] Failed-save and interrupted-publication fixtures preserve the previous
+- [Completed in Phase 11] Failed-save and interrupted-publication fixtures preserve the previous
       published generation and the live resident state.
 - [ ] The run manifest and shard checksums identify the exact executable and
       input dataset used for the run.
 
 ## Gate 10.4.3 — Package a reproducible production release
 
-- [ ] Build a target-specific production executable from the production entry
+- [Completed in Phase 11] Build a target-specific production executable from the production entry
       point with strict checking and zero-floating-point IR evidence.
-- [ ] Keep the executable, runtime manifest template, and operator
+- [Completed in Phase 12] Keep the executable, runtime manifest template, and operator
       instructions separate from `.brain` generations.
-- [ ] Publish a checksum for every executable and runtime manifest.
-- [ ] Provide a clean-workspace smoke command that loads a known complete brain
+- [Completed in Phase 11] Publish a checksum for every executable and runtime manifest.
+- [Completed in Phase 11] Provide a clean-workspace smoke command that loads a known complete brain
       generation and performs one bounded teaching or recall operation.
 - [ ] Reject a binary/manifest/compiler compatibility mismatch before loading
       resident state.
 - [ ] Define the rollback procedure to the previous executable and previous
       complete brain generation.
-- [ ] Record target, profile, compiler revision, source revision, and all
+- [Completed in Phase 11] Record target, profile, compiler revision, source revision, and all
       input limits in the release evidence.
 
 ### Required evidence
 
-- [ ] A clean Arch Linux workspace reproduces the release build and smoke run.
-- [ ] The published checksum and runtime metadata match the executable that
+- [Completed in Phase 11] A clean Arch Linux workspace reproduces the release build and smoke run.
+- [Completed in Phase 11] The published checksum and runtime metadata match the executable that
       produced the evidence.
 - [ ] A rollback fixture restores the previous executable/brain pair without
       mutating the newer generation.
@@ -422,37 +422,37 @@ only after an explicit save request.
 
 ## Gate 10.7 — Define the explicit persistence handoff
 
-- [ ] Define when a caller may request `.brain` publication after teaching.
-- [ ] Keep save/load outside transport parsing and learning mutation.
-- [ ] Define the response state for “learned in resident memory” versus
+- [Completed in Phase 11] Define when a caller may request `.brain` publication after teaching.
+- [Completed in Phase 11] Keep save/load outside transport parsing and learning mutation.
+- [Completed in Phase 11] Define the response state for “learned in resident memory” versus
       “successfully published”.
-- [ ] Reject or clearly report a failed save without claiming persistence.
-- [ ] Prove a failed save leaves live teaching state unchanged.
-- [ ] Ensure restart recovery is tested through the existing shard-local
+- [Completed in Phase 11] Reject or clearly report a failed save without claiming persistence.
+- [Completed in Phase 11] Prove a failed save leaves live teaching state unchanged.
+- [Completed in Phase 11] Ensure restart recovery is tested through the existing shard-local
       persistence contract, including auxiliary data.
 
 ### Required evidence
 
-- [ ] A teaching-then-save fixture distinguishes resident and published state.
-- [ ] A failed-save fixture verifies unchanged live state.
-- [ ] A restart fixture recalls the last complete published generation only.
+- [Completed in Phase 11] A teaching-then-save fixture distinguishes resident and published state.
+- [Completed in Phase 11] A failed-save fixture verifies unchanged live state.
+- [Completed in Phase 11] A restart fixture recalls the last complete published generation only.
 
 ## Gate 10.8 — Add observability and operator-facing diagnostics
 
-- [ ] Define stable outcome names and typed error categories for each boundary.
-- [ ] Report bounded counters without logging raw source content by default.
+- [Completed in Phase 11] Define stable outcome names and typed error categories for each boundary.
+- [Completed in Phase 11] Report bounded counters without logging raw source content by default.
 - [ ] Include request ID, modality, transport, limits, and outcome in metrics.
 - [ ] Separate rejected input, adapter rejection, teaching rejection, transport
       failure, and persistence failure.
-- [ ] Document which metrics are deterministic and which are timing-only.
+- [Completed in Phase 11] Document which metrics are deterministic and which are timing-only.
 
 ### Required evidence
 
-- [ ] Tests assert the public metrics shape for success and every failure
+- [Completed in Phase 11] Tests assert the public metrics shape for success and every failure
       category.
-- [ ] A diagnostics fixture proves sensitive source payloads are not emitted
+- [Completed in Phase 11] A diagnostics fixture proves sensitive source payloads are not emitted
       in default output.
-- [ ] Benchmark output reports each latency class separately.
+- [Completed in Phase 11] Benchmark output reports each latency class separately.
 
 ## Gate 10.9 — Host networking decision boundary
 
@@ -476,14 +476,14 @@ only after an explicit save request.
 
 ## Gate 10.10 — Full ingestion acceptance
 
-- [ ] Run formatter checks for every touched Actus source.
-- [ ] Run `actus lock --check`, `actus check --strict`, and `actus test --strict`.
-- [ ] Run the native strict build and retain zero-float IR evidence.
+- [Completed in Phase 12] Run formatter checks for every touched Actus source.
+- [Completed in Phase 12] Run `actus lock --check`, `actus check --strict`, and `actus test --strict`.
+- [Completed in Phase 12] Run the native strict build and retain zero-float IR evidence.
 - [ ] Run direct, file, stdin, and wire fixtures on the same bounded dataset.
-- [ ] Record compiler revision, target, profile, input limits, metrics, and
+- [Completed in Phase 11] Record compiler revision, target, profile, input limits, metrics, and
       outputs in `docs/benchmarks/`.
-- [ ] Record all unsupported transports and known limits.
-- [ ] Keep hosted Linux evidence separate from future Cortex-M evidence.
+- [Completed in Phase 11] Record all unsupported transports and known limits.
+- [Completed in Phase 11] Keep hosted Linux evidence separate from future Cortex-M evidence.
 - [ ] Mark Phase 10 complete only after every previous gate is green.
 
 ## Definition of done
