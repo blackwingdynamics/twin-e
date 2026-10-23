@@ -131,7 +131,7 @@ count remains governed by the brain manifest, not by resident cache capacity.
       every successfully published logical shard.
 - [x] Add a multi-file directory-training test that crosses the four-slot
       resident limit and completes in deterministic file order.
-- [ ] Add a failed-flush test proving that dirty state remains usable and the
+- [x] Add a failed-flush test proving that dirty state remains usable and the
       next admission is not attempted as if publication had succeeded.
 - [ ] Record the resulting metrics and exit behavior, then update ADR-0012
       and the training-repository instructions with the verified boundary.
@@ -189,3 +189,10 @@ more than four published logical shards, and no more than four resident
 entries after reload. The restore boundary now loads the newest resident
 window rather than the first four shards, so the next file continues from the
 current shard. The strict suite reports 188 passed and 0 failed.
+
+Gate 12.3 seventh-check evidence: `tests/aie_logical_teaching.act::test_runner_failed_flush_preserves_dirty_state`
+injects a failed explicit flush at the pending rotation boundary. The runner
+returns typed `FlushRequired`, leaves the dirty resident state available, and
+does not retry admission as though publication had succeeded. The companion
+`tests/aie_logical_flush.act::test_logical_teaching_failed_flush_preserves_dirty_state`
+verifies that the dirty count is unchanged after the failed publication.
