@@ -138,9 +138,9 @@ count remains governed by the brain manifest, not by resident cache capacity.
 
 ### Acceptance evidence
 
-- [ ] The existing three-file Georgian directory run completes without
+- [x] The existing three-file Georgian directory run completes without
       `ResidentCapacityExceeded`.
-- [ ] All prior strict checks remain green and no filesystem I/O is added to
+- [x] All prior strict checks remain green and no filesystem I/O is added to
       inference, impulse forwarding, or neurogenesis hot paths.
 
 Gate 12.3 first-check evidence: the dataset boundary now preserves the typed
