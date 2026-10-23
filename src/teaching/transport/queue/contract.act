@@ -20,6 +20,18 @@ open enum TeachingQueueProcessingMode {
     CallerDriven,
 }
 
+"""Reason why a teaching request cannot enter a bounded queue."""
+open enum TeachingQueueAdmissionError {
+    RequestCapacityExceeded,
+    ByteCapacityExceeded,
+}
+
+"""Caller-owned occupancy counters for one bounded teaching queue."""
+open struct TeachingQueueState {
+    erg request_count: u32,
+    erg queued_bytes: u32,
+}
+
 """Return the explicit scheduler boundary for teaching queue processing.
 
 The caller owns the processing cadence and invokes bounded work explicitly.
@@ -28,6 +40,31 @@ perform implicit filesystem I/O.
 """
 open verb teaching_queue_processing_mode() -> TeachingQueueProcessingMode {
     return TeachingQueueProcessingMode.CallerDriven;
+}
+
+"""Admit one complete encoded request or reject it without mutation.
+
+The caller supplies the complete encoded request size. Admission rejects a
+request when either configured bound would be exceeded; it never silently
+drops the request and never partially increments the occupancy counters.
+"""
+open verb teaching_queue_admit(
+    ins state: TeachingQueueState,
+    erg request_bytes: u32
+) -> Result[Int, TeachingQueueAdmissionError] {
+    erg profile = teaching_queue_profile();
+    if state.request_count >= profile.max_requests {
+        return Result[Int, TeachingQueueAdmissionError].Err(TeachingQueueAdmissionError.RequestCapacityExceeded);
+    }
+    if request_bytes == 0u32 || request_bytes > profile.max_bytes {
+        return Result[Int, TeachingQueueAdmissionError].Err(TeachingQueueAdmissionError.ByteCapacityExceeded);
+    }
+    if state.queued_bytes > profile.max_bytes - request_bytes {
+        return Result[Int, TeachingQueueAdmissionError].Err(TeachingQueueAdmissionError.ByteCapacityExceeded);
+    }
+    state.request_count += 1u32;
+    state.queued_bytes += request_bytes;
+    return Result[Int, TeachingQueueAdmissionError].Ok(0);
 }
 
 """Return the canonical bounded teaching queue profile.

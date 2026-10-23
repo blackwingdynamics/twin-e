@@ -424,7 +424,7 @@ profile is checked before resident state loading.
 - [x] Define the maximum number of queued requests and maximum queued bytes.
 - [x] Choose caller-driven processing, bounded polling, or another explicit
       scheduler boundary.
-- [ ] Define what happens at queue capacity: reject, stop, or report partial
+- [x] Define what happens at queue capacity: reject, stop, or report partial
       batch completion; do not silently drop data.
 - [ ] Bound per-call work and metrics memory.
 - [ ] Keep transport latency, adapter latency, admission latency, teaching

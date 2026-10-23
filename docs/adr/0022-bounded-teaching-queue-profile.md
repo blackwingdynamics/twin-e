@@ -30,6 +30,10 @@ Queue processing is caller-driven. The caller explicitly invokes bounded
 processing work; the queue does not create a background loop, block on input,
 or perform implicit filesystem I/O.
 
+Admission rejects a request when either the request-count or encoded-byte
+bound would be exceeded. Rejection is reported as a typed admission error and
+does not mutate queue occupancy; requests are never silently dropped.
+
 These are the initial host profile values, not a limit on the number of
 shards, users, queues, or total persisted knowledge. Queue ownership,
 admission at capacity, scheduler behavior, and partial-batch reporting are
@@ -42,5 +46,7 @@ separate decisions and must remain explicit in the following contracts.
 - The profile is testable without allocating queue storage or performing I/O.
 - Processing cadence remains visible at the caller boundary and is
   deterministic for a given batch.
+- Capacity failure is explicit and leaves the caller-owned occupancy state
+  unchanged.
 - Capacity rejection and processing semantics remain intentionally unimplemented
-  until their own tests and contract are added.
+  until the queue execution and partial-result contract is added.
