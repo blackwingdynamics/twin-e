@@ -75,3 +75,19 @@ verb test_teaching_wire_frame_boundary_rejects_maximum_overflow() -> Int {
     }
     return 0;
 }
+
+meta test
+verb test_teaching_wire_frame_carries_one_request_only() -> Int {
+    if TEACHING_WIRE_MAX_MESSAGES_PER_FRAME != 1u8 {
+        return 1;
+    }
+    erg one_message: u8 = 1u8;
+    if !teaching_wire_message_count_is_valid(message_count: erg one_message) {
+        return 2;
+    }
+    erg two_messages: u8 = 2u8;
+    if teaching_wire_message_count_is_valid(message_count: erg two_messages) {
+        return 3;
+    }
+    return 0;
+}

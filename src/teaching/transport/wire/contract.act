@@ -13,6 +13,10 @@ open const TEACHING_WIRE_MESSAGE_ID: u8 = 1u8;
 open const TEACHING_WIRE_MESSAGE_VERSION: u8 = 1u8;
 
 
+"""Maximum number of teaching messages carried by one wire frame."""
+open const TEACHING_WIRE_MAX_MESSAGES_PER_FRAME: u8 = 1u8;
+
+
 """Supported application-level teaching messages inside a wire frame."""
 open enum TeachingWireMessageType {
     TeachingRequest,
@@ -70,4 +74,13 @@ open verb teaching_wire_frame_is_valid(
     }
     erg expected_length: u32 = teaching_wire_frame_length(message: abs message);
     return frame_length == expected_length && expected_length <= WIRE_MAX_FRAME_BYTES;
+}
+
+"""Validate the one-request-per-frame teaching transport boundary.
+
+Batching is intentionally a separate transport concern. A frame carrying
+anything other than one teaching request is rejected before admission.
+"""
+open verb teaching_wire_message_count_is_valid(erg message_count: u8) -> Bool {
+    return message_count == TEACHING_WIRE_MAX_MESSAGES_PER_FRAME;
 }
