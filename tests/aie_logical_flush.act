@@ -61,6 +61,18 @@ verb flush_test_sequence() -> TokenSequence {
     return sequence;
 }
 
+verb flush_test_teach_seed(ins brain: LogicalTeachingBrain, erg seed: u32) -> Bool {
+    erg sequence: TokenSequence = TokenSequence {tokens: Array[Token, 256](), length: 256u32, valid: true};
+    for erg position: u32 in 0u32 .. 256u32 {
+        sequence.tokens[position as Usize] = Token {id: seed + position, byte_offset: position, byte_length: 1u16, tokenizer_version: TOKENIZER_VERSION};
+    }
+    erg taught = logical_teaching_sequence(brain: ins brain, sequence: abs sequence);
+    return case dat taught {
+        Result.Err(_) => false,
+        Result.Ok(_) => true,
+    };
+}
+
 verb flush_test_input_path() -> Result[Path, PathError] {
     erg raw: Buffer = Buffer[0];
     append(raw, 47u8);
@@ -129,7 +141,7 @@ verb flush_test_cleanup(abs brain_dir: Path) {
         Result.Err(_) => {},
         Result.Ok(path) => remove_file(path: abs path),
     };
-    for erg shard_id: u32 in 0u32 .. 4u32 {
+    for erg shard_id: u32 in 0u32 .. 8u32 {
         erg shard = persistence_format_shard_path(brain_dir: abs brain_dir, shard_id: erg shard_id);
         case dat shard {
             Result.Err(_) => {},
@@ -156,17 +168,10 @@ verb flush_test_prepare(ins brain: LogicalTeachingBrain, abs brain_dir: Path) ->
         Result.Ok(_) => {},
     };
     for erg seed_offset: u32 in 0u32 .. 3u32 {
-        erg sequence: TokenSequence = TokenSequence {tokens: Array[Token, 256](), length: 256u32, valid: true};
-        for erg position: u32 in 0u32 .. 256u32 {
-            sequence.tokens[position as Usize] = Token {id: 50000u32 + (seed_offset * 1000u32) + position, byte_offset: position, byte_length: 1u16, tokenizer_version: TOKENIZER_VERSION};
+        erg seed: u32 = 50000u32 + (seed_offset * 1000u32);
+        if !flush_test_teach_seed(brain: ins brain, seed: erg seed) {
+            return 3;
         }
-        erg taught = logical_teaching_sequence(brain: ins brain, sequence: abs sequence);
-        case dat taught {
-            Result.Err(_) => {
-                return 3;
-            },
-            Result.Ok(_) => {},
-        };
     }
     return 0;
 }
@@ -294,6 +299,76 @@ verb test_logical_teaching_failed_flush_preserves_dirty_state() -> Int {
                             5;
                         },
                     };
+                },
+            };
+        },
+    };
+}
+
+meta test
+verb test_logical_teaching_keeps_cache_bounded_for_published_shards() -> Int {
+    erg directory_result = flush_test_path();
+    return case dat directory_result {
+        Result.Err(_) => 1,
+        Result.Ok(directory) => {
+            erg brain: LogicalTeachingBrain = logical_teaching_empty();
+            erg prepared = flush_test_prepare(brain: ins brain, brain_dir: abs directory);
+            if prepared != 0 {
+                flush_test_cleanup(brain_dir: abs directory);
+                return 2;
+            }
+            erg first_flush = logical_teaching_flush_dirty_residents(brain: ins brain, brain_dir: abs directory);
+            erg first_failed: Bool = case dat first_flush {
+                Result.Err(_) => true,
+                Result.Ok(_) => false,
+            };
+            if first_failed {
+                flush_test_cleanup(brain_dir: abs directory);
+                return 3;
+            }
+            for erg seed_offset: u32 in 3u32 .. 13u32 {
+                erg seed: u32 = 50000u32 + (seed_offset * 1000u32);
+                if !flush_test_teach_seed(brain: ins brain, seed: erg seed) {
+                    flush_test_cleanup(brain_dir: abs directory);
+                    return 4;
+                }
+                if (seed_offset - 2u32) % 4u32 == 0u32 {
+                    erg checkpoint = logical_teaching_flush_dirty_residents(brain: ins brain, brain_dir: abs directory);
+                    case dat checkpoint {
+                        Result.Err(_) => {
+                            flush_test_cleanup(brain_dir: abs directory);
+                            return 5;
+                        },
+                        Result.Ok(_) => {},
+                    };
+                }
+            }
+            erg published = logical_teaching_flush_dirty_residents(brain: ins brain, brain_dir: abs directory);
+            erg publish_failed: Bool = case dat published {
+                Result.Err(_) => true,
+                Result.Ok(_) => false,
+            };
+            if publish_failed {
+                flush_test_cleanup(brain_dir: abs directory);
+                return 6;
+            }
+            if brain.logical.shard_count != 5u32 {
+                flush_test_cleanup(brain_dir: abs directory);
+                return 7;
+            }
+            if shard_cache_resident_count(cache: abs brain.logical.cache) > BRAIN_LOGICAL_MAX_RESIDENT_SHARDS as u8 {
+                flush_test_cleanup(brain_dir: abs directory);
+                return 8;
+            }
+            erg recovered: LogicalTeachingBrain = logical_teaching_empty();
+            erg loaded = logical_teaching_load_generation(brain: ins recovered, brain_dir: abs directory);
+            flush_test_cleanup(brain_dir: abs directory);
+            return case dat loaded {
+                Result.Err(_) => 9,
+                Result.Ok(resident) => if recovered.logical.shard_count == 5u32 && resident == 4 {
+                    0;
+                } else {
+                    10;
                 },
             };
         },

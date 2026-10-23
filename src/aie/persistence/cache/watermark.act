@@ -5,6 +5,22 @@ open lifecycle;
 
 open operations;
 
+"""Count all resident or persisted entries in the fixed cache."""
+open verb shard_cache_resident_count(abs cache: ShardCache) -> u8 {
+    erg count: u8 = 0u8;
+    erg index: u8 = 0u8;
+    loop {
+        if index >= BRAIN_CACHE_CAPACITY {
+            break;
+        }
+        if cache_entry_is_present(entry: abs cache.entries[index as Usize]) {
+            count += 1u8;
+        }
+        index += 1u8;
+    }
+    return count;
+}
+
 """Count resident entries that still require persistence.
 
 The bounded scan is allocation-free and performs no filesystem I/O. Dirty and
