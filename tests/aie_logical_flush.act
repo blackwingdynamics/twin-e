@@ -1,3 +1,6 @@
+meta limitless("file")
+
+
 """Gate 12.3 evidence for successful dirty-resident flushing."""
 import aie;
 
@@ -6,6 +9,8 @@ import config;
 import std::fs;
 
 import std::path;
+
+import teaching;
 
 import tokenizer;
 
@@ -16,6 +21,8 @@ open config;
 open fs;
 
 open path;
+
+open teaching;
 
 open tokenizer;
 
@@ -54,6 +61,68 @@ verb flush_test_sequence() -> TokenSequence {
     return sequence;
 }
 
+verb flush_test_input_path() -> Result[Path, PathError] {
+    erg raw: Buffer = Buffer[0];
+    append(raw, 47u8);
+    append(raw, 116u8);
+    append(raw, 109u8);
+    append(raw, 112u8);
+    append(raw, 47u8);
+    append(raw, 116u8);
+    append(raw, 116u8);
+    append(raw, 119u8);
+    append(raw, 105u8);
+    append(raw, 110u8);
+    append(raw, 45u8);
+    append(raw, 101u8);
+    append(raw, 103u8);
+    append(raw, 49u8);
+    append(raw, 50u8);
+    append(raw, 51u8);
+    append(raw, 45u8);
+    append(raw, 102u8);
+    append(raw, 108u8);
+    append(raw, 117u8);
+    append(raw, 115u8);
+    append(raw, 104u8);
+    append(raw, 45u8);
+    append(raw, 105u8);
+    append(raw, 110u8);
+    append(raw, 112u8);
+    append(raw, 117u8);
+    append(raw, 116u8);
+    append(raw, 46u8);
+    append(raw, 116u8);
+    append(raw, 119u8);
+    append(raw, 102u8);
+    append(raw, 0u8);
+    return path_from_ascii(storage: dat raw);
+}
+
+verb flush_test_input_bytes() -> Buffer {
+    erg bytes: Buffer = Buffer[0];
+    append(bytes, 84u8);
+    append(bytes, 87u8);
+    append(bytes, 70u8);
+    append(bytes, 49u8);
+    append(bytes, 1u8);
+    append(bytes, 128u8);
+    append(bytes, 0u8);
+    for erg index: u32 in 0u32 .. 128u32 {
+        append(bytes, 65u8 + (index % 26u32) as u8);
+    }
+    return bytes;
+}
+
+verb flush_test_write_input(abs path: Path) -> Bool {
+    erg bytes = flush_test_input_bytes();
+    erg written = write_file(path: abs path, contents: abs bytes);
+    return case dat written {
+        Result.Err(_) => false,
+        Result.Ok(_) => true,
+    };
+}
+
 verb flush_test_cleanup(abs brain_dir: Path) {
     erg manifest = persistence_manifest_path(brain_dir: abs brain_dir);
     case dat manifest {
@@ -86,12 +155,20 @@ verb flush_test_prepare(ins brain: LogicalTeachingBrain, abs brain_dir: Path) ->
         },
         Result.Ok(_) => {},
     };
-    erg sequence = flush_test_sequence();
-    erg taught = logical_teaching_sequence(brain: ins brain, sequence: abs sequence);
-    return case dat taught {
-        Result.Err(_) => 3,
-        Result.Ok(_) => 0,
-    };
+    for erg seed_offset: u32 in 0u32 .. 3u32 {
+        erg sequence: TokenSequence = TokenSequence {tokens: Array[Token, 256](), length: 256u32, valid: true};
+        for erg position: u32 in 0u32 .. 256u32 {
+            sequence.tokens[position as Usize] = Token {id: 50000u32 + (seed_offset * 1000u32) + position, byte_offset: position, byte_length: 1u16, tokenizer_version: TOKENIZER_VERSION};
+        }
+        erg taught = logical_teaching_sequence(brain: ins brain, sequence: abs sequence);
+        case dat taught {
+            Result.Err(_) => {
+                return 3;
+            },
+            Result.Ok(_) => {},
+        };
+    }
+    return 0;
 }
 
 verb flush_test_succeeds(ins brain: LogicalTeachingBrain, abs brain_dir: Path) -> Bool {
@@ -131,6 +208,55 @@ verb test_logical_teaching_flush_marks_dirty_entries_persisted() -> Int {
             } else {
                 3;
             }
+        },
+    };
+}
+
+meta test
+verb test_logical_teaching_retries_current_twf_record_after_flush() -> Int {
+    erg directory_result = flush_test_path();
+    return case dat directory_result {
+        Result.Err(_) => 1,
+        Result.Ok(directory) => {
+            erg input_result = flush_test_input_path();
+            return case dat input_result {
+                Result.Err(_) => {
+                    flush_test_cleanup(brain_dir: abs directory);
+                    2;
+                },
+                Result.Ok(input) => {
+                    erg brain: LogicalTeachingBrain = logical_teaching_empty();
+                    erg prepared = flush_test_prepare(brain: ins brain, brain_dir: abs directory);
+                    if prepared != 0 || !flush_test_write_input(path: abs input) {
+                        remove_file(path: abs input);
+                        flush_test_cleanup(brain_dir: abs directory);
+                        return 3;
+                    }
+                    erg result = teach_logical_file_with_flush(
+                        brain: ins brain,
+                        path: abs input,
+                        brain_dir: abs directory
+                    );
+                    remove_file(path: abs input);
+                    flush_test_cleanup(brain_dir: abs directory);
+                    return case dat result {
+                        Result.Err(error) => case error {
+                            TeachingFileError.IoFailure => 10,
+                            TeachingFileError.InvalidRecord => 11,
+                            TeachingFileError.LogicalCapacityExceeded => 12,
+                            TeachingFileError.ResidentCapacityExceeded => 13,
+                            TeachingFileError.FlushRequired => 14,
+                            TeachingFileError.InvalidRouting => 15,
+                            _ => 16,
+                        },
+                        Result.Ok(metrics) => if metrics.record_count == 1u16 && metrics.accepted_count == 1u16 {
+                            0;
+                        } else {
+                            5;
+                        },
+                    };
+                },
+            };
         },
     };
 }

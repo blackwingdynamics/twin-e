@@ -123,7 +123,7 @@ count remains governed by the brain manifest, not by resident cache capacity.
       the dataset teaching boundary before the next shard admission.
 - [x] Flush and validate the selected dirty shard before releasing its
       resident slot; never discard dirty state before publication succeeds.
-- [ ] Retry the pending shard admission after a successful flush without
+- [x] Retry the pending shard admission after a successful flush without
       replaying or skipping the current TWF record.
 - [ ] Preserve resident and published state unchanged when flush or admission
       fails, and return the typed failure instead of a generic success.
@@ -157,3 +157,11 @@ boundary and marks entries persisted only after successful publication.
 proves that the dirty count reaches zero after a successful flush, while the
 existing failed-flush evidence proves that a failed publication preserves the
 dirty resident state.
+
+Gate 12.3 third-check evidence: the dataset-only
+`teach_logical_file_with_flush` transport retries the same validated TWF
+record after a successful dirty-resident publication. It does not replay the
+whole file, and ordinary file/stdin teaching remains free of implicit flush
+I/O. `tests/aie_logical_flush.act::test_logical_teaching_retries_current_twf_record_after_flush`
+proves one record is accepted exactly once after crossing the resident
+boundary; the strict suite remains at 186 passed and 0 failed.

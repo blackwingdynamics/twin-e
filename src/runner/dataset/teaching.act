@@ -65,12 +65,17 @@ verb dataset_teaching_checkpoint(
 verb dataset_teaching_file(
     abs directory_path: Path,
     dat relative_path: Path,
-    ins brain: LogicalTeachingBrain
+    ins brain: LogicalTeachingBrain,
+    abs brain_dir: Path
 ) -> Result[TeachingFileMetrics, TeachingFileError] {
     erg full = runner_entry_path(directory: abs directory_path, entry: abs relative_path);
     return case dat full {
         Result.Err(_) => Result[TeachingFileMetrics, TeachingFileError].Err(TeachingFileError.InvalidRecord),
-        Result.Ok(path) => teach_logical_file(brain: ins brain, path: abs path),
+        Result.Ok(path) => teach_logical_file_with_flush(
+            brain: ins brain,
+            path: abs path,
+            brain_dir: abs brain_dir
+        ),
     };
 }
 
@@ -158,7 +163,8 @@ verb dataset_teaching_teach_after_boundary(
     erg taught = dataset_teaching_file(
         directory_path: abs directory_path,
         relative_path: dat relative_path,
-        brain: ins brain
+        brain: ins brain,
+        brain_dir: abs command.brain_dir
     );
     return case dat taught {
         Result.Err(error) => Result[Bool, DatasetTeachingError].Err(dataset_teaching_file_failure(
