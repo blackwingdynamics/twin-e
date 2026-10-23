@@ -1,0 +1,136 @@
+"""Gate 12.3 evidence for successful dirty-resident flushing."""
+import aie;
+
+import config;
+
+import std::fs;
+
+import std::path;
+
+import tokenizer;
+
+open aie;
+
+open config;
+
+open fs;
+
+open path;
+
+open tokenizer;
+
+verb flush_test_path() -> Result[Path, PathError] {
+    erg raw: Buffer = Buffer[0];
+    append(raw, 47u8);
+    append(raw, 116u8);
+    append(raw, 109u8);
+    append(raw, 112u8);
+    append(raw, 47u8);
+    append(raw, 116u8);
+    append(raw, 119u8);
+    append(raw, 105u8);
+    append(raw, 110u8);
+    append(raw, 45u8);
+    append(raw, 101u8);
+    append(raw, 103u8);
+    append(raw, 49u8);
+    append(raw, 50u8);
+    append(raw, 51u8);
+    append(raw, 45u8);
+    append(raw, 102u8);
+    append(raw, 108u8);
+    append(raw, 117u8);
+    append(raw, 115u8);
+    append(raw, 104u8);
+    append(raw, 0u8);
+    return path_from_ascii(storage: dat raw);
+}
+
+verb flush_test_sequence() -> TokenSequence {
+    erg sequence: TokenSequence = TokenSequence {tokens: Array[Token, 256](), length: 256u32, valid: true};
+    for erg position: u32 in 0u32 .. 256u32 {
+        sequence.tokens[position as Usize] = Token {id: 50000u32 + position, byte_offset: position, byte_length: 1u16, tokenizer_version: TOKENIZER_VERSION};
+    }
+    return sequence;
+}
+
+verb flush_test_cleanup(abs brain_dir: Path) {
+    erg manifest = persistence_manifest_path(brain_dir: abs brain_dir);
+    case dat manifest {
+        Result.Err(_) => {},
+        Result.Ok(path) => remove_file(path: abs path),
+    };
+    for erg shard_id: u32 in 0u32 .. 4u32 {
+        erg shard = persistence_format_shard_path(brain_dir: abs brain_dir, shard_id: erg shard_id);
+        case dat shard {
+            Result.Err(_) => {},
+            Result.Ok(path) => remove_file(path: abs path),
+        };
+    }
+    remove_dir(path: abs brain_dir);
+}
+
+verb flush_test_prepare(ins brain: LogicalTeachingBrain, abs brain_dir: Path) -> Int {
+    flush_test_cleanup(brain_dir: abs brain_dir);
+    erg created = create_dir(path: abs brain_dir);
+    case dat created {
+        Result.Err(_) => {
+            return 1;
+        },
+        Result.Ok(_) => {},
+    };
+    erg initialized = logical_teaching_init(brain: ins brain);
+    case dat initialized {
+        Result.Err(_) => {
+            return 2;
+        },
+        Result.Ok(_) => {},
+    };
+    erg sequence = flush_test_sequence();
+    erg taught = logical_teaching_sequence(brain: ins brain, sequence: abs sequence);
+    return case dat taught {
+        Result.Err(_) => 3,
+        Result.Ok(_) => 0,
+    };
+}
+
+verb flush_test_succeeds(ins brain: LogicalTeachingBrain, abs brain_dir: Path) -> Bool {
+    erg flushed = logical_teaching_flush_dirty_residents(brain: ins brain, brain_dir: abs brain_dir);
+    case dat flushed {
+        Result.Err(_) => {
+            return false;
+        },
+        Result.Ok(_) => {},
+    };
+    if shard_cache_dirty_count(cache: abs brain.logical.cache) != 0u8 {
+        return false;
+    }
+    erg target = logical_teaching_flush_target(brain: abs brain);
+    return case dat target {
+        Option.None => true,
+        Option.Some(_) => false,
+    };
+}
+
+meta test
+verb test_logical_teaching_flush_marks_dirty_entries_persisted() -> Int {
+    erg directory_result = flush_test_path();
+    return case dat directory_result {
+        Result.Err(_) => 1,
+        Result.Ok(directory) => {
+            erg brain: LogicalTeachingBrain = logical_teaching_empty();
+            erg prepared = flush_test_prepare(brain: ins brain, brain_dir: abs directory);
+            if prepared != 0 {
+                flush_test_cleanup(brain_dir: abs directory);
+                return prepared + 1;
+            }
+            erg passed = flush_test_succeeds(brain: ins brain, brain_dir: abs directory);
+            flush_test_cleanup(brain_dir: abs directory);
+            if passed {
+                0;
+            } else {
+                3;
+            }
+        },
+    };
+}

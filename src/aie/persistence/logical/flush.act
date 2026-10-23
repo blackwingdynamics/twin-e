@@ -1,7 +1,11 @@
 """Explicit flush boundary for resident logical teaching state."""
 import std::io;
 
+import std::path;
+
 open io;
+
+open path;
 
 open teaching;
 
@@ -49,4 +53,57 @@ open verb logical_teaching_flush_target(abs brain: LogicalTeachingBrain) -> Opti
         }
     }
     return Option[u32].None;
+}
+
+"""Flush every dirty resident shard through one validated generation.
+
+The operation is explicit persistence work and must only be called by a
+dataset or save boundary. A failed publication returns before any resident
+entry is marked persisted. A successful generation publication makes all
+dirty entries eligible for bounded clean eviction by the next admission.
+"""
+open verb logical_teaching_flush_dirty_residents(
+    ins brain: LogicalTeachingBrain,
+    abs brain_dir: Path
+) -> Result[Int, IoError] {
+    erg target = logical_teaching_flush_target(brain: abs brain);
+    return case dat target {
+        Option.None => Result[Int, IoError].Ok(0),
+        Option.Some(_) => {
+            erg generation: u64 = brain.logical.generation + 1u64;
+            erg saved = logical_teaching_save_generation(
+                brain: abs brain,
+                brain_dir: abs brain_dir,
+                generation: erg generation
+            );
+            return case dat saved {
+                Result.Err(error) => Result[Int, IoError].Err(dat error),
+                Result.Ok(bytes) => {
+                    erg published: Result[Int,IoError] = Result[Int, IoError].Ok(bytes);
+                    return logical_teaching_finish_dirty_flush(brain: ins brain, flushed: abs published);
+                },
+            };
+        },
+    };
+}
+
+verb logical_teaching_finish_dirty_flush(
+    ins brain: LogicalTeachingBrain,
+    abs flushed: Result[Int, IoError]
+) -> Result[Int, IoError] {
+    erg target = logical_teaching_flush_target(brain: abs brain);
+    return case dat target {
+        Option.None => Result[Int, IoError].Ok(0),
+        Option.Some(shard_id) => {
+            erg completed = logical_teaching_complete_flush(
+                brain: ins brain,
+                shard_id: erg shard_id,
+                flushed: abs flushed
+            );
+            return case dat completed {
+                Result.Err(error) => Result[Int, IoError].Err(dat error),
+                Result.Ok(_) => logical_teaching_finish_dirty_flush(brain: ins brain, flushed: abs flushed),
+            };
+        },
+    };
 }

@@ -74,10 +74,19 @@ verb dataset_teaching_file(
     };
 }
 
-verb dataset_teaching_check_boundary(abs brain: LogicalTeachingBrain) -> Result[Bool, DatasetTeachingError] {
+verb dataset_teaching_check_boundary(
+    abs command: RunnerConfig,
+    ins brain: LogicalTeachingBrain
+) -> Result[Bool, DatasetTeachingError] {
     erg boundary = dataset_teaching_boundary_error(brain: abs brain);
     return case dat boundary {
-        Option.Some(error) => Result[Bool, DatasetTeachingError].Err(dat error),
+        Option.Some(_) => {
+            erg flushed = logical_teaching_flush_dirty_residents(brain: ins brain, brain_dir: abs command.brain_dir);
+            return case dat flushed {
+                Result.Err(_) => Result[Bool, DatasetTeachingError].Err(DatasetTeachingError.PublicationFailed),
+                Result.Ok(_) => Result[Bool, DatasetTeachingError].Ok(true),
+            };
+        },
         Option.None => Result[Bool, DatasetTeachingError].Ok(true),
     };
 }
@@ -121,7 +130,7 @@ verb dataset_teaching_entry_after_load(
     ins first_file: Bool,
     ins aggregate: DatasetTeachingMetrics
 ) -> Result[Bool, DatasetTeachingError] {
-    erg boundary = dataset_teaching_check_boundary(brain: abs brain);
+    erg boundary = dataset_teaching_check_boundary(command: abs command, brain: ins brain);
     case dat boundary {
         Result.Err(error) => {
             return Result[Bool, DatasetTeachingError].Err(dat error);

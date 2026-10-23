@@ -121,7 +121,7 @@ count remains governed by the brain manifest, not by resident cache capacity.
 
 - [x] Detect `FlushRequired` or an equivalent dirty high-watermark signal at
       the dataset teaching boundary before the next shard admission.
-- [ ] Flush and validate the selected dirty shard before releasing its
+- [x] Flush and validate the selected dirty shard before releasing its
       resident slot; never discard dirty state before publication succeeds.
 - [ ] Retry the pending shard admission after a successful flush without
       replaying or skipping the current TWF record.
@@ -147,5 +147,13 @@ Gate 12.3 first-check evidence: the dataset boundary now preserves the typed
 `FlushRequired` signal from logical admission instead of collapsing it into
 `ResidentCapacityExceeded`. `tests/aie_logical_teaching.act::test_dataset_boundary_reports_flush_request`
 proves that three dirty resident shards are detected before the next dataset
-file is admitted. The check is allocation-free and performs no filesystem I/O;
-flush, publication, and resident-slot release remain the next unchecked work.
+file is admitted. The check itself is allocation-free and performs no
+filesystem I/O; the following flush boundary consumes this signal explicitly.
+
+Gate 12.3 second-check evidence: `logical_teaching_flush_dirty_residents`
+publishes the dirty resident generation through the explicit persistence
+boundary and marks entries persisted only after successful publication.
+`tests/aie_logical_flush.act::test_logical_teaching_flush_marks_dirty_entries_persisted`
+proves that the dirty count reaches zero after a successful flush, while the
+existing failed-flush evidence proves that a failed publication preserves the
+dirty resident state.
