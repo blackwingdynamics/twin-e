@@ -3,6 +3,10 @@ open startup;
 
 open teaching;
 
+open directory;
+
+open dataset;
+
 open persistence;
 
 open logical_teaching;

@@ -58,6 +58,15 @@ own boundary, and may then issue a new admission request. If the caller does
 not establish that boundary, the live fabric and dirty resident state remain
 unchanged and the capacity error is final for that request.
 
+When a published generation contains more shards than the resident cache can
+hold, restart or per-file checkpoint reload restores the newest bounded
+resident window, not the first shard IDs. This keeps the current teaching
+shard available for the next admission while preserving the manifest as the
+authority for the complete on-disk shard set. The window remains bounded by
+`BRAIN_LOGICAL_MAX_RESIDENT_SHARDS`; older shards are validated during
+preflight and loaded on demand when the public persistence boundary requests
+them.
+
 The cache exposes `shard_cache_dirty_count` and
 `shard_cache_flush_requested`. The latter becomes true when the configured
 dirty high-watermark is reached, before all resident capacity is consumed.
@@ -148,6 +157,15 @@ inference and neurogenesis, and preservation of the last valid generation
 after failed publication. The runtime remains caller-driven with no background
 flush queue; these results do not change that boundary or claim hardware
 performance.
+
+### Gate 12.3 acceptance update
+
+Directory teaching evidence now covers 1,000 deterministically indexed TWF
+files, per-file checkpoint publication, a manifest containing more logical
+shards than the four-entry resident cache, and reload of the newest resident
+window. A failed flush remains retryable only through an explicit new request;
+the dirty resident state is not treated as published. The strict Actus suite
+reports 188 passed and 0 failed for this acceptance run.
 
 ## Consequences
 

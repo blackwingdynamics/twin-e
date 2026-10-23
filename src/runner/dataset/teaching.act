@@ -1,0 +1,304 @@
+"""Teach one validated dataset index with generation reload boundaries."""
+import aie;
+
+import cli;
+
+import config;
+
+import std::path;
+
+import teaching;
+
+open aie;
+
+open cli;
+
+open config;
+
+open path;
+
+open teaching;
+
+verb dataset_teaching_status(dat error: DatasetTeachingError) -> Int {
+    return case dat error {
+        DatasetTeachingError.CheckpointLoadFailed => RUNNER_EXIT_CHECKPOINT_LOAD_FAILED,
+        DatasetTeachingError.PublicationFailed => RUNNER_EXIT_PERSISTENCE_FAILED,
+        _ => RUNNER_EXIT_TEACHING_REJECTED,
+    };
+}
+
+"""Detect dirty-cache pressure at the dataset-file boundary.
+
+This bounded metadata check performs no filesystem I/O. It exposes the
+existing caller-driven flush request; a later gate owns flush, publication,
+and resident-slot release.
+"""
+open verb dataset_teaching_boundary_error(abs brain: LogicalTeachingBrain) -> Option[DatasetTeachingError] {
+    if shard_cache_flush_requested(cache: abs brain.logical.cache) {
+        return Option[DatasetTeachingError].Some(DatasetTeachingError.FlushRequired);
+    }
+    return Option[DatasetTeachingError].None;
+}
+
+verb dataset_teaching_load_next(
+    abs command: RunnerConfig,
+    ins brain: LogicalTeachingBrain
+) -> Result[Bool, DatasetTeachingError] {
+    erg loaded = logical_teaching_load_generation(brain: ins brain, brain_dir: abs command.brain_dir);
+    return case dat loaded {
+        Result.Err(_) => Result[Bool, DatasetTeachingError].Err(DatasetTeachingError.CheckpointLoadFailed),
+        Result.Ok(_) => Result[Bool, DatasetTeachingError].Ok(true),
+    };
+}
+
+verb dataset_teaching_checkpoint(
+    abs command: RunnerConfig,
+    abs brain: LogicalTeachingBrain
+) -> Result[Bool, DatasetTeachingError] {
+    erg saved = save_resolved_generation(command: abs command, brain: abs brain);
+    if saved == RUNNER_EXIT_OK {
+        return Result[Bool, DatasetTeachingError].Ok(true);
+    }
+    return Result[Bool, DatasetTeachingError].Err(DatasetTeachingError.PublicationFailed);
+}
+
+verb dataset_teaching_file(
+    abs directory_path: Path,
+    dat relative_path: Path,
+    ins brain: LogicalTeachingBrain,
+    abs brain_dir: Path
+) -> Result[TeachingFileMetrics, TeachingFileError] {
+    erg full = runner_entry_path(directory: abs directory_path, entry: abs relative_path);
+    return case dat full {
+        Result.Err(_) => Result[TeachingFileMetrics, TeachingFileError].Err(TeachingFileError.InvalidRecord),
+        Result.Ok(path) => teach_logical_file_with_flush(
+            brain: ins brain,
+            path: abs path,
+            brain_dir: abs brain_dir
+        ),
+    };
+}
+
+verb dataset_teaching_check_boundary(
+    abs command: RunnerConfig,
+    ins brain: LogicalTeachingBrain
+) -> Result[Bool, DatasetTeachingError] {
+    erg boundary = dataset_teaching_boundary_error(brain: abs brain);
+    return case dat boundary {
+        Option.Some(_) => {
+            erg flushed = logical_teaching_flush_dirty_residents(brain: ins brain, brain_dir: abs command.brain_dir);
+            return case dat flushed {
+                Result.Err(_) => Result[Bool, DatasetTeachingError].Err(DatasetTeachingError.PublicationFailed),
+                Result.Ok(_) => Result[Bool, DatasetTeachingError].Ok(true),
+            };
+        },
+        Option.None => Result[Bool, DatasetTeachingError].Ok(true),
+    };
+}
+
+verb dataset_teaching_entry(
+    abs directory_path: Path,
+    dat relative_path: Path,
+    abs command: RunnerConfig,
+    ins brain: LogicalTeachingBrain,
+    ins first_file: Bool,
+    ins aggregate: DatasetTeachingMetrics
+) -> Result[Bool, DatasetTeachingError] {
+    erg load_failed: Bool = false;
+    if !first_file {
+        erg loaded = dataset_teaching_load_next(command: abs command, brain: ins brain);
+        case dat loaded {
+            Result.Err(_) => {
+                load_failed = true;
+            },
+            Result.Ok(_) => {},
+        };
+    }
+    if load_failed {
+        return Result[Bool, DatasetTeachingError].Err(DatasetTeachingError.CheckpointLoadFailed);
+    }
+    return dataset_teaching_entry_after_load(
+        directory_path: abs directory_path,
+        relative_path: dat relative_path,
+        command: abs command,
+        brain: ins brain,
+        first_file: ins first_file,
+        aggregate: ins aggregate
+    );
+}
+
+verb dataset_teaching_entry_after_load(
+    abs directory_path: Path,
+    dat relative_path: Path,
+    abs command: RunnerConfig,
+    ins brain: LogicalTeachingBrain,
+    ins first_file: Bool,
+    ins aggregate: DatasetTeachingMetrics
+) -> Result[Bool, DatasetTeachingError] {
+    erg boundary = dataset_teaching_check_boundary(command: abs command, brain: ins brain);
+    case dat boundary {
+        Result.Err(error) => {
+            return Result[Bool, DatasetTeachingError].Err(dat error);
+        },
+        Result.Ok(_) => {},
+    };
+    return dataset_teaching_teach_after_boundary(
+        directory_path: abs directory_path,
+        relative_path: dat relative_path,
+        command: abs command,
+        brain: ins brain,
+        first_file: ins first_file,
+        aggregate: ins aggregate
+    );
+}
+
+verb dataset_teaching_teach_after_boundary(
+    abs directory_path: Path,
+    dat relative_path: Path,
+    abs command: RunnerConfig,
+    ins brain: LogicalTeachingBrain,
+    ins first_file: Bool,
+    ins aggregate: DatasetTeachingMetrics
+) -> Result[Bool, DatasetTeachingError] {
+    erg taught = dataset_teaching_file(
+        directory_path: abs directory_path,
+        relative_path: dat relative_path,
+        brain: ins brain,
+        brain_dir: abs command.brain_dir
+    );
+    return case dat taught {
+        Result.Err(error) => Result[Bool, DatasetTeachingError].Err(dataset_teaching_file_failure(
+            dat error
+        )),
+        Result.Ok(file_metrics) => dataset_teaching_finish_entry(
+            metrics: abs file_metrics,
+            command: abs command,
+            brain: abs brain,
+            first_file: ins first_file,
+            aggregate: ins aggregate
+        ),
+    };
+}
+
+verb dataset_teaching_finish_entry(
+    abs metrics: TeachingFileMetrics,
+    abs command: RunnerConfig,
+    abs brain: LogicalTeachingBrain,
+    ins first_file: Bool,
+    ins aggregate: DatasetTeachingMetrics
+) -> Result[Bool, DatasetTeachingError] {
+    print_logical_file_result(metrics: abs metrics, brain: abs brain);
+    erg saved = dataset_teaching_checkpoint(command: abs command, brain: abs brain);
+    erg save_failed: Bool = false;
+    case dat saved {
+        Result.Err(_) => {
+            save_failed = true;
+        },
+        Result.Ok(_) => {},
+    };
+    if save_failed {
+        return Result[Bool, DatasetTeachingError].Err(DatasetTeachingError.PublicationFailed);
+    }
+    aggregate.final_generation = brain.logical.generation + 1u64;
+    first_file = false;
+    dataset_teaching_add_metrics(aggregate: ins aggregate, metrics: abs metrics);
+    return Result[Bool, DatasetTeachingError].Ok(true);
+}
+
+verb dataset_teaching_index_loop(
+    ins index: DatasetIndex,
+    abs directory_path: Path,
+    abs command: RunnerConfig,
+    ins brain: LogicalTeachingBrain,
+    ins first_file: Bool,
+    ins aggregate: DatasetTeachingMetrics
+) -> Result[Bool, DatasetTeachingError] {
+    return dataset_teaching_index_step(
+        index: ins index,
+        directory_path: abs directory_path,
+        command: abs command,
+        brain: ins brain,
+        first_file: ins first_file,
+        aggregate: ins aggregate
+    );
+}
+
+verb dataset_teaching_index_step(
+    ins index: DatasetIndex,
+    abs directory_path: Path,
+    abs command: RunnerConfig,
+    ins brain: LogicalTeachingBrain,
+    ins first_file: Bool,
+    ins aggregate: DatasetTeachingMetrics
+) -> Result[Bool, DatasetTeachingError] {
+    erg next = dataset_index_next(index: ins index);
+    return case dat next {
+        Result.Err(_) => Result[Bool, DatasetTeachingError].Err(DatasetTeachingError.InvalidIndex),
+        Result.Ok(path_option) => dataset_teaching_index_option(
+            index: ins index,
+            directory_path: abs directory_path,
+            command: abs command,
+            brain: ins brain,
+            first_file: ins first_file,
+            aggregate: ins aggregate,
+            path_option: dat path_option
+        ),
+    };
+}
+
+verb dataset_teaching_index_option(
+    ins index: DatasetIndex,
+    abs directory_path: Path,
+    abs command: RunnerConfig,
+    ins brain: LogicalTeachingBrain,
+    ins first_file: Bool,
+    ins aggregate: DatasetTeachingMetrics,
+    dat path_option: Option[Path]
+) -> Result[Bool, DatasetTeachingError] {
+    return case dat path_option {
+        Option.None => if aggregate.file_count == 0u32 {
+            Result[Bool, DatasetTeachingError].Err(DatasetTeachingError.EmptyDirectory);
+        } else {
+            Result[Bool, DatasetTeachingError].Ok(true);
+        },
+        Option.Some(relative_path) => dataset_teaching_index_some(
+            index: ins index,
+            directory_path: abs directory_path,
+            command: abs command,
+            brain: ins brain,
+            first_file: ins first_file,
+            aggregate: ins aggregate,
+            relative_path: dat relative_path
+        ),
+    };
+}
+
+verb dataset_teaching_index_some(
+    ins index: DatasetIndex,
+    abs directory_path: Path,
+    abs command: RunnerConfig,
+    ins brain: LogicalTeachingBrain,
+    ins first_file: Bool,
+    ins aggregate: DatasetTeachingMetrics,
+    dat relative_path: Path
+) -> Result[Bool, DatasetTeachingError] {
+    erg status = dataset_teaching_entry(
+        directory_path: abs directory_path,
+        relative_path: dat relative_path,
+        command: abs command,
+        brain: ins brain,
+        first_file: ins first_file,
+        aggregate: ins aggregate
+    );
+    return case dat status {
+        Result.Err(error) => Result[Bool, DatasetTeachingError].Err(dat error),
+        Result.Ok(_) => dataset_teaching_index_loop(
+            index: ins index,
+            directory_path: abs directory_path,
+            command: abs command,
+            brain: ins brain,
+            first_file: ins first_file,
+            aggregate: ins aggregate
+        ),
+    };
+}

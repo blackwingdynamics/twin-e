@@ -1,0 +1,239 @@
+"""Gate 12.2 evidence for resumable bounded dataset-index batches."""
+import runner;
+
+import std::fs;
+
+import std::path;
+
+open fs;
+
+open path;
+
+open runner;
+
+verb dataset_batch_path_prefix(ins raw: Buffer) {
+    append(raw, 47u8);
+    append(raw, 116u8);
+    append(raw, 109u8);
+    append(raw, 112u8);
+    append(raw, 47u8);
+    append(raw, 116u8);
+    append(raw, 119u8);
+    append(raw, 105u8);
+    append(raw, 110u8);
+    append(raw, 45u8);
+    append(raw, 101u8);
+    append(raw, 45u8);
+    append(raw, 98u8);
+    append(raw, 97u8);
+    append(raw, 116u8);
+    append(raw, 99u8);
+    append(raw, 104u8);
+}
+
+verb dataset_batch_path_suffix(ins raw: Buffer, erg selector: u8) {
+    append(raw, 47u8);
+    if selector == 1u8 {
+        append(raw, 97u8);
+    } else {
+        append(raw, 98u8);
+    }
+    append(raw, 46u8);
+    if selector == 3u8 {
+        append(raw, 116u8);
+        append(raw, 120u8);
+        append(raw, 116u8);
+    } else {
+        append(raw, 116u8);
+        append(raw, 119u8);
+        append(raw, 102u8);
+    }
+}
+
+verb dataset_batch_path(erg selector: u8) -> Result[Path, PathError] {
+    erg raw: Buffer = Buffer[0];
+    dataset_batch_path_prefix(raw: ins raw);
+    if selector != 0u8 {
+        dataset_batch_path_suffix(raw: ins raw, selector: erg selector);
+    }
+    append(raw, 0u8);
+    return path_from_ascii(storage: dat raw);
+}
+
+verb dataset_batch_path_value(erg selector: u8) -> Path {
+    erg result = dataset_batch_path(selector: erg selector);
+    return case dat result {
+        Result.Err(_) => Path {storage: Buffer[0], platform: PathPlatform.Posix, length: 0, capacity: 0, terminated: 0},
+        Result.Ok(path) => path,
+    };
+}
+
+verb dataset_batch_write(abs path: Path) -> Bool {
+    erg bytes: Buffer = Buffer[0];
+    append(bytes, 1u8);
+    erg result = write_file(path: abs path, contents: abs bytes);
+    return case dat result {
+        Result.Err(_) => false,
+        Result.Ok(_) => true,
+    };
+}
+
+verb dataset_batch_name(erg selector: u8) -> Buffer {
+    erg name: Buffer = Buffer[0];
+    if selector == 1u8 {
+        append(name, 97u8);
+    } else {
+        append(name, 98u8);
+    }
+    append(name, 46u8);
+    append(name, 116u8);
+    append(name, 119u8);
+    append(name, 102u8);
+    return name;
+}
+
+verb dataset_batch_first_is(dat bytes: Buffer, erg expected: u8) -> Int {
+    erg opened = dataset_index_open(bytes: dat bytes);
+    return case dat opened {
+        Result.Err(_) => 1,
+        Result.Ok(index) => {
+            erg next = dataset_index_next(index: ins index);
+            return case dat next {
+                Result.Err(_) => 1,
+                Result.Ok(option) => case dat option {
+                    Option.None => 1,
+                    Option.Some(path) => {
+                        erg valid = path.length == 5 && path.storage[0u32] == expected && path.storage[1u32] == 46u8 && path.storage[2u32] == 116u8 && path.storage[3u32] == 119u8 && path.storage[4u32] == 102u8;
+                        drop(path);
+                        if valid {
+                            0;
+                        } else {
+                            1;
+                        }
+                    },
+                },
+            };
+        },
+    };
+}
+
+verb dataset_batch_cleanup(
+    dat directory: Path,
+    dat first: Path,
+    dat second: Path,
+    dat other: Path
+) {
+    remove_file(path: abs first);
+    remove_file(path: abs second);
+    remove_file(path: abs other);
+    remove_dir(path: abs directory);
+    drop(directory);
+    drop(first);
+    drop(second);
+    drop(other);
+}
+
+verb dataset_batch_run(
+    abs directory: Path,
+    abs first: Path,
+    abs second: Path,
+    abs other: Path
+) -> Int {
+    if !dataset_batch_write(path: abs first) || !dataset_batch_write(path: abs second) || !dataset_batch_write(
+        path: abs other
+    ) {
+        return 1;
+    }
+    erg empty: Buffer = Buffer[0];
+    erg first_result = dataset_index_generate_batch(directory_path: abs directory, previous: dat empty);
+    return case dat first_result {
+        Result.Err(error) => case dat error {
+            DatasetIndexGenerationError.EntryTooLarge => 20,
+            DatasetIndexGenerationError.TooManyEntries => 21,
+            DatasetIndexGenerationError.IndexTooLarge => 22,
+            DatasetIndexGenerationError.EmptyDirectory => 23,
+            DatasetIndexGenerationError.DirectoryFailure => 24,
+        },
+        Result.Ok(batch) => dataset_batch_continue(directory: abs directory, batch: dat batch),
+    };
+}
+
+verb dataset_batch_continue(abs directory: Path, dat batch: DatasetIndexBatch) -> Int {
+    erg previous_selector: u8 = 1u8;
+    erg previous = dataset_batch_name(selector: erg previous_selector);
+    erg next_result = dataset_index_generate_batch(directory_path: abs directory, previous: dat previous);
+    return case dat next_result {
+        Result.Err(_) => 4,
+        Result.Ok(next_batch) => {
+            erg index = dataset_index_batch_take_index(batch: dat next_batch);
+            erg expected: u8 = 98u8;
+            dataset_batch_first_is(bytes: dat index, expected: erg expected);
+        },
+    };
+}
+
+verb dataset_batch_run_paths(
+    dat directory: Path,
+    dat first: Path,
+    dat second: Path,
+    dat other: Path
+) -> Int {
+    remove_dir(path: abs directory);
+    erg created = create_dir(path: abs directory);
+    return case dat created {
+        Result.Err(_) => {
+            dataset_batch_cleanup(
+                directory: dat directory,
+                first: dat first,
+                second: dat second,
+                other: dat other
+            );
+            2;
+        },
+        Result.Ok(_) => dataset_batch_run_created(
+            directory: dat directory,
+            first: dat first,
+            second: dat second,
+            other: dat other
+        ),
+    };
+}
+
+verb dataset_batch_run_created(
+    dat directory: Path,
+    dat first: Path,
+    dat second: Path,
+    dat other: Path
+) -> Int {
+    erg status = dataset_batch_run(
+        directory: abs directory,
+        first: abs first,
+        second: abs second,
+        other: abs other
+    );
+    dataset_batch_cleanup(
+        directory: dat directory,
+        first: dat first,
+        second: dat second,
+        other: dat other
+    );
+    return status;
+}
+
+meta test
+verb test_dataset_index_batch_resumes_after_last_name() -> Int {
+    erg directory_selector: u8 = 0u8;
+    erg first_selector: u8 = 1u8;
+    erg second_selector: u8 = 2u8;
+    erg other_selector: u8 = 3u8;
+    erg directory = dataset_batch_path_value(selector: erg directory_selector);
+    erg first = dataset_batch_path_value(selector: erg first_selector);
+    erg second = dataset_batch_path_value(selector: erg second_selector);
+    erg other = dataset_batch_path_value(selector: erg other_selector);
+    return dataset_batch_run_paths(
+        directory: dat directory,
+        first: dat first,
+        second: dat second,
+        other: dat other
+    );
+}

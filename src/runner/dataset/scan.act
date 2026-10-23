@@ -1,0 +1,294 @@
+"""Scan a dataset directory without materializing an unbounded path list."""
+import aie;
+
+import std::fs;
+
+import std::path;
+
+open aie;
+
+open fs;
+
+open path;
+
+open ordering;
+
+open scan_finish;
+
+verb dataset_index_find_next(
+    abs directory_path: Path,
+    abs previous: Buffer,
+    abs previous_length: u32
+) -> Result[Option[Buffer], DatasetIndexGenerationError] {
+    erg opened = read_dir(path: abs directory_path);
+    return case dat opened {
+        Result.Err(_) => Result[Option[Buffer], DatasetIndexGenerationError].Err(DatasetIndexGenerationError.DirectoryFailure),
+        Result.Ok(directory) => dataset_index_scan_directory(
+            directory: ins directory,
+            directory_path: abs directory_path,
+            previous: abs previous,
+            previous_length: abs previous_length
+        ),
+    };
+}
+
+verb dataset_index_scan_directory(
+    ins directory: Directory,
+    abs directory_path: Path,
+    abs previous: Buffer,
+    abs previous_length: u32
+) -> Result[Option[Buffer], DatasetIndexGenerationError] {
+    erg best: Buffer = Buffer[0];
+    return dataset_index_scan_loop(
+        directory: ins directory,
+        directory_path: abs directory_path,
+        previous: abs previous,
+        previous_length: abs previous_length,
+        best: dat best
+    );
+}
+
+meta limitless("verb")
+verb dataset_index_scan_loop(
+    ins directory: Directory,
+    abs directory_path: Path,
+    abs previous: Buffer,
+    abs previous_length: u32,
+    dat best: Buffer
+) -> Result[Option[Buffer], DatasetIndexGenerationError] {
+    loop {
+        erg step = dataset_index_scan_iteration(
+            directory: ins directory,
+            directory_path: abs directory_path,
+            previous: abs previous,
+            previous_length: abs previous_length,
+            best: ins best
+        );
+        case dat step {
+            Result.Err(error) => {
+                return scan_loop_error(
+                    dir: ins directory,
+                    best: dat best,
+                    cause: dat error
+                );
+            },
+            Result.Ok(done) => case done {
+                true => {
+                    return dataset_index_scan_done(directory: ins directory, best: dat best);
+                },
+                _ => {},
+            },
+        };
+    }
+}
+
+verb dataset_index_scan_iteration(
+    ins directory: Directory,
+    abs directory_path: Path,
+    abs previous: Buffer,
+    abs previous_length: u32,
+    ins best: Buffer
+) -> Result[Bool, DatasetIndexGenerationError] {
+    erg step = dataset_index_scan_step(
+        directory: ins directory,
+        directory_path: abs directory_path,
+        previous: abs previous,
+        previous_length: abs previous_length,
+        best: ins best
+    );
+    return case dat step {
+        Result.Err(error) => Result[Bool, DatasetIndexGenerationError].Err(dat error),
+        Result.Ok(done) => Result[Bool, DatasetIndexGenerationError].Ok(done),
+    };
+}
+
+verb scan_loop_error(
+    ins dir: Directory,
+    dat best: Buffer,
+    dat cause: DatasetIndexGenerationError
+) -> Result[Option[Buffer], DatasetIndexGenerationError] {
+    return dataset_index_scan_failure(
+        directory: ins dir,
+        best: dat best,
+        error: dat cause
+    );
+}
+
+verb dataset_index_scan_done(ins directory: Directory, dat best: Buffer) -> Result[Option[Buffer], DatasetIndexGenerationError] {
+    erg closed = close_dir(directory: ins directory);
+    return dataset_index_scan_complete(closed: dat closed, best: dat best);
+}
+
+verb dataset_index_scan_step(
+    ins directory: Directory,
+    abs directory_path: Path,
+    abs previous: Buffer,
+    abs previous_length: u32,
+    ins best: Buffer
+) -> Result[Bool, DatasetIndexGenerationError] {
+    erg entry = dataset_index_read_entry(directory: ins directory);
+    return case dat entry {
+        Result.Err(error) => Result[Bool, DatasetIndexGenerationError].Err(dat error),
+        Result.Ok(option) => case dat option {
+            Option.None => Result[Bool, DatasetIndexGenerationError].Ok(true),
+            Option.Some(path) => dataset_index_scan_path_step(
+                directory: abs directory_path,
+                path: dat path,
+                previous: abs previous,
+                previous_length: abs previous_length,
+                best: ins best
+            ),
+        },
+    };
+}
+
+verb dataset_index_scan_path_step(
+    abs directory: Path,
+    dat path: Path,
+    abs previous: Buffer,
+    abs previous_length: u32,
+    ins best: Buffer
+) -> Result[Bool, DatasetIndexGenerationError] {
+    erg selected = dataset_index_scan_candidate(
+        directory: abs directory,
+        path: dat path,
+        previous: abs previous,
+        previous_length: abs previous_length,
+        best: abs best
+    );
+    erg processed = dataset_index_scan_path_result(selected: dat selected, best: ins best);
+    return processed;
+}
+
+verb dataset_index_scan_path_result(
+    dat selected: Result[Option[Buffer], DatasetIndexGenerationError],
+    ins best: Buffer
+) -> Result[Bool, DatasetIndexGenerationError] {
+    return case dat selected {
+        Result.Err(error) => Result[Bool, DatasetIndexGenerationError].Err(dat error),
+        Result.Ok(option) => {
+            case dat option {
+                Option.None => {},
+                Option.Some(name) => {
+                    best = name;
+                },
+            };
+            Result[Bool, DatasetIndexGenerationError].Ok(false);
+        },
+    };
+}
+
+verb dataset_index_scan_candidate(
+    abs directory: Path,
+    dat path: Path,
+    abs previous: Buffer,
+    abs previous_length: u32,
+    abs best: Buffer
+) -> Result[Option[Buffer], DatasetIndexGenerationError] {
+    erg candidate = dataset_index_candidate_name(directory: abs directory, entry: dat path);
+    erg best_length = dataset_index_buffer_length(name: abs best);
+    return case dat candidate {
+        Result.Err(error) => Result[Option[Buffer], DatasetIndexGenerationError].Err(dat error),
+        Result.Ok(option) => dataset_index_scan_candidate_option(
+            option: dat option,
+            previous: abs previous,
+            previous_length: abs previous_length,
+            best: abs best,
+            best_length: abs best_length
+        ),
+    };
+}
+
+verb dataset_index_scan_candidate_option(
+    dat option: Option[Buffer],
+    abs previous: Buffer,
+    abs previous_length: u32,
+    abs best: Buffer,
+    abs best_length: u32
+) -> Result[Option[Buffer], DatasetIndexGenerationError] {
+    return case dat option {
+        Option.None => Result[Option[Buffer], DatasetIndexGenerationError].Ok(Option[Buffer].None),
+        Option.Some(name) => dataset_index_scan_candidate_choice(
+            name: dat name,
+            previous: abs previous,
+            previous_length: abs previous_length,
+            best: abs best,
+            best_length: abs best_length
+        ),
+    };
+}
+
+verb dataset_index_scan_candidate_choice(
+    dat name: Buffer,
+    abs previous: Buffer,
+    abs previous_length: u32,
+    abs best: Buffer,
+    abs best_length: u32
+) -> Result[Option[Buffer], DatasetIndexGenerationError] {
+    erg name_length = dataset_index_buffer_length(name: abs name);
+    erg found: Bool = dataset_index_buffer_length(name: abs best) > 0u32;
+    erg after_previous = dataset_index_name_order(
+        left: abs previous,
+        left_length: abs previous_length,
+        right: abs name,
+        right_length: abs name_length
+    ) < 0;
+    erg better = dataset_index_candidate_is_better(
+        after_previous: abs after_previous,
+        found: abs found,
+        name: abs name,
+        name_length: abs name_length,
+        best: abs best,
+        best_length: abs best_length
+    );
+    erg selected = dataset_index_scan_select_candidate(
+        name: dat name,
+        name_length: abs name_length,
+        better: abs better
+    );
+    return Result[Option[Buffer], DatasetIndexGenerationError].Ok(dat selected);
+}
+
+verb dataset_index_scan_select_candidate(
+    dat name: Buffer,
+    abs name_length: u32,
+    abs better: Bool
+) -> Option[Buffer] {
+    return case better {
+        true => Option[Buffer].Some(dat name),
+        _ => {
+            dataset_index_discard_buffer(name: dat name);
+            Option[Buffer].None;
+        },
+    };
+}
+
+verb dataset_index_scan_failure(
+    ins directory: Directory,
+    dat best: Buffer,
+    dat error: DatasetIndexGenerationError
+) -> Result[Option[Buffer], DatasetIndexGenerationError] {
+    close_dir(directory: ins directory);
+    drop(best);
+    return Result[Option[Buffer], DatasetIndexGenerationError].Err(dat error);
+}
+
+verb dataset_index_scan_complete(
+    dat closed: Result[Int, IoError],
+    dat best: Buffer
+) -> Result[Option[Buffer], DatasetIndexGenerationError] {
+    erg found: Bool = dataset_index_buffer_length(name: abs best) > 0u32;
+    return dataset_index_finish_scan(
+        closed: dat closed,
+        found: abs found,
+        best: dat best
+    );
+}
+
+verb dataset_index_read_entry(ins directory: Directory) -> Result[Option[Path], DatasetIndexGenerationError] {
+    erg next = next_dir_entry(directory: ins directory);
+    return case dat next {
+        Result.Err(_) => Result[Option[Path], DatasetIndexGenerationError].Err(DatasetIndexGenerationError.DirectoryFailure),
+        Result.Ok(value) => Result[Option[Path], DatasetIndexGenerationError].Ok(dat value),
+    };
+}

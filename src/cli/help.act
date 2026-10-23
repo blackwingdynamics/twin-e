@@ -4,11 +4,11 @@ import std::io;
 open io;
 
 open verb print_help() -> Int {
-    erg usage: String = "Usage: twin-e --load <brain.brain> (--stdin | --file <teaching.twf>) [--save]";
-    erg create: String = "       twin-e --init <brain.brain> (--stdin | --file <teaching.twf>) [--save]";
+    erg usage: String = "Usage: twin-e --load <brain-dir> (--stdin | --file <teaching.twf>) [--save]";
+    erg create: String = "       twin-e --init <brain-dir> (--stdin | --file <teaching.twf>) [--save]";
     erg options: String = "Options:";
-    erg load: String = "  --load <path>          Load an existing brain file.";
-    erg init: String = "  --init <path>           Create a new empty brain file.";
+    erg load: String = "  --load <path>          Load manifest.brain and shards from a brain directory.";
+    erg init: String = "  --init <path>           Create a new brain generation in a brain directory.";
     erg stdin: String = "  --stdin                Read bounded teaching records from standard input.";
     erg file: String = "  --file <path>          Read bounded teaching records from a TWF file.";
     erg save: String = "  --save                 Persist the resulting brain state.";

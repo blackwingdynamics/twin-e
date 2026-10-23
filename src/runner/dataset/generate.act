@@ -1,0 +1,203 @@
+"""Generate one validated dataset index from regular `.twf` files in a directory."""
+verb dataset_index_generation_error(
+    dat previous: Buffer,
+    dat writer: DatasetIndexWriter,
+    dat error: DatasetIndexGenerationError
+) -> Result[DatasetIndexBatch, DatasetIndexGenerationError] {
+    drop(previous);
+    drop(writer);
+    return Result[DatasetIndexBatch, DatasetIndexGenerationError].Err(dat error);
+}
+
+verb dataset_index_generation_writer_error(
+    dat writer: DatasetIndexWriter,
+    dat error: DatasetIndexGenerationError
+) -> Result[DatasetIndexBatch, DatasetIndexGenerationError] {
+    drop(writer);
+    return Result[DatasetIndexBatch, DatasetIndexGenerationError].Err(dat error);
+}
+
+verb dataset_index_generation_finish(
+    dat previous: Buffer,
+    dat writer: DatasetIndexWriter,
+    abs entry_count: u32
+) -> Result[DatasetIndexBatch, DatasetIndexGenerationError] {
+    if entry_count == 0u32 {
+        drop(previous);
+        drop(writer);
+        return Result[DatasetIndexBatch, DatasetIndexGenerationError].Err(DatasetIndexGenerationError.EmptyDirectory);
+    }
+    return dataset_index_batch_finish_complete(previous: dat previous, writer: dat writer);
+}
+
+verb dataset_index_generation_bound(
+    dat previous: Buffer,
+    dat writer: DatasetIndexWriter,
+    abs entry_count: u32
+) -> Result[DatasetIndexBatch, DatasetIndexGenerationError] {
+    return dataset_index_batch_finish_bound(previous: dat previous, writer: dat writer);
+}
+
+verb dataset_index_generation_append(
+    ins writer: DatasetIndexWriter,
+    dat previous: Buffer,
+    dat name: Buffer
+) -> Result[Buffer, DatasetIndexGenerationError] {
+    erg appended = dataset_index_writer_append(writer: ins writer, name: abs name);
+    return case dat appended {
+        Result.Err(error) => {
+            drop(previous);
+            drop(name);
+            return Result[Buffer, DatasetIndexGenerationError].Err(dat error);
+        },
+        Result.Ok(_) => {
+            drop(previous);
+            return Result[Buffer, DatasetIndexGenerationError].Ok(dat name);
+        },
+    };
+}
+
+verb dataset_index_generation_step(
+    abs directory_path: Path,
+    dat previous: Buffer,
+    dat writer: DatasetIndexWriter,
+    abs entry_count: u32
+) -> Result[DatasetIndexBatch, DatasetIndexGenerationError] {
+    if entry_count >= DATASET_INDEX_MAX_ENTRIES {
+        return dataset_index_generation_bound(
+            previous: dat previous,
+            writer: dat writer,
+            entry_count: abs entry_count
+        );
+    }
+    return dataset_index_generation_step_next(
+        directory_path: abs directory_path,
+        previous: dat previous,
+        writer: dat writer,
+        entry_count: abs entry_count
+    );
+}
+
+verb dataset_index_generation_step_next(
+    abs directory_path: Path,
+    dat previous: Buffer,
+    dat writer: DatasetIndexWriter,
+    abs entry_count: u32
+) -> Result[DatasetIndexBatch, DatasetIndexGenerationError] {
+    erg previous_length = dataset_index_buffer_length(name: abs previous);
+    erg next = dataset_index_find_next(
+        directory_path: abs directory_path,
+        previous: abs previous,
+        previous_length: abs previous_length
+    );
+    return case dat next {
+        Result.Err(error) => dataset_index_generation_error(
+            previous: dat previous,
+            writer: dat writer,
+            error: dat error
+        ),
+        Result.Ok(option) => dataset_index_generation_option(
+            directory_path: abs directory_path,
+            previous: dat previous,
+            writer: dat writer,
+            entry_count: abs entry_count,
+            option: dat option
+        ),
+    };
+}
+
+verb dataset_index_generation_some(
+    abs directory_path: Path,
+    dat previous: Buffer,
+    dat writer: DatasetIndexWriter,
+    abs entry_count: u32,
+    dat name: Buffer
+) -> Result[DatasetIndexBatch, DatasetIndexGenerationError] {
+    erg appended = dataset_index_generation_append(
+        writer: ins writer,
+        previous: dat previous,
+        name: dat name
+    );
+    return case dat appended {
+        Result.Err(error) => dataset_index_generation_writer_error(writer: dat writer, error: dat error),
+        Result.Ok(next_name) => {
+            erg next_entry_count: u32 = entry_count + 1u32;
+            dataset_index_generation_loop(
+                directory_path: abs directory_path,
+                previous: dat next_name,
+                writer: dat writer,
+                entry_count: abs next_entry_count
+            );
+        },
+    };
+}
+
+verb dataset_index_generation_option(
+    abs directory_path: Path,
+    dat previous: Buffer,
+    dat writer: DatasetIndexWriter,
+    abs entry_count: u32,
+    dat option: Option[Buffer]
+) -> Result[DatasetIndexBatch, DatasetIndexGenerationError] {
+    return case dat option {
+        Option.None => dataset_index_generation_finish(
+            previous: dat previous,
+            writer: dat writer,
+            entry_count: abs entry_count
+        ),
+        Option.Some(name) => dataset_index_generation_some(
+            directory_path: abs directory_path,
+            previous: dat previous,
+            writer: dat writer,
+            entry_count: abs entry_count,
+            name: dat name
+        ),
+    };
+}
+
+verb dataset_index_generation_loop(
+    abs directory_path: Path,
+    dat previous: Buffer,
+    dat writer: DatasetIndexWriter,
+    abs entry_count: u32
+) -> Result[DatasetIndexBatch, DatasetIndexGenerationError] {
+    return dataset_index_generation_step(
+        directory_path: abs directory_path,
+        previous: dat previous,
+        writer: dat writer,
+        entry_count: abs entry_count
+    );
+}
+
+"""Generate a bounded index of regular `.twf` files below `directory_path`.
+
+The directory is rescanned one candidate at a time so the implementation keeps
+only the writer, the previous name, and the current candidate resident. Every
+candidate is checked for regular-file metadata and exact `.twf` extension before
+it is appended in deterministic relative-name order. Empty directories and
+filesystem failures return typed errors without publishing an index.
+"""
+open verb dataset_index_generate_batch(
+    abs directory_path: Path,
+    dat previous: Buffer
+) -> Result[DatasetIndexBatch, DatasetIndexGenerationError] {
+    erg writer = dataset_index_writer_new();
+    erg entry_count: u32 = 0u32;
+    return dataset_index_generation_loop(
+        directory_path: abs directory_path,
+        previous: dat previous,
+        writer: dat writer,
+        entry_count: abs entry_count
+    );
+}
+
+open verb dataset_index_generate(abs directory_path: Path) -> Result[Buffer, DatasetIndexGenerationError] {
+    erg previous: Buffer = Buffer[0];
+    erg generated = dataset_index_generate_batch(directory_path: abs directory_path, previous: dat previous);
+    return case dat generated {
+        Result.Err(error) => Result[Buffer, DatasetIndexGenerationError].Err(dat error),
+        Result.Ok(batch) => {
+            Result[Buffer, DatasetIndexGenerationError].Ok(dataset_index_batch_take_index(batch: dat batch));
+        },
+    };
+}

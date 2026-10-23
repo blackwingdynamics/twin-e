@@ -246,6 +246,46 @@ open const TEACHING_FILE_MAX_RECORDS: u16 = 8u16;
 open const TEACHING_FILE_MAX_BYTES: u32 = 2069u32;
 
 
+"""Magic value identifying the ordered training dataset index format."""
+open const DATASET_INDEX_MAGIC: u32 = 1230198065u32;
+
+
+"""Version of the ordered training dataset index format."""
+open const DATASET_INDEX_VERSION: u16 = 1u16;
+
+
+"""Serialized header length of one training dataset index."""
+open const DATASET_INDEX_HEADER_BYTES: u32 = 16u32;
+
+
+"""Maximum number of TWF entries in one bounded dataset index batch."""
+open const DATASET_INDEX_MAX_ENTRIES: u32 = 4096u32;
+
+
+"""Maximum relative path byte length in one dataset index entry."""
+open const DATASET_INDEX_MAX_PATH_BYTES: u32 = 1024u32;
+
+
+"""Maximum serialized byte length of one dataset index batch."""
+open const DATASET_INDEX_MAX_BYTES: u32 = 4194304u32;
+
+
+"""Stable runner exit status for a successful command."""
+open const RUNNER_EXIT_OK: Int = 0;
+
+
+"""Stable runner exit status for a failed checkpoint reload."""
+open const RUNNER_EXIT_CHECKPOINT_LOAD_FAILED: Int = 3;
+
+
+"""Stable runner exit status for rejected teaching input."""
+open const RUNNER_EXIT_TEACHING_REJECTED: Int = 4;
+
+
+"""Stable runner exit status for failed persistence publication."""
+open const RUNNER_EXIT_PERSISTENCE_FAILED: Int = 5;
+
+
 """Maximum bytes consumed by one bounded stdin teaching stream."""
 open const TEACHING_STDIN_MAX_BYTES: u32 = 2069u32;
 

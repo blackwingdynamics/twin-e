@@ -15,6 +15,8 @@ open path;
 
 open teaching;
 
+open dataset;
+
 verb logical_file_error_status(dat error: TeachingFileError) -> Int {
     return case dat error {
         TeachingFileError.LogicalCapacityExceeded => 6,
@@ -164,6 +166,9 @@ verb teach_command_state(
     ins command: RunnerConfig,
     ins brain: LogicalTeachingBrain
 ) -> Int {
+    if command.directory {
+        return teach_dataset_directory_state(command: abs command, brain: ins brain);
+    }
     if command.file {
         return teach_file_state(command: ins command, brain: ins brain);
     }

@@ -42,11 +42,7 @@ verb load_command_state(
     if !command.load {
         return 0;
     }
-    erg loaded: Result[Int,IoError] = logical_teaching_load_generation(
-        brain: ins brain,
-        shard_paths: abs command.shard_paths,
-        manifest_path: abs command.brain_path
-    );
+    erg loaded: Result[Int,IoError] = logical_teaching_load_generation(brain: ins brain, brain_dir: abs command.brain_dir);
     return case dat loaded {
         Result.Ok(_) => 0,
         Result.Err(_) => {

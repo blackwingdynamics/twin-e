@@ -9,6 +9,8 @@ import teaching;
 
 import std::io;
 
+import std::fs;
+
 import std::path;
 
 import std::time;
@@ -22,6 +24,8 @@ open config;
 open teaching;
 
 open io;
+
+open fs;
 
 open path;
 
@@ -148,17 +152,12 @@ verb measure_routing(erg index: u32) -> u64 {
     };
 }
 
-verb measure_publication(
-    abs brain: LogicalTeachingBrain,
-    abs paths: Array[Path, 8],
-    abs manifest: Path
-) -> u64 {
+verb measure_publication(abs brain: LogicalTeachingBrain, abs brain_dir: Path) -> u64 {
     erg generation: u64 = 1u64;
     erg started: u64 = monotonic_nanos();
     erg saved = logical_teaching_save_generation(
         brain: abs brain,
-        shard_paths: abs paths,
-        manifest_path: abs manifest,
+        brain_dir: abs brain_dir,
         generation: erg generation
     );
     erg elapsed: u64 = monotonic_nanos() - started;
@@ -200,18 +199,22 @@ verb emit_latency(abs metrics: LatencyMetrics) {
 verb finish_run(
     abs brain: LogicalTeachingBrain,
     ins metrics: LatencyMetrics,
-    abs shard_path: Path,
-    abs manifest_path: Path
+    abs brain_dir: Path
 ) -> Int {
-    erg paths: Array[Path,8] = Array[Path, 8]();
-    paths[0u32] = shard_path;
-    metrics.publication_ns = measure_publication(
-        brain: abs brain,
-        paths: abs paths,
-        manifest: abs manifest_path
-    );
-    remove_file(path: abs shard_path);
-    remove_file(path: abs manifest_path);
+    metrics.publication_ns = measure_publication(brain: abs brain, brain_dir: abs brain_dir);
+    erg manifest = persistence_manifest_path(brain_dir: abs brain_dir);
+    case dat manifest {
+        Result.Err(_) => {},
+        Result.Ok(path) => remove_file(path: abs path),
+    };
+    for erg shard_id: u32 in 0u32 .. BRAIN_LOGICAL_MAX_RESIDENT_SHARDS {
+        erg shard = persistence_format_shard_path(brain_dir: abs brain_dir, shard_id: erg shard_id);
+        case dat shard {
+            Result.Err(_) => {},
+            Result.Ok(path) => remove_file(path: abs path),
+        };
+    }
+    remove_dir(path: abs brain_dir);
     if metrics.publication_ns == 0u64 || metrics.routing_ns == 0u64 || metrics.flush_ns == 0u64 {
         return 15;
     }
@@ -249,30 +252,6 @@ verb run_resident_stages(
     return 0;
 }
 
-verb publish_shard_result(
-    abs brain: LogicalTeachingBrain,
-    ins metrics: LatencyMetrics,
-    dat shard_result: Result[Path, PathError]
-) -> Int {
-    return case dat shard_result {
-        Result.Err(_) => 13,
-        Result.Ok(shard_path) => {
-            erg manifest_suffix: u8 = 0u8;
-            erg manifest_mode: Bool = true;
-            erg manifest_result = make_path(suffix: erg manifest_suffix, manifest: erg manifest_mode);
-            return case dat manifest_result {
-                Result.Err(_) => 14,
-                Result.Ok(manifest_path) => finish_run(
-                    brain: abs brain,
-                    metrics: ins metrics,
-                    shard_path: abs shard_path,
-                    manifest_path: abs manifest_path
-                ),
-            };
-        },
-    };
-}
-
 verb publish_workflow(
     abs brain: LogicalTeachingBrain,
     ins metrics: LatencyMetrics
@@ -280,11 +259,20 @@ verb publish_workflow(
     erg shard_suffix: u8 = 48u8;
     erg shard_mode: Bool = false;
     erg shard_result = make_path(suffix: erg shard_suffix, manifest: erg shard_mode);
-    return publish_shard_result(
-        brain: abs brain,
-        metrics: ins metrics,
-        shard_result: dat shard_result
-    );
+    return case dat shard_result {
+        Result.Err(_) => 13,
+        Result.Ok(brain_dir) => {
+            erg created = create_dir(path: abs brain_dir);
+            return case dat created {
+                Result.Err(_) => 14,
+                Result.Ok(_) => finish_run(
+                    brain: abs brain,
+                    metrics: ins metrics,
+                    brain_dir: abs brain_dir
+                ),
+            };
+        },
+    };
 }
 
 verb run_workflow(ins metrics: LatencyMetrics) -> Int {

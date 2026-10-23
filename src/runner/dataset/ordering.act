@@ -1,0 +1,310 @@
+"""Filter and order regular TWF entries for dataset-index generation."""
+import aie;
+
+import std::fs;
+
+import std::path;
+
+open aie;
+
+open fs;
+
+open path;
+
+verb dataset_index_path_is_twf(abs path: Path) -> Bool {
+    erg found = extension(self: abs path);
+    return case dat found {
+        Option.None => false,
+        Option.Some(component) => {
+            if component.length != 3 {
+                return false;
+            }
+            return case component.source.platform {
+                PathPlatform.Posix => component.source.storage[component.offset as Usize] == 116u8 && component.source.storage[(component.offset + 1) as Usize] == 119u8 && component.source.storage[(component.offset + 2) as Usize] == 102u8,
+                PathPlatform.Windows => component.source.storage[(component.offset * 2) as Usize] == 116u8 && component.source.storage[((component.offset * 2) + 1) as Usize] == 0u8 && component.source.storage[((component.offset + 1) * 2) as Usize] == 119u8 && component.source.storage[(((component.offset + 1) * 2) + 1) as Usize] == 0u8 && component.source.storage[((component.offset + 2) * 2) as Usize] == 102u8 && component.source.storage[(((component.offset + 2) * 2) + 1) as Usize] == 0u8,
+            };
+        },
+    };
+}
+
+verb dataset_index_copy_path_name(abs path: Path) -> Result[Buffer, DatasetIndexGenerationError] {
+    if path.length <= 0 || path.length as u32 > DATASET_INDEX_MAX_PATH_BYTES {
+        return Result[Buffer, DatasetIndexGenerationError].Err(DatasetIndexGenerationError.EntryTooLarge);
+    }
+    erg output: Buffer = Buffer[0];
+    for erg index: u32 in 0u32 .. path.length as u32 {
+        append(output, path.storage[index as Usize]);
+    }
+    return Result[Buffer, DatasetIndexGenerationError].Ok(dat output);
+}
+
+verb dataset_index_name_order(
+    abs left: Buffer,
+    abs left_length: u32,
+    abs right: Buffer,
+    abs right_length: u32
+) -> Int {
+    erg shared: u32 = left_length + 0u32;
+    if right_length < shared {
+        shared = right_length + 0u32;
+    }
+    for erg index: u32 in 0u32 .. shared {
+        erg left_byte = left[index];
+        erg right_byte = right[index];
+        if left_byte < right_byte {
+            return -1;
+        }
+        if left_byte > right_byte {
+            return 1;
+        }
+    }
+    if left_length < right_length {
+        return -1;
+    }
+    if left_length > right_length {
+        return 1;
+    }
+    return 0;
+}
+
+verb dataset_index_candidate_name(abs directory: Path, dat entry: Path) -> Result[Option[Buffer], DatasetIndexGenerationError] {
+    if !dataset_index_path_is_twf(path: abs entry) {
+        drop(entry);
+        return Result[Option[Buffer], DatasetIndexGenerationError].Ok(Option[Buffer].None);
+    }
+    erg name = dataset_index_copy_path_name(path: abs entry);
+    return dataset_index_regular_file_name(
+        directory: abs directory,
+        entry: dat entry,
+        name: dat name
+    );
+}
+
+verb dataset_index_regular_file_name(
+    abs directory: Path,
+    dat entry: Path,
+    dat name: Result[Buffer, DatasetIndexGenerationError]
+) -> Result[Option[Buffer], DatasetIndexGenerationError] {
+    erg cloned = persistence_clone_path(source: abs directory);
+    return case dat cloned {
+        Result.Err(_) => {
+            drop(entry);
+            dataset_index_discard_name(name: dat name);
+            Result[Option[Buffer], DatasetIndexGenerationError].Err(DatasetIndexGenerationError.DirectoryFailure);
+        },
+        Result.Ok(base) => {
+            erg full = join(self: dat base, other: abs entry);
+            drop(entry);
+            dataset_index_metadata_from_path(path: dat full, name: dat name);
+        },
+    };
+}
+
+verb dataset_index_discard_name(dat name: Result[Buffer, DatasetIndexGenerationError]) {
+    case dat name {
+        Result.Err(_) => {},
+        Result.Ok(value) => {
+            drop(value);
+        },
+    };
+}
+
+verb dataset_index_metadata_from_path(
+    dat path: Result[Path, PathError],
+    dat name: Result[Buffer, DatasetIndexGenerationError]
+) -> Result[Option[Buffer], DatasetIndexGenerationError] {
+    return case dat path {
+        Result.Err(_) => {
+            dataset_index_discard_name(name: dat name);
+            Result[Option[Buffer], DatasetIndexGenerationError].Err(DatasetIndexGenerationError.DirectoryFailure);
+        },
+        Result.Ok(value) => {
+            erg info = metadata(path: abs value);
+            dataset_index_metadata_name(info: dat info, name: dat name);
+        },
+    };
+}
+
+verb dataset_index_metadata_name(
+    dat info: Result[Metadata, IoError],
+    dat name: Result[Buffer, DatasetIndexGenerationError]
+) -> Result[Option[Buffer], DatasetIndexGenerationError] {
+    return case dat info {
+        Result.Err(_) => {
+            dataset_index_discard_name(name: dat name);
+            Result[Option[Buffer], DatasetIndexGenerationError].Err(DatasetIndexGenerationError.DirectoryFailure);
+        },
+        Result.Ok(metadata_value) => {
+            if metadata_value.is_file != 1 {
+                dataset_index_discard_name(name: dat name);
+                return Result[Option[Buffer], DatasetIndexGenerationError].Ok(Option[Buffer].None);
+            }
+            return case dat name {
+                Result.Err(error) => Result[Option[Buffer], DatasetIndexGenerationError].Err(
+                    dat error
+                ),
+                Result.Ok(name_value) => Result[Option[Buffer], DatasetIndexGenerationError].Ok(
+                    Option[Buffer].Some(dat name_value)
+                ),
+            };
+        },
+    };
+}
+
+verb dataset_index_candidate_is_better(
+    abs after_previous: Bool,
+    abs found: Bool,
+    abs name: Buffer,
+    abs name_length: u32,
+    abs best: Buffer,
+    abs best_length: u32
+) -> Bool {
+    return after_previous && (!found || dataset_index_name_order(
+        left: abs name,
+        left_length: abs name_length,
+        right: abs best,
+        right_length: abs best_length
+    ) < 0);
+}
+
+verb dataset_index_consider_candidate(
+    dat name: Buffer,
+    abs previous: Buffer,
+    abs previous_length: u32,
+    abs has_previous: Bool,
+    ins found: Bool,
+    ins best: Buffer,
+    ins best_length: u32
+) {
+    erg name_length = dataset_index_buffer_length(name: abs name);
+    dataset_index_update_candidate(
+        name: dat name,
+        previous: abs previous,
+        previous_length: abs previous_length,
+        has_previous: abs has_previous,
+        name_length: abs name_length,
+        found: ins found,
+        best: ins best,
+        best_length: ins best_length
+    );
+}
+
+verb dataset_index_update_candidate(
+    dat name: Buffer,
+    abs previous: Buffer,
+    abs previous_length: u32,
+    abs has_previous: Bool,
+    abs name_length: u32,
+    ins found: Bool,
+    ins best: Buffer,
+    ins best_length: u32
+) {
+    erg should_accept = dataset_index_should_accept(
+        has_previous: abs has_previous,
+        previous: abs previous,
+        previous_length: abs previous_length,
+        name: abs name,
+        name_length: abs name_length,
+        found: abs found,
+        best: abs best,
+        best_length: abs best_length
+    );
+    dataset_index_apply_candidate(
+        name: dat name,
+        name_length: abs name_length,
+        should_accept: abs should_accept,
+        found: ins found,
+        best: ins best,
+        best_length: ins best_length
+    );
+}
+
+verb dataset_index_apply_candidate(
+    dat name: Buffer,
+    abs name_length: u32,
+    abs should_accept: Bool,
+    ins found: Bool,
+    ins best: Buffer,
+    ins best_length: u32
+) {
+    return case should_accept {
+        true => {
+            dataset_index_accept_candidate(
+                name: dat name,
+                name_length: abs name_length,
+                found: ins found,
+                best: ins best,
+                best_length: ins best_length
+            );
+        },
+        _ => {
+            dataset_index_discard_buffer(name: dat name);
+        },
+    };
+}
+
+verb dataset_index_discard_buffer(dat name: Buffer) {
+    drop(name);
+}
+
+verb dataset_index_should_accept(
+    abs has_previous: Bool,
+    abs previous: Buffer,
+    abs previous_length: u32,
+    abs name: Buffer,
+    abs name_length: u32,
+    abs found: Bool,
+    abs best: Buffer,
+    abs best_length: u32
+) -> Bool {
+    erg after_previous = dataset_index_candidate_after_previous(
+        has_previous: abs has_previous,
+        previous: abs previous,
+        previous_length: abs previous_length,
+        name: abs name,
+        name_length: abs name_length
+    );
+    return dataset_index_candidate_is_better(
+        after_previous: abs after_previous,
+        found: abs found,
+        name: abs name,
+        name_length: abs name_length,
+        best: abs best,
+        best_length: abs best_length
+    );
+}
+
+verb dataset_index_buffer_length(abs name: Buffer) -> u32 {
+    erg size = buffer_size(buffer: abs name);
+    return case dat size {
+        Result.Err(_) => 0u32,
+        Result.Ok(value) => value as u32,
+    };
+}
+
+verb dataset_index_candidate_after_previous(
+    abs has_previous: Bool,
+    abs previous: Buffer,
+    abs previous_length: u32,
+    abs name: Buffer,
+    abs name_length: u32
+) -> Bool {
+    return dataset_index_name_order(
+        left: abs previous,
+        left_length: abs previous_length,
+        right: abs name,
+        right_length: abs name_length
+    ) < 0;
+}
+
+verb dataset_index_accept_candidate(
+    dat name: Buffer,
+    abs name_length: u32,
+    ins found: Bool,
+    ins best: Buffer,
+    ins best_length: u32
+) {
+    best = name;
+    best_length = name_length;
+    found = true;
+}

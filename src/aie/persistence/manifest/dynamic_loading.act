@@ -11,6 +11,8 @@ import std::io;
 
 open io;
 
+open paths;
+
 """Load the dynamic shard selected by an already validated load plan.
 
 The plan and shard paths are immutable views; the fabric is the only mutable
@@ -20,7 +22,7 @@ plan's shard id, first column, column count, and checksum before publication.
 """
 verb load_dynamic_path_from_plan(
     ins fabric: CorticalFabric[64],
-    abs shard_paths: Array[Path, 8],
+    abs brain_dir: Path,
     erg shard_count: u32,
     abs plan: DynamicLoadPlan,
     erg destination_index: u32,
@@ -29,16 +31,23 @@ verb load_dynamic_path_from_plan(
     if plan.shard_id >= shard_count || plan.shard_id >= BRAIN_MANIFEST_DYNAMIC_MAX_SHARDS {
         return Err(IoError.InvalidInput);
     }
-    erg loaded = read_to_bytes(path: abs shard_paths[plan.shard_id as Usize]);
-    return case dat loaded {
-        Result.Err(error) => Err(error),
-        Result.Ok(shard) => load_dynamic_shard_from_plan(
-            fabric: ins fabric,
-            shard: dat shard,
-            plan: abs plan,
-            destination_index: erg destination_index,
-            require_complete_sections: erg require_complete_sections
-        ),
+    erg selected_shard_id: u32 = plan.shard_id;
+    erg shard_path = persistence_format_shard_path(brain_dir: abs brain_dir, shard_id: erg selected_shard_id);
+    return case dat shard_path {
+        Result.Err(_) => Err(IoError.InvalidInput),
+        Result.Ok(path) => {
+            erg loaded = read_to_bytes(path: abs path);
+            return case dat loaded {
+                Result.Err(error) => Err(error),
+                Result.Ok(shard) => load_dynamic_shard_from_plan(
+                    fabric: ins fabric,
+                    shard: dat shard,
+                    plan: abs plan,
+                    destination_index: erg destination_index,
+                    require_complete_sections: erg require_complete_sections
+                ),
+            };
+        },
     };
 }
 
@@ -111,7 +120,7 @@ loader, so malformed metadata or mismatched payloads cannot be accepted.
 verb load_dynamic_manifest_descriptor(
     ins fabric: CorticalFabric[64],
     abs manifest: Buffer,
-    abs shard_paths: Array[Path, 8],
+    abs brain_dir: Path,
     erg shard_count: u32,
     erg descriptor_index: u32,
     erg require_complete_sections: Bool
@@ -126,7 +135,7 @@ verb load_dynamic_manifest_descriptor(
         Result.Err(error) => Err(error),
         Result.Ok(plan) => load_dynamic_path_from_plan(
             fabric: ins fabric,
-            shard_paths: abs shard_paths,
+            brain_dir: abs brain_dir,
             shard_count: erg shard_count,
             plan: abs plan,
             destination_index: erg first_column,
@@ -145,7 +154,7 @@ operation and returns an error rather than reporting a complete load.
 verb load_dynamic_manifest_buffer(
     ins fabric: CorticalFabric[64],
     dat manifest: Buffer,
-    abs shard_paths: Array[Path, 8],
+    abs brain_dir: Path,
     erg shard_count: u32,
     erg require_complete_sections: Bool
 ) -> Result[Int, IoError] {
@@ -160,7 +169,7 @@ verb load_dynamic_manifest_buffer(
     return load_dynamic_manifest_descriptors(
         fabric: ins fabric,
         manifest: dat manifest,
-        shard_paths: abs shard_paths,
+        brain_dir: abs brain_dir,
         shard_count: erg shard_count,
         require_complete_sections: erg require_complete_sections
     );
@@ -170,7 +179,7 @@ verb load_dynamic_manifest_buffer(
 verb load_dynamic_manifest_descriptors(
     ins fabric: CorticalFabric[64],
     dat manifest: Buffer,
-    abs shard_paths: Array[Path, 8],
+    abs brain_dir: Path,
     erg shard_count: u32,
     erg require_complete_sections: Bool
 ) -> Result[Int, IoError] {
@@ -182,7 +191,7 @@ verb load_dynamic_manifest_descriptors(
         erg succeeded: Bool = load_dynamic_manifest_descriptor_succeeded(
             fabric: ins fabric,
             manifest: abs manifest,
-            shard_paths: abs shard_paths,
+            brain_dir: abs brain_dir,
             shard_count: erg shard_count,
             descriptor_index: erg descriptor_index,
             require_complete_sections: erg require_complete_sections
@@ -201,7 +210,7 @@ verb load_dynamic_manifest_descriptors(
 verb load_dynamic_manifest_descriptor_succeeded(
     ins fabric: CorticalFabric[64],
     abs manifest: Buffer,
-    abs shard_paths: Array[Path, 8],
+    abs brain_dir: Path,
     erg shard_count: u32,
     erg descriptor_index: u32,
     erg require_complete_sections: Bool
@@ -209,7 +218,7 @@ verb load_dynamic_manifest_descriptor_succeeded(
     erg result = load_dynamic_manifest_descriptor(
         fabric: ins fabric,
         manifest: abs manifest,
-        shard_paths: abs shard_paths,
+        brain_dir: abs brain_dir,
         shard_count: erg shard_count,
         descriptor_index: erg descriptor_index,
         require_complete_sections: erg require_complete_sections
@@ -230,7 +239,7 @@ rejected before the operation reports success.
 open verb load_all_dynamic_shards(
     ins fabric: CorticalFabric[64],
     abs manifest_path: Path,
-    abs shard_paths: Array[Path, 8],
+    abs brain_dir: Path,
     erg shard_count: u32
 ) -> Result[Int, IoError] {
     erg loaded = read_to_bytes(path: abs manifest_path);
@@ -240,7 +249,7 @@ open verb load_all_dynamic_shards(
         Result.Ok(manifest) => load_dynamic_manifest_buffer(
             fabric: ins fabric,
             manifest: dat manifest,
-            shard_paths: abs shard_paths,
+            brain_dir: abs brain_dir,
             shard_count: erg shard_count,
             require_complete_sections: erg require_complete_sections
         ),
@@ -257,7 +266,7 @@ manifest data, file contents, or column ranges return `IoError`.
 open verb load_column_from_dynamic_shards(
     ins fabric: CorticalFabric[64],
     abs manifest_path: Path,
-    abs shard_paths: Array[Path, 8],
+    abs brain_dir: Path,
     erg shard_count: u32,
     erg global_index: u32
 ) -> Result[Int, IoError] {
@@ -270,7 +279,7 @@ open verb load_column_from_dynamic_shards(
         Result.Ok(manifest) => load_dynamic_column_from_manifest(
             fabric: ins fabric,
             manifest: abs manifest,
-            shard_paths: abs shard_paths,
+            brain_dir: abs brain_dir,
             shard_count: erg shard_count,
             global_index: erg global_index
         ),
@@ -281,7 +290,7 @@ open verb load_column_from_dynamic_shards(
 verb load_dynamic_column_from_manifest(
     ins fabric: CorticalFabric[64],
     abs manifest: Buffer,
-    abs shard_paths: Array[Path, 8],
+    abs brain_dir: Path,
     erg shard_count: u32,
     erg global_index: u32
 ) -> Result[Int, IoError] {
@@ -293,7 +302,7 @@ verb load_dynamic_column_from_manifest(
             erg require_complete_sections: Bool = false;
             return load_dynamic_path_from_plan(
                 fabric: ins fabric,
-                shard_paths: abs shard_paths,
+                brain_dir: abs brain_dir,
                 shard_count: erg shard_count,
                 plan: abs plan,
                 destination_index: erg destination_index,

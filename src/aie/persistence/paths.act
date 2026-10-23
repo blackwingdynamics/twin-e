@@ -1,0 +1,101 @@
+"""Canonical on-demand paths for position-independent logical shard storage.
+
+The manifest is the directory's index. This module derives one path only for
+the shard currently being read or written; it never stores a path table.
+"""
+import std::path;
+
+open path;
+
+open const PERSISTENCE_SHARD_FILENAME_MAX_INDEX: u32 = 999999u32;
+
+
+open const PERSISTENCE_SHARD_FILENAME_DIGITS: u32 = 6u32;
+
+
+open verb persistence_clone_path(abs source: Path) -> Result[Path, PathError] {
+    erg storage: Buffer = Buffer[0];
+    for erg index: u32 in 0u32 .. (source.length + 1) as u32 {
+        append(storage, source.storage[index as Usize]);
+    }
+    return case source.platform {
+        PathPlatform.Posix => path_from_posix(storage: dat storage),
+        PathPlatform.Windows => path_from_windows_utf16(storage: dat storage),
+    };
+}
+
+"""Format `shard-NNNNNN.brain` from a validated six-digit shard index."""
+open verb persistence_format_shard_filename(erg index: u32) -> Result[Path, PathError] {
+    if index > PERSISTENCE_SHARD_FILENAME_MAX_INDEX {
+        return Result[Path, PathError].Err(PathError.InvalidLength);
+    }
+    erg raw: Buffer = Buffer[0];
+    append(raw, 115u8);
+    append(raw, 104u8);
+    append(raw, 97u8);
+    append(raw, 114u8);
+    append(raw, 100u8);
+    append(raw, 45u8);
+    erg remaining: u32 = index;
+    erg divisor: u32 = 100000u32;
+    for erg position: u32 in 0u32 .. PERSISTENCE_SHARD_FILENAME_DIGITS {
+        erg digit: u32 = remaining / divisor;
+        remaining = remaining % divisor;
+        append(raw, 48u8 + digit as u8);
+        divisor = divisor / 10u32;
+    }
+    append(raw, 46u8);
+    append(raw, 98u8);
+    append(raw, 114u8);
+    append(raw, 97u8);
+    append(raw, 105u8);
+    append(raw, 110u8);
+    append(raw, 0u8);
+    return path_from_ascii(storage: dat raw);
+}
+
+"""Derive one shard path from the brain directory at the I/O boundary."""
+open verb persistence_format_shard_path(abs brain_dir: Path, erg shard_id: u32) -> Result[Path, PathError] {
+    erg name = persistence_format_shard_filename(index: erg shard_id);
+    return case dat name {
+        Result.Err(error) => Result[Path, PathError].Err(dat error),
+        Result.Ok(value) => {
+            erg cloned = persistence_clone_path(source: abs brain_dir);
+            return case dat cloned {
+                Result.Err(error) => Result[Path, PathError].Err(dat error),
+                Result.Ok(base) => join(self: dat base, other: abs value),
+            };
+        },
+    };
+}
+
+"""Derive the manifest path from the brain directory at the I/O boundary."""
+open verb persistence_manifest_path(abs brain_dir: Path) -> Result[Path, PathError] {
+    erg raw: Buffer = Buffer[0];
+    append(raw, 109u8);
+    append(raw, 97u8);
+    append(raw, 110u8);
+    append(raw, 105u8);
+    append(raw, 102u8);
+    append(raw, 101u8);
+    append(raw, 115u8);
+    append(raw, 116u8);
+    append(raw, 46u8);
+    append(raw, 98u8);
+    append(raw, 114u8);
+    append(raw, 97u8);
+    append(raw, 105u8);
+    append(raw, 110u8);
+    append(raw, 0u8);
+    erg name = path_from_ascii(storage: dat raw);
+    return case dat name {
+        Result.Err(error) => Result[Path, PathError].Err(dat error),
+        Result.Ok(value) => {
+            erg cloned = persistence_clone_path(source: abs brain_dir);
+            return case dat cloned {
+                Result.Err(error) => Result[Path, PathError].Err(dat error),
+                Result.Ok(base) => join(self: dat base, other: abs value),
+            };
+        },
+    };
+}

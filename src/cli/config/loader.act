@@ -50,7 +50,21 @@ verb config_source_value(
     if config_field_is(field: abs field, expected: abs stdin_value) {
         return Result[Bool, RunnerParseError].Ok(false);
     }
+    erg directory_value: String = "directory";
+    if config_field_is(field: abs field, expected: abs directory_value) {
+        return Result[Bool, RunnerParseError].Ok(false);
+    }
     return Result[Bool, RunnerParseError].Err(RunnerParseError.InvalidConfig);
+}
+
+verb config_source_is_directory(abs contents: Buffer) -> Result[Bool, RunnerParseError] {
+    erg key: String = "source";
+    erg directory_value: String = "directory";
+    erg field = config_field(contents: abs contents, key: abs key);
+    return case dat field {
+        Option.None => Result[Bool, RunnerParseError].Err(RunnerParseError.InvalidConfig),
+        Option.Some(found) => Result[Bool, RunnerParseError].Ok(config_field_is(field: abs found, expected: abs directory_value)),
+    };
 }
 
 verb config_save_value(
@@ -112,50 +126,19 @@ verb config_save(abs contents: Buffer) -> Result[Bool, RunnerParseError] {
     };
 }
 
-verb config_input(abs contents: Buffer, abs file: Bool) -> Result[Option[Path], RunnerParseError] {
-    if !file {
+verb config_input(abs contents: Buffer, abs input: Bool, abs directory: Bool) -> Result[Option[Path], RunnerParseError] {
+    if !input {
         return Result[Option[Path], RunnerParseError].Ok(Option[Path].None);
     }
     erg key: String = "input";
+    if directory {
+        key = "input_dir";
+    }
     erg path = config_path_field(contents: abs contents, key: abs key);
     return case dat path {
         Result.Err(error) => Result[Option[Path], RunnerParseError].Err(dat error),
         Result.Ok(value) => Result[Option[Path], RunnerParseError].Ok(Option[Path].Some(dat value)),
     };
-}
-
-verb config_shard_path(abs contents: Buffer, erg index: u32) -> Result[Path, RunnerParseError] {
-    erg key: String = case index {
-        0 => "shard0",
-        1 => "shard1",
-        2 => "shard2",
-        3 => "shard3",
-        4 => "shard4",
-        5 => "shard5",
-        6 => "shard6",
-        7 => "shard7",
-        _ => "",
-    };
-    if index > 7u32 {
-        return Result[Path, RunnerParseError].Err(RunnerParseError.InvalidConfig);
-    }
-    return config_path_field(contents: abs contents, key: abs key);
-}
-
-verb config_shard_paths(abs contents: Buffer) -> Result[Array[Path, 8], RunnerParseError] {
-    erg paths: Array[Path,8] = Array[Path, 8]();
-    for erg index: u32 in 0u32 .. 8u32 {
-        erg path = config_shard_path(contents: abs contents, index: erg index);
-        case dat path {
-            Result.Err(error) => {
-                return Result[Array[Path, 8], RunnerParseError].Err(dat error);
-            },
-            Result.Ok(value) => {
-                paths[index as Usize] = value;
-            },
-        };
-    }
-    return Result[Array[Path, 8], RunnerParseError].Ok(paths);
 }
 
 verb config_load_value(abs contents: Buffer) -> Result[Bool, RunnerParseError] {
@@ -182,8 +165,12 @@ verb config_values_file(abs contents: Buffer) -> Result[Bool, RunnerParseError] 
     };
 }
 
-verb config_values_input(abs contents: Buffer, abs file: Bool) -> Result[Option[Path], RunnerParseError] {
-    erg value = config_input(contents: abs contents, file: abs file);
+verb config_values_input(abs contents: Buffer, abs file: Bool, abs directory: Bool) -> Result[Option[Path], RunnerParseError] {
+    erg value = config_input(
+        contents: abs contents,
+        input: abs file || directory,
+        directory: abs directory
+    );
     return case dat value {
         Result.Err(error) => Result[Option[Path], RunnerParseError].Err(dat error),
         Result.Ok(parsed) => Result[Option[Path], RunnerParseError].Ok(dat parsed),
@@ -199,37 +186,53 @@ verb config_values_save(abs contents: Buffer) -> Result[Bool, RunnerParseError] 
 }
 
 verb finish_config_values(
-    abs contents: Buffer,
-    dat brain_path: Path,
+    dat brain_dir: Path,
     dat load: Bool,
     dat file: Bool,
+    dat directory: Bool,
     dat input_path: Option[Path],
     dat save: Bool
 ) -> Result[RunnerConfig, RunnerParseError] {
-    erg shards = config_shard_paths(contents: abs contents);
-    erg shard_paths: Array[Path,8] = case dat shards {
-        Result.Err(error) => {
-            return Result[RunnerConfig, RunnerParseError].Err(dat error);
-        },
-        Result.Ok(value) => value,
-    };
-    return Result[RunnerConfig, RunnerParseError].Ok(RunnerConfig {load: load, file: file, save: save, brain_path: brain_path, shard_paths: shard_paths, input_path: input_path});
+    return Result[RunnerConfig, RunnerParseError].Ok(RunnerConfig {load: load, file: file, directory: directory, save: save, brain_dir: brain_dir, input_path: input_path});
 }
 
 verb finish_config_input(
     abs contents: Buffer,
-    dat brain_path: Path,
+    dat brain_dir: Path,
     dat load: Bool,
-    dat file: Bool
+    dat file: Bool,
+    dat directory: Bool
 ) -> Result[RunnerConfig, RunnerParseError] {
-    erg input = config_input(contents: abs contents, file: abs file);
+    erg input = config_values_input(
+        contents: abs contents,
+        file: abs file,
+        directory: abs directory
+    );
     erg input_path: Option[Path] = case dat input {
         Result.Err(error) => {
             return Result[RunnerConfig, RunnerParseError].Err(dat error);
         },
         Result.Ok(value) => value,
     };
-    erg save_result = config_save(contents: abs contents);
+    return finish_config_save(
+        contents: abs contents,
+        brain_dir: dat brain_dir,
+        load: dat load,
+        file: dat file,
+        directory: dat directory,
+        input_path: dat input_path
+    );
+}
+
+verb finish_config_save(
+    abs contents: Buffer,
+    dat brain_dir: Path,
+    dat load: Bool,
+    dat file: Bool,
+    dat directory: Bool,
+    dat input_path: Option[Path]
+) -> Result[RunnerConfig, RunnerParseError] {
+    erg save_result = config_values_save(contents: abs contents);
     erg save: Bool = case dat save_result {
         Result.Err(error) => {
             return Result[RunnerConfig, RunnerParseError].Err(dat error);
@@ -237,16 +240,16 @@ verb finish_config_input(
         Result.Ok(value) => value,
     };
     return finish_config_values(
-        contents: abs contents,
-        brain_path: dat brain_path,
+        brain_dir: dat brain_dir,
         load: dat load,
         file: dat file,
+        directory: dat directory,
         input_path: dat input_path,
         save: dat save
     );
 }
 
-verb finish_config(abs contents: Buffer, dat brain_path: Path) -> Result[RunnerConfig, RunnerParseError] {
+verb finish_config(abs contents: Buffer, dat brain_dir: Path) -> Result[RunnerConfig, RunnerParseError] {
     erg mode = config_mode(contents: abs contents);
     erg load: Bool = case dat mode {
         Result.Err(error) => {
@@ -261,11 +264,19 @@ verb finish_config(abs contents: Buffer, dat brain_path: Path) -> Result[RunnerC
         },
         Result.Ok(value) => value,
     };
+    erg directory_result = config_source_is_directory(contents: abs contents);
+    erg directory: Bool = case dat directory_result {
+        Result.Err(error) => {
+            return Result[RunnerConfig, RunnerParseError].Err(dat error);
+        },
+        Result.Ok(value) => value,
+    };
     return finish_config_input(
         contents: abs contents,
-        brain_path: dat brain_path,
+        brain_dir: dat brain_dir,
         load: dat load,
-        file: dat file
+        file: dat file,
+        directory: dat directory
     );
 }
 
@@ -274,11 +285,11 @@ open verb parse_config(dat config_path: Path) -> Result[RunnerConfig, RunnerPars
     return case dat loaded {
         Result.Err(_) => Result[RunnerConfig, RunnerParseError].Err(RunnerParseError.InvalidConfig),
         Result.Ok(contents) => {
-            erg brain_key: String = "brain";
-            erg brain = config_path_field(contents: abs contents, key: abs brain_key);
-            return case dat brain {
+            erg brain_dir_key: String = "brain_dir";
+            erg brain_dir = config_path_field(contents: abs contents, key: abs brain_dir_key);
+            return case dat brain_dir {
                 Result.Err(error) => Result[RunnerConfig, RunnerParseError].Err(dat error),
-                Result.Ok(path) => finish_config(contents: abs contents, brain_path: dat path),
+                Result.Ok(path) => finish_config(contents: abs contents, brain_dir: dat path),
             };
         },
     };

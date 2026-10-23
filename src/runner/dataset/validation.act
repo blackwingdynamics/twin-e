@@ -1,0 +1,205 @@
+"""Validate dataset-index headers, entries, ordering, and bounds."""
+import config;
+
+open config;
+
+open enum DatasetIndexError {
+    InvalidHeader,
+    UnsupportedVersion,
+    EmptyIndex,
+    TooManyEntries,
+    IndexTooLarge,
+    TruncatedEntry,
+    EntryTooLarge,
+    InvalidEntry,
+    UnsortedEntries,
+}
+
+verb dataset_index_entry_order(
+    abs bytes: Buffer,
+    erg left_offset: u32,
+    erg left_length: u32,
+    erg right_offset: u32,
+    erg right_length: u32
+) -> Int {
+    erg shared: u32 = left_length + 0u32;
+    if right_length < shared {
+        shared = right_length + 0u32;
+    }
+    for erg index: u32 in 0u32 .. shared {
+        erg left = bytes[left_offset + index];
+        erg right = bytes[right_offset + index];
+        if left < right {
+            return -1;
+        }
+        if left > right {
+            return 1;
+        }
+    }
+    if left_length < right_length {
+        return -1;
+    }
+    if left_length > right_length {
+        return 1;
+    }
+    return 0;
+}
+
+"""Read one little-endian 32-bit field from a validated dataset index."""
+open verb dataset_index_validation_u32(abs bytes: Buffer, erg offset: u32) -> u32 {
+    return (bytes[offset] as u32) + ((bytes[offset + 1u32] as u32) * 256u32) + ((bytes[offset + 2u32] as u32) * 65536u32) + ((bytes[offset + 3u32] as u32) * 16777216u32);
+}
+
+verb dataset_index_entry_is_valid(
+    abs bytes: Buffer,
+    abs offset: u32,
+    abs length: u32,
+    abs total: u32
+) -> Bool {
+    if length == 0u32 || length > DATASET_INDEX_MAX_PATH_BYTES {
+        return false;
+    }
+    if offset > total || length > total - offset {
+        return false;
+    }
+    for erg index: u32 in 0u32 .. length {
+        erg byte = bytes[offset + index];
+        if byte == 0u8 || byte == 10u8 || byte == 13u8 {
+            return false;
+        }
+    }
+    return true;
+}
+
+verb dataset_index_entry_is_ordered(
+    abs bytes: Buffer,
+    erg index: u32,
+    erg previous_offset: u32,
+    erg previous_length: u32,
+    erg current_offset: u32,
+    erg current_length: u32
+) -> Bool {
+    if index == 0u32 {
+        return true;
+    }
+    return dataset_index_entry_order(
+        bytes: abs bytes,
+        left_offset: erg previous_offset,
+        left_length: erg previous_length,
+        right_offset: erg current_offset,
+        right_length: erg current_length
+    ) < 0;
+}
+
+verb dataset_index_validate_current(
+    abs bytes: Buffer,
+    erg cursor: u32,
+    abs total: u32
+) -> Result[u32, DatasetIndexError] {
+    if cursor > total || total - cursor < 4u32 {
+        return Result[u32, DatasetIndexError].Err(DatasetIndexError.TruncatedEntry);
+    }
+    erg read_offset: u32 = cursor + 0u32;
+    erg length: u32 = dataset_index_validation_u32(bytes: abs bytes, offset: erg read_offset);
+    erg payload: u32 = cursor + 4u32;
+    if !dataset_index_entry_is_valid(
+        bytes: abs bytes,
+        offset: abs payload,
+        length: abs length,
+        total: abs total
+    ) {
+        return Result[u32, DatasetIndexError].Err(DatasetIndexError.InvalidEntry);
+    }
+    return Result[u32, DatasetIndexError].Ok(length);
+}
+
+struct DatasetIndexValidationState {
+    erg cursor: u32,
+    erg previous_offset: u32,
+}
+
+verb dataset_index_state_is_ordered(
+    abs bytes: Buffer,
+    erg index: u32,
+    erg previous_offset: u32,
+    erg current_cursor: u32,
+    erg length: u32
+) -> Bool {
+    erg previous_offset_value: u32 = previous_offset + 0u32;
+    erg previous_length_value: u32 = current_cursor - previous_offset_value - 4u32;
+    erg current_offset: u32 = current_cursor + 4u32;
+    erg current_length: u32 = length + 0u32;
+    return dataset_index_entry_is_ordered(
+        bytes: abs bytes,
+        index: erg index,
+        previous_offset: erg previous_offset_value,
+        previous_length: erg previous_length_value,
+        current_offset: erg current_offset,
+        current_length: erg current_length
+    );
+}
+
+verb dataset_index_success(abs cursor: u32, abs length: u32) -> Result[DatasetIndexValidationState, DatasetIndexError] {
+    return Result[DatasetIndexValidationState, DatasetIndexError].Ok(DatasetIndexValidationState {cursor: cursor + 4u32 + length, previous_offset: cursor + 4u32});
+}
+
+verb dataset_index_validate_entry_at(
+    abs bytes: Buffer,
+    erg index: u32,
+    erg state: DatasetIndexValidationState,
+    abs total: u32
+) -> Result[DatasetIndexValidationState, DatasetIndexError] {
+    erg previous_offset: u32 = state.previous_offset + 0u32;
+    erg current_cursor: u32 = state.cursor + 0u32;
+    erg current = dataset_index_validate_current(
+        bytes: abs bytes,
+        cursor: erg current_cursor,
+        total: abs total
+    );
+    return case dat current {
+        Result.Err(error) => Result[DatasetIndexValidationState, DatasetIndexError].Err(dat error),
+        Result.Ok(length) => {
+            if !dataset_index_state_is_ordered(
+                bytes: abs bytes,
+                index: erg index,
+                previous_offset: erg previous_offset,
+                current_cursor: erg current_cursor,
+                length: erg length
+            ) {
+                return Result[DatasetIndexValidationState, DatasetIndexError].Err(DatasetIndexError.UnsortedEntries);
+            }
+            return dataset_index_success(cursor: abs current_cursor, length: abs length);
+        },
+    };
+}
+
+verb dataset_index_validate_entries(
+    abs bytes: Buffer,
+    abs count: u32,
+    abs total: u32
+) -> Result[Int, DatasetIndexError] {
+    erg state: DatasetIndexValidationState = DatasetIndexValidationState {cursor: DATASET_INDEX_HEADER_BYTES, previous_offset: 0u32};
+    for erg index: u32 in 0u32 .. DATASET_INDEX_MAX_ENTRIES {
+        if index >= count {
+            if state.cursor != total {
+                return Result[Int, DatasetIndexError].Err(DatasetIndexError.TruncatedEntry);
+            }
+            return Result[Int, DatasetIndexError].Ok(0);
+        }
+        erg current = dataset_index_validate_entry_at(
+            bytes: abs bytes,
+            index: erg index,
+            state: erg state,
+            total: abs total
+        );
+        case dat current {
+            Result.Err(error) => {
+                return Result[Int, DatasetIndexError].Err(dat error);
+            },
+            Result.Ok(value) => {
+                state = value;
+            },
+        };
+    }
+    return Result[Int, DatasetIndexError].Err(DatasetIndexError.TooManyEntries);
+}

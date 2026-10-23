@@ -1,0 +1,256 @@
+"""Bounded discovery and teaching of TWF files from one input directory."""
+import aie;
+
+import cli;
+
+import std::fs;
+
+import std::path;
+
+import teaching;
+
+open aie;
+
+open cli;
+
+open fs;
+
+open path;
+
+open teaching;
+
+verb runner_is_twf(abs path: Path) -> Bool {
+    erg found = extension(self: abs path);
+    return case dat found {
+        Option.None => false,
+        Option.Some(component) => {
+            if component.length != 3 {
+                return false;
+            }
+            return case component.source.platform {
+                PathPlatform.Posix => {
+                    component.source.storage[component.offset as Usize] == 116u8 && component.source.storage[(component.offset + 1) as Usize] == 119u8 && component.source.storage[(component.offset + 2) as Usize] == 102u8;
+                },
+                PathPlatform.Windows => {
+                    component.source.storage[(component.offset * 2) as Usize] == 116u8 && component.source.storage[((component.offset * 2) + 1) as Usize] == 0u8 && component.source.storage[((component.offset + 1) * 2) as Usize] == 119u8 && component.source.storage[(((component.offset + 1) * 2) + 1) as Usize] == 0u8 && component.source.storage[((component.offset + 2) * 2) as Usize] == 102u8 && component.source.storage[(((component.offset + 2) * 2) + 1) as Usize] == 0u8;
+                },
+            };
+        },
+    };
+}
+
+verb runner_entry_path(abs directory: Path, abs entry: Path) -> Result[Path, PathError] {
+    erg base = persistence_clone_path(source: abs directory);
+    return case dat base {
+        Result.Err(error) => Result[Path, PathError].Err(dat error),
+        Result.Ok(value) => join(self: dat value, other: abs entry),
+    };
+}
+
+verb runner_teach_directory_entry(
+    abs directory_path: Path,
+    dat entry: Path,
+    ins brain: LogicalTeachingBrain
+) -> Result[TeachingFileMetrics, TeachingFileError] {
+    erg full = runner_entry_path(directory: abs directory_path, entry: abs entry);
+    return case dat full {
+        Result.Err(_) => Result[TeachingFileMetrics, TeachingFileError].Err(TeachingFileError.InvalidRecord),
+        Result.Ok(path) => {
+            erg info = metadata(path: abs path);
+            return case dat info {
+                Result.Err(_) => Result[TeachingFileMetrics, TeachingFileError].Err(TeachingFileError.InvalidRecord),
+                Result.Ok(value) => {
+                    if value.is_file != 1 {
+                        return Result[TeachingFileMetrics, TeachingFileError].Err(TeachingFileError.InvalidRecord);
+                    }
+                    return teach_logical_file(brain: ins brain, path: abs path);
+                },
+            };
+        },
+    };
+}
+
+verb teach_directory_candidate(
+    abs directory_path: Path,
+    dat path: Path,
+    ins brain: LogicalTeachingBrain
+) -> Result[Bool, TeachingFileError] {
+    if !runner_is_twf(path: abs path) {
+        drop(path);
+        return Result[Bool, TeachingFileError].Ok(false);
+    }
+    erg result = runner_teach_directory_entry(
+        directory_path: abs directory_path,
+        entry: dat path,
+        brain: ins brain
+    );
+    return case dat result {
+        Result.Err(error) => Result[Bool, TeachingFileError].Err(dat error),
+        Result.Ok(metrics) => {
+            print_logical_file_result(metrics: abs metrics, brain: abs brain);
+            Result[Bool, TeachingFileError].Ok(true);
+        },
+    };
+}
+
+verb teach_directory_failed(ins directory: Directory) -> Int {
+    close_dir(directory: ins directory);
+    erg message: String = "TWIN_E_ERROR code=4 kind=input_directory_failed";
+    println(text: abs message);
+    return 4;
+}
+
+verb teach_directory_finished(ins directory: Directory, abs file_count: u32) -> Int {
+    erg closed = close_dir(directory: ins directory);
+    return case dat closed {
+        Result.Err(_) => 4,
+        Result.Ok(_) => if file_count == 0u32 {
+            4;
+        } else {
+            1;
+        },
+    };
+}
+
+verb teach_directory_rejected(
+    ins directory: Directory,
+    dat error: TeachingFileError,
+    abs brain: LogicalTeachingBrain
+) -> Int {
+    close_dir(directory: ins directory);
+    erg rejected: Result[TeachingFileMetrics,TeachingFileError] = Result[TeachingFileMetrics, TeachingFileError].Err(
+        dat error
+    );
+    return teach_file_result_status(result: dat rejected, brain: abs brain);
+}
+
+verb teach_directory_process_entry(
+    abs directory_path: Path,
+    dat path: Path,
+    ins brain: LogicalTeachingBrain,
+    ins file_count: u32
+) -> Result[Int, TeachingFileError] {
+    erg result = teach_directory_candidate(
+        directory_path: abs directory_path,
+        path: dat path,
+        brain: ins brain
+    );
+    return case dat result {
+        Result.Err(error) => Result[Int, TeachingFileError].Err(dat error),
+        Result.Ok(found) => {
+            if found {
+                file_count += 1u32;
+            }
+            Result[Int, TeachingFileError].Ok(0);
+        },
+    };
+}
+
+verb teach_directory_process_result(
+    ins directory: Directory,
+    dat result: Result[Int, TeachingFileError],
+    abs brain: LogicalTeachingBrain
+) -> Int {
+    return case dat result {
+        Result.Err(error) => teach_directory_rejected(
+            directory: ins directory,
+            error: dat error,
+            brain: abs brain
+        ),
+        Result.Ok(_) => 0,
+    };
+}
+
+verb teach_directory_process_path(
+    ins directory: Directory,
+    abs directory_path: Path,
+    dat path: Path,
+    ins brain: LogicalTeachingBrain,
+    ins file_count: u32
+) -> Int {
+    erg result = teach_directory_process_entry(
+        directory_path: abs directory_path,
+        path: dat path,
+        brain: ins brain,
+        file_count: ins file_count
+    );
+    return teach_directory_process_result(
+        directory: ins directory,
+        result: dat result,
+        brain: abs brain
+    );
+}
+
+verb teach_directory_dispatch(
+    ins directory: Directory,
+    abs directory_path: Path,
+    dat entry: Option[Path],
+    ins brain: LogicalTeachingBrain,
+    ins file_count: u32
+) -> Int {
+    return case dat entry {
+        Option.None => teach_directory_finished(directory: ins directory, file_count: abs file_count),
+        Option.Some(path) => teach_directory_process_path(
+            directory: ins directory,
+            directory_path: abs directory_path,
+            path: dat path,
+            brain: ins brain,
+            file_count: ins file_count
+        ),
+    };
+}
+
+verb teach_directory_entries(
+    ins directory: Directory,
+    abs directory_path: Path,
+    ins brain: LogicalTeachingBrain
+) -> Int {
+    erg file_count: u32 = 0u32;
+    loop {
+        erg entry_result = next_dir_entry(directory: ins directory);
+        erg entry = case dat entry_result {
+            Result.Err(_) => {
+                return teach_directory_failed(directory: ins directory);
+            },
+            Result.Ok(value) => value,
+        };
+        erg status = teach_directory_dispatch(
+            directory: ins directory,
+            directory_path: abs directory_path,
+            entry: dat entry,
+            brain: ins brain,
+            file_count: ins file_count
+        );
+        if status == 1 {
+            return 0;
+        }
+        if status != 0 {
+            return status;
+        }
+    }
+}
+
+verb teach_directory_state(
+    ins command: RunnerConfig,
+    ins brain: LogicalTeachingBrain
+) -> Int {
+    erg input_path: Option[Path] = command.input_path;
+    return case dat input_path {
+        Option.None => 4,
+        Option.Some(directory_path) => {
+            erg opened = read_dir(path: abs directory_path);
+            return case dat opened {
+                Result.Err(_) => {
+                    erg message: String = "TWIN_E_ERROR code=4 kind=input_directory_failed";
+                    println(text: abs message);
+                    4;
+                },
+                Result.Ok(directory) => teach_directory_entries(
+                    directory: ins directory,
+                    directory_path: abs directory_path,
+                    brain: ins brain
+                ),
+            };
+        },
+    };
+}

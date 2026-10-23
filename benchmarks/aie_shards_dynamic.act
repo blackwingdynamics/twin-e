@@ -52,6 +52,37 @@ verb make_path(erg suffix: u8) -> Result[Path, PathError] {
     return path_from_ascii(storage: dat raw);
 }
 
+verb make_brain_dir() -> Result[Path, PathError] {
+    erg raw = Buffer[0];
+    append(raw, 47u8);
+    append(raw, 116u8);
+    append(raw, 109u8);
+    append(raw, 112u8);
+    append(raw, 47u8);
+    append(raw, 116u8);
+    append(raw, 119u8);
+    append(raw, 105u8);
+    append(raw, 110u8);
+    append(raw, 45u8);
+    append(raw, 101u8);
+    append(raw, 45u8);
+    append(raw, 100u8);
+    append(raw, 121u8);
+    append(raw, 110u8);
+    append(raw, 97u8);
+    append(raw, 109u8);
+    append(raw, 105u8);
+    append(raw, 99u8);
+    append(raw, 45u8);
+    append(raw, 98u8);
+    append(raw, 114u8);
+    append(raw, 97u8);
+    append(raw, 105u8);
+    append(raw, 110u8);
+    append(raw, 0u8);
+    return path_from_ascii(storage: dat raw);
+}
+
 verb make_payload(erg marker: u8) -> Buffer {
     erg payload: Buffer = Buffer[0];
     erg capacity: Int = 128;
@@ -498,22 +529,15 @@ verb load_manifest_pair(
     };
 }
 
-verb verify_dynamic_loader(
-    abs manifest_path: Path,
-    abs path_zero: Path,
-    abs path_one: Path
-) -> Int {
+verb verify_dynamic_loader(abs manifest_path: Path, abs brain_dir: Path) -> Int {
     erg fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](), free_list_head: 0u32, active_count: 0u32};
     fabric_init(fabric: ins fabric);
-    erg shard_paths: Array[Path,8] = Array[Path, 8]();
-    shard_paths[0u32] = path_zero;
-    shard_paths[1u32] = path_one;
     erg query: u32 = 2u32;
     erg dynamic_shard_count: u32 = 3u32;
     erg loaded = load_column_from_dynamic_shards(
         fabric: ins fabric,
         manifest_path: abs manifest_path,
-        shard_paths: abs shard_paths,
+        brain_dir: abs brain_dir,
         shard_count: erg dynamic_shard_count,
         global_index: erg query
     );
@@ -521,14 +545,17 @@ verb verify_dynamic_loader(
         Result.Err(_) => 14,
         Result.Ok(_) => 0,
     };
-    if load_status != 0 || fabric.columns[0u32].storage[0u32] != 20u8 {
+    if load_status != 0 {
+        return load_status;
+    }
+    if fabric.columns[0u32].storage[0u32] != 20u8 {
         return 14;
     }
     erg invalid_shard_count: u32 = 1u32;
     erg invalid_loaded = load_column_from_dynamic_shards(
         fabric: ins fabric,
         manifest_path: abs manifest_path,
-        shard_paths: abs shard_paths,
+        brain_dir: abs brain_dir,
         shard_count: erg invalid_shard_count,
         global_index: erg query
     );
@@ -868,6 +895,7 @@ verb write_all(abs path_zero: Path, abs path_one: Path, abs path_two: Path) -> I
 }
 
 verb run_paths(
+    abs brain_dir: Path,
     abs path_zero: Path,
     abs path_one: Path,
     abs path_two: Path,
@@ -912,11 +940,7 @@ verb run_paths(
     if manifest_status != 0 {
         return manifest_status;
     }
-    erg loader_status: Int = verify_dynamic_loader(
-        manifest_path: abs manifest_path,
-        path_zero: abs path_zero,
-        path_one: abs path_one
-    );
+    erg loader_status: Int = verify_dynamic_loader(manifest_path: abs manifest_path, brain_dir: abs brain_dir);
     if loader_status != 0 {
         return loader_status;
     }
@@ -943,27 +967,34 @@ verb run_paths(
     return 0;
 }
 
-verb run_with_zero(abs path_zero: Path) -> Int {
-    erg suffix_one: u8 = 49u8;
-    erg suffix_two: u8 = 50u8;
-    erg path_one_result = make_path(suffix: erg suffix_one);
-    return case dat path_one_result {
+verb run_with_brain_dir(abs brain_dir: Path) -> Int {
+    erg zero_id: u32 = 0u32;
+    erg one_id: u32 = 1u32;
+    erg two_id: u32 = 2u32;
+    erg path_zero_result = persistence_format_shard_path(brain_dir: abs brain_dir, shard_id: erg zero_id);
+    return case dat path_zero_result {
         Result.Err(_) => 2,
-        Result.Ok(path_one) => {
-            erg path_two_result = make_path(suffix: erg suffix_two);
-            return case dat path_two_result {
+        Result.Ok(path_zero) => {
+            erg path_one_result = persistence_format_shard_path(brain_dir: abs brain_dir, shard_id: erg one_id);
+            return case dat path_one_result {
                 Result.Err(_) => 3,
-                Result.Ok(path_two) => {
-                    erg suffix_manifest: u8 = 57u8;
-                    erg manifest_result = make_path(suffix: erg suffix_manifest);
-                    return case dat manifest_result {
+                Result.Ok(path_one) => {
+                    erg path_two_result = persistence_format_shard_path(brain_dir: abs brain_dir, shard_id: erg two_id);
+                    return case dat path_two_result {
                         Result.Err(_) => 4,
-                        Result.Ok(manifest_path) => run_paths(
-                            path_zero: abs path_zero,
-                            path_one: abs path_one,
-                            path_two: abs path_two,
-                            manifest_path: abs manifest_path
-                        ),
+                        Result.Ok(path_two) => {
+                            erg manifest_result = persistence_manifest_path(brain_dir: abs brain_dir);
+                            return case dat manifest_result {
+                                Result.Err(_) => 5,
+                                Result.Ok(manifest_path) => run_paths(
+                                    brain_dir: abs brain_dir,
+                                    path_zero: abs path_zero,
+                                    path_one: abs path_one,
+                                    path_two: abs path_two,
+                                    manifest_path: abs manifest_path
+                                ),
+                            };
+                        },
                     };
                 },
             };
@@ -971,11 +1002,56 @@ verb run_with_zero(abs path_zero: Path) -> Int {
     };
 }
 
+verb cleanup_brain_dir(abs brain_dir: Path) {
+    erg zero_id: u32 = 0u32;
+    erg one_id: u32 = 1u32;
+    erg two_id: u32 = 2u32;
+    erg zero_path = persistence_format_shard_path(brain_dir: abs brain_dir, shard_id: erg zero_id);
+    case dat zero_path {
+        Result.Err(_) => {},
+        Result.Ok(path) => {
+            remove_file(path: abs path);
+        },
+    };
+    erg one_path = persistence_format_shard_path(brain_dir: abs brain_dir, shard_id: erg one_id);
+    case dat one_path {
+        Result.Err(_) => {},
+        Result.Ok(path) => {
+            remove_file(path: abs path);
+        },
+    };
+    erg two_path = persistence_format_shard_path(brain_dir: abs brain_dir, shard_id: erg two_id);
+    case dat two_path {
+        Result.Err(_) => {},
+        Result.Ok(path) => {
+            remove_file(path: abs path);
+        },
+    };
+    erg manifest_path = persistence_manifest_path(brain_dir: abs brain_dir);
+    case dat manifest_path {
+        Result.Err(_) => {},
+        Result.Ok(path) => {
+            remove_file(path: abs path);
+        },
+    };
+    remove_dir(path: abs brain_dir);
+}
+
 verb main() -> Int {
-    erg suffix_zero: u8 = 48u8;
-    erg path_zero_result = make_path(suffix: erg suffix_zero);
-    return case dat path_zero_result {
+    erg brain_dir_result = make_brain_dir();
+    return case dat brain_dir_result {
         Result.Err(_) => 1,
-        Result.Ok(path_zero) => run_with_zero(path_zero: abs path_zero),
+        Result.Ok(brain_dir) => {
+            cleanup_brain_dir(brain_dir: abs brain_dir);
+            erg created = create_dir(path: abs brain_dir);
+            return case dat created {
+                Result.Err(_) => 2,
+                Result.Ok(_) => {
+                    erg status = run_with_brain_dir(brain_dir: abs brain_dir);
+                    cleanup_brain_dir(brain_dir: abs brain_dir);
+                    status;
+                },
+            };
+        },
     };
 }

@@ -5,11 +5,51 @@ import cli;
 
 import std::io;
 
+import std::fs;
+
 open aie;
 
 open cli;
 
 open io;
+
+open fs;
+
+open config;
+
+verb prepare_save_directory(abs command: RunnerConfig) -> Bool {
+    if command.load {
+        return true;
+    }
+    erg created = create_dir(path: abs command.brain_dir);
+    return case dat created {
+        Result.Err(_) => false,
+        Result.Ok(_) => true,
+    };
+}
+
+verb save_resolved_generation(
+    abs command: RunnerConfig,
+    abs brain: LogicalTeachingBrain
+) -> Int {
+    erg generation: u64 = brain.logical.generation + 1u64;
+    erg saved: Result[Int,IoError] = logical_teaching_save_generation(
+        brain: abs brain,
+        brain_dir: abs command.brain_dir,
+        generation: erg generation
+    );
+    return case dat saved {
+        Result.Ok(_) => {
+            print_published_status();
+            RUNNER_EXIT_OK;
+        },
+        Result.Err(_) => {
+            erg message: String = "TWIN_E_ERROR code=5 kind=save_failed";
+            println(text: abs message);
+            RUNNER_EXIT_PERSISTENCE_FAILED;
+        },
+    };
+}
 
 verb save_command_state(
     abs command: RunnerConfig,
@@ -18,23 +58,10 @@ verb save_command_state(
     if !command.save {
         return 0;
     }
-    erg generation: u64 = brain.logical.generation + 1u64;
-    erg saved: Result[Int,IoError] = logical_teaching_save_generation(
-        brain: abs brain,
-        shard_paths: abs command.shard_paths,
-        manifest_path: abs command.brain_path,
-        generation: erg generation
-    );
-    erg status: Int = 5;
-    case dat saved {
-        Result.Ok(_) => {
-            print_published_status();
-            status = 0;
-        },
-        Result.Err(_) => {
-            erg message: String = "TWIN_E_ERROR code=5 kind=save_failed";
-            println(text: abs message);
-        },
-    };
-    return status;
+    if !prepare_save_directory(command: abs command) {
+        erg message: String = "TWIN_E_ERROR code=5 kind=save_directory_failed";
+        println(text: abs message);
+        return 5;
+    }
+    return save_resolved_generation(command: abs command, brain: abs brain);
 }

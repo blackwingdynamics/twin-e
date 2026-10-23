@@ -9,35 +9,35 @@ open teaching;
 
 open codec;
 
+open path;
+
 verb logical_persistence_restore_resident_one(
     ins brain: LogicalTeachingBrain,
     abs path: Path,
     abs descriptor: ManifestDescriptor,
     erg shard_id: u32
 ) -> Result[Int, IoError] {
-    erg loaded = logical_persistence_restore_resident_shard(
-        brain: ins brain,
-        path: abs path,
-        descriptor: abs descriptor
-    );
-    case dat loaded {
-        Result.Err(error) => {
-            return Err(error);
-        },
-        Result.Ok(_) => {},
-    };
-    return logical_persistence_cache_resident(
+    erg slot_result = logical_persistence_cache_resident(
         brain: ins brain,
         descriptor: abs descriptor,
         shard_id: erg shard_id
     );
+    return case dat slot_result {
+        Result.Err(error) => Err(dat error),
+        Result.Ok(slot) => logical_persistence_restore_resident_shard(
+            brain: ins brain,
+            path: abs path,
+            descriptor: abs descriptor,
+            destination_slot: erg slot
+        ),
+    };
 }
 
 verb logical_persistence_cache_resident(
     ins brain: LogicalTeachingBrain,
     abs descriptor: ManifestDescriptor,
     erg shard_id: u32
-) -> Result[Int, IoError] {
+) -> Result[u8, IoError] {
     erg generation: u64 = brain.logical.generation;
     erg checksum: u64 = descriptor.checksum;
     erg slot = logical_brain_insert_resident(
@@ -48,25 +48,46 @@ verb logical_persistence_cache_resident(
     );
     return case dat slot {
         Result.Err(_) => Err(IoError.InvalidData),
-        Result.Ok(value) => {
-            brain.cache_slots[shard_id as Usize] = value;
-            Ok(0);
-        },
+        Result.Ok(value) => Ok(value),
+    };
+}
+
+verb logical_persistence_restore_resident_index(
+    ins brain: LogicalTeachingBrain,
+    abs brain_dir: Path,
+    abs manifest: Buffer,
+    erg shard_id: u32
+) -> Result[Int, IoError] {
+    erg shard_path = format_shard_path(brain_dir: abs brain_dir, shard_id: erg shard_id);
+    erg descriptor = logical_persistence_descriptor(manifest: abs manifest, index: erg shard_id);
+    return case dat shard_path {
+        Result.Err(_) => Err(IoError.InvalidInput),
+        Result.Ok(path) => logical_persistence_restore_resident_one(
+            brain: ins brain,
+            path: abs path,
+            descriptor: abs descriptor,
+            shard_id: erg shard_id
+        ),
     };
 }
 
 open verb logical_persistence_restore_resident(
     ins brain: LogicalTeachingBrain,
-    abs shard_paths: Array[Path, 8],
-    abs descriptors: Array[ManifestDescriptor, 8],
-    erg shard_count: u32
+    abs brain_dir: Path,
+    abs manifest: Buffer
 ) -> Result[Int, IoError] {
     brain.initialized = true;
-    for erg shard_id: u32 in 0u32 .. shard_count {
-        erg restored = logical_persistence_restore_resident_one(
+    erg resident_count: u32 = brain.logical.shard_count;
+    if resident_count > BRAIN_LOGICAL_MAX_RESIDENT_SHARDS {
+        resident_count = BRAIN_LOGICAL_MAX_RESIDENT_SHARDS;
+    }
+    erg first_resident_shard: u32 = brain.logical.shard_count - resident_count;
+    for erg resident_offset: u32 in 0u32 .. resident_count {
+        erg shard_id: u32 = first_resident_shard + resident_offset;
+        erg restored = logical_persistence_restore_resident_index(
             brain: ins brain,
-            path: abs shard_paths[shard_id as Usize],
-            descriptor: abs descriptors[shard_id as Usize],
+            brain_dir: abs brain_dir,
+            manifest: abs manifest,
             shard_id: erg shard_id
         );
         case dat restored {
@@ -76,24 +97,46 @@ open verb logical_persistence_restore_resident(
             Result.Ok(_) => {},
         };
     }
-    return Ok(shard_count as Int);
+    return Ok(resident_count as Int);
+}
+
+"""Load one manifest-admitted shard into a bounded resident cache slot."""
+open verb logical_persistence_restore_one_shard(
+    ins brain: LogicalTeachingBrain,
+    abs brain_dir: Path,
+    abs manifest: Buffer,
+    erg shard_id: u32
+) -> Result[Int, IoError] {
+    if shard_id >= brain.logical.shard_count {
+        return Err(IoError.InvalidInput);
+    }
+    erg descriptor: ManifestDescriptor = logical_persistence_descriptor(manifest: abs manifest, index: erg shard_id);
+    erg shard_path = format_shard_path(brain_dir: abs brain_dir, shard_id: erg shard_id);
+    return case dat shard_path {
+        Result.Err(_) => Err(IoError.InvalidInput),
+        Result.Ok(path) => logical_persistence_restore_resident_one(
+            brain: ins brain,
+            path: abs path,
+            descriptor: abs descriptor,
+            shard_id: erg shard_id
+        ),
+    };
 }
 
 verb logical_persistence_restore_metadata(
     ins brain: LogicalTeachingBrain,
     abs manifest: Buffer,
-    abs descriptors: Array[ManifestDescriptor, 8],
     erg shard_count: u32
 ) -> Bool {
     erg generation_offset: u32 = 12u32;
     erg generation: u64 = read_manifest_u64(input: abs manifest, offset: abs generation_offset);
-    erg total_column_count: u32 = shard_count * BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY;
+    erg total_column_offset: u32 = 20u32;
+    erg total_column_count: u32 = read_manifest_u32(input: abs manifest, offset: abs total_column_offset);
     erg restored = logical_brain_restore_generation(
         brain: ins brain.logical,
         generation: erg generation,
         total_column_count: erg total_column_count,
-        shard_count: erg shard_count,
-        descriptors: abs descriptors
+        shard_count: abs shard_count
     );
     return case dat restored {
         Result.Err(_) => false,
@@ -103,27 +146,20 @@ verb logical_persistence_restore_metadata(
 
 verb logical_persistence_prepare_manifest(
     abs manifest: Buffer,
-    abs shard_paths: Array[Path, 8],
-    ins descriptors: Array[ManifestDescriptor, 8]
+    abs brain_dir: Path
 ) -> Result[Int, IoError] {
-    return logical_persistence_preflight_generation(
-        manifest: abs manifest,
-        shard_paths: abs shard_paths,
-        descriptors: ins descriptors
-    );
+    return logical_persistence_preflight_generation(manifest: abs manifest, brain_dir: abs brain_dir);
 }
 
 verb logical_persistence_finish_manifest(
     ins brain: LogicalTeachingBrain,
     dat manifest: Buffer,
-    abs shard_paths: Array[Path, 8],
-    abs descriptors: Array[ManifestDescriptor, 8],
+    abs brain_dir: Path,
     erg shard_count: u32
 ) -> Result[Int, IoError] {
     if !logical_persistence_restore_metadata(
         brain: ins brain,
         manifest: abs manifest,
-        descriptors: abs descriptors,
         shard_count: erg shard_count
     ) {
         drop(manifest);
@@ -131,9 +167,8 @@ verb logical_persistence_finish_manifest(
     }
     erg resident = logical_persistence_restore_resident(
         brain: ins brain,
-        shard_paths: abs shard_paths,
-        descriptors: abs descriptors,
-        shard_count: erg shard_count
+        brain_dir: abs brain_dir,
+        manifest: abs manifest
     );
     drop(manifest);
     return resident;
@@ -142,14 +177,9 @@ verb logical_persistence_finish_manifest(
 open verb logical_persistence_apply_manifest(
     ins brain: LogicalTeachingBrain,
     dat manifest: Buffer,
-    abs shard_paths: Array[Path, 8]
+    abs brain_dir: Path
 ) -> Result[Int, IoError] {
-    erg descriptors: Array[ManifestDescriptor,8] = Array[ManifestDescriptor, 8]();
-    erg prepared = logical_persistence_prepare_manifest(
-        manifest: abs manifest,
-        shard_paths: abs shard_paths,
-        descriptors: ins descriptors
-    );
+    erg prepared = logical_persistence_prepare_manifest(manifest: abs manifest, brain_dir: abs brain_dir);
     erg shard_count: u32 = 0u32;
     case dat prepared {
         Result.Err(error) => {
@@ -163,8 +193,7 @@ open verb logical_persistence_apply_manifest(
     return logical_persistence_finish_manifest(
         brain: ins brain,
         manifest: dat manifest,
-        shard_paths: abs shard_paths,
-        descriptors: abs descriptors,
+        brain_dir: abs brain_dir,
         shard_count: erg shard_count
     );
 }

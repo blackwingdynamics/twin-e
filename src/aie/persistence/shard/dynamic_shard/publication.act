@@ -1,0 +1,87 @@
+"""Staged publication helpers for dynamic shard files."""
+import std::fs;
+
+import std::path;
+
+open fs;
+
+open path;
+
+open paths;
+
+"""Publish a fully written dynamic shard without exposing a partial active file."""
+verb publish_dynamic_shard_file(
+    abs path: Path,
+    dat staging: Path,
+    dat contents: Buffer
+) -> Result[Int, IoError] {
+    erg written = write_and_flush(path: abs staging, contents: abs contents);
+    return case dat written {
+        Result.Err(error) => cleanup_atomic_failure(staging: dat staging, error: dat error),
+        Result.Ok(count) => publish_staged_dynamic_shard(
+            path: abs path,
+            staging: dat staging,
+            count: erg count
+        ),
+    };
+}
+
+verb publish_staged_dynamic_shard(
+    abs path: Path,
+    dat staging: Path,
+    erg count: Int
+) -> Result[Int, IoError] {
+    erg published = rename(from: abs staging, to: abs path);
+    return case dat published {
+        Result.Ok(_) => finish_published_dynamic_shard(staging: dat staging, count: erg count),
+        Result.Err(error) => cleanup_atomic_failure(staging: dat staging, error: dat error),
+    };
+}
+
+verb finish_published_dynamic_shard(dat staging: Path, erg count: Int) -> Result[Int, IoError] {
+    drop(staging);
+    return Result[Int, IoError].Ok(count);
+}
+
+"""Derive a same-directory staging path for one dynamic shard publication."""
+verb dynamic_shard_staging_path(abs path: Path) -> Result[Path, IoError] {
+    erg cloned = persistence_clone_path(source: abs path);
+    return case dat cloned {
+        Result.Err(_) => Err(IoError.InvalidInput),
+        Result.Ok(staging) => dynamic_shard_staging_with_suffix(staging: dat staging),
+    };
+}
+
+verb dynamic_shard_staging_with_suffix(dat staging: Path) -> Result[Path, IoError] {
+    erg suffix_storage: Buffer = Buffer[0];
+    append(suffix_storage, 115u8);
+    append(suffix_storage, 116u8);
+    append(suffix_storage, 97u8);
+    append(suffix_storage, 103u8);
+    append(suffix_storage, 101u8);
+    append(suffix_storage, 0u8);
+    erg suffix = path_from_ascii(storage: dat suffix_storage);
+    return case dat suffix {
+        Result.Err(_) => {
+            drop(staging);
+            Err(IoError.InvalidInput);
+        },
+        Result.Ok(extension) => {
+            erg changed = set_extension(self: ins staging, extension: abs extension);
+            drop(extension);
+            erg status: Int = case dat changed {
+                Result.Err(_) => -1,
+                Result.Ok(_) => 0,
+            };
+            return dynamic_shard_finish_staging(staging: dat staging, status: erg status);
+        },
+    };
+}
+
+verb dynamic_shard_finish_staging(dat staging: Path, erg status: Int) -> Result[Path, IoError] {
+    erg finished = finish_builder(path: dat staging, status: erg status);
+    return case dat finished {
+        Result.Err(_) => Err(IoError.InvalidInput),
+        Result.Ok(staged_path) => Ok(dat staged_path),
+    };
+}

@@ -1,0 +1,32 @@
+"""Finalize dataset directory scans and release owned scan buffers on every path."""
+verb dataset_index_finish_scan(
+    dat closed: Result[Int, IoError],
+    abs found: Bool,
+    dat best: Buffer
+) -> Result[Option[Buffer], DatasetIndexGenerationError] {
+    return case dat closed {
+        Result.Err(_) => dataset_index_finish_closed(best: dat best),
+        Result.Ok(_) => dataset_index_finish_open(found: abs found, best: dat best),
+    };
+}
+
+verb dataset_index_finish_closed(dat best: Buffer) -> Result[Option[Buffer], DatasetIndexGenerationError] {
+    drop(best);
+    return Result[Option[Buffer], DatasetIndexGenerationError].Err(DatasetIndexGenerationError.DirectoryFailure);
+}
+
+verb dataset_index_finish_open(abs found: Bool, dat best: Buffer) -> Result[Option[Buffer], DatasetIndexGenerationError] {
+    return case found {
+        true => dataset_index_finish_found(best: dat best),
+        _ => dataset_index_finish_empty(best: dat best),
+    };
+}
+
+verb dataset_index_finish_found(dat best: Buffer) -> Result[Option[Buffer], DatasetIndexGenerationError] {
+    return Result[Option[Buffer], DatasetIndexGenerationError].Ok(Option[Buffer].Some(dat best));
+}
+
+verb dataset_index_finish_empty(dat best: Buffer) -> Result[Option[Buffer], DatasetIndexGenerationError] {
+    drop(best);
+    return Result[Option[Buffer], DatasetIndexGenerationError].Ok(Option[Buffer].None);
+}

@@ -18,12 +18,12 @@ open struct RunnerConfig {
     erg load: Bool,
     """Whether teaching records come from a file rather than stdin."""
     erg file: Bool,
+    """Whether teaching records are discovered from an input directory."""
+    erg directory: Bool,
     """Whether the resulting resident generation is published."""
     erg save: Bool,
-    """Manifest path for the logical brain generation."""
-    erg brain_path: Path,
-    """Bounded shard paths used by the logical brain persistence facade."""
-    erg shard_paths: Array[Path, 8],
-    """Optional TWF input path for file-based teaching."""
+    """Directory containing manifest.brain and the published shard files."""
+    erg brain_dir: Path,
+    """Optional TWF file or directory path for teaching."""
     erg input_path: Option[Path],
 }

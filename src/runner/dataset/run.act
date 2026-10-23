@@ -1,0 +1,133 @@
+"""Run directory teaching with typed failure and aggregate metric boundaries."""
+import aie;
+
+import cli;
+
+import config;
+
+import std::path;
+
+import teaching;
+
+open aie;
+
+open cli;
+
+open config;
+
+open path;
+
+open teaching;
+
+"""Teach every indexed TWF file in a directory and return typed batch evidence.
+
+The caller owns the mutable brain for the duration of the call. The verb reads
+the configured directory, publishes one checkpoint per accepted file, and
+returns metrics only after the complete indexed batch succeeds. It performs no
+filesystem work on inference or impulse hot paths; failures stop the batch and
+leave the last published generation as the recovery boundary.
+"""
+open verb teach_dataset_directory_result(
+    abs command: RunnerConfig,
+    ins brain: LogicalTeachingBrain
+) -> Result[DatasetTeachingMetrics, DatasetTeachingError] {
+    erg input_path: Option[Path] = command.input_path;
+    return case dat input_path {
+        Option.None => Result[DatasetTeachingMetrics, DatasetTeachingError].Err(DatasetTeachingError.MissingInput),
+        Option.Some(directory_path) => teach_dataset_directory_index(
+            directory_path: abs directory_path,
+            command: abs command,
+            brain: ins brain
+        ),
+    };
+}
+
+"""Run directory teaching through the CLI state boundary.
+
+This entry point prepares the configured brain directory, maps typed failures to
+stable runner exit statuses, and prints aggregate metrics on success. The
+mutable brain remains owned by the caller and no failed batch is reported as a
+successful publication.
+"""
+open verb teach_dataset_directory_state(
+    abs command: RunnerConfig,
+    ins brain: LogicalTeachingBrain
+) -> Int {
+    if !prepare_save_directory(command: abs command) {
+        return RUNNER_EXIT_PERSISTENCE_FAILED;
+    }
+    erg result = teach_dataset_directory_result(command: abs command, brain: ins brain);
+    return case dat result {
+        Result.Err(error) => dataset_teaching_status(dat error),
+        Result.Ok(metrics) => {
+            print_dataset_metrics(
+                file_count: abs metrics.file_count,
+                record_count: abs metrics.record_count,
+                accepted_count: abs metrics.accepted_count,
+                final_generation: abs metrics.final_generation
+            );
+            RUNNER_EXIT_OK;
+        },
+    };
+}
+
+verb teach_dataset_directory_index(
+    abs directory_path: Path,
+    abs command: RunnerConfig,
+    ins brain: LogicalTeachingBrain
+) -> Result[DatasetTeachingMetrics, DatasetTeachingError] {
+    erg generated = dataset_index_generate(directory_path: abs directory_path);
+    return case dat generated {
+        Result.Err(error) => Result[DatasetTeachingMetrics, DatasetTeachingError].Err(dataset_teaching_generation_failure(
+            dat error
+        )),
+        Result.Ok(bytes) => teach_dataset_open_index(
+            bytes: dat bytes,
+            directory_path: abs directory_path,
+            command: abs command,
+            brain: ins brain
+        ),
+    };
+}
+
+verb teach_dataset_open_index(
+    dat bytes: Buffer,
+    abs directory_path: Path,
+    abs command: RunnerConfig,
+    ins brain: LogicalTeachingBrain
+) -> Result[DatasetTeachingMetrics, DatasetTeachingError] {
+    erg opened = dataset_index_open(bytes: dat bytes);
+    return case dat opened {
+        Result.Err(_) => Result[DatasetTeachingMetrics, DatasetTeachingError].Err(DatasetTeachingError.InvalidIndex),
+        Result.Ok(index) => teach_dataset_open_index_run(
+            index: ins index,
+            directory_path: abs directory_path,
+            command: abs command,
+            brain: ins brain
+        ),
+    };
+}
+
+verb teach_dataset_open_index_run(
+    ins index: DatasetIndex,
+    abs directory_path: Path,
+    abs command: RunnerConfig,
+    ins brain: LogicalTeachingBrain
+) -> Result[DatasetTeachingMetrics, DatasetTeachingError] {
+    erg first_file: Bool = true;
+    erg aggregate = dataset_teaching_metrics_new();
+    erg result = dataset_teaching_index_loop(
+        index: ins index,
+        directory_path: abs directory_path,
+        command: abs command,
+        brain: ins brain,
+        first_file: ins first_file,
+        aggregate: ins aggregate
+    );
+    return case dat result {
+        Result.Err(error) => Result[DatasetTeachingMetrics, DatasetTeachingError].Err(dat error),
+        Result.Ok(_) => Result[DatasetTeachingMetrics, DatasetTeachingError].Ok(dataset_teaching_finish_metrics(
+            aggregate: abs aggregate
+        )),
+    };
+}

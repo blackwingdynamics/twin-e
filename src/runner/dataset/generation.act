@@ -1,0 +1,100 @@
+"""Build one bounded serialized dataset index before validation and publish."""
+import config;
+
+open config;
+
+open enum DatasetIndexGenerationError {
+    EntryTooLarge,
+    TooManyEntries,
+    IndexTooLarge,
+    EmptyDirectory,
+    DirectoryFailure,
+}
+
+"""Owned writer state for one bounded dataset-index batch."""
+open struct DatasetIndexWriter {
+    """Serialized header and length-delimited path entries."""
+    erg output: Buffer,
+    """Number of path entries appended to this batch."""
+    erg entry_count: u32,
+}
+
+verb dataset_index_generation_append_u16(ins output: Buffer, erg value: u16) {
+    append(output, (value & 255u16) as u8);
+    append(output, ((value / 256u16) & 255u16) as u8);
+}
+
+verb dataset_index_generation_append_u32(ins output: Buffer, erg value: u32) {
+    append(output, (value & 255u32) as u8);
+    append(output, ((value / 256u32) & 255u32) as u8);
+    append(output, ((value / 65536u32) & 255u32) as u8);
+    append(output, ((value / 16777216u32) & 255u32) as u8);
+}
+
+"""Create an empty bounded index writer with a reserved header."""
+open verb dataset_index_writer_new() -> DatasetIndexWriter {
+    erg output: Buffer = Buffer[0];
+    erg magic: u32 = DATASET_INDEX_MAGIC;
+    erg version: u16 = DATASET_INDEX_VERSION;
+    erg reserved: u16 = 0u16;
+    erg empty_count: u32 = 0u32;
+    erg empty_total: u32 = 0u32;
+    dataset_index_generation_append_u32(output: ins output, value: erg magic);
+    dataset_index_generation_append_u16(output: ins output, value: erg version);
+    dataset_index_generation_append_u16(output: ins output, value: erg reserved);
+    dataset_index_generation_append_u32(output: ins output, value: erg empty_count);
+    dataset_index_generation_append_u32(output: ins output, value: erg empty_total);
+    return DatasetIndexWriter {output: output, entry_count: 0u32};
+}
+
+"""Append one relative path to the writer without exceeding batch bounds."""
+open verb dataset_index_writer_append(
+    ins writer: DatasetIndexWriter,
+    abs name: Buffer
+) -> Result[Int, DatasetIndexGenerationError] {
+    erg length_result = buffer_size(buffer: abs name);
+    return case dat length_result {
+        Result.Err(_) => Result[Int, DatasetIndexGenerationError].Err(DatasetIndexGenerationError.EntryTooLarge),
+        Result.Ok(value) => {
+            erg length: u32 = value as u32;
+            if length == 0u32 || length > DATASET_INDEX_MAX_PATH_BYTES {
+                return Result[Int, DatasetIndexGenerationError].Err(DatasetIndexGenerationError.EntryTooLarge);
+            }
+            if writer.entry_count >= DATASET_INDEX_MAX_ENTRIES {
+                return Result[Int, DatasetIndexGenerationError].Err(DatasetIndexGenerationError.TooManyEntries);
+            }
+            if value + 4 > DATASET_INDEX_MAX_BYTES as Int {
+                return Result[Int, DatasetIndexGenerationError].Err(DatasetIndexGenerationError.IndexTooLarge);
+            }
+            dataset_index_generation_append_u32(output: ins writer.output, value: erg length);
+            for erg index: u32 in 0u32 .. length {
+                append(writer.output, name[index]);
+            }
+            writer.entry_count += 1u32;
+            Result[Int, DatasetIndexGenerationError].Ok(0);
+        },
+    };
+}
+
+"""Finalize the header and transfer the serialized index to the validator."""
+open verb dataset_index_writer_finish(dat writer: DatasetIndexWriter) -> Result[Buffer, DatasetIndexGenerationError] {
+    erg total_result = buffer_size(buffer: abs writer.output);
+    return case dat total_result {
+        Result.Err(_) => Result[Buffer, DatasetIndexGenerationError].Err(DatasetIndexGenerationError.IndexTooLarge),
+        Result.Ok(value) => {
+            if value > DATASET_INDEX_MAX_BYTES as Int {
+                drop(writer);
+                return Result[Buffer, DatasetIndexGenerationError].Err(DatasetIndexGenerationError.IndexTooLarge);
+            }
+            writer.output[8u32] = (writer.entry_count & 255u32) as u8;
+            writer.output[9u32] = ((writer.entry_count / 256u32) & 255u32) as u8;
+            writer.output[10u32] = ((writer.entry_count / 65536u32) & 255u32) as u8;
+            writer.output[11u32] = ((writer.entry_count / 16777216u32) & 255u32) as u8;
+            writer.output[12u32] = (value & 255) as u8;
+            writer.output[13u32] = ((value / 256) & 255) as u8;
+            writer.output[14u32] = ((value / 65536) & 255) as u8;
+            writer.output[15u32] = ((value / 16777216) & 255) as u8;
+            Result[Buffer, DatasetIndexGenerationError].Ok(dat writer.output);
+        },
+    };
+}

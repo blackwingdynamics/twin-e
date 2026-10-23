@@ -1,0 +1,14 @@
+"""Canonical facade for bounded ordered training dataset indexes."""
+open manifest;
+
+open generation;
+
+open batch;
+
+open discovery;
+
+open contract;
+
+open teaching;
+
+open run;

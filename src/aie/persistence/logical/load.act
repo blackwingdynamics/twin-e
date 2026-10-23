@@ -17,6 +17,8 @@ open teaching;
 
 open codec;
 
+open path;
+
 verb logical_persistence_buffer_length_result(dat length: Result[Int, IoError]) -> Result[Int, IoError] {
     return case dat length {
         Result.Err(_) => Err(IoError.InvalidData),
@@ -128,20 +130,20 @@ verb logical_persistence_rebuild_fabric_allocator(ins fabric: CorticalFabric[102
 open verb logical_persistence_restore_shard(
     ins brain: LogicalTeachingBrain,
     dat bytes: Buffer,
-    abs descriptor: ManifestDescriptor
+    abs descriptor: ManifestDescriptor,
+    erg destination_slot: u8
 ) -> Bool {
-    erg shard_id: u32 = descriptor.shard_id;
-    fabric_init(fabric: ins brain.fabrics[shard_id as Usize]);
-    logical_auxiliary_init(state: ins brain.auxiliary[shard_id as Usize]);
+    fabric_init(fabric: ins brain.fabrics[destination_slot as Usize]);
+    logical_auxiliary_init(state: ins brain.auxiliary[destination_slot as Usize]);
     for erg column: u32 in 0u32 .. BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY {
         for erg byte: u32 in 0u32 .. 64u32 {
-            brain.fabrics[shard_id as Usize].columns[column].storage[byte] = bytes[descriptor.payload_offset + column * 64u32 + byte];
+            brain.fabrics[destination_slot as Usize].columns[column].storage[byte] = bytes[descriptor.payload_offset + column * 64u32 + byte];
         }
     }
-    logical_persistence_rebuild_fabric_allocator(fabric: ins brain.fabrics[shard_id as Usize]);
+    logical_persistence_rebuild_fabric_allocator(fabric: ins brain.fabrics[destination_slot as Usize]);
     for erg binding: u32 in 0u32 .. BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY {
         for erg byte: u32 in 0u32 .. 24u32 {
-            brain.bindings[shard_id as Usize][binding].storage[byte] = bytes[descriptor.binding_offset + binding * 24u32 + byte];
+            brain.bindings[destination_slot as Usize][binding].storage[byte] = bytes[descriptor.binding_offset + binding * 24u32 + byte];
         }
     }
     erg auxiliary: Buffer = Buffer[0];
@@ -150,7 +152,7 @@ open verb logical_persistence_restore_shard(
     for erg byte: u32 in 0u32 .. BRAIN_AUXILIARY_PAYLOAD_BYTES {
         auxiliary[byte] = bytes[descriptor.auxiliary_offset + byte];
     }
-    erg restored = logical_persistence_restore_auxiliary(state: ins brain.auxiliary[shard_id as Usize], input: abs auxiliary);
+    erg restored = logical_persistence_restore_auxiliary(state: ins brain.auxiliary[destination_slot as Usize], input: abs auxiliary);
     drop(auxiliary);
     drop(bytes);
     return restored;
@@ -159,12 +161,14 @@ open verb logical_persistence_restore_shard(
 verb logical_persistence_restore_loaded_shard(
     ins brain: LogicalTeachingBrain,
     dat bytes: Buffer,
-    abs descriptor: ManifestDescriptor
+    abs descriptor: ManifestDescriptor,
+    erg destination_slot: u8
 ) -> Result[Int, IoError] {
     if !logical_persistence_restore_shard(
         brain: ins brain,
         bytes: dat bytes,
-        descriptor: abs descriptor
+        descriptor: abs descriptor,
+        destination_slot: erg destination_slot
     ) {
         return Err(IoError.InvalidData);
     }
@@ -174,7 +178,8 @@ verb logical_persistence_restore_loaded_shard(
 open verb logical_persistence_restore_resident_shard(
     ins brain: LogicalTeachingBrain,
     abs path: Path,
-    abs descriptor: ManifestDescriptor
+    abs descriptor: ManifestDescriptor,
+    erg destination_slot: u8
 ) -> Result[Int, IoError] {
     erg loaded = read_to_bytes(path: abs path);
     return case dat loaded {
@@ -182,7 +187,8 @@ open verb logical_persistence_restore_resident_shard(
         Result.Ok(bytes) => logical_persistence_restore_loaded_shard(
             brain: ins brain,
             bytes: dat bytes,
-            descriptor: abs descriptor
+            descriptor: abs descriptor,
+            destination_slot: erg destination_slot
         ),
     };
 }
@@ -205,23 +211,25 @@ verb logical_persistence_read_manifest(abs path: Path) -> Result[Buffer, IoError
 
 open verb logical_persistence_preflight_generation(
     abs manifest: Buffer,
-    abs shard_paths: Array[Path, 8],
-    ins descriptors: Array[ManifestDescriptor, 8]
+    abs brain_dir: Path
 ) -> Result[Int, IoError] {
     erg shard_count_offset: u32 = 28u32;
     erg total_offset: u32 = 20u32;
     erg shard_count: u32 = read_manifest_u32(input: abs manifest, offset: abs shard_count_offset);
     erg total: u32 = read_manifest_u32(input: abs manifest, offset: abs total_offset);
-    if shard_count == 0u32 || shard_count > BRAIN_LOGICAL_MAX_RESIDENT_SHARDS || total != shard_count * BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY {
+    if shard_count == 0u32 || shard_count > BRAIN_LOGICAL_MAX_SHARDS || total != shard_count * BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY {
         return Err(IoError.InvalidData);
     }
     for erg shard_id: u32 in 0u32 .. shard_count {
-        descriptors[shard_id as Usize] = logical_persistence_descriptor(manifest: abs manifest, index: erg shard_id);
-        erg descriptor: ManifestDescriptor = descriptors[shard_id as Usize];
+        erg descriptor: ManifestDescriptor = logical_persistence_descriptor(manifest: abs manifest, index: erg shard_id);
         if descriptor.auxiliary_bytes != BRAIN_AUXILIARY_PAYLOAD_BYTES || descriptor.binding_bytes != BRAIN_LOGICAL_SHARD_BINDINGS_BYTES {
             return Err(IoError.InvalidData);
         }
-        erg checked = logical_persistence_preflight_shard(path: abs shard_paths[shard_id as Usize], descriptor: abs descriptor);
+        erg shard_path = format_shard_path(brain_dir: abs brain_dir, shard_id: erg shard_id);
+        erg checked = case dat shard_path {
+            Result.Err(_) => Result[Int, IoError].Err(IoError.InvalidInput),
+            Result.Ok(path) => logical_persistence_preflight_shard(path: abs path, descriptor: abs descriptor),
+        };
         case dat checked {
             Result.Err(error) => {
                 return Err(error);
@@ -235,14 +243,14 @@ open verb logical_persistence_preflight_generation(
 verb logical_persistence_load_manifest(
     ins brain: LogicalTeachingBrain,
     dat loaded_manifest: Result[Buffer, IoError],
-    abs shard_paths: Array[Path, 8]
+    abs brain_dir: Path
 ) -> Result[Int, IoError] {
     return case dat loaded_manifest {
         Result.Err(error) => Err(error),
         Result.Ok(bytes) => logical_persistence_apply_manifest(
             brain: ins brain,
             manifest: dat bytes,
-            shard_paths: abs shard_paths
+            brain_dir: abs brain_dir
         ),
     };
 }
@@ -250,13 +258,18 @@ verb logical_persistence_load_manifest(
 """Load a complete generation after a mutation-free preflight."""
 open verb logical_teaching_load_generation(
     ins brain: LogicalTeachingBrain,
-    abs shard_paths: Array[Path, 8],
-    abs manifest_path: Path
+    abs brain_dir: Path
 ) -> Result[Int, IoError] {
-    erg loaded = logical_persistence_read_manifest(path: abs manifest_path);
-    return logical_persistence_load_manifest(
-        brain: ins brain,
-        loaded_manifest: dat loaded,
-        shard_paths: abs shard_paths
-    );
+    erg manifest_path = logical_manifest_path(brain_dir: abs brain_dir);
+    return case dat manifest_path {
+        Result.Err(_) => Result[Int, IoError].Err(IoError.InvalidInput),
+        Result.Ok(path) => {
+            erg loaded = logical_persistence_read_manifest(path: abs path);
+            return logical_persistence_load_manifest(
+                brain: ins brain,
+                loaded_manifest: dat loaded,
+                brain_dir: abs brain_dir
+            );
+        },
+    };
 }

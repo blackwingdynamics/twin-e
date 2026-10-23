@@ -33,14 +33,13 @@ open struct LogicalBrain {
     erg total_column_count: u32,
     erg shard_transitions: u32,
     erg generation: u64,
-    erg descriptors: Array[ManifestDescriptor, 8],
     erg cache: ShardCache,
 }
 
 """Return a zeroed logical brain value without filesystem access."""
 open verb logical_brain_empty() -> LogicalBrain {
-    return LogicalBrain {initialized: false, shard_count: 0u32, total_column_count: 0u32, shard_transitions: 0u32, generation: 0u64, descriptors: Array[ManifestDescriptor, 8](
-    ), cache: ShardCache {entries: Array[ShardCacheEntry, 4](), clock: 0u64}};
+    return LogicalBrain {initialized: false, shard_count: 0u32, total_column_count: 0u32, shard_transitions: 0u32, generation: 0u64, cache: ShardCache {entries: Array[ShardCacheEntry, 4](
+    ), clock: 0u64}};
 }
 
 """Initialize or reset bounded logical-brain metadata.
@@ -57,7 +56,6 @@ open verb logical_brain_init(ins brain: LogicalBrain) -> Result[Int, LogicalBrai
     brain.total_column_count = 0u32;
     brain.shard_transitions = 0u32;
     brain.generation = 0u64;
-    brain.descriptors = Array[ManifestDescriptor, 8]();
     shard_cache_init(cache: ins brain.cache);
     return Result[Int, LogicalBrainError].Ok(0);
 }
@@ -69,10 +67,9 @@ shards before mutation and reports `FlushRequired` when the caller must flush
 the cache at its configured dirty high-watermark.
 """
 verb logical_brain_record_shard(ins brain: LogicalBrain) -> Result[Int, LogicalBrainError] {
-    if brain.shard_count >= BRAIN_LOGICAL_MAX_SHARDS || brain.shard_count >= BRAIN_LOGICAL_MAX_MANIFEST_DESCRIPTORS {
+    if brain.shard_count >= BRAIN_LOGICAL_MAX_SHARDS {
         return Result[Int, LogicalBrainError].Err(LogicalBrainError.LogicalCapacityExceeded);
     }
-    brain.descriptors[brain.shard_count as Usize] = ManifestDescriptor {shard_id: brain.shard_count, first_column_index: brain.shard_count << BRAIN_LOGICAL_SHARD_SHIFT, column_count: BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY, payload_offset: BRAIN_SHARD_HEADER_BYTES as u32, payload_bytes: BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY * BRAIN_SHARD_COLUMN_STRIDE_BYTES as u32, binding_offset: BRAIN_SHARD_HEADER_BYTES as u32 + (BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY * BRAIN_SHARD_COLUMN_STRIDE_BYTES as u32), binding_bytes: BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY * BRAIN_SHARD_BINDING_STRIDE_BYTES as u32, auxiliary_offset: 0u32, auxiliary_bytes: BRAIN_AUXILIARY_PAYLOAD_BYTES, checksum: 0u64, state: 1u32};
     brain.shard_count += 1u32;
     brain.total_column_count += BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY;
     if brain.shard_count > 1u32 {
@@ -161,7 +158,13 @@ open verb logical_brain_lookup_shard(abs brain: LogicalBrain, erg shard_id: u32)
     if shard_id >= brain.shard_count {
         return Result[ManifestDescriptor, LogicalBrainError].Err(LogicalBrainError.ShardNotFound);
     }
-    return Result[ManifestDescriptor, LogicalBrainError].Ok(brain.descriptors[shard_id as Usize]);
+    erg first_column_index: u32 = shard_id * BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY;
+    return Result[ManifestDescriptor, LogicalBrainError].Ok(ManifestDescriptor {shard_id: shard_id, first_column_index: first_column_index, column_count: BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY, payload_offset: BRAIN_SHARD_HEADER_BYTES as u32, payload_bytes: BRAIN_LOGICAL_SHARD_COLUMNS_BYTES, binding_offset: BRAIN_SHARD_HEADER_BYTES as u32 + BRAIN_LOGICAL_SHARD_COLUMNS_BYTES, binding_bytes: BRAIN_LOGICAL_SHARD_BINDINGS_BYTES, auxiliary_offset: BRAIN_SHARD_HEADER_BYTES as u32 + BRAIN_LOGICAL_SHARD_COLUMNS_BYTES + BRAIN_LOGICAL_SHARD_BINDINGS_BYTES, auxiliary_bytes: BRAIN_AUXILIARY_PAYLOAD_BYTES, checksum: 0u64, state: 1u32});
+}
+
+"""Return the bounded resident slot for a logical shard, if it is cached."""
+open verb logical_brain_resident_slot(abs brain: LogicalBrain, erg shard_id: u32) -> Option[u8] {
+    return shard_cache_find(cache: abs brain.cache, shard_id: erg shard_id);
 }
 
 """Restore a validated multi-shard generation into a fresh logical facade.
@@ -175,8 +178,7 @@ open verb logical_brain_restore_generation(
     ins brain: LogicalBrain,
     erg generation: u64,
     erg total_column_count: u32,
-    erg shard_count: u32,
-    abs descriptors: Array[ManifestDescriptor, 8]
+    abs shard_count: u32
 ) -> Result[Int, LogicalBrainError] {
     if !logical_shard_profile_is_valid() || shard_count == 0u32 || shard_count > BRAIN_LOGICAL_MAX_SHARDS || shard_count > BRAIN_LOGICAL_MAX_MANIFEST_DESCRIPTORS {
         return Result[Int, LogicalBrainError].Err(LogicalBrainError.InvalidGeneration);
@@ -184,18 +186,11 @@ open verb logical_brain_restore_generation(
     if total_column_count != shard_count * BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY {
         return Result[Int, LogicalBrainError].Err(LogicalBrainError.InvalidGeneration);
     }
-    for erg index: u32 in 0u32 .. shard_count {
-        erg descriptor: ManifestDescriptor = descriptors[index as Usize];
-        if descriptor.shard_id != index || descriptor.first_column_index != index * BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY || descriptor.column_count != BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY {
-            return Result[Int, LogicalBrainError].Err(LogicalBrainError.InvalidDescriptor);
-        }
-    }
     brain.initialized = true;
     brain.shard_count = shard_count;
     brain.total_column_count = total_column_count;
     brain.shard_transitions = shard_count - 1u32;
     brain.generation = generation;
-    brain.descriptors = descriptors;
     shard_cache_init(cache: ins brain.cache);
     return Result[Int, LogicalBrainError].Ok(0);
 }
@@ -215,7 +210,6 @@ open verb logical_brain_close(ins brain: LogicalBrain) -> Result[Int, LogicalBra
     brain.total_column_count = 0u32;
     brain.shard_transitions = 0u32;
     brain.generation = 0u64;
-    brain.descriptors = Array[ManifestDescriptor, 8]();
     shard_cache_init(cache: ins brain.cache);
     return Result[Int, LogicalBrainError].Ok(0);
 }

@@ -1,0 +1,550 @@
+meta limitless("file")
+
+
+"""Gate 12.2 public evidence for directory-training failure boundaries."""
+import aie;
+
+import cli;
+
+import config;
+
+import runner;
+
+import std::fs;
+
+import std::path;
+
+open aie;
+
+open cli;
+
+open config;
+
+open fs;
+
+open path;
+
+open runner;
+
+verb runner_error_path(erg suite: u8, erg kind: u8) -> Result[Path, PathError] {
+    erg raw: Buffer = Buffer[0];
+    append(raw, 47u8);
+    append(raw, 116u8);
+    append(raw, 109u8);
+    append(raw, 112u8);
+    append(raw, 47u8);
+    append(raw, 116u8);
+    append(raw, 119u8);
+    append(raw, 105u8);
+    append(raw, 110u8);
+    append(raw, 45u8);
+    append(raw, 101u8);
+    append(raw, 45u8);
+    append(raw, 103u8);
+    append(raw, 49u8);
+    append(raw, 50u8);
+    append(raw, 45u8);
+    append(raw, 101u8);
+    append(raw, 114u8);
+    append(raw, 114u8);
+    append(raw, 111u8);
+    append(raw, 114u8);
+    append(raw, 45u8);
+    append(raw, 48u8 + suite);
+    if kind >= 2u8 {
+        append(raw, 45u8);
+        append(raw, 49u8);
+        append(raw, 47u8);
+        if kind == 2u8 {
+            append(raw, 97u8);
+        } else {
+            append(raw, 98u8);
+        }
+        append(raw, 46u8);
+        append(raw, 116u8);
+        append(raw, 119u8);
+        append(raw, 102u8);
+    } else {
+        append(raw, 45u8);
+        append(raw, 48u8 + kind);
+    }
+    append(raw, 0u8);
+    return path_from_ascii(storage: dat raw);
+}
+
+verb runner_error_path_value(erg suite: u8, erg kind: u8) -> Path {
+    erg result = runner_error_path(suite: erg suite, kind: erg kind);
+    return case dat result {
+        Result.Err(_) => Path {storage: Buffer[0], platform: PathPlatform.Posix, length: 0, capacity: 0, terminated: 0},
+        Result.Ok(path) => path,
+    };
+}
+
+verb runner_error_valid_twf() -> Buffer {
+    erg bytes: Buffer = Buffer[0];
+    append(bytes, 84u8);
+    append(bytes, 87u8);
+    append(bytes, 70u8);
+    append(bytes, 49u8);
+    append(bytes, 2u8);
+    append(bytes, 2u8);
+    append(bytes, 0u8);
+    append(bytes, 65u8);
+    append(bytes, 66u8);
+    append(bytes, 2u8);
+    append(bytes, 0u8);
+    append(bytes, 67u8);
+    append(bytes, 68u8);
+    return bytes;
+}
+
+verb runner_error_remove_brain_files(abs brain: Path) {
+    erg manifest_path = persistence_manifest_path(brain_dir: abs brain);
+    erg cleanup_shard_id: u32 = 0u32;
+    erg shard_path = persistence_format_shard_path(brain_dir: abs brain, shard_id: erg cleanup_shard_id);
+    case dat manifest_path {
+        Result.Err(_) => {},
+        Result.Ok(path) => remove_file(path: abs path),
+    };
+    case dat shard_path {
+        Result.Err(_) => {},
+        Result.Ok(path) => remove_file(path: abs path),
+    };
+}
+
+verb runner_error_write(abs path: Path, abs valid: Bool) -> Bool {
+    erg bytes: Buffer = if valid {
+        runner_error_valid_twf();
+    } else {
+        Buffer[0];
+    };
+    if !valid {
+        append(bytes, 66u8);
+        append(bytes, 65u8);
+        append(bytes, 68u8);
+    }
+    erg written = write_file(path: abs path, contents: abs bytes);
+    return case dat written {
+        Result.Err(_) => false,
+        Result.Ok(_) => true,
+    };
+}
+
+verb runner_error_cleanup(
+    dat brain: Path,
+    dat input: Path,
+    dat first: Path,
+    dat second: Path
+) {
+    runner_error_remove_brain_files(brain: abs brain);
+    remove_file(path: abs first);
+    remove_file(path: abs second);
+    remove_file(path: abs brain);
+    remove_dir(path: abs input);
+    remove_dir(path: abs brain);
+    drop(brain);
+    drop(input);
+    drop(first);
+    drop(second);
+}
+
+verb runner_error_cleanup_command(
+    dat command: RunnerConfig,
+    dat first: Path,
+    dat second: Path,
+    erg result: Int
+) -> Int {
+    erg brain = command.brain_dir;
+    erg input_option = command.input_path;
+    return case dat input_option {
+        Option.None => runner_error_cleanup_missing(
+            brain: dat brain,
+            first: dat first,
+            second: dat second,
+            result: erg result
+        ),
+        Option.Some(input) => runner_error_cleanup_present(
+            brain: dat brain,
+            input: dat input,
+            first: dat first,
+            second: dat second,
+            result: erg result
+        ),
+    };
+}
+
+verb runner_error_cleanup_missing(
+    dat brain: Path,
+    dat first: Path,
+    dat second: Path,
+    erg result: Int
+) -> Int {
+    runner_error_remove_brain_files(brain: abs brain);
+    remove_file(path: abs brain);
+    drop(brain);
+    drop(first);
+    drop(second);
+    return result;
+}
+
+verb runner_error_cleanup_present(
+    dat brain: Path,
+    dat input: Path,
+    dat first: Path,
+    dat second: Path,
+    erg result: Int
+) -> Int {
+    runner_error_cleanup(
+        brain: dat brain,
+        input: dat input,
+        first: dat first,
+        second: dat second
+    );
+    return result;
+}
+
+verb runner_error_prepare_brain(
+    ins brain_state: LogicalTeachingBrain,
+    dat brain: Path,
+    dat input: Path,
+    dat first: Path,
+    dat second: Path,
+    abs create_input: Bool,
+    abs write_first: Bool,
+    abs write_second: Bool,
+    abs first_valid: Bool,
+    abs second_valid: Bool
+) -> Result[RunnerConfig, Int] {
+    runner_error_remove_brain_files(brain: abs brain);
+    remove_dir(path: abs brain);
+    remove_dir(path: abs input);
+    if create_input {
+        erg created = create_dir(path: abs input);
+        erg create_failed: Bool = false;
+        case dat created {
+            Result.Err(_) => {
+                create_failed = true;
+            },
+            Result.Ok(_) => {},
+        };
+        if create_failed {
+            return Result[RunnerConfig, Int].Err(1);
+        }
+    }
+    erg first_written: Bool = true;
+    if write_first {
+        first_written = runner_error_write(path: abs first, valid: abs first_valid);
+    }
+    if write_first && !first_written {
+        return Result[RunnerConfig, Int].Err(2);
+    }
+    erg second_written: Bool = true;
+    if write_second {
+        second_written = runner_error_write(path: abs second, valid: abs second_valid);
+    }
+    if write_second && !second_written {
+        return Result[RunnerConfig, Int].Err(3);
+    }
+    erg should_probe: Bool = write_first || write_second;
+    erg probe_succeeded: Bool = runner_error_probe_directory(input: abs input, enabled: abs should_probe);
+    if !probe_succeeded {
+        return Result[RunnerConfig, Int].Err(8);
+    }
+    erg initialized = logical_teaching_init(brain: ins brain_state);
+    erg init_failed: Bool = false;
+    case dat initialized {
+        Result.Err(_) => {
+            init_failed = true;
+        },
+        Result.Ok(_) => {},
+    };
+    if init_failed {
+        return Result[RunnerConfig, Int].Err(4);
+    }
+    erg input_option = Option[Path].Some(dat input);
+    erg load_existing: Bool = false;
+    if !write_first {
+        if !write_second {
+            load_existing = true;
+        }
+    }
+    return Result[RunnerConfig, Int].Ok(RunnerConfig {load: load_existing, file: false, directory: true, save: true, brain_dir: brain, input_path: input_option});
+}
+
+verb runner_error_probe_directory(abs input: Path, abs enabled: Bool) -> Bool {
+    if !enabled {
+        return true;
+    }
+    erg index_probe = dataset_index_generate(directory_path: abs input);
+    return case dat index_probe {
+        Result.Err(_) => false,
+        Result.Ok(bytes) => {
+            drop(bytes);
+            true;
+        },
+    };
+}
+
+verb runner_error_case(
+    erg suite: u8,
+    abs create_input: Bool,
+    abs write_first: Bool,
+    abs write_second: Bool,
+    abs first_valid: Bool,
+    abs second_valid: Bool,
+    abs verify_generation: Bool,
+    erg expected_generation: u64,
+    abs block_publication: Bool,
+    erg expected: Int
+) -> Int {
+    erg brain_kind: u8 = 0u8;
+    erg input_kind: u8 = 1u8;
+    erg first_kind: u8 = 2u8;
+    erg second_kind: u8 = 3u8;
+    erg brain = runner_error_path_value(suite: erg suite, kind: erg brain_kind);
+    erg input = runner_error_path_value(suite: erg suite, kind: erg input_kind);
+    erg setup_first = runner_error_path_value(suite: erg suite, kind: erg first_kind);
+    erg setup_second = runner_error_path_value(suite: erg suite, kind: erg second_kind);
+    erg brain_state: LogicalTeachingBrain = logical_teaching_empty();
+    erg prepared = runner_error_prepare_brain(
+        brain_state: ins brain_state,
+        brain: dat brain,
+        input: dat input,
+        first: dat setup_first,
+        second: dat setup_second,
+        create_input: abs create_input,
+        write_first: abs write_first,
+        write_second: abs write_second,
+        first_valid: abs first_valid,
+        second_valid: abs second_valid
+    );
+    return case dat prepared {
+        Result.Err(error) => error,
+        Result.Ok(command) => {
+            erg cleanup_first = runner_error_path_value(suite: erg suite, kind: erg first_kind);
+            erg cleanup_second = runner_error_path_value(suite: erg suite, kind: erg second_kind);
+            if block_publication {
+                erg blocked: Bool = false;
+                runner_error_write(path: abs command.brain_dir, valid: abs blocked);
+            }
+            erg status = teach_dataset_directory_state(command: abs command, brain: ins brain_state);
+            erg checkpoint_preserved: Bool = true;
+            if verify_generation {
+                erg loaded = logical_teaching_load_generation(brain: ins brain_state, brain_dir: abs command.brain_dir);
+                checkpoint_preserved = case dat loaded {
+                    Result.Err(_) => false,
+                    Result.Ok(_) => brain_state.logical.generation == expected_generation,
+                };
+            }
+            runner_error_cleanup_command(
+                command: dat command,
+                first: dat cleanup_first,
+                second: dat cleanup_second,
+                result: status
+            );
+            if status != expected {
+                return 5;
+            }
+            if !checkpoint_preserved {
+                return 5;
+            }
+            return 0;
+        },
+    };
+}
+
+verb runner_error_metrics_case(erg suite: u8) -> Int {
+    erg create_input: Bool = true;
+    erg write_first: Bool = true;
+    erg write_second: Bool = true;
+    erg valid: Bool = true;
+    erg brain_kind: u8 = 0u8;
+    erg input_kind: u8 = 1u8;
+    erg first_kind: u8 = 2u8;
+    erg second_kind: u8 = 3u8;
+    erg brain = runner_error_path_value(suite: erg suite, kind: erg brain_kind);
+    erg input = runner_error_path_value(suite: erg suite, kind: erg input_kind);
+    erg setup_first = runner_error_path_value(suite: erg suite, kind: erg first_kind);
+    erg setup_second = runner_error_path_value(suite: erg suite, kind: erg second_kind);
+    erg brain_state: LogicalTeachingBrain = logical_teaching_empty();
+    erg prepared = runner_error_prepare_brain(
+        brain_state: ins brain_state,
+        brain: dat brain,
+        input: dat input,
+        first: dat setup_first,
+        second: dat setup_second,
+        create_input: abs create_input,
+        write_first: abs write_first,
+        write_second: abs write_second,
+        first_valid: abs valid,
+        second_valid: abs valid
+    );
+    return case dat prepared {
+        Result.Err(error) => error,
+        Result.Ok(command) => {
+            erg cleanup_first = runner_error_path_value(suite: erg suite, kind: erg first_kind);
+            erg cleanup_second = runner_error_path_value(suite: erg suite, kind: erg second_kind);
+            erg prepared_directory = create_dir(path: abs command.brain_dir);
+            erg directory_failed: Bool = case dat prepared_directory {
+                Result.Err(_) => true,
+                Result.Ok(_) => false,
+            };
+            if directory_failed {
+                erg setup_failure: Int = 7;
+                runner_error_cleanup_command(
+                    command: dat command,
+                    first: dat cleanup_first,
+                    second: dat cleanup_second,
+                    result: erg setup_failure
+                );
+                return 7;
+            }
+            erg result = teach_dataset_directory_result(command: abs command, brain: ins brain_state);
+            erg status: Int = case dat result {
+                Result.Err(error) => case dat error {
+                    DatasetTeachingError.MissingInput => 10,
+                    DatasetTeachingError.EmptyDirectory => 11,
+                    DatasetTeachingError.UnreadableDirectory => 12,
+                    DatasetTeachingError.InvalidIndex => 13,
+                    DatasetTeachingError.MalformedTwf => 14,
+                    DatasetTeachingError.UnreadableTwf => 15,
+                    DatasetTeachingError.CheckpointLoadFailed => 16,
+                    DatasetTeachingError.PublicationFailed => 17,
+                    DatasetTeachingError.FlushRequired => 19,
+                    DatasetTeachingError.TeachingRejected => 18,
+                },
+                Result.Ok(metrics) => runner_error_metrics_status(metrics: abs metrics),
+            };
+            runner_error_cleanup_command(
+                command: dat command,
+                first: dat cleanup_first,
+                second: dat cleanup_second,
+                result: erg status
+            );
+            status;
+        },
+    };
+}
+
+verb runner_error_metrics_status(abs metrics: DatasetTeachingMetrics) -> Int {
+    if metrics.file_count != 2u32 {
+        return 20;
+    }
+    if metrics.record_count != 4u32 {
+        return 21;
+    }
+    if metrics.accepted_count != 4u32 {
+        return 22;
+    }
+    if metrics.final_generation != 2u64 {
+        return 23;
+    }
+    return 0;
+}
+
+meta test
+verb test_directory_rejects_empty_and_missing_inputs() -> Int {
+    erg suite: u8 = 10u8;
+    erg create_input: Bool = true;
+    erg write_first: Bool = false;
+    erg write_second: Bool = false;
+    erg valid: Bool = true;
+    erg verify_generation: Bool = false;
+    erg expected_generation: u64 = 0u64;
+    erg block_publication: Bool = false;
+    erg expected: Int = RUNNER_EXIT_TEACHING_REJECTED;
+    return runner_error_case(
+        suite: erg suite,
+        create_input: abs create_input,
+        write_first: abs write_first,
+        write_second: abs write_second,
+        first_valid: abs valid,
+        second_valid: abs valid,
+        verify_generation: abs verify_generation,
+        expected_generation: erg expected_generation,
+        block_publication: abs block_publication,
+        expected: erg expected
+    );
+}
+
+meta test
+verb test_directory_rejects_missing_input() -> Int {
+    erg suite: u8 = 1u8;
+    erg create_input: Bool = false;
+    erg write_first: Bool = false;
+    erg write_second: Bool = false;
+    erg valid: Bool = true;
+    erg verify_generation: Bool = false;
+    erg expected_generation: u64 = 0u64;
+    erg block_publication: Bool = false;
+    erg expected: Int = RUNNER_EXIT_TEACHING_REJECTED;
+    return runner_error_case(
+        suite: erg suite,
+        create_input: abs create_input,
+        write_first: abs write_first,
+        write_second: abs write_second,
+        first_valid: abs valid,
+        second_valid: abs valid,
+        verify_generation: abs verify_generation,
+        expected_generation: erg expected_generation,
+        block_publication: abs block_publication,
+        expected: erg expected
+    );
+}
+
+meta test
+verb test_directory_stops_on_malformed_twf() -> Int {
+    erg suite: u8 = 2u8;
+    erg create_input: Bool = true;
+    erg write_first: Bool = true;
+    erg write_second: Bool = true;
+    erg first_valid: Bool = true;
+    erg second_valid: Bool = false;
+    erg verify_generation: Bool = true;
+    erg expected_generation: u64 = 1u64;
+    erg block_publication: Bool = false;
+    erg expected: Int = RUNNER_EXIT_TEACHING_REJECTED;
+    return runner_error_case(
+        suite: erg suite,
+        create_input: abs create_input,
+        write_first: abs write_first,
+        write_second: abs write_second,
+        first_valid: abs first_valid,
+        second_valid: abs second_valid,
+        verify_generation: abs verify_generation,
+        expected_generation: erg expected_generation,
+        block_publication: abs block_publication,
+        expected: erg expected
+    );
+}
+
+meta test
+verb test_directory_stops_on_publication_failure() -> Int {
+    erg suite: u8 = 4u8;
+    erg create_input: Bool = true;
+    erg write_first: Bool = true;
+    erg write_second: Bool = false;
+    erg valid: Bool = true;
+    erg verify_generation: Bool = false;
+    erg expected_generation: u64 = 0u64;
+    erg block_publication: Bool = true;
+    erg expected: Int = RUNNER_EXIT_PERSISTENCE_FAILED;
+    return runner_error_case(
+        suite: erg suite,
+        create_input: abs create_input,
+        write_first: abs write_first,
+        write_second: abs write_second,
+        first_valid: abs valid,
+        second_valid: abs valid,
+        verify_generation: abs verify_generation,
+        expected_generation: erg expected_generation,
+        block_publication: abs block_publication,
+        expected: erg expected
+    );
+}
+
+meta test
+verb test_directory_reports_aggregate_metrics() -> Int {
+    erg suite: u8 = 3u8;
+    return runner_error_metrics_case(suite: erg suite);
+}

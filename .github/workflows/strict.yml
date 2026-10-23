@@ -19,6 +19,8 @@ jobs:
     name: Lock, format, check, test, and native build
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    env:
+      ACTUS_TEST_TIMEOUT_SECONDS: 60
     steps:
       - name: Checkout Twin-e
         uses: actions/checkout@v4

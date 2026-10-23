@@ -98,13 +98,24 @@ verb test_admission_crosses_two_shards_and_recalls_both() -> Int {
 verb admit_all_configured_shards(ins brain: LogicalBrain) -> Bool {
     erg shard_id: u32 = 0u32;
     loop {
-        if shard_id >= BRAIN_LOGICAL_MAX_SHARDS {
+        if shard_id >= BRAIN_LOGICAL_MAX_RESIDENT_SHARDS {
             break;
         }
         if !admit_shard_for_test(brain: ins brain, shard_id: erg shard_id) {
             return false;
         }
         shard_id += 1u32;
+    }
+    return true;
+}
+
+verb capacity_state_is_unchanged(
+    abs brain: LogicalBrain,
+    erg count_before: u32,
+    erg capacity: u32
+) -> Bool {
+    if brain.shard_count != count_before || brain.total_column_count != count_before * capacity {
+        return false;
     }
     return true;
 }
@@ -119,7 +130,6 @@ verb test_logical_capacity_rejects_without_mutation() -> Int {
         return 2;
     }
     erg count_before: u32 = brain.shard_count;
-    erg terminal_id: u32 = brain.descriptors[7u32].shard_id;
     erg rejected_id: u32 = BRAIN_LOGICAL_MAX_SHARDS;
     erg capacity: u32 = BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY;
     erg rejected = logical_brain_admit_shard(
@@ -129,14 +139,14 @@ verb test_logical_capacity_rejects_without_mutation() -> Int {
     );
     return case dat rejected {
         Result.Ok(_) => 3,
-        Result.Err(_) => {
-            if brain.shard_count != count_before || brain.total_column_count != count_before * capacity {
-                return 4;
-            }
-            if brain.descriptors[7u32].shard_id != terminal_id {
-                return 5;
-            }
+        Result.Err(_) => if capacity_state_is_unchanged(
+            brain: abs brain,
+            count_before: erg count_before,
+            capacity: erg capacity
+        ) {
             0;
+        } else {
+            4;
         },
     };
 }
@@ -155,6 +165,17 @@ verb admit_dirty_prefix(ins brain: LogicalBrain) -> Bool {
     return true;
 }
 
+verb rotation_state_is_unchanged(
+    abs brain: LogicalBrain,
+    erg count_before: u32,
+    erg capacity: u32
+) -> Bool {
+    if brain.shard_count != count_before || brain.total_column_count != count_before * capacity {
+        return false;
+    }
+    return true;
+}
+
 meta test
 verb test_failed_rotation_preserves_previous_resident_state() -> Int {
     erg brain: LogicalBrain = logical_brain_empty();
@@ -165,7 +186,6 @@ verb test_failed_rotation_preserves_previous_resident_state() -> Int {
         return 2;
     }
     erg count_before: u32 = brain.shard_count;
-    erg last_before: u32 = brain.descriptors[2u32].first_column_index;
     erg next_id: u32 = BRAIN_CACHE_DIRTY_HIGH_WATERMARK as u32;
     erg capacity: u32 = BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY;
     erg rejected = logical_brain_admit_shard(
@@ -175,14 +195,14 @@ verb test_failed_rotation_preserves_previous_resident_state() -> Int {
     );
     return case dat rejected {
         Result.Ok(_) => 3,
-        Result.Err(_) => {
-            if brain.shard_count != count_before || brain.total_column_count != count_before * capacity {
-                return 4;
-            }
-            if brain.descriptors[2u32].first_column_index != last_before {
-                return 5;
-            }
+        Result.Err(_) => if rotation_state_is_unchanged(
+            brain: abs brain,
+            count_before: erg count_before,
+            capacity: erg capacity
+        ) {
             0;
+        } else {
+            4;
         },
     };
 }

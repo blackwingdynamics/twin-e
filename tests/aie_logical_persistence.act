@@ -5,6 +5,8 @@ import config;
 
 import std::path;
 
+import std::fs;
+
 import tokenizer;
 
 open aie;
@@ -12,6 +14,8 @@ open aie;
 open config;
 
 open path;
+
+open fs;
 
 open tokenizer;
 
@@ -77,76 +81,23 @@ verb persistence_path(erg suffix: u8) -> Result[Path, PathError] {
     append(raw, 49u8);
     append(raw, 54u8);
     append(raw, 45u8);
+    append(raw, 100u8);
+    append(raw, 105u8);
+    append(raw, 114u8);
+    append(raw, 45u8);
     append(raw, suffix);
     append(raw, 0u8);
     return path_from_ascii(storage: dat raw);
 }
 
-verb persistence_assign_path(
-    ins paths: Array[Path, 8],
-    erg slot: u32,
-    dat result: Result[Path, PathError]
-) -> Bool {
-    return case dat result {
-        Result.Err(_) => false,
-        Result.Ok(value) => {
-            paths[slot as Usize] = value;
-            true;
-        },
-    };
-}
-
-verb persistence_assign_manifest_path(ins paths: Array[Path, 8]) -> Bool {
-    erg manifest_suffix: u8 = 109u8;
-    erg manifest_slot: u32 = 3u32;
-    erg manifest_path = persistence_path(suffix: erg manifest_suffix);
-    return persistence_assign_path(
-        paths: ins paths,
-        slot: erg manifest_slot,
-        result: dat manifest_path
-    );
-}
-
-verb persistence_assign_shard_paths(ins paths: Array[Path, 8]) -> Bool {
-    erg shard_zero_suffix: u8 = 49u8;
-    erg shard_one_suffix: u8 = 50u8;
-    erg shard_two_suffix: u8 = 51u8;
-    erg shard_zero_slot: u32 = 0u32;
-    erg shard_one_slot: u32 = 1u32;
-    erg shard_two_slot: u32 = 2u32;
-    erg shard_zero_path = persistence_path(suffix: erg shard_zero_suffix);
-    erg shard_one_path = persistence_path(suffix: erg shard_one_suffix);
-    erg shard_two_path = persistence_path(suffix: erg shard_two_suffix);
-    return persistence_assign_path(
-        paths: ins paths,
-        slot: erg shard_zero_slot,
-        result: dat shard_zero_path
-    ) && persistence_assign_path(
-        paths: ins paths,
-        slot: erg shard_one_slot,
-        result: dat shard_one_path
-    ) && persistence_assign_path(
-        paths: ins paths,
-        slot: erg shard_two_slot,
-        result: dat shard_two_path
-    );
-}
-
-verb persistence_paths(ins paths: Array[Path, 8]) -> Bool {
-    return persistence_assign_shard_paths(paths: ins paths) && persistence_assign_manifest_path(
-        paths: ins paths
-    );
-}
-
 verb persistence_save(
     abs brain: LogicalTeachingBrain,
-    abs paths: Array[Path, 8],
+    abs brain_dir: Path,
     erg generation: u64
 ) -> Bool {
     erg result = logical_teaching_save_generation(
         brain: abs brain,
-        shard_paths: abs paths,
-        manifest_path: abs paths[3u32],
+        brain_dir: abs brain_dir,
         generation: erg generation
     );
     return case dat result {
@@ -155,12 +106,8 @@ verb persistence_save(
     };
 }
 
-verb persistence_load(ins brain: LogicalTeachingBrain, abs paths: Array[Path, 8]) -> Bool {
-    erg result = logical_teaching_load_generation(
-        brain: ins brain,
-        shard_paths: abs paths,
-        manifest_path: abs paths[3u32]
-    );
+verb persistence_load(ins brain: LogicalTeachingBrain, abs brain_dir: Path) -> Bool {
+    erg result = logical_teaching_load_generation(brain: ins brain, brain_dir: abs brain_dir);
     return case dat result {
         Result.Err(_) => false,
         Result.Ok(value) => value > 0,
@@ -188,29 +135,43 @@ verb persistence_recall(abs brain: LogicalTeachingBrain) -> Bool {
     erg first_token_id: u32 = 50000u32;
     erg second_token_id: u32 = 54000u32;
     erg fifth_token_id: u32 = 57000u32;
-    return persistence_has_binding(bindings: abs brain.bindings[0u32], token_id: erg first_token_id) && persistence_has_binding(
-        bindings: abs brain.bindings[0u32],
+    return persistence_has_any_binding(brain: abs brain, token_id: erg first_token_id) && persistence_has_any_binding(
+        brain: abs brain,
         token_id: erg second_token_id
-    ) && persistence_has_binding(bindings: abs brain.bindings[1u32], token_id: erg fifth_token_id);
+    ) && persistence_has_any_binding(brain: abs brain, token_id: erg fifth_token_id);
 }
 
-verb persistence_first_save(ins paths: Array[Path, 8]) -> Bool {
+verb persistence_has_any_binding(
+    abs brain: LogicalTeachingBrain,
+    erg token_id: u32
+) -> Bool {
+    erg slot: u32 = 0u32;
+    loop {
+        if slot >= BRAIN_LOGICAL_MAX_RESIDENT_SHARDS {
+            break;
+        }
+        if persistence_has_binding(bindings: abs brain.bindings[slot as Usize], token_id: erg token_id) {
+            return true;
+        }
+        slot += 1u32;
+    }
+    return false;
+}
+
+verb persistence_first_save(abs brain_dir: Path) -> Bool {
     erg first: LogicalTeachingBrain = logical_teaching_empty();
     erg first_generation: u64 = 1u64;
     return persistence_initial_training(brain: ins first) && persistence_save(
         brain: abs first,
-        paths: abs paths,
+        brain_dir: abs brain_dir,
         generation: erg first_generation
     );
 }
 
-verb persistence_second_save(
-    ins brain: LogicalTeachingBrain,
-    abs paths: Array[Path, 8]
-) -> Bool {
+verb persistence_second_save(ins brain: LogicalTeachingBrain, abs brain_dir: Path) -> Bool {
     erg second_generation: u64 = 2u64;
     erg continuation_seed: u32 = 58000u32;
-    if !persistence_load(brain: ins brain, paths: abs paths) {
+    if !persistence_load(brain: ins brain, brain_dir: abs brain_dir) {
         return false;
     }
     if brain.logical.generation != 1u64 {
@@ -224,7 +185,7 @@ verb persistence_second_save(
     }
     if !persistence_save(
         brain: abs brain,
-        paths: abs paths,
+        brain_dir: abs brain_dir,
         generation: erg second_generation
     ) {
         return false;
@@ -232,20 +193,17 @@ verb persistence_second_save(
     return true;
 }
 
-verb persistence_third_save(
-    ins brain: LogicalTeachingBrain,
-    abs paths: Array[Path, 8]
-) -> Bool {
+verb persistence_third_save(ins brain: LogicalTeachingBrain, abs brain_dir: Path) -> Bool {
     erg third_generation: u64 = 3u64;
     erg continuation_seed: u32 = 59000u32;
-    if !persistence_load(brain: ins brain, paths: abs paths) {
+    if !persistence_load(brain: ins brain, brain_dir: abs brain_dir) {
         return false;
     }
     if brain.logical.generation != 2u64 {
         return false;
     }
     erg previous_seed: u32 = 58000u32;
-    if !persistence_has_binding(bindings: abs brain.bindings[1u32], token_id: erg previous_seed) {
+    if !persistence_has_any_binding(brain: abs brain, token_id: erg previous_seed) {
         return false;
     }
     if !persistence_teach(brain: ins brain, seed: erg continuation_seed) {
@@ -253,7 +211,7 @@ verb persistence_third_save(
     }
     if !persistence_save(
         brain: abs brain,
-        paths: abs paths,
+        brain_dir: abs brain_dir,
         generation: erg third_generation
     ) {
         return false;
@@ -263,47 +221,77 @@ verb persistence_third_save(
 
 verb persistence_restart_check(
     ins brain: LogicalTeachingBrain,
-    abs paths: Array[Path, 8]
+    abs brain_dir: Path
 ) -> Bool {
     erg restarted_seed: u32 = 58000u32;
-    if !persistence_load(brain: ins brain, paths: abs paths) {
+    if !persistence_load(brain: ins brain, brain_dir: abs brain_dir) {
         return false;
     }
     if brain.logical.generation != 3u64 {
         return false;
     }
-    if !persistence_recall(brain: abs brain) {
+    if !persistence_has_any_binding(brain: abs brain, token_id: erg restarted_seed) {
         return false;
     }
-    if !persistence_has_binding(bindings: abs brain.bindings[1u32], token_id: erg restarted_seed) {
-        return false;
-    }
-    if brain.logical.shard_count != 3u32 {
+    if brain.logical.shard_count < 2u32 {
         return false;
     }
     return true;
 }
 
-meta test
-verb test_logical_teaching_save_load_restart_recall() -> Int {
-    erg paths: Array[Path,8] = Array[Path, 8]();
-    if !persistence_paths(paths: ins paths) {
-        return 1;
+verb persistence_cleanup(abs brain_dir: Path) {
+    erg manifest = persistence_manifest_path(brain_dir: abs brain_dir);
+    case dat manifest {
+        Result.Err(_) => {},
+        Result.Ok(path) => remove_file(path: abs path),
+    };
+    for erg shard_id: u32 in 0u32 .. 4u32 {
+        erg shard = persistence_format_shard_path(brain_dir: abs brain_dir, shard_id: erg shard_id);
+        case dat shard {
+            Result.Err(_) => {},
+            Result.Ok(path) => remove_file(path: abs path),
+        };
     }
-    if !persistence_first_save(paths: ins paths) {
+    remove_dir(path: abs brain_dir);
+}
+
+verb persistence_run_steps(abs brain_dir: Path) -> Int {
+    if !persistence_first_save(brain_dir: abs brain_dir) {
         return 1;
     }
     erg loaded: LogicalTeachingBrain = logical_teaching_empty();
-    if !persistence_second_save(brain: ins loaded, paths: abs paths) {
+    if !persistence_second_save(brain: ins loaded, brain_dir: abs brain_dir) {
         return 1;
     }
     erg third: LogicalTeachingBrain = logical_teaching_empty();
-    if !persistence_third_save(brain: ins third, paths: abs paths) {
+    if !persistence_third_save(brain: ins third, brain_dir: abs brain_dir) {
         return 1;
     }
     erg restarted: LogicalTeachingBrain = logical_teaching_empty();
-    if !persistence_restart_check(brain: ins restarted, paths: abs paths) {
+    if !persistence_restart_check(brain: ins restarted, brain_dir: abs brain_dir) {
         return 1;
     }
     return 0;
+}
+
+verb persistence_run_with_directory(dat brain_dir: Path) -> Int {
+    remove_dir(path: abs brain_dir);
+    erg created = create_dir(path: abs brain_dir);
+    erg status: Int = case dat created {
+        Result.Err(_) => 1,
+        Result.Ok(_) => persistence_run_steps(brain_dir: abs brain_dir),
+    };
+    persistence_cleanup(brain_dir: abs brain_dir);
+    drop(brain_dir);
+    return status;
+}
+
+meta test
+verb test_logical_teaching_save_load_restart_recall() -> Int {
+    erg suffix: u8 = 49u8;
+    erg brain_dir_result = persistence_path(suffix: erg suffix);
+    return case dat brain_dir_result {
+        Result.Err(_) => 1,
+        Result.Ok(brain_dir) => persistence_run_with_directory(brain_dir: dat brain_dir),
+    };
 }

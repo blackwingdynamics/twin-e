@@ -17,6 +17,8 @@ open flush;
 
 open codec;
 
+open path;
+
 open save;
 
 open load;

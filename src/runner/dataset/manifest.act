@@ -1,0 +1,130 @@
+"""Validate and consume an ordered, bounded training dataset index."""
+import config;
+
+import std::fs;
+
+import std::path;
+
+open config;
+
+open validation;
+
+open fs;
+
+open path;
+
+"""Owned validated index bytes and a cursor for one sequential batch."""
+open struct DatasetIndex {
+    """The complete bounded serialized index owned by this cursor."""
+    erg bytes: Buffer,
+    """Number of path entries accepted by validation."""
+    erg entry_count: u32,
+    """Offset of the next length-delimited entry."""
+    erg cursor: u32,
+    """Number of entries already returned to the runner."""
+    erg consumed: u32,
+}
+
+verb dataset_index_u16(abs bytes: Buffer, erg offset: u32) -> u16 {
+    return (bytes[offset] as u16) + ((bytes[offset + 1u32] as u16) * 256u16);
+}
+
+verb dataset_index_header_error(abs bytes: Buffer, abs total: u32) -> Option[DatasetIndexError] {
+    erg magic_offset: u32 = 0u32;
+    erg version_offset: u32 = 4u32;
+    erg count_offset: u32 = 8u32;
+    erg total_offset: u32 = 12u32;
+    if dataset_index_validation_u32(bytes: abs bytes, offset: erg magic_offset) != DATASET_INDEX_MAGIC {
+        return Option[DatasetIndexError].Some(DatasetIndexError.InvalidHeader);
+    }
+    if dataset_index_u16(bytes: abs bytes, offset: erg version_offset) != DATASET_INDEX_VERSION {
+        return Option[DatasetIndexError].Some(DatasetIndexError.UnsupportedVersion);
+    }
+    erg count: u32 = dataset_index_validation_u32(bytes: abs bytes, offset: erg count_offset);
+    if count == 0u32 {
+        return Option[DatasetIndexError].Some(DatasetIndexError.EmptyIndex);
+    }
+    if count > DATASET_INDEX_MAX_ENTRIES {
+        return Option[DatasetIndexError].Some(DatasetIndexError.TooManyEntries);
+    }
+    if dataset_index_validation_u32(bytes: abs bytes, offset: erg total_offset) != total {
+        return Option[DatasetIndexError].Some(DatasetIndexError.InvalidHeader);
+    }
+    return Option[DatasetIndexError].None;
+}
+
+verb dataset_index_open_total(dat bytes: Buffer, abs total: u32) -> Result[DatasetIndex, DatasetIndexError] {
+    erg header = dataset_index_header_error(bytes: abs bytes, total: abs total);
+    case dat header {
+        Option.Some(error) => {
+            drop(bytes);
+            return Result[DatasetIndex, DatasetIndexError].Err(dat error);
+        },
+        Option.None => {
+            erg count_offset: u32 = 8u32;
+            erg count: u32 = dataset_index_validation_u32(bytes: abs bytes, offset: erg count_offset);
+            erg validated = dataset_index_validate_entries(
+                bytes: abs bytes,
+                count: abs count,
+                total: abs total
+            );
+            case dat validated {
+                Result.Err(error) => {
+                    drop(bytes);
+                    return Result[DatasetIndex, DatasetIndexError].Err(dat error);
+                },
+                Result.Ok(_) => {},
+            };
+            return Result[DatasetIndex, DatasetIndexError].Ok(DatasetIndex {bytes: bytes, entry_count: count, cursor: DATASET_INDEX_HEADER_BYTES, consumed: 0u32});
+        },
+    };
+    return Result[DatasetIndex, DatasetIndexError].Err(DatasetIndexError.InvalidHeader);
+}
+
+"""Validate one ordered dataset index before teaching starts.
+
+The format is `TDI1`, version, entry count, and total byte length followed by
+little-endian length-delimited relative paths. Entries must be strictly sorted
+and the complete buffer must be consumed by validation.
+"""
+open verb dataset_index_open(dat bytes: Buffer) -> Result[DatasetIndex, DatasetIndexError] {
+    erg size_result = buffer_size(buffer: abs bytes);
+    erg total: u32 = case dat size_result {
+        Result.Err(_) => {
+            drop(bytes);
+            return Result[DatasetIndex, DatasetIndexError].Err(DatasetIndexError.IndexTooLarge);
+        },
+        Result.Ok(value) => value as u32,
+    };
+    if total < DATASET_INDEX_HEADER_BYTES {
+        drop(bytes);
+        return Result[DatasetIndex, DatasetIndexError].Err(DatasetIndexError.InvalidHeader);
+    }
+    if total > DATASET_INDEX_MAX_BYTES {
+        drop(bytes);
+        return Result[DatasetIndex, DatasetIndexError].Err(DatasetIndexError.IndexTooLarge);
+    }
+    return dataset_index_open_total(bytes: dat bytes, total: abs total);
+}
+
+"""Return the next validated relative path, or `None` at the index end."""
+open verb dataset_index_next(ins index: DatasetIndex) -> Result[Option[Path], DatasetIndexError] {
+    if index.consumed >= index.entry_count {
+        return Result[Option[Path], DatasetIndexError].Ok(Option[Path].None);
+    }
+    erg cursor_offset: u32 = index.cursor + 0u32;
+    erg length = dataset_index_validation_u32(bytes: abs index.bytes, offset: erg cursor_offset);
+    erg start: u32 = index.cursor + 4u32;
+    erg storage: Buffer = Buffer[0];
+    for erg offset: u32 in 0u32 .. length {
+        append(storage, index.bytes[start + offset]);
+    }
+    append(storage, 0u8);
+    index.cursor = start + length;
+    index.consumed += 1u32;
+    erg path = path_from_ascii(storage: dat storage);
+    return case dat path {
+        Result.Err(_) => Result[Option[Path], DatasetIndexError].Err(DatasetIndexError.InvalidEntry),
+        Result.Ok(value) => Result[Option[Path], DatasetIndexError].Ok(Option[Path].Some(dat value)),
+    };
+}
