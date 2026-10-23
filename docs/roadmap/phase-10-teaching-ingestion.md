@@ -428,8 +428,9 @@ profile is checked before resident state loading.
       batch completion; do not silently drop data.
 - [x] Bound per-call work and metrics memory through the canonical,
       compile-time `TEACHING_MAX_BATCH_ITEMS` profile.
-- [ ] Keep transport latency, adapter latency, admission latency, teaching
-      latency, and persistence latency separate in benchmark output.
+- [Completed in Phase 11] Keep transport latency, adapter latency, admission
+      latency, teaching latency, and persistence latency separate in benchmark
+      output.
 - [ ] Prove that no transport queue can grow without a fixed bound.
 
 ### Required evidence
