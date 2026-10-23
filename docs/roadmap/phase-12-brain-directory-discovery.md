@@ -127,7 +127,7 @@ count remains governed by the brain manifest, not by resident cache capacity.
       replaying or skipping the current TWF record.
 - [x] Preserve resident and published state unchanged when flush or admission
       fails, and return the typed failure instead of a generic success.
-- [ ] Keep the resident cache bounded while allowing the manifest to reference
+- [x] Keep the resident cache bounded while allowing the manifest to reference
       every successfully published logical shard.
 - [ ] Add a multi-file directory-training test that crosses the four-slot
       resident limit and completes in deterministic file order.
@@ -172,3 +172,11 @@ proves the dirty resident count is unchanged, while
 `tests/aie_logical_teaching.act::test_runner_failed_flush_preserves_dirty_state`
 proves a pending admission is not treated as successful after a failed
 flush. The strict suite remains at 187 passed and 0 failed.
+
+Gate 12.3 fifth-check evidence: `tests/aie_logical_flush.act::test_logical_teaching_keeps_cache_bounded_for_published_shards`
+teaches enough bounded sequences to publish five logical shards, performs
+explicit flush checkpoints while crossing the four-slot resident cache, and
+verifies that the live cache never exceeds four entries. A fresh brain then
+reloads the published manifest and confirms five logical shards with four
+resident entries. With the rebuilt Actus compiler, the strict suite reports
+188 passed and 0 failed.
