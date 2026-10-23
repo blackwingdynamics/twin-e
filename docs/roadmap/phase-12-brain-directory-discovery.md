@@ -38,9 +38,10 @@ from that directory without introducing a per-shard configuration list.
   manifest loading, and multi-shard fixture sources.
 - `tests/aie_shard_filename.act` covers indexes `0`, `9`, `10`, `99`, `100`,
   and `999999`.
-- `actus test --strict`: 177 passed, 0 failed, including ordered dataset-index
+- `actus test --strict`: 178 passed, 0 failed, including ordered dataset-index
   acceptance, unsorted-entry rejection, public writer round-trip tests, and
-  resumable batch continuation from the last published relative name.
+  resumable batch continuation from the last published relative name plus
+  indexed teaching checkpoint/reload evidence.
 - `actus check --strict`: passed.
 - `actus build --strict --emit exe -o /tmp/twin-e-engine.aie`: passed;
   generated native IR contains no floating-point instructions.
@@ -73,7 +74,7 @@ bounded, resumable batches without reintroducing a per-file configuration list.
 - [x] Initialize the brain for the first file, then load the published
       generation before each subsequent indexed file and preserve the same
       `brain_dir`.
-- [ ] Publish a mandatory checkpoint after each successful indexed file so an
+- [x] Publish a mandatory checkpoint after each successful indexed file so an
       interrupted batch does not discard already published generations.
 - [ ] Reject an empty directory, unreadable entries, malformed TWF input, and
       a failed intermediate publication without silently continuing.
@@ -91,9 +92,8 @@ the installed Actus compiler. Twin-e consumes it through the typed
 `read_dir`, `next_dir_entry`, `metadata`, and `close_dir` boundary; it does not
 use hardcoded filenames, shell commands, or an unbounded collection.
 
-The remaining Gate 12.2 checkboxes are still open until per-file
-checkpoint/reload, batch metrics, and the public manifest/runner tests are
-implemented and evidenced. The current tests validate directory scanning,
-published-index reading, deterministic ordering, per-batch continuation, and
-rejection of unsorted entries; they do not yet prove checkpointed batch
-teaching or batch metrics.
+The remaining Gate 12.2 checkboxes are still open until batch metrics and the
+full malformed/partial-publication error matrix are implemented and evidenced.
+The current tests validate directory scanning, published-index reading,
+deterministic ordering, per-batch continuation, checkpoint/reload between two
+files, and rejection of unsorted entries.
