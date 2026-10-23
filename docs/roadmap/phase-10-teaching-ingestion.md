@@ -403,7 +403,7 @@ profile is checked before resident state loading.
 
 ## Gate 10.5 — Add framed `std::wire` transport
 
-- [ ] Define the wire message type for a teaching request and its version.
+- [x] Define the wire message type for a teaching request and its version.
 - [ ] Define frame length, payload length, checksum, and maximum frame size.
 - [ ] Define whether one frame is one request or whether a frame may contain a
       bounded batch.

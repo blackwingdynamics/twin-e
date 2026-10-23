@@ -3,4 +3,6 @@ open file;
 
 open stdin;
 
+open wire;
+
 open logical;

@@ -1,0 +1,46 @@
+"""Application-level message identity carried inside a bounded std::wire frame."""
+import config;
+
+import std::wire;
+
+open wire;
+
+"""Message discriminator for a request that enters the teaching facade."""
+open const TEACHING_WIRE_MESSAGE_ID: u8 = 1u8;
+
+
+"""Application message schema version for teaching requests."""
+open const TEACHING_WIRE_MESSAGE_VERSION: u8 = 1u8;
+
+
+"""Supported application-level teaching messages inside a wire frame."""
+open enum TeachingWireMessageType {
+    TeachingRequest,
+}
+
+"""Bounded metadata for one teaching request carried by std::wire.
+
+The frame version and CRC remain owned by `std::wire`. This type describes
+only the Twin-e application message and does not own or decode the payload.
+"""
+open struct TeachingWireMessage {
+    erg frame_version: u8,
+    erg message_id: u8,
+    erg message_version: u8,
+    erg message_type: TeachingWireMessageType,
+    erg sequence_num: u32,
+    erg payload_length: u32,
+}
+
+"""Construct one versioned teaching-request message metadata value."""
+open verb teaching_wire_request_message(
+    erg sequence_num: u32,
+    erg payload_length: u32
+) -> TeachingWireMessage {
+    return TeachingWireMessage {frame_version: WIRE_VERSION, message_id: TEACHING_WIRE_MESSAGE_ID, message_version: TEACHING_WIRE_MESSAGE_VERSION, message_type: TeachingWireMessageType.TeachingRequest, sequence_num: sequence_num, payload_length: payload_length};
+}
+
+"""Validate message identity and the std::wire payload bound before admission."""
+open verb teaching_wire_message_is_valid(abs message: TeachingWireMessage) -> Bool {
+    return message.frame_version == WIRE_VERSION && message.message_id == TEACHING_WIRE_MESSAGE_ID && message.message_version == TEACHING_WIRE_MESSAGE_VERSION && message.payload_length <= WIRE_MAX_PAYLOAD_BYTES;
+}

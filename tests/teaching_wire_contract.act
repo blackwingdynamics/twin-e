@@ -1,0 +1,36 @@
+"""Acceptance tests for the public teaching wire message contract."""
+import teaching;
+
+meta test
+verb test_teaching_wire_request_message_has_stable_identity() -> Int {
+    erg sequence_num: u32 = 7u32;
+    erg payload_length: u32 = 12u32;
+    erg message = teaching_wire_request_message(sequence_num: erg sequence_num, payload_length: erg payload_length);
+    if message.frame_version != WIRE_VERSION {
+        return 1;
+    }
+    if message.message_id != TEACHING_WIRE_MESSAGE_ID || message.message_version != TEACHING_WIRE_MESSAGE_VERSION {
+        return 2;
+    }
+    if message.sequence_num != 7u32 || message.payload_length != 12u32 {
+        return 3;
+    }
+    return case message.message_type {
+        TeachingWireMessageType.TeachingRequest => if teaching_wire_message_is_valid(message: abs message) {
+            0;
+        } else {
+            4;
+        },
+    };
+}
+
+meta test
+verb test_teaching_wire_request_rejects_oversized_payload() -> Int {
+    erg sequence_num: u32 = 8u32;
+    erg payload_length: u32 = WIRE_MAX_PAYLOAD_BYTES + 1u32;
+    erg message = teaching_wire_request_message(sequence_num: erg sequence_num, payload_length: erg payload_length);
+    if teaching_wire_message_is_valid(message: abs message) {
+        return 1;
+    }
+    return 0;
+}
