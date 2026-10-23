@@ -44,3 +44,30 @@ open verb teaching_wire_request_message(
 open verb teaching_wire_message_is_valid(abs message: TeachingWireMessage) -> Bool {
     return message.frame_version == WIRE_VERSION && message.message_id == TEACHING_WIRE_MESSAGE_ID && message.message_version == TEACHING_WIRE_MESSAGE_VERSION && message.payload_length <= WIRE_MAX_PAYLOAD_BYTES;
 }
+
+"""Calculate the complete frame length for one teaching request.
+
+The result includes the canonical `std::wire` header, the declared payload,
+and its CRC trailer. It does not inspect or allocate a frame buffer.
+"""
+open verb teaching_wire_frame_length(abs message: TeachingWireMessage) -> u32 {
+    return WIRE_HEADER_BYTES + message.payload_length + WIRE_CRC_BYTES;
+}
+
+"""Validate one complete teaching frame boundary before dispatch.
+
+The supplied length must match the declared payload plus the canonical header
+and checksum trailer, and the resulting frame must fit `std::wire`'s bound.
+CRC calculation and validation remain in `std::wire`; this verb only checks
+the application boundary and never mutates IE state.
+"""
+open verb teaching_wire_frame_is_valid(
+    abs message: TeachingWireMessage,
+    erg frame_length: u32
+) -> Bool {
+    if !teaching_wire_message_is_valid(message: abs message) {
+        return false;
+    }
+    erg expected_length: u32 = teaching_wire_frame_length(message: abs message);
+    return frame_length == expected_length && expected_length <= WIRE_MAX_FRAME_BYTES;
+}

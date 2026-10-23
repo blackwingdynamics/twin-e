@@ -404,7 +404,7 @@ profile is checked before resident state loading.
 ## Gate 10.5 — Add framed `std::wire` transport
 
 - [x] Define the wire message type for a teaching request and its version.
-- [ ] Define frame length, payload length, checksum, and maximum frame size.
+- [x] Define frame length, payload length, checksum, and maximum frame size.
 - [ ] Define whether one frame is one request or whether a frame may contain a
       bounded batch.
 - [ ] Reject unsupported versions, bad checksums, truncated frames, and

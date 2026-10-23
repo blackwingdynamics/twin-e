@@ -21,6 +21,9 @@ maximum frame size, and CRC validation. Twin-e owns:
 - `TEACHING_WIRE_MESSAGE_VERSION` for the application payload schema;
 - `TeachingWireMessage` metadata describing the request sequence and bounded
   payload length;
+- the complete frame length is `WIRE_HEADER_BYTES + payload_length +
+  WIRE_CRC_BYTES`, and the exact result must not exceed
+  `WIRE_MAX_FRAME_BYTES`;
 - validation that the frame and application message versions match the
   supported contract and that the payload fits `std::wire`'s maximum.
 
@@ -30,5 +33,7 @@ module, while framing and checksum implementation remain in `std::wire`.
 
 ## Evidence
 
-`tests/teaching_wire_contract.act` verifies stable message identity/version and
-rejects an oversized payload. The strict suite passes with 194 tests.
+`tests/teaching_wire_contract.act` verifies stable message identity/version,
+exact frame sizing, the maximum-frame boundary, and oversized-payload
+rejection. CRC calculation and validation remain covered by `std::wire`'s
+canonical codec rather than being duplicated in Twin-e.

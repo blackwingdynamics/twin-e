@@ -34,3 +34,44 @@ verb test_teaching_wire_request_rejects_oversized_payload() -> Int {
     }
     return 0;
 }
+
+meta test
+verb test_teaching_wire_frame_boundary_includes_header_payload_and_checksum() -> Int {
+    erg sequence_num: u32 = 9u32;
+    erg payload_length: u32 = 64u32;
+    erg message = teaching_wire_request_message(sequence_num: erg sequence_num, payload_length: erg payload_length);
+    erg expected: u32 = WIRE_HEADER_BYTES + 64u32 + WIRE_CRC_BYTES;
+    if teaching_wire_frame_length(message: abs message) != expected {
+        return 1;
+    }
+    if !teaching_wire_frame_is_valid(message: abs message, frame_length: erg expected) {
+        return 2;
+    }
+    erg truncated_length: u32 = expected - 1u32;
+    if teaching_wire_frame_is_valid(message: abs message, frame_length: erg truncated_length) {
+        return 3;
+    }
+    return 0;
+}
+
+meta test
+verb test_teaching_wire_frame_boundary_rejects_maximum_overflow() -> Int {
+    erg sequence_num: u32 = 10u32;
+    erg maximum_payload: u32 = WIRE_MAX_PAYLOAD_BYTES;
+    erg message = teaching_wire_request_message(sequence_num: erg sequence_num, payload_length: erg maximum_payload);
+    erg expected: u32 = teaching_wire_frame_length(message: abs message);
+    if expected != WIRE_MAX_FRAME_BYTES {
+        return 1;
+    }
+    if !teaching_wire_frame_is_valid(message: abs message, frame_length: erg expected) {
+        return 2;
+    }
+    erg oversized_sequence_num: u32 = 11u32;
+    erg oversized_payload_length: u32 = WIRE_MAX_PAYLOAD_BYTES + 1u32;
+    erg oversized = teaching_wire_request_message(sequence_num: erg oversized_sequence_num, payload_length: erg oversized_payload_length);
+    erg oversized_length: u32 = teaching_wire_frame_length(message: abs oversized);
+    if teaching_wire_frame_is_valid(message: abs oversized, frame_length: erg oversized_length) {
+        return 3;
+    }
+    return 0;
+}
