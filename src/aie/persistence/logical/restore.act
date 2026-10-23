@@ -81,7 +81,9 @@ open verb logical_persistence_restore_resident(
     if resident_count > BRAIN_LOGICAL_MAX_RESIDENT_SHARDS {
         resident_count = BRAIN_LOGICAL_MAX_RESIDENT_SHARDS;
     }
-    for erg shard_id: u32 in 0u32 .. resident_count {
+    erg first_resident_shard: u32 = brain.logical.shard_count - resident_count;
+    for erg resident_offset: u32 in 0u32 .. resident_count {
+        erg shard_id: u32 = first_resident_shard + resident_offset;
         erg restored = logical_persistence_restore_resident_index(
             brain: ins brain,
             brain_dir: abs brain_dir,
