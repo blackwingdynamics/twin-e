@@ -60,7 +60,15 @@ verb logical_persistence_write_resident_shard(
     drop(auxiliary);
     return case dat written {
         Result.Err(error) => Err(error),
-        Result.Ok(_) => dynamic_shard_file_checksum(path: abs path),
+        Result.Ok(_) => logical_persistence_checksum_after_write(path: abs path),
+    };
+}
+
+verb logical_persistence_checksum_after_write(abs path: Path) -> Result[u64, IoError] {
+    erg checksum = dynamic_shard_file_checksum(path: abs path);
+    return case dat checksum {
+        Result.Err(error) => Err(error),
+        Result.Ok(value) => Ok(value),
     };
 }
 

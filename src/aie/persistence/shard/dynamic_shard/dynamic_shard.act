@@ -7,6 +7,8 @@ open checksum;
 
 open writer_core;
 
+open publication;
+
 open bindings;
 
 open writer;

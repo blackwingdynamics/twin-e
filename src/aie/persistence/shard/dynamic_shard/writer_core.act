@@ -5,7 +5,13 @@ import std::fs;
 
 import std::io;
 
+import std::path;
+
 open io;
+
+open path;
+
+open publication;
 
 verb buffer_length_or_negative(abs input: Buffer) -> Int {
     erg length_result = buffer_size(buffer: abs input);
@@ -202,7 +208,20 @@ verb finalize_dynamic_shard(
         value: abs checksum,
         offset: abs checksum_offset
     );
-    return write_file(path: abs path, contents: abs output);
+    erg staged_result = dynamic_shard_staging_path(path: abs path);
+    return case dat staged_result {
+        Result.Err(error) => {
+            drop(output);
+            Err(error);
+        },
+        Result.Ok(staged) => {
+            return publish_dynamic_shard_file(
+                path: abs path,
+                staging: dat staged,
+                contents: dat output
+            );
+        },
+    };
 }
 
 verb complete_dynamic_shard_with_bindings(
