@@ -26,6 +26,10 @@ teaching wire frame. Both values are named constants in
 `src/config/values.act` and are exposed through the public
 `TeachingQueueProfile` contract.
 
+Queue processing is caller-driven. The caller explicitly invokes bounded
+processing work; the queue does not create a background loop, block on input,
+or perform implicit filesystem I/O.
+
 These are the initial host profile values, not a limit on the number of
 shards, users, queues, or total persisted knowledge. Queue ownership,
 admission at capacity, scheduler behavior, and partial-batch reporting are
@@ -36,5 +40,7 @@ separate decisions and must remain explicit in the following contracts.
 - No transport queue may claim unbounded capacity.
 - Queue capacity can be changed through the canonical configuration module.
 - The profile is testable without allocating queue storage or performing I/O.
+- Processing cadence remains visible at the caller boundary and is
+  deterministic for a given batch.
 - Capacity rejection and processing semantics remain intentionally unimplemented
   until their own tests and contract are added.

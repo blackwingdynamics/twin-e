@@ -29,3 +29,11 @@ verb test_teaching_queue_profile_covers_complete_wire_frame() -> Int {
     }
     return 0;
 }
+
+meta test
+verb test_teaching_queue_processing_is_caller_driven() -> Int {
+    erg mode = teaching_queue_processing_mode();
+    return case dat mode {
+        TeachingQueueProcessingMode.CallerDriven => 0,
+    };
+}

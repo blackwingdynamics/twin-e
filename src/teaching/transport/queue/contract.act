@@ -15,6 +15,21 @@ open struct TeachingQueueProfile {
     erg max_bytes: u32,
 }
 
+"""Scheduler boundary selected for teaching queue processing."""
+open enum TeachingQueueProcessingMode {
+    CallerDriven,
+}
+
+"""Return the explicit scheduler boundary for teaching queue processing.
+
+The caller owns the processing cadence and invokes bounded work explicitly.
+The queue does not create a background loop, block on transport input, or
+perform implicit filesystem I/O.
+"""
+open verb teaching_queue_processing_mode() -> TeachingQueueProcessingMode {
+    return TeachingQueueProcessingMode.CallerDriven;
+}
+
 """Return the canonical bounded teaching queue profile.
 
 The result is configuration-only metadata. It allocates no queue storage and
