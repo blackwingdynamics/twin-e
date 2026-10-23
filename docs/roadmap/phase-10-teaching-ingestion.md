@@ -376,7 +376,7 @@ only after an explicit save request.
       generation and performs one bounded teaching or recall operation.
 - [x] Reject a binary/manifest/compiler compatibility mismatch before loading
       resident state.
-- [ ] Define the rollback procedure to the previous executable and previous
+- [x] Define the rollback procedure to the previous executable and previous
       complete brain generation.
 - [Completed in Phase 11] Record target, profile, compiler revision, source revision, and all
       input limits in the release evidence.
@@ -387,12 +387,18 @@ reject a mismatched value before logical state admission; the strict regression
 test also recomputes the manifest checksum after tampering to prove the check
 is not only checksum failure handling.
 
+Rollback evidence: ADR-0020 defines the non-destructive executable/brain-pair
+rollback procedure. `test_restart_recovery_selects_complete_auxiliary_generation`
+rejects the newer incomplete generation and selects the previous complete one;
+the compatibility regression test verifies that the selected executable
+profile is checked before resident state loading.
+
 ### Required evidence
 
 - [Completed in Phase 11] A clean Arch Linux workspace reproduces the release build and smoke run.
 - [Completed in Phase 11] The published checksum and runtime metadata match the executable that
       produced the evidence.
-- [ ] A rollback fixture restores the previous executable/brain pair without
+- [x] A rollback fixture restores the previous executable/brain pair without
       mutating the newer generation.
 
 ## Gate 10.5 — Add framed `std::wire` transport
