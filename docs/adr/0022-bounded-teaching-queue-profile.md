@@ -34,6 +34,14 @@ Admission rejects a request when either the request-count or encoded-byte
 bound would be exceeded. Rejection is reported as a typed admission error and
 does not mutate queue occupancy; requests are never silently dropped.
 
+Per-call processing remains bounded by the compile-time profile value
+`TEACHING_MAX_BATCH_ITEMS`. The value is declared once in
+`src/config/values.act` and sizes both the batch and metrics arrays. Batch
+metrics use the same fixed active-prefix bound and are returned to the caller;
+no metrics collection grows with input history. Deployment profiles may
+change this value and rebuild; total training capacity remains independent of
+the selected per-call value.
+
 These are the initial host profile values, not a limit on the number of
 shards, users, queues, or total persisted knowledge. Queue ownership,
 admission at capacity, scheduler behavior, and partial-batch reporting are
@@ -48,5 +56,5 @@ separate decisions and must remain explicit in the following contracts.
   deterministic for a given batch.
 - Capacity failure is explicit and leaves the caller-owned occupancy state
   unchanged.
-- Capacity rejection and processing semantics remain intentionally unimplemented
-  until the queue execution and partial-result contract is added.
+- Per-call work and returned metrics have fixed bounds independent of the
+  total number of requests submitted over time.

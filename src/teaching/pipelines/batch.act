@@ -8,7 +8,7 @@ import config;
 open contract;
 
 verb empty_batch_result() -> TeachingBatchMetrics {
-    return TeachingBatchMetrics {item_count: 0u16, accepted_count: 0u16, rejected_count: 0u16, stopped_on_training_error: false, items: Array[TeachingBatchItemResult, 8](
+    return TeachingBatchMetrics {item_count: 0u16, accepted_count: 0u16, rejected_count: 0u16, stopped_on_training_error: false, items: Array[TeachingBatchItemResult, TEACHING_MAX_BATCH_ITEMS](
     )};
 }
 
@@ -100,12 +100,12 @@ open verb teach_batch(
     ins bindings: Array[TokenBinding, 64],
     abs batch: TeachingBatch
 ) -> Result[TeachingBatchMetrics, TeachingError] {
-    if !batch.valid || batch.count == 0u16 || batch.count > TEACHING_MAX_BATCH_ITEMS {
+    if !batch.valid || batch.count == 0u16 || batch.count > TEACHING_MAX_BATCH_ITEMS as u16 {
         return Result[TeachingBatchMetrics, TeachingError].Err(TeachingError.InvalidRequest);
     }
     erg metrics: TeachingBatchMetrics = empty_batch_result();
     metrics.item_count = batch.count;
-    for erg index: u16 in 0u16 .. TEACHING_MAX_BATCH_ITEMS {
+    for erg index: u16 in 0u16 .. TEACHING_MAX_BATCH_ITEMS as u16 {
         if index >= batch.count {
             return Result[TeachingBatchMetrics, TeachingError].Ok(metrics);
         }

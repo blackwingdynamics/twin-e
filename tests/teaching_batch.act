@@ -27,7 +27,8 @@ verb test_batch_reports_mixed_item_results_in_order() -> Int {
     erg fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](), free_list_head: 0u32, active_count: 0u32};
     erg bindings: Array[TokenBinding,64] = Array[TokenBinding, 64]();
     fabric_init(fabric: ins fabric);
-    erg requests: Array[TeachingRequest,8] = Array[TeachingRequest, 8]();
+    erg requests: Array[TeachingRequest,TEACHING_MAX_BATCH_ITEMS] = Array[TeachingRequest, TEACHING_MAX_BATCH_ITEMS](
+    );
     erg first_byte: u8 = 65u8;
     erg second_byte: u8 = 66u8;
     erg accepted: Bool = true;
@@ -56,11 +57,12 @@ verb test_batch_rejects_oversized_count_without_mutation() -> Int {
     erg fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](), free_list_head: 0u32, active_count: 0u32};
     erg bindings: Array[TokenBinding,64] = Array[TokenBinding, 64]();
     fabric_init(fabric: ins fabric);
-    erg requests: Array[TeachingRequest,8] = Array[TeachingRequest, 8]();
+    erg requests: Array[TeachingRequest,TEACHING_MAX_BATCH_ITEMS] = Array[TeachingRequest, TEACHING_MAX_BATCH_ITEMS](
+    );
     erg first_byte: u8 = 65u8;
     erg accepted: Bool = true;
     requests[0u32] = batch_request(byte_value: erg first_byte, valid: abs accepted);
-    erg batch: TeachingBatch = TeachingBatch {requests: requests, count: TEACHING_MAX_BATCH_ITEMS + 1u16, valid: true};
+    erg batch: TeachingBatch = TeachingBatch {requests: requests, count: TEACHING_MAX_BATCH_ITEMS as u16 + 1u16, valid: true};
     erg taught = teach_batch(
         fabric: ins fabric,
         bindings: ins bindings,

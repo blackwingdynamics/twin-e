@@ -426,7 +426,8 @@ profile is checked before resident state loading.
       scheduler boundary.
 - [x] Define what happens at queue capacity: reject, stop, or report partial
       batch completion; do not silently drop data.
-- [ ] Bound per-call work and metrics memory.
+- [x] Bound per-call work and metrics memory through the canonical,
+      compile-time `TEACHING_MAX_BATCH_ITEMS` profile.
 - [ ] Keep transport latency, adapter latency, admission latency, teaching
       latency, and persistence latency separate in benchmark output.
 - [ ] Prove that no transport queue can grow without a fixed bound.

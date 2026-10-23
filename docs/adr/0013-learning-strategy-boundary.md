@@ -128,7 +128,8 @@ names under `tests/` so each method has independent evidence.
 Future transport options live under the planned `src/teaching/transport/`
 boundary: local stdin/stdout, `std::wire`, HTTP endpoints, WebSockets, and Unix
 sockets. These are delivery mechanisms, not learning methods. The first batch
-implementation is caller-driven and fixed at TEACHING_MAX_BATCH_ITEMS = 8. It
+implementation is caller-driven and bounded by the configurable
+TEACHING_MAX_BATCH_ITEMS profile value (initially 8). It
 processes requests in array order, reports a bounded result for every item,
 skips invalid or unsupported items, and stops on the first runtime training
 failure after retaining earlier accepted items. Each transport
