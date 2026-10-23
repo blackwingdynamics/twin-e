@@ -1,0 +1,71 @@
+"""Streaming 500,000-entry code-generation and cardinality measurement."""
+import config;
+
+import encoding;
+
+import std::io;
+
+import std::time;
+
+const POPULATION_SIZE: u32 = 500000u32;
+
+
+meta limitless("verb")
+verb popcount_u64(erg value: u64) -> u32 {
+    erg count: u32 = 0u32;
+    loop {
+        if value == 0u64 {
+            break;
+        }
+        value &= value - 1u64;
+        count += 1u32;
+    }
+    return count;
+}
+
+meta limitless("verb")
+verb main() -> Int {
+    erg started: u64 = monotonic_nanos();
+    erg invalid_code_count: u32 = 0u32;
+    erg fingerprint_low: u32 = 0u32;
+    erg fingerprint_high: u32 = 0u32;
+    erg token_id: u32 = 0u32;
+    loop {
+        if token_id >= POPULATION_SIZE {
+            break;
+        }
+        erg code: TokenCode = encode_token_id(token_id: erg token_id);
+        erg code_low: u64 = code.mask_low;
+        erg code_high: u64 = code.mask_high;
+        erg active_count: u32 = popcount_u64(value: erg code_low) + popcount_u64(value: erg code_high);
+        if active_count != TOKEN_CODE_ACTIVE_BITS as u32 || code.active_bits != TOKEN_CODE_ACTIVE_BITS || code.version != TOKEN_CODE_VERSION {
+            invalid_code_count += 1u32;
+        }
+        fingerprint_low ^= (code_low & 2147483647u64) as u32;
+        fingerprint_high ^= (code_high & 2147483647u64) as u32;
+        token_id += 1u32;
+    }
+    erg finished: u64 = monotonic_nanos();
+    erg heading: String = "IE_CODEBOOK_STREAM population=token_ids size=500000 codebook_version=1 active_bits=12 seed=11400714819323198485 generation=sequential_u32";
+    println(text: abs heading);
+    erg invalid_label: String = "IE_CODEBOOK_STREAM invalid_code_count=";
+    print(text: abs invalid_label);
+    erg invalid_value: Int = invalid_code_count as Int;
+    print_int(value: erg invalid_value);
+    erg fingerprint_low_label: String = "IE_CODEBOOK_STREAM fingerprint_low=";
+    print(text: abs fingerprint_low_label);
+    erg fingerprint_low_value: Int = fingerprint_low as Int;
+    print_int(value: erg fingerprint_low_value);
+    erg fingerprint_high_label: String = "IE_CODEBOOK_STREAM fingerprint_high=";
+    print(text: abs fingerprint_high_label);
+    erg fingerprint_high_value: Int = fingerprint_high as Int;
+    print_int(value: erg fingerprint_high_value);
+    erg elapsed_label: String = "IE_CODEBOOK_STREAM elapsed_ns=";
+    print(text: abs elapsed_label);
+    erg elapsed_value: Int = (finished - started) as Int;
+    print_int(value: erg elapsed_value);
+    if invalid_code_count != 0u32 {
+        return 1;
+    }
+    return 0;
+}

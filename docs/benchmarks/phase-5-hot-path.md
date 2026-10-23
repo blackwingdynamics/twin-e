@@ -7,20 +7,20 @@ reproducible executable evidence and do not represent hardware measurements.
 
 ```sh
 actus build --strict --emit exe \
-  -o /tmp/twin-e-hot-path.aie benchmarks/aie_p3_3.act
-/tmp/twin-e-hot-path.aie
+  -o /tmp/twin-e-hot-path.ie benchmarks/ie_p3_3.act
+/tmp/twin-e-hot-path.ie
 ```
 
 Observed output:
 
 ```text
-built `/tmp/twin-e-hot-path.aie` (strict)
+built `/tmp/twin-e-hot-path.ie` (strict)
 verified generated native IR: no floating-point instructions
-AIE_BENCH iterations=10000 arena_columns=64
-AIE_BENCH coincidence_ns=687115
-AIE_BENCH forwarding_8axon_ns=4989418
-AIE_BENCH free_list_ns=151793
-AIE_BENCH full_step_ns=4567788
+IE_BENCH iterations=10000 arena_columns=64
+IE_BENCH coincidence_ns=687115
+IE_BENCH forwarding_8axon_ns=4989418
+IE_BENCH free_list_ns=151793
+IE_BENCH full_step_ns=4567788
 ```
 
 The benchmark measures 10,000 repeated operations over a 64-column arena. The
@@ -33,25 +33,25 @@ counter is still required before the negative hot-path write gate can close.
 
 ```sh
 actus build --strict --emit exe \
-  -o /tmp/twin-e-persistence-scale.aie benchmarks/aie_persistence_scale.act
-/tmp/twin-e-persistence-scale.aie
+  -o /tmp/twin-e-persistence-scale.ie benchmarks/ie_persistence_scale.act
+/tmp/twin-e-persistence-scale.ie
 ```
 
 Observed output:
 
 ```text
-built `/tmp/twin-e-persistence-scale.aie` (strict)
+built `/tmp/twin-e-persistence-scale.ie` (strict)
 verified generated native IR: no floating-point instructions
-AIE_SCALE small_write_ns=39127
-AIE_SCALE medium_write_ns=21749
-AIE_SCALE large_write_ns=52435
-AIE_SCALE sequential_ns=17434
-AIE_SCALE random_lookup_ns=4107
-AIE_SCALE selective_load_ns=2019
-AIE_SCALE flush_ns=20761
-AIE_SCALE restart_validation_ns=5063
-AIE_SCALE files=3
-AIE_SCALE max_profile_columns=32
+IE_SCALE small_write_ns=39127
+IE_SCALE medium_write_ns=21749
+IE_SCALE large_write_ns=52435
+IE_SCALE sequential_ns=17434
+IE_SCALE random_lookup_ns=4107
+IE_SCALE selective_load_ns=2019
+IE_SCALE flush_ns=20761
+IE_SCALE restart_validation_ns=5063
+IE_SCALE files=3
+IE_SCALE max_profile_columns=32
 ```
 
 `flush_ns` and `restart_validation_ns` are measured outside the resident
@@ -62,18 +62,18 @@ used as CPU, board, or production latency claims.
 
 ```sh
 actus build --strict --emit exe \
-  -o /tmp/twin-e-hot-path-resident.aie \
-  benchmarks/aie_hot_path_resident_state.act
-/tmp/twin-e-hot-path-resident.aie
+  -o /tmp/twin-e-hot-path-resident.ie \
+  benchmarks/ie_hot_path_resident_state.act
+/tmp/twin-e-hot-path-resident.ie
 ```
 
 Observed output:
 
 ```text
-built `/tmp/twin-e-hot-path-resident.aie` (strict)
+built `/tmp/twin-e-hot-path-resident.ie` (strict)
 verified generated native IR: no floating-point instructions
-AIE_HOT_PATH_RESIDENT_LOOKUP iterations=10000 filesystem_calls=0
-AIE_HOT_PATH_RESIDENT_LOOKUP clean_ns=407107
+IE_HOT_PATH_RESIDENT_LOOKUP iterations=10000 filesystem_calls=0
+IE_HOT_PATH_RESIDENT_LOOKUP clean_ns=407107
  dirty_ns=202965
 ```
 
@@ -89,7 +89,7 @@ audit with:
 
   ```sh
   ! rg -n 'std::io|write_file|read_file|remove_file|rename' \
-    benchmarks/aie_hot_path_clean_dirty.act
+    benchmarks/ie_hot_path_clean_dirty.act
   ```
 
 The audit command exits successfully when no filesystem API is present. The
@@ -101,19 +101,19 @@ I/O outside the executable.
 ## Phase 5.1A gate-closing benchmark
 
 ```sh
-actus fmt --check benchmarks/aie_hot_path_clean_dirty.act
+actus fmt --check benchmarks/ie_hot_path_clean_dirty.act
 actus build --strict --emit exe \
-  -o /tmp/twin-e-hot-path-clean-dirty.aie \
-  benchmarks/aie_hot_path_clean_dirty.act
-/tmp/twin-e-hot-path-clean-dirty.aie
+  -o /tmp/twin-e-hot-path-clean-dirty.ie \
+  benchmarks/ie_hot_path_clean_dirty.act
+/tmp/twin-e-hot-path-clean-dirty.ie
 ```
 
 Observed output:
 
 ```text
-built `/tmp/twin-e-hot-path-clean-dirty.aie` (strict)
+built `/tmp/twin-e-hot-path-clean-dirty.ie` (strict)
 verified generated native IR: no floating-point instructions
-AIE_HOT_PATH samples=64 filesystem_writes=0
+IE_HOT_PATH samples=64 filesystem_writes=0
  inference_clean_ns=13840
  inference_dirty_ns=9953
  neurogenesis_clean_ns=27363

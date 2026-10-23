@@ -5,9 +5,9 @@
 The bounded raw-byte fallback was measured with:
 
 ```text
-actus fmt --check benchmarks/aie_byte_fallback_envelope.act
-actus build --strict --emit exe -o /tmp/twin-e-byte-fallback.aie benchmarks/aie_byte_fallback_envelope.act
-/tmp/twin-e-byte-fallback.aie
+actus fmt --check benchmarks/ie_byte_fallback_envelope.act
+actus build --strict --emit exe -o /tmp/twin-e-byte-fallback.ie benchmarks/ie_byte_fallback_envelope.act
+/tmp/twin-e-byte-fallback.ie
 ```
 
 The strict native build reported `verified generated native IR: no
@@ -20,7 +20,7 @@ and does not allocate or perform filesystem I/O.
 ## Captured output
 
 ```text
-AIE_BYTE_FALLBACK max_input_bytes=256 fixed_token_capacity=256 repeated_bytes=64
+IE_BYTE_FALLBACK max_input_bytes=256 fixed_token_capacity=256 repeated_bytes=64
  unique_bytes=64
  utf8_raw_bytes=2
  malformed_raw_bytes=2

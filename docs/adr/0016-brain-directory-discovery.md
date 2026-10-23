@@ -35,7 +35,7 @@ unadmitted shard.
 The logical disk profile admits up to `1,000,000` shards (`shard_id` values
 `0..=999999`). Filenames use exactly six decimal digits, from
 `shard-000000.brain` through `shard-999999.brain`; indexes outside that range
-are rejected. `src/aie/persistence/paths.act` is the only implementation of
+are rejected. `src/ie/persistence/paths.act` is the only implementation of
 this formatting and path derivation. The logical path module is a namespace
 facade only and must not duplicate the formatter or its constants.
 

@@ -2,7 +2,7 @@ meta limitless("file")
 
 
 """Gate 12.2 public evidence for directory-training failure boundaries."""
-import aie;
+import ie;
 
 import cli;
 
@@ -14,7 +14,7 @@ import std::fs;
 
 import std::path;
 
-open aie;
+open ie;
 
 open cli;
 

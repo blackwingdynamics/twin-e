@@ -22,7 +22,7 @@ open struct AdapterEvent {
     erg flags: u8,
 }
 
-"""Bounded adapter output that can feed existing public AIE facades."""
+"""Bounded adapter output that can feed existing public IE facades."""
 open struct AdapterEnvelope {
     erg contract_version: u16,
     erg modality: AdapterModality,

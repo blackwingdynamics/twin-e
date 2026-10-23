@@ -21,17 +21,17 @@ jobs:
       matrix:
         include:
           - name: codebook-5m
-            source: benchmarks/aie_codebook_population_5000000.act
-            output: /tmp/twin-e-codebook-5m.aie
+            source: benchmarks/ie_codebook_population_5000000.act
+            output: /tmp/twin-e-codebook-5m.ie
           - name: fallback-persistence
-            source: benchmarks/aie_fallback_persistence.act
-            output: /tmp/twin-e-fallback-persistence.aie
+            source: benchmarks/ie_fallback_persistence.act
+            output: /tmp/twin-e-fallback-persistence.ie
           - name: cache-pressure
-            source: benchmarks/aie_cache.act
-            output: /tmp/twin-e-cache-pressure.aie
+            source: benchmarks/ie_cache.act
+            output: /tmp/twin-e-cache-pressure.ie
           - name: shard-generation-recovery
-            source: benchmarks/aie_shards_dynamic.act
-            output: /tmp/twin-e-shard-generation-recovery.aie
+            source: benchmarks/ie_shards_dynamic.act
+            output: /tmp/twin-e-shard-generation-recovery.ie
 
     steps:
       - name: Checkout Twin-e

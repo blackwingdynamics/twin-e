@@ -1,0 +1,174 @@
+"""Prove bounded cache insertion, clean eviction, dirty rejection, and pin protection."""
+import ie;
+
+import std::io;
+
+verb insert_slot(ins cache: ShardCache, erg shard_id: u32) -> Int {
+    erg generation: u64 = 1u64;
+    erg checksum: u64 = (shard_id as u64) + 100u64;
+    erg result = shard_cache_insert(
+        cache: ins cache,
+        shard_id: erg shard_id,
+        generation: erg generation,
+        checksum: erg checksum
+    );
+    return case dat result {
+        Result.Ok(slot) => slot as Int,
+        Result.Err(_) => -1,
+    };
+}
+
+verb rejects_dirty(ins cache: ShardCache, erg slot: u8) -> Bool {
+    erg result = shard_cache_evict(cache: ins cache, slot: erg slot);
+    return case dat result {
+        Result.Err(error) => case dat error {
+            ShardCacheError.Dirty => true,
+            _ => false,
+        },
+        Result.Ok(_) => false,
+    };
+}
+
+verb rejects_pinned(ins cache: ShardCache, erg slot: u8) -> Bool {
+    erg result = shard_cache_evict(cache: ins cache, slot: erg slot);
+    return case dat result {
+        Result.Err(error) => case dat error {
+            ShardCacheError.Pinned => true,
+            _ => false,
+        },
+        Result.Ok(_) => false,
+    };
+}
+
+verb is_evicted(abs cache: ShardCache, erg shard_id: u32) -> Bool {
+    erg result = shard_cache_find(cache: abs cache, shard_id: erg shard_id);
+    return case result {
+        Option.None => true,
+        Option.Some(_) => false,
+    };
+}
+
+verb is_dirty_state(abs cache: ShardCache, erg slot: u8) -> Bool {
+    erg entry: ShardCacheEntry = cache.entries[slot as Usize];
+    return case entry.lifecycle {
+        ShardLifecycle.Dirty => true,
+        _ => false,
+    };
+}
+
+verb is_resident_state(abs cache: ShardCache, erg slot: u8) -> Bool {
+    erg entry: ShardCacheEntry = cache.entries[slot as Usize];
+    return case entry.lifecycle {
+        ShardLifecycle.Resident => true,
+        _ => false,
+    };
+}
+
+verb rejects_full_pressure() -> Bool {
+    erg cache: ShardCache = ShardCache {entries: Array[ShardCacheEntry, 4](), clock: 0u64};
+    shard_cache_init(cache: ins cache);
+    erg id_zero: u32 = 10u32;
+    erg id_one: u32 = 11u32;
+    erg id_two: u32 = 12u32;
+    erg id_three: u32 = 13u32;
+    insert_slot(cache: ins cache, shard_id: erg id_zero);
+    insert_slot(cache: ins cache, shard_id: erg id_one);
+    insert_slot(cache: ins cache, shard_id: erg id_two);
+    insert_slot(cache: ins cache, shard_id: erg id_three);
+    erg slot_zero: u8 = 0u8;
+    erg slot_one: u8 = 1u8;
+    erg slot_two: u8 = 2u8;
+    erg slot_three: u8 = 3u8;
+    shard_cache_mark_dirty(cache: ins cache, slot: erg slot_zero);
+    shard_cache_mark_dirty(cache: ins cache, slot: erg slot_one);
+    shard_cache_mark_dirty(cache: ins cache, slot: erg slot_two);
+    shard_cache_mark_dirty(cache: ins cache, slot: erg slot_three);
+    erg new_id: u32 = 14u32;
+    erg result: Int = insert_slot(cache: ins cache, shard_id: erg new_id);
+    erg missing: Option[u8] = shard_cache_find(cache: abs cache, shard_id: erg new_id);
+    erg unchanged: Bool = case dat missing {
+        Option.None => true,
+        Option.Some(_) => false,
+    };
+    return result < 0 && unchanged;
+}
+
+verb verifies_flush_high_watermark() -> Bool {
+    erg cache: ShardCache = ShardCache {entries: Array[ShardCacheEntry, 4](), clock: 0u64};
+    shard_cache_init(cache: ins cache);
+    erg first_id: u32 = 20u32;
+    erg second_id: u32 = 21u32;
+    erg third_id: u32 = 22u32;
+    erg first_slot: Int = insert_slot(cache: ins cache, shard_id: erg first_id);
+    erg second_slot: Int = insert_slot(cache: ins cache, shard_id: erg second_id);
+    erg third_slot: Int = insert_slot(cache: ins cache, shard_id: erg third_id);
+    if first_slot < 0 || second_slot < 0 || third_slot < 0 {
+        return false;
+    }
+    erg first_slot_u8: u8 = first_slot as u8;
+    erg second_slot_u8: u8 = second_slot as u8;
+    erg third_slot_u8: u8 = third_slot as u8;
+    shard_cache_mark_dirty(cache: ins cache, slot: erg first_slot_u8);
+    shard_cache_mark_dirty(cache: ins cache, slot: erg second_slot_u8);
+    if shard_cache_dirty_count(cache: abs cache) != 2u8 || shard_cache_flush_requested(cache: abs cache) {
+        return false;
+    }
+    shard_cache_mark_dirty(cache: ins cache, slot: erg third_slot_u8);
+    return shard_cache_dirty_count(cache: abs cache) == BRAIN_CACHE_DIRTY_HIGH_WATERMARK && shard_cache_flush_requested(
+        cache: abs cache
+    );
+}
+
+meta limitless("verb")
+verb main() -> Int {
+    erg cache: ShardCache = ShardCache {entries: Array[ShardCacheEntry, 4](), clock: 0u64};
+    shard_cache_init(cache: ins cache);
+    erg id_zero: u32 = 0u32;
+    erg id_one: u32 = 1u32;
+    erg id_two: u32 = 2u32;
+    erg id_three: u32 = 3u32;
+    erg slot_zero: Int = insert_slot(cache: ins cache, shard_id: erg id_zero);
+    erg slot_one: Int = insert_slot(cache: ins cache, shard_id: erg id_one);
+    erg slot_two: Int = insert_slot(cache: ins cache, shard_id: erg id_two);
+    erg slot_three: Int = insert_slot(cache: ins cache, shard_id: erg id_three);
+    if slot_zero < 0 || slot_one < 0 || slot_two < 0 || slot_three < 0 {
+        return 1;
+    }
+    erg slot_zero_u8: u8 = slot_zero as u8;
+    erg slot_one_u8: u8 = slot_one as u8;
+    erg dirty_result = shard_cache_mark_dirty(cache: ins cache, slot: erg slot_zero_u8);
+    erg dirty_ok: Bool = case dat dirty_result {
+        Result.Ok(_) => true,
+        Result.Err(_) => false,
+    };
+    erg pin_result = shard_cache_pin(cache: ins cache, slot: erg slot_one_u8);
+    erg pin_ok: Bool = case dat pin_result {
+        Result.Ok(_) => true,
+        Result.Err(_) => false,
+    };
+    if !dirty_ok || !pin_ok || !is_dirty_state(cache: abs cache, slot: erg slot_zero_u8) || !rejects_dirty(
+        cache: ins cache,
+        slot: erg slot_zero_u8
+    ) || !rejects_pinned(cache: ins cache, slot: erg slot_one_u8) {
+        return 2;
+    }
+    erg unpin_result = shard_cache_unpin(cache: ins cache, slot: erg slot_one_u8);
+    erg unpinned: Bool = case dat unpin_result {
+        Result.Ok(_) => true,
+        Result.Err(_) => false,
+    };
+    erg id_four: u32 = 4u32;
+    erg slot_four: Int = insert_slot(cache: ins cache, shard_id: erg id_four);
+    erg slot_four_is_valid: Bool = slot_four >= 0;
+    erg slot_four_u8: u8 = slot_four as u8;
+    erg query_old: u32 = 1u32;
+    erg evicted_old: Bool = is_evicted(cache: abs cache, shard_id: erg query_old);
+    erg full_pressure_rejected: Bool = rejects_full_pressure();
+    erg high_watermark_reached: Bool = verifies_flush_high_watermark();
+    if !unpinned || !slot_four_is_valid || !evicted_old || !is_resident_state(cache: abs cache, slot: erg slot_four_u8) || !full_pressure_rejected || !high_watermark_reached {
+        return 3;
+    }
+    erg message: String = "IE_CACHE capacity=4 working_set=4 dirty_rejected=1 pinned_rejected=1 clean_evicted=1 replacement=1 full_pressure_rejected=1 high_watermark=3 dirty_before_signal=2 dirty_at_signal=3 flush_requested=1";
+    println(text: abs message);
+    return 0;
+}

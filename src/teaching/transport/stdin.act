@@ -1,7 +1,7 @@
 """Bounded newline-delimited stdin teaching ingestion."""
 import adapters;
 
-import aie;
+import ie;
 
 import config;
 

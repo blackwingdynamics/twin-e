@@ -22,7 +22,7 @@ the claim.
 Work in this repository unless the task explicitly changes repository scope.
 
 - `src/` contains package code and the configured `main` entry point.
-- `src/aie/` contains the engine, layout, runtime, and persistence modules.
+- `src/ie/` contains the engine, layout, runtime, and persistence modules.
 - `src/config/` contains package-wide protocol and policy constants.
 - `src/encoding/` contains token, context, binding, and sparse codebook logic.
 - `src/tokenizer/` contains byte tokenization and bounded BPE logic.
@@ -183,7 +183,7 @@ actus check --strict
 actus test --strict
 ```
 
-The strict AIE baseline is currently 16 tests with 0 failures. Snapshot
+The strict IE baseline is currently 16 tests with 0 failures. Snapshot
 round-trip, corrupted input, public API lifecycle, free-list, coincidence,
 inhibition, neurogenesis, and decay behavior must remain covered.
 
@@ -193,7 +193,7 @@ For engine changes, build a strict executable and retain the compiler's native
 IR verification result:
 
 ```sh
-actus build --strict --emit exe -o /tmp/twin-e-engine.aie
+actus build --strict --emit exe -o /tmp/twin-e-engine.ie
 ```
 
 The output must confirm that no floating-point instructions are generated.

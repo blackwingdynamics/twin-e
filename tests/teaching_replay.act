@@ -1,5 +1,5 @@
 """Acceptance tests for deterministic bounded sequence replay."""
-import aie;
+import ie;
 
 import config;
 
@@ -112,7 +112,7 @@ verb test_replay_reports_passes() -> Int {
 }
 
 meta test
-verb test_aie_replay_reports_reinforced_events() -> Int {
+verb test_ie_replay_reports_reinforced_events() -> Int {
     erg reinforced: Int = direct_replay_count();
     return if reinforced == 2 {
         0;

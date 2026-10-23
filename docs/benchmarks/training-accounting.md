@@ -15,9 +15,9 @@ future shard header, manifest, and alignment accounting, which remain open.
 Command:
 
 ```sh
-actus fmt --check benchmarks/aie_training_accounting.act
-actus build --strict --emit exe -o /tmp/twin-e-training-accounting.aie benchmarks/aie_training_accounting.act
-/tmp/twin-e-training-accounting.aie
+actus fmt --check benchmarks/ie_training_accounting.act
+actus build --strict --emit exe -o /tmp/twin-e-training-accounting.ie benchmarks/ie_training_accounting.act
+/tmp/twin-e-training-accounting.ie
 ```
 
 Conditions: strict native executable, Cranelift backend, integer-only engine,
@@ -27,36 +27,36 @@ compiler binary digest: `e6293f8075d7982b95c1ec8b54eb18d97d1c2ec98f5cf9a8c701205
 Captured output is recorded below after the fixture is built and executed.
 
 ```text
-AIE_TRAINING_ACCOUNTING input_bytes=32 arena_columns=64 binding_slots=64
-AIE_TRAINING_ACCOUNTING case=bpe\\n input_bytes=32
+IE_TRAINING_ACCOUNTING input_bytes=32 arena_columns=64 binding_slots=64
+IE_TRAINING_ACCOUNTING case=bpe\\n input_bytes=32
  emitted_token_events=16
  unique_context_bindings=2
  allocated_minicolumns=2
  active_shards=0
  resident_inline_bytes=5640
  brain_bytes=5702
-AIE_TRAINING_ACCOUNTING case=repeated_byte_fallback\\n input_bytes=32
+IE_TRAINING_ACCOUNTING case=repeated_byte_fallback\\n input_bytes=32
  emitted_token_events=32
  unique_context_bindings=2
  allocated_minicolumns=2
  active_shards=0
  resident_inline_bytes=5640
  brain_bytes=5702
-AIE_TRAINING_ACCOUNTING case=utf8_unknown\\n input_bytes=32
+IE_TRAINING_ACCOUNTING case=utf8_unknown\\n input_bytes=32
  emitted_token_events=32
  unique_context_bindings=3
  allocated_minicolumns=3
  active_shards=0
  resident_inline_bytes=5640
  brain_bytes=5702
-AIE_TRAINING_ACCOUNTING case=unique_byte_fallback\\n input_bytes=32
+IE_TRAINING_ACCOUNTING case=unique_byte_fallback\\n input_bytes=32
  emitted_token_events=32
  unique_context_bindings=32
  allocated_minicolumns=32
  active_shards=0
  resident_inline_bytes=5640
  brain_bytes=5702
-AIE_TRAINING_ACCOUNTING case=mixed\\n input_bytes=32
+IE_TRAINING_ACCOUNTING case=mixed\\n input_bytes=32
  emitted_token_events=24
  unique_context_bindings=4
  allocated_minicolumns=4
@@ -74,7 +74,7 @@ boundaries. The unique fallback case reaches
 one binding and one minicolumn per event in this 32-byte sample, while the fixed
 resident and `.brain` layout does not grow.
 
-The strict regression test in `tests/aie_fallback_reuse.act` trains the same
+The strict regression test in `tests/ie_fallback_reuse.act` trains the same
 repeated fallback sequence twice in one fabric. The first pass allocates two
 columns and two bindings; the second pass allocates zero columns and leaves the
 active binding count at two.

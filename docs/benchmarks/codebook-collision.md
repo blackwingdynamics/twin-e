@@ -7,9 +7,9 @@ codebook profile used by the tokenizer and encoding facades.
 
 ```text
 actus build --strict --emit exe \
-  -o /tmp/twin-e-codebook-collision.aie \
-  benchmarks/aie_codebook_collision.act
-/tmp/twin-e-codebook-collision.aie
+  -o /tmp/twin-e-codebook-collision.ie \
+  benchmarks/ie_codebook_collision.act
+/tmp/twin-e-codebook-collision.ie
 ```
 
 ## Recorded result
@@ -18,12 +18,12 @@ The benchmark generated token IDs `0..4999`, assigned eight unique active bits
 to every code, and compared every pair of different codes.
 
 ```text
-AIE_CODEBOOK population=token_ids size=5000 codebook_version=1 active_bits=8 seed=11400714819323198485 generation=sequential_u32
-AIE_CODEBOOK max_different_overlap=6
-AIE_CODEBOOK duplicate_pairs=0
-AIE_CODEBOOK invalid_code_count=0
-AIE_CODEBOOK false_pairs_theta=8 count=0
-AIE_CODEBOOK elapsed_ns=94388616
+IE_CODEBOOK population=token_ids size=5000 codebook_version=1 active_bits=8 seed=11400714819323198485 generation=sequential_u32
+IE_CODEBOOK max_different_overlap=6
+IE_CODEBOOK duplicate_pairs=0
+IE_CODEBOOK invalid_code_count=0
+IE_CODEBOOK false_pairs_theta=8 count=0
+IE_CODEBOOK elapsed_ns=94388616
 ```
 
 The executable was built with strict checking and the compiler verified that
@@ -84,40 +84,40 @@ Command:
 
 ```sh
 actus build --strict --emit exe \
-  -o /tmp/twin-e-codebook-collision-p5-8-noise.aie \
-  benchmarks/aie_codebook_collision.act
-/tmp/twin-e-codebook-collision-p5-8-noise.aie
+  -o /tmp/twin-e-codebook-collision-p5-8-noise.ie \
+  benchmarks/ie_codebook_collision.act
+/tmp/twin-e-codebook-collision-p5-8-noise.ie
 ```
 
 Observed output:
 
 ```text
-AIE_CODEBOOK population=token_ids size=5000 codebook_version=1 active_bits=8 seed=11400714819323198485 generation=sequential_u32
-AIE_CODEBOOK max_different_overlap=6
-AIE_CODEBOOK duplicate_pairs=0
-AIE_CODEBOOK invalid_code_count=0
-AIE_CODEBOOK overlap_bucket=0 count=7337055
-AIE_CODEBOOK overlap_bucket=1 count=4129377
-AIE_CODEBOOK overlap_bucket=2 count=910520
-AIE_CODEBOOK overlap_bucket=3 count=112394
-AIE_CODEBOOK overlap_bucket=4 count=7801
-AIE_CODEBOOK overlap_bucket=5 count=344
-AIE_CODEBOOK overlap_bucket=6 count=9
-AIE_CODEBOOK overlap_bucket=7 count=0
-AIE_CODEBOOK overlap_bucket=8 count=0
-AIE_CODEBOOK false_pairs_theta=1 count=5160445
-AIE_CODEBOOK false_pairs_theta=2 count=1031068
-AIE_CODEBOOK false_pairs_theta=3 count=120548
-AIE_CODEBOOK false_pairs_theta=4 count=8154
-AIE_CODEBOOK false_pairs_theta=5 count=353
-AIE_CODEBOOK false_pairs_theta=6 count=9
-AIE_CODEBOOK false_pairs_theta=7 count=0
-AIE_CODEBOOK false_pairs_theta=8 count=0
-AIE_CODEBOOK noise=one_active_bit_removed
-AIE_CODEBOOK exact_query_candidates_theta=8 count=1
-AIE_CODEBOOK noisy_query_candidates_theta=8 count=0
-AIE_CODEBOOK noisy_query_candidates_theta=7 count=1
-AIE_CODEBOOK elapsed_ns=91887120
+IE_CODEBOOK population=token_ids size=5000 codebook_version=1 active_bits=8 seed=11400714819323198485 generation=sequential_u32
+IE_CODEBOOK max_different_overlap=6
+IE_CODEBOOK duplicate_pairs=0
+IE_CODEBOOK invalid_code_count=0
+IE_CODEBOOK overlap_bucket=0 count=7337055
+IE_CODEBOOK overlap_bucket=1 count=4129377
+IE_CODEBOOK overlap_bucket=2 count=910520
+IE_CODEBOOK overlap_bucket=3 count=112394
+IE_CODEBOOK overlap_bucket=4 count=7801
+IE_CODEBOOK overlap_bucket=5 count=344
+IE_CODEBOOK overlap_bucket=6 count=9
+IE_CODEBOOK overlap_bucket=7 count=0
+IE_CODEBOOK overlap_bucket=8 count=0
+IE_CODEBOOK false_pairs_theta=1 count=5160445
+IE_CODEBOOK false_pairs_theta=2 count=1031068
+IE_CODEBOOK false_pairs_theta=3 count=120548
+IE_CODEBOOK false_pairs_theta=4 count=8154
+IE_CODEBOOK false_pairs_theta=5 count=353
+IE_CODEBOOK false_pairs_theta=6 count=9
+IE_CODEBOOK false_pairs_theta=7 count=0
+IE_CODEBOOK false_pairs_theta=8 count=0
+IE_CODEBOOK noise=one_active_bit_removed
+IE_CODEBOOK exact_query_candidates_theta=8 count=1
+IE_CODEBOOK noisy_query_candidates_theta=8 count=0
+IE_CODEBOOK noisy_query_candidates_theta=7 count=1
+IE_CODEBOOK elapsed_ns=91887120
 ```
 
 The strict build again verified that the generated native IR contains no
@@ -138,9 +138,9 @@ Command:
 
 ```sh
 actus build --strict --emit exe \
-  -o /tmp/twin-e-codebook-population-50000.aie \
-  benchmarks/aie_codebook_population_50000.act
-/tmp/twin-e-codebook-population-50000.aie
+  -o /tmp/twin-e-codebook-population-50000.ie \
+  benchmarks/ie_codebook_population_50000.act
+/tmp/twin-e-codebook-population-50000.ie
 ```
 
 The fixture records the population profile, occupied slots, exact duplicate
@@ -152,12 +152,12 @@ exhaust.
 Observed output:
 
 ```text
-AIE_CODEBOOK_STRESS population=token_ids size=50000 codebook_version=1 active_bits=8 seed=11400714819323198485 generation=sequential_u32
-AIE_CODEBOOK_STRESS occupied_slots=50000
-AIE_CODEBOOK_STRESS exact_duplicate_count=0
-AIE_CODEBOOK_STRESS first_duplicate_token=50000
-AIE_CODEBOOK_STRESS table_exhausted=false
-AIE_CODEBOOK_STRESS elapsed_ns=515952685
+IE_CODEBOOK_STRESS population=token_ids size=50000 codebook_version=1 active_bits=8 seed=11400714819323198485 generation=sequential_u32
+IE_CODEBOOK_STRESS occupied_slots=50000
+IE_CODEBOOK_STRESS exact_duplicate_count=0
+IE_CODEBOOK_STRESS first_duplicate_token=50000
+IE_CODEBOOK_STRESS table_exhausted=false
+IE_CODEBOOK_STRESS elapsed_ns=515952685
 ```
 
 The strict build verified that the generated native IR contains no
@@ -178,9 +178,9 @@ Command:
 
 ```sh
 actus build --strict --emit exe \
-  -o /tmp/twin-e-codebook-generation-500000.aie \
-  benchmarks/aie_codebook_generation_500000.act
-/tmp/twin-e-codebook-generation-500000.aie
+  -o /tmp/twin-e-codebook-generation-500000.ie \
+  benchmarks/ie_codebook_generation_500000.act
+/tmp/twin-e-codebook-generation-500000.ie
 ```
 
 This fixture therefore measures generation/cardinality scale only. Exact
@@ -191,11 +191,11 @@ allocation or an unverified provider assumption.
 Observed output:
 
 ```text
-AIE_CODEBOOK_STREAM population=token_ids size=500000 codebook_version=1 active_bits=8 seed=11400714819323198485 generation=sequential_u32
-AIE_CODEBOOK_STREAM invalid_code_count=0
-AIE_CODEBOOK_STREAM fingerprint_low=2013059615
-AIE_CODEBOOK_STREAM fingerprint_high=718036136
-AIE_CODEBOOK_STREAM elapsed_ns=22076607
+IE_CODEBOOK_STREAM population=token_ids size=500000 codebook_version=1 active_bits=8 seed=11400714819323198485 generation=sequential_u32
+IE_CODEBOOK_STREAM invalid_code_count=0
+IE_CODEBOOK_STREAM fingerprint_low=2013059615
+IE_CODEBOOK_STREAM fingerprint_high=718036136
+IE_CODEBOOK_STREAM elapsed_ns=22076607
 ```
 
 The strict build verified that the generated native IR contains no
@@ -216,11 +216,11 @@ both masks; using the sparse low mask directly caused severe clustering at the
 Command:
 
 ```sh
-actus fmt --check benchmarks/aie_codebook_population_500000.act
+actus fmt --check benchmarks/ie_codebook_population_500000.act
 actus build --strict --release --emit exe \
-  benchmarks/aie_codebook_population_500000.act \
-  -o /tmp/twin-e-codebook-500000-region-release.aie
-/tmp/twin-e-codebook-500000-region-release.aie
+  benchmarks/ie_codebook_population_500000.act \
+  -o /tmp/twin-e-codebook-500000-region-release.ie
+/tmp/twin-e-codebook-500000-region-release.ie
 ```
 
 Environment:
@@ -233,12 +233,12 @@ Environment:
 Observed output:
 
 ```text
-AIE_CODEBOOK_REGION population=token_ids size=500000 codebook_version=1 active_bits=8 seed=11400714819323198485 generation=sequential_u32
-AIE_CODEBOOK_REGION occupied_slots=500000
-AIE_CODEBOOK_REGION exact_duplicate_count=0
-AIE_CODEBOOK_REGION first_duplicate_token=500000
-AIE_CODEBOOK_REGION table_exhausted=false
-AIE_CODEBOOK_REGION elapsed_ms=133
+IE_CODEBOOK_REGION population=token_ids size=500000 codebook_version=1 active_bits=8 seed=11400714819323198485 generation=sequential_u32
+IE_CODEBOOK_REGION occupied_slots=500000
+IE_CODEBOOK_REGION exact_duplicate_count=0
+IE_CODEBOOK_REGION first_duplicate_token=500000
+IE_CODEBOOK_REGION table_exhausted=false
+IE_CODEBOOK_REGION elapsed_ms=133
 ```
 
 This closes the hosted 500,000-entry exact-duplicate measurement slice. It
@@ -257,22 +257,22 @@ checked with the same mixed slot hash and exact two-mask comparison.
 Command:
 
 ```sh
-actus fmt --check benchmarks/aie_codebook_population_1000000.act
+actus fmt --check benchmarks/ie_codebook_population_1000000.act
 actus build --strict --release --emit exe \
-  benchmarks/aie_codebook_population_1000000.act \
-  -o /tmp/twin-e-codebook-1000000-region-release.aie
-time /tmp/twin-e-codebook-1000000-region-release.aie
+  benchmarks/ie_codebook_population_1000000.act \
+  -o /tmp/twin-e-codebook-1000000-region-release.ie
+time /tmp/twin-e-codebook-1000000-region-release.ie
 ```
 
 Observed output:
 
 ```text
-AIE_CODEBOOK_REGION population=token_ids size=1000000 codebook_version=1 active_bits=8 seed=11400714819323198485 generation=sequential_u32
-AIE_CODEBOOK_REGION occupied_slots=1000000
-AIE_CODEBOOK_REGION exact_duplicate_count=0
-AIE_CODEBOOK_REGION first_duplicate_token=1000000
-AIE_CODEBOOK_REGION table_exhausted=false
-AIE_CODEBOOK_REGION elapsed_ms=304
+IE_CODEBOOK_REGION population=token_ids size=1000000 codebook_version=1 active_bits=8 seed=11400714819323198485 generation=sequential_u32
+IE_CODEBOOK_REGION occupied_slots=1000000
+IE_CODEBOOK_REGION exact_duplicate_count=0
+IE_CODEBOOK_REGION first_duplicate_token=1000000
+IE_CODEBOOK_REGION table_exhausted=false
+IE_CODEBOOK_REGION elapsed_ms=304
 0.69s user 0.01s system 99% cpu 0.701 total
 ```
 
@@ -292,11 +292,11 @@ passing zero-duplicate result.
 Command:
 
 ```sh
-actus fmt --check benchmarks/aie_codebook_population_5000000.act
+actus fmt --check benchmarks/ie_codebook_population_5000000.act
 actus build --strict --release --emit exe \
-  benchmarks/aie_codebook_population_5000000.act \
-  -o /tmp/twin-e-codebook-population-5000000-region-release.aie
-time /tmp/twin-e-codebook-population-5000000-region-release.aie
+  benchmarks/ie_codebook_population_5000000.act \
+  -o /tmp/twin-e-codebook-population-5000000-region-release.ie
+time /tmp/twin-e-codebook-population-5000000-region-release.ie
 ```
 
 Environment:
@@ -310,12 +310,12 @@ Environment:
 Observed output:
 
 ```text
-AIE_CODEBOOK_REGION population=token_ids size=5000000 codebook_version=1 active_bits=8 seed=11400714819323198485 generation=sequential_u32
-AIE_CODEBOOK_REGION occupied_slots=4999986
-AIE_CODEBOOK_REGION exact_duplicate_count=14
-AIE_CODEBOOK_REGION first_duplicate_token=1409529
-AIE_CODEBOOK_REGION table_exhausted=false
-AIE_CODEBOOK_REGION elapsed_ms=1417
+IE_CODEBOOK_REGION population=token_ids size=5000000 codebook_version=1 active_bits=8 seed=11400714819323198485 generation=sequential_u32
+IE_CODEBOOK_REGION occupied_slots=4999986
+IE_CODEBOOK_REGION exact_duplicate_count=14
+IE_CODEBOOK_REGION first_duplicate_token=1409529
+IE_CODEBOOK_REGION table_exhausted=false
+IE_CODEBOOK_REGION elapsed_ms=1417
 4.48s user 0.04s system 99% cpu 4.528 total
 ```
 
@@ -336,24 +336,24 @@ new profile.
 Observed one-million-entry output:
 
 ```text
-AIE_CODEBOOK_REGION population=token_ids size=1000000 codebook_version=1 active_bits=12 seed=11400714819323198485 generation=sequential_u32
-AIE_CODEBOOK_REGION occupied_slots=1000000
-AIE_CODEBOOK_REGION exact_duplicate_count=0
-AIE_CODEBOOK_REGION first_duplicate_token=1000000
-AIE_CODEBOOK_REGION table_exhausted=false
-AIE_CODEBOOK_REGION elapsed_ms=313
+IE_CODEBOOK_REGION population=token_ids size=1000000 codebook_version=1 active_bits=12 seed=11400714819323198485 generation=sequential_u32
+IE_CODEBOOK_REGION occupied_slots=1000000
+IE_CODEBOOK_REGION exact_duplicate_count=0
+IE_CODEBOOK_REGION first_duplicate_token=1000000
+IE_CODEBOOK_REGION table_exhausted=false
+IE_CODEBOOK_REGION elapsed_ms=313
 0.68s user 0.01s system 99% cpu 0.695 total
 ```
 
 Observed five-million-entry output:
 
 ```text
-AIE_CODEBOOK_REGION population=token_ids size=5000000 codebook_version=1 active_bits=12 seed=11400714819323198485 generation=sequential_u32
-AIE_CODEBOOK_REGION occupied_slots=5000000
-AIE_CODEBOOK_REGION exact_duplicate_count=0
-AIE_CODEBOOK_REGION first_duplicate_token=5000000
-AIE_CODEBOOK_REGION table_exhausted=false
-AIE_CODEBOOK_REGION elapsed_ms=1547
+IE_CODEBOOK_REGION population=token_ids size=5000000 codebook_version=1 active_bits=12 seed=11400714819323198485 generation=sequential_u32
+IE_CODEBOOK_REGION occupied_slots=5000000
+IE_CODEBOOK_REGION exact_duplicate_count=0
+IE_CODEBOOK_REGION first_duplicate_token=5000000
+IE_CODEBOOK_REGION table_exhausted=false
+IE_CODEBOOK_REGION elapsed_ms=1547
 4.54s user 0.04s system 99% cpu 4.596 total
 ```
 
@@ -367,24 +367,24 @@ The 5,000-token pairwise and noise fixture was also rerun with the current
 profile:
 
 ```text
-AIE_CODEBOOK population=token_ids size=5000 codebook_version=1 active_bits=12 seed=11400714819323198485 generation=sequential_u32
-AIE_CODEBOOK max_different_overlap=8
-AIE_CODEBOOK duplicate_pairs=0
-AIE_CODEBOOK invalid_code_count=0
-AIE_CODEBOOK candidate_retrieval_queries=5000
-AIE_CODEBOOK candidate_exact_theta=12 total=5000
-AIE_CODEBOOK candidate_exact_theta=12 max_per_query=1
-AIE_CODEBOOK candidate_exact_theta=12 ambiguous_queries=0
-AIE_CODEBOOK candidate_relaxed_theta=11 total=5000
-AIE_CODEBOOK candidate_relaxed_theta=11 max_per_query=1
-AIE_CODEBOOK candidate_relaxed_theta=11 ambiguous_queries=0
-AIE_CODEBOOK missing_bit_queries=5000
-AIE_CODEBOOK missing_exact_theta=12 missed_queries=5000
-AIE_CODEBOOK missing_exact_theta=12 false_queries=0
-AIE_CODEBOOK missing_exact_theta=12 false_candidates=0
-AIE_CODEBOOK missing_relaxed_theta=11 missed_queries=0
-AIE_CODEBOOK missing_relaxed_theta=11 false_queries=0
-AIE_CODEBOOK missing_relaxed_theta=11 false_candidates=0
+IE_CODEBOOK population=token_ids size=5000 codebook_version=1 active_bits=12 seed=11400714819323198485 generation=sequential_u32
+IE_CODEBOOK max_different_overlap=8
+IE_CODEBOOK duplicate_pairs=0
+IE_CODEBOOK invalid_code_count=0
+IE_CODEBOOK candidate_retrieval_queries=5000
+IE_CODEBOOK candidate_exact_theta=12 total=5000
+IE_CODEBOOK candidate_exact_theta=12 max_per_query=1
+IE_CODEBOOK candidate_exact_theta=12 ambiguous_queries=0
+IE_CODEBOOK candidate_relaxed_theta=11 total=5000
+IE_CODEBOOK candidate_relaxed_theta=11 max_per_query=1
+IE_CODEBOOK candidate_relaxed_theta=11 ambiguous_queries=0
+IE_CODEBOOK missing_bit_queries=5000
+IE_CODEBOOK missing_exact_theta=12 missed_queries=5000
+IE_CODEBOOK missing_exact_theta=12 false_queries=0
+IE_CODEBOOK missing_exact_theta=12 false_candidates=0
+IE_CODEBOOK missing_relaxed_theta=11 missed_queries=0
+IE_CODEBOOK missing_relaxed_theta=11 false_queries=0
+IE_CODEBOOK missing_relaxed_theta=11 false_candidates=0
 ```
 
 The complete pairwise overlap histogram for the same 5,000-token population

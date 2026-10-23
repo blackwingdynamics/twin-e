@@ -16,15 +16,15 @@ the wrong manifest descriptor.
 ## Generation selection
 
 ```sh
-actus build --strict --emit exe -o /tmp/twin-e-manifest-dynamic.aie \
-  benchmarks/aie_manifest_dynamic.act
-/tmp/twin-e-manifest-dynamic.aie
+actus build --strict --emit exe -o /tmp/twin-e-manifest-dynamic.ie \
+  benchmarks/ie_manifest_dynamic.act
+/tmp/twin-e-manifest-dynamic.ie
 ```
 
 Captured result:
 
 ```text
-AIE_MANIFEST_DYNAMIC shards=3 appended_shard=3 allocation_shard=3 local_index=0 allocator_head=5 allocator_shard=0 allocator_local=5 roundtrip=1 generation_publish=1 newest_generation=10 stale_rejected=1
+IE_MANIFEST_DYNAMIC shards=3 appended_shard=3 allocation_shard=3 local_index=0 allocator_head=5 allocator_shard=0 allocator_local=5 roundtrip=1 generation_publish=1 newest_generation=10 stale_rejected=1
 ```
 
 The fixture writes a complete fallback at generation `8`, publishes generation
@@ -34,15 +34,15 @@ selects the complete generation `10`.
 ## Descriptor binding
 
 ```sh
-actus build --strict --emit exe -o /tmp/twin-e-shards-dynamic.aie \
-  benchmarks/aie_shards_dynamic.act
-/tmp/twin-e-shards-dynamic.aie
+actus build --strict --emit exe -o /tmp/twin-e-shards-dynamic.ie \
+  benchmarks/ie_shards_dynamic.act
+/tmp/twin-e-shards-dynamic.ie
 ```
 
 Captured result:
 
 ```text
-AIE_SHARDS_DYNAMIC files=3 generated=1 staged_shard=1 validated=3 partial_rejected=1 truncated_rejected=1 active_unchanged=1 manifest_bound=2 swapped_rejected=1 dynamic_loaded=1 dynamic_collection=3 manifest_selected=1 dynamic_failed_unchanged=1 free_chain=5-2-0-null reallocated=2 payload_bytes=128
+IE_SHARDS_DYNAMIC files=3 generated=1 staged_shard=1 validated=3 partial_rejected=1 truncated_rejected=1 active_unchanged=1 manifest_bound=2 swapped_rejected=1 dynamic_loaded=1 dynamic_collection=3 manifest_selected=1 dynamic_failed_unchanged=1 free_chain=5-2-0-null reallocated=2 payload_bytes=128
 ```
 
 `swapped_rejected=1` proves that a valid shard under a different descriptor

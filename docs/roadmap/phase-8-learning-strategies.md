@@ -60,13 +60,13 @@ src/teaching/
 The first implementation target is `direct`, the in-memory path with the
 lowest transport overhead. `batch`, `replay`, `multimodal`, and `correction`
 will be added as separate pipelines over the same public contract. Their
-tests will live beside the existing AIE tests under `tests/` and must prove
+tests will live beside the existing IE tests under `tests/` and must prove
 bounded work, deterministic results, and explicit failure behavior.
 
 The planned transport boundary is `src/teaching/transport/`. It will contain
 the future stdin/stdout, `std::wire`, HTTP, WebSocket, and Unix-socket
 adapters. They will convert requests into the same teaching contract without
-entering modality adapters or the AIE core. HTTP and WebSocket access are
+entering modality adapters or the IE core. HTTP and WebSocket access are
 future integration options, not requirements for the direct in-memory teaching
 path; their files remain planned until Actus has a suitable TCP/socket
 standard library or an approved host bridge.
@@ -77,7 +77,7 @@ standard library or an approved host bridge.
       `AdapterEnvelope` and existing `TokenSequence` APIs.
 - [x] Define ownership, modality metadata, ordering, and rejection behavior.
 - [x] Define the caller contract for submitting one example to training.
-- [x] Confirm that teacher/chat/provider concerns stay outside the AIE core.
+- [x] Confirm that teacher/chat/provider concerns stay outside the IE core.
 
 ### Required evidence
 
@@ -89,7 +89,7 @@ standard library or an approved host bridge.
 `src/teaching/contract.act` defines the bounded `TeachingRequest`, policy mode,
 typed rejection reasons, and result metrics. `src/teaching/admission.act`
 validates the teaching version, replay bound, and nested adapter envelope
-before any AIE state API is reachable. The canonical public facade is
+before any IE state API is reachable. The canonical public facade is
 `src/teaching/teaching.act`.
 
 `tests/teaching_contract.act` is the compiler-valid contract fixture. It covers
@@ -137,7 +137,7 @@ and performs no filesystem or network I/O.
 
 ### Gate 8.3 evidence
 
-`src/aie/runtime/training/sequence.act` now exposes a replay entry point that
+`src/ie/runtime/training/sequence.act` now exposes a replay entry point that
 locates the existing beginning-of-sequence root through the public binding and
 arena contracts. It reuses that root and existing target bindings instead of
 allocating a duplicate root for each pass. `src/teaching/pipelines/replay.act`
@@ -172,10 +172,10 @@ do not share a binding accidentally. Sequence admission rejects empty, invalid,
 or oversized token sequences before mutation. Missing resident capacity is
 reported as a bounded training error and does not publish a partial successor.
 
-tests/aie_observation.act::test_observation_context_separates_predecessors
+tests/ie_observation.act::test_observation_context_separates_predecessors
 proves predecessor-sensitive encoding. The training suite proves deterministic
 lowest-index selection when successor strengths tie and rejects a stronger
-false-identity candidate. tests/aie_api.act::test_resident_recall_survives_capacity_rejection
+false-identity candidate. tests/ie_api.act::test_resident_recall_survives_capacity_rejection
 proves that capacity rejection preserves the prior resident path and cache
 state. BOS handling is exercised by the "AB" training and replay fixtures;
 the final token remains a normal bounded event and EOS is not synthesized by
@@ -240,7 +240,7 @@ represented by the bounded replay reinforcement and remains saturating.
 
 - [x] At least one text-plus-structured or text-plus-image fixture passes
       through public boundaries.
-- [x] The fixture proves no adapter directly mutates private AIE state.
+- [x] The fixture proves no adapter directly mutates private IE state.
 
 ### Gate 8.7 evidence
 
@@ -293,7 +293,7 @@ SHA-256 `d7184c4708ec2d8bf41cf61b3f10037980bd3063fe03bc2c9de7866d526fcc56`,
 on `x86_64` Linux with the strict profile. `actus lock --check`, formatter
 checks for all touched Actus sources, `actus check --strict`, and
 `actus test --strict` passed; the final suite result was `99 passed; 0 failed`.
-The strict native build produced `/tmp/twin-e-phase-8-persistence.aie` and
+The strict native build produced `/tmp/twin-e-phase-8-persistence.ie` and
 reported no floating-point instructions in generated native IR.
 
 The tested input limits remain fixed and bounded: teaching sequences accept at

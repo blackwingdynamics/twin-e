@@ -1,0 +1,244 @@
+"""Boundary evidence for the production logical shard routing profile."""
+import ie;
+
+import config;
+
+verb profile_is_rejected(erg profile: LogicalShardProfile) -> Bool {
+    erg checked = validate_logical_shard_profile(profile: erg profile);
+    return case dat checked {
+        Result.Err(_) => true,
+        Result.Ok(_) => false,
+    };
+}
+
+verb production_profile_values_are_stable(abs profile: LogicalShardProfile) -> Bool {
+    return profile.max_shards == BRAIN_LOGICAL_MAX_SHARDS && profile.shard_capacity == BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY && profile.max_resident_shards == BRAIN_LOGICAL_MAX_RESIDENT_SHARDS && profile.max_bindings_per_shard == BRAIN_LOGICAL_MAX_BINDINGS_PER_SHARD && profile.max_auxiliary_records == BRAIN_LOGICAL_MAX_AUXILIARY_RECORDS && profile.max_request_items == BRAIN_LOGICAL_MAX_REQUEST_ITEMS && profile.max_manifest_descriptors == BRAIN_LOGICAL_MAX_MANIFEST_DESCRIPTORS && BRAIN_LOGICAL_SHARD_ARTIFACT_BYTES == 90616u32;
+}
+
+verb test_last_logical_column_round_trip() -> Int {
+    erg last_index: u32 = BRAIN_LOGICAL_MAX_COLUMNS - 1u32;
+    erg location = logical_column_location(global_index: erg last_index);
+    return case dat location {
+        Result.Err(_) => 2,
+        Result.Ok(value) => {
+            if value.shard_id != BRAIN_LOGICAL_MAX_SHARDS - 1u32 || value.local_index != BRAIN_LOGICAL_SHARD_MASK {
+                return 3;
+            }
+            erg rebuilt_shard_id: u32 = value.shard_id;
+            erg rebuilt_local_index: u32 = value.local_index;
+            erg rebuilt = logical_global_index(shard_id: erg rebuilt_shard_id, local_index: erg rebuilt_local_index);
+            return case dat rebuilt {
+                Result.Err(_) => 4,
+                Result.Ok(index) => {
+                    if index != last_index {
+                        return 5;
+                    }
+                    0;
+                },
+            };
+        },
+    };
+}
+
+meta test
+verb test_logical_shard_profile_and_round_trip() -> Int {
+    if !logical_shard_profile_is_valid() {
+        return 1;
+    }
+    erg profile: LogicalShardProfile = production_logical_shard_profile();
+    if !production_profile_values_are_stable(profile: abs profile) {
+        return 6;
+    }
+    return test_last_logical_column_round_trip();
+}
+
+meta test
+verb test_logical_shard_routing_rejects_overflow() -> Int {
+    erg rejected_global_index: u32 = BRAIN_LOGICAL_MAX_COLUMNS;
+    erg out_of_range = logical_column_location(global_index: erg rejected_global_index);
+    erg out_of_range_status: Int = case dat out_of_range {
+        Result.Ok(_) => 1,
+        Result.Err(_) => 0,
+    };
+    if out_of_range_status != 0 {
+        return 1;
+    }
+    erg rejected_shard_id: u32 = BRAIN_LOGICAL_MAX_SHARDS;
+    erg zero_local_index: u32 = 0u32;
+    erg bad_shard = logical_global_index(shard_id: erg rejected_shard_id, local_index: erg zero_local_index);
+    erg bad_shard_status: Int = case dat bad_shard {
+        Result.Ok(_) => 1,
+        Result.Err(_) => 0,
+    };
+    if bad_shard_status != 0 {
+        return 2;
+    }
+    erg zero_shard_id: u32 = 0u32;
+    erg rejected_local_index: u32 = BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY;
+    erg bad_local = logical_global_index(shard_id: erg zero_shard_id, local_index: erg rejected_local_index);
+    return case dat bad_local {
+        Result.Ok(_) => 3,
+        Result.Err(_) => 0,
+    };
+}
+
+verb test_profile_rejects_base_limits() -> Int {
+    erg zero_profile: LogicalShardProfile = production_logical_shard_profile();
+    zero_profile.max_shards = 0u32;
+    if !profile_is_rejected(profile: erg zero_profile) {
+        return 1;
+    }
+    erg non_power_profile: LogicalShardProfile = production_logical_shard_profile();
+    non_power_profile.shard_capacity = BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY + 1u32;
+    if !profile_is_rejected(profile: erg non_power_profile) {
+        return 2;
+    }
+    erg overflow_profile: LogicalShardProfile = production_logical_shard_profile();
+    overflow_profile.max_shards = 4294967295u32;
+    if !profile_is_rejected(profile: erg overflow_profile) {
+        return 3;
+    }
+    erg shard_over_profile: LogicalShardProfile = production_logical_shard_profile();
+    shard_over_profile.max_shards = BRAIN_LOGICAL_MAX_SHARDS + 1u32;
+    if !profile_is_rejected(profile: erg shard_over_profile) {
+        return 4;
+    }
+    erg inconsistent_profile: LogicalShardProfile = production_logical_shard_profile();
+    inconsistent_profile.max_resident_shards = 9u32;
+    if !profile_is_rejected(profile: erg inconsistent_profile) {
+        return 5;
+    }
+    return 0;
+}
+
+verb test_profile_rejects_extended_limits() -> Int {
+    erg resident_over_profile: LogicalShardProfile = production_logical_shard_profile();
+    resident_over_profile.max_resident_shards = BRAIN_LOGICAL_MAX_RESIDENT_SHARDS + 1u32;
+    if !profile_is_rejected(profile: erg resident_over_profile) {
+        return 1;
+    }
+    erg binding_over_profile: LogicalShardProfile = production_logical_shard_profile();
+    binding_over_profile.max_bindings_per_shard = BRAIN_LOGICAL_MAX_BINDINGS_PER_SHARD + 1u32;
+    if !profile_is_rejected(profile: erg binding_over_profile) {
+        return 2;
+    }
+    erg auxiliary_over_profile: LogicalShardProfile = production_logical_shard_profile();
+    auxiliary_over_profile.max_auxiliary_records = BRAIN_LOGICAL_MAX_AUXILIARY_RECORDS + 1u32;
+    if !profile_is_rejected(profile: erg auxiliary_over_profile) {
+        return 3;
+    }
+    erg request_over_profile: LogicalShardProfile = production_logical_shard_profile();
+    request_over_profile.max_request_items = BRAIN_LOGICAL_MAX_REQUEST_ITEMS + 1u32;
+    if !profile_is_rejected(profile: erg request_over_profile) {
+        return 4;
+    }
+    erg descriptor_over_profile: LogicalShardProfile = production_logical_shard_profile();
+    descriptor_over_profile.max_manifest_descriptors = BRAIN_LOGICAL_MAX_MANIFEST_DESCRIPTORS + 1u32;
+    if !profile_is_rejected(profile: erg descriptor_over_profile) {
+        return 5;
+    }
+    return 0;
+}
+
+meta test
+verb test_logical_profile_rejects_invalid_bounds() -> Int {
+    erg base_status: Int = test_profile_rejects_base_limits();
+    if base_status != 0 {
+        return base_status;
+    }
+    return test_profile_rejects_extended_limits();
+}
+
+"""Verify that an axon stores the global destination index unchanged.
+
+The destination belongs to shard one while the source fabric is the legacy
+single-shard runtime. The axon slot must retain the logical global `u32`; it
+must not be rewritten as a shard-local index or a persistence offset.
+"""
+meta test
+verb test_cross_shard_axon_preserves_global_target() -> Int {
+    erg shard_id: u32 = 1u32;
+    erg local_index: u32 = 7u32;
+    erg target_result = logical_global_index(shard_id: erg shard_id, local_index: erg local_index);
+    erg target: u32 = 0u32;
+    erg target_status: Int = case dat target_result {
+        Result.Err(_) => 1,
+        Result.Ok(index) => {
+            target = index;
+            0;
+        },
+    };
+    if target_status != 0 {
+        return 1;
+    }
+    erg fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](), free_list_head: 0u32, active_count: 0u32};
+    fabric_init(fabric: ins fabric);
+    erg source: u32 = allocate_column_index(fabric: ins fabric);
+    erg slot: u32 = 0u32;
+    link_axon(
+        fabric: ins fabric,
+        source: erg source,
+        slot: erg slot,
+        target: erg target
+    );
+    if target >= BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY && fabric.columns[source].axons[0u32] == target {
+        return 0;
+    }
+    return 2;
+}
+
+verb global_target_for_test(erg shard_id: u32, erg local_index: u32) -> u32 {
+    erg result = logical_global_index(shard_id: erg shard_id, local_index: erg local_index);
+    return case dat result {
+        Result.Err(_) => BRAIN_LOGICAL_MAX_COLUMNS,
+        Result.Ok(index) => index,
+    };
+}
+
+verb link_cross_shard_targets(
+    ins fabric: CorticalFabric[64],
+    erg source: u32,
+    erg first_target: u32,
+    erg second_target: u32
+) {
+    erg first_slot: u32 = 0u32;
+    erg second_slot: u32 = 1u32;
+    link_axon(
+        fabric: ins fabric,
+        source: erg source,
+        slot: erg first_slot,
+        target: erg first_target
+    );
+    link_axon(
+        fabric: ins fabric,
+        source: erg source,
+        slot: erg second_slot,
+        target: erg second_target
+    );
+}
+
+meta test
+verb test_cross_shard_routes_preserve_deterministic_targets() -> Int {
+    erg fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](), free_list_head: 0u32, active_count: 0u32};
+    fabric_init(fabric: ins fabric);
+    erg source: u32 = allocate_column_index(fabric: ins fabric);
+    erg first_shard: u32 = 1u32;
+    erg first_local: u32 = 7u32;
+    erg second_shard: u32 = 2u32;
+    erg second_local: u32 = 3u32;
+    erg first_target: u32 = global_target_for_test(shard_id: erg first_shard, local_index: erg first_local);
+    erg second_target: u32 = global_target_for_test(shard_id: erg second_shard, local_index: erg second_local);
+    if first_target >= BRAIN_LOGICAL_MAX_COLUMNS || second_target >= BRAIN_LOGICAL_MAX_COLUMNS || first_target == second_target {
+        return 1;
+    }
+    link_cross_shard_targets(
+        fabric: ins fabric,
+        source: erg source,
+        first_target: erg first_target,
+        second_target: erg second_target
+    );
+    if fabric.columns[source].axons[0u32] != first_target || fabric.columns[source].axons[1u32] != second_target {
+        return 2;
+    }
+    return 0;
+}

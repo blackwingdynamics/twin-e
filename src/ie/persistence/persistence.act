@@ -1,0 +1,22 @@
+"""Public persistence facade for position-independent IE snapshots."""
+import config;
+
+open serialization;
+
+open paths;
+
+open file;
+
+open text_file;
+
+open vocabulary;
+
+open shard;
+
+open manifest;
+
+open cache;
+
+open logical;
+
+open publication;

@@ -1,11 +1,11 @@
 """Scan a dataset directory without materializing an unbounded path list."""
-import aie;
+import ie;
 
 import std::fs;
 
 import std::path;
 
-open aie;
+open ie;
 
 open fs;
 

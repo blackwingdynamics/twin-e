@@ -1,5 +1,5 @@
 """Acceptance tests for bounded offline teaching-file ingestion."""
-import aie;
+import ie;
 
 import config;
 

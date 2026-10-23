@@ -1,0 +1,235 @@
+"""Measure bounded shard profiles and restart-safe selective loading."""
+import ie;
+
+import config;
+
+import std::io;
+
+import std::path;
+
+import std::time;
+
+verb emit_metric(abs label: String, erg value: u64) -> Int {
+    print(text: abs label);
+    erg display_value: Int = value as Int;
+    print_int(value: erg display_value);
+    return 0;
+}
+
+verb append_path_prefix(ins raw: Buffer) {
+    append(raw, 47u8);
+    append(raw, 116u8);
+    append(raw, 109u8);
+    append(raw, 112u8);
+    append(raw, 47u8);
+    append(raw, 116u8);
+    append(raw, 119u8);
+    append(raw, 105u8);
+    append(raw, 110u8);
+    append(raw, 45u8);
+    append(raw, 101u8);
+    append(raw, 45u8);
+    append(raw, 115u8);
+    append(raw, 99u8);
+    append(raw, 97u8);
+    append(raw, 108u8);
+    append(raw, 101u8);
+    append(raw, 45u8);
+}
+
+verb make_path(erg suffix: u8) -> Result[Path, PathError] {
+    erg raw = Buffer[0];
+    append_path_prefix(raw: ins raw);
+    append(raw, suffix);
+    append(raw, 46u8);
+    append(raw, 98u8);
+    append(raw, 114u8);
+    append(raw, 97u8);
+    append(raw, 105u8);
+    append(raw, 110u8);
+    append(raw, 0u8);
+    return path_from_ascii(storage: dat raw);
+}
+
+verb make_payload(erg column_count: u32) -> Buffer {
+    erg payload: Buffer = Buffer[0];
+    erg capacity: Int = (column_count * 64u32) as Int;
+    erg reserved = reserve(buffer: ins payload, capacity: erg capacity);
+    erg length: u32 = column_count * 64u32;
+    erg index: u32 = 0u32;
+    loop {
+        if index >= length {
+            break;
+        }
+        append(payload, (index & 255u32) as u8);
+        index += 1u32;
+    }
+    return payload;
+}
+
+verb write_profile(
+    abs path: Path,
+    erg shard_id: u32,
+    erg first_column: u32,
+    erg column_count: u32
+) -> u64 {
+    erg payload: Buffer = make_payload(column_count: erg column_count);
+    erg started: u64 = monotonic_nanos();
+    erg result = write_dynamic_shard(
+        path: abs path,
+        shard_id: erg shard_id,
+        first_column_index: erg first_column,
+        column_count: erg column_count,
+        payload: abs payload
+    );
+    erg finished: u64 = monotonic_nanos();
+    return case dat result {
+        Result.Err(_) => 0u64,
+        Result.Ok(_) => finished - started,
+    };
+}
+
+verb checksum_path(abs path: Path) -> u64 {
+    erg result = dynamic_shard_file_checksum(path: abs path);
+    return case dat result {
+        Result.Err(_) => 0u64,
+        Result.Ok(value) => value,
+    };
+}
+
+verb selective_load(
+    abs path: Path,
+    erg shard_id: u32,
+    erg first_column: u32,
+    erg column_count: u32
+) -> u64 {
+    erg fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](), free_list_head: 0u32, active_count: 0u32};
+    fabric_init(fabric: ins fabric);
+    erg loaded = read_to_bytes(path: abs path);
+    return case dat loaded {
+        Result.Err(_) => 0u64,
+        Result.Ok(bytes) => {
+            erg started: u64 = monotonic_nanos();
+            erg destination_index: u32 = 0u32;
+            erg result = load_dynamic_shard_bytes(
+                fabric: ins fabric,
+                bytes: dat bytes,
+                destination_index: erg destination_index,
+                expected_shard_id: erg shard_id,
+                expected_first_column_index: erg first_column,
+                expected_column_count: erg column_count
+            );
+            erg finished: u64 = monotonic_nanos();
+            return case dat result {
+                Result.Err(_) => 0u64,
+                Result.Ok(_) => finished - started,
+            };
+        },
+    };
+}
+
+meta limitless("verb")
+verb main() -> Int {
+    erg small_suffix: u8 = 60u8;
+    erg medium_suffix: u8 = 61u8;
+    erg large_suffix: u8 = 62u8;
+    erg small_path_result = make_path(suffix: erg small_suffix);
+    erg medium_path_result = make_path(suffix: erg medium_suffix);
+    erg large_path_result = make_path(suffix: erg large_suffix);
+    return case dat small_path_result {
+        Result.Err(_) => 1,
+        Result.Ok(small_path) => {
+            return case dat medium_path_result {
+                Result.Err(_) => 2,
+                Result.Ok(medium_path) => {
+                    return case dat large_path_result {
+                        Result.Err(_) => 3,
+                        Result.Ok(large_path) => {
+                            erg small_id: u32 = 0u32;
+                            erg small_first: u32 = 0u32;
+                            erg small_columns: u32 = 2u32;
+                            erg medium_id: u32 = 1u32;
+                            erg medium_first: u32 = 2u32;
+                            erg medium_columns: u32 = 8u32;
+                            erg large_id: u32 = 2u32;
+                            erg large_first: u32 = 10u32;
+                            erg large_columns: u32 = 32u32;
+                            erg small_write: u64 = write_profile(
+                                path: abs small_path,
+                                shard_id: erg small_id,
+                                first_column: erg small_first,
+                                column_count: erg small_columns
+                            );
+                            erg medium_write: u64 = write_profile(
+                                path: abs medium_path,
+                                shard_id: erg medium_id,
+                                first_column: erg medium_first,
+                                column_count: erg medium_columns
+                            );
+                            erg large_write: u64 = write_profile(
+                                path: abs large_path,
+                                shard_id: erg large_id,
+                                first_column: erg large_first,
+                                column_count: erg large_columns
+                            );
+                            if small_write == 0u64 || medium_write == 0u64 || large_write == 0u64 {
+                                return 4;
+                            }
+                            erg sequential_started: u64 = monotonic_nanos();
+                            erg checksum_total: u64 = checksum_path(path: abs small_path) + checksum_path(
+                                path: abs medium_path
+                            ) + checksum_path(path: abs large_path);
+                            erg sequential_nanos: u64 = monotonic_nanos() - sequential_started;
+                            erg random_started: u64 = monotonic_nanos();
+                            erg random_checksum: u64 = checksum_path(path: abs medium_path);
+                            erg random_nanos: u64 = monotonic_nanos() - random_started;
+                            erg selective_nanos: u64 = selective_load(
+                                path: abs medium_path,
+                                shard_id: erg medium_id,
+                                first_column: erg medium_first,
+                                column_count: erg medium_columns
+                            );
+                            erg flush_nanos: u64 = write_profile(
+                                path: abs medium_path,
+                                shard_id: erg medium_id,
+                                first_column: erg medium_first,
+                                column_count: erg medium_columns
+                            );
+                            erg restart_started: u64 = monotonic_nanos();
+                            erg restart_checksum: u64 = checksum_path(path: abs medium_path);
+                            erg restart_nanos: u64 = monotonic_nanos() - restart_started;
+                            if checksum_total == 0u64 || random_checksum == 0u64 || selective_nanos == 0u64 || flush_nanos == 0u64 || restart_checksum == 0u64 {
+                                return 5;
+                            }
+                            erg label_small: String = "IE_SCALE small_write_ns=";
+                            erg label_medium: String = " medium_write_ns=";
+                            erg label_large: String = " large_write_ns=";
+                            erg label_sequential: String = " sequential_ns=";
+                            erg label_random: String = " random_lookup_ns=";
+                            erg label_selective: String = " selective_load_ns=";
+                            erg label_flush: String = " flush_ns=";
+                            erg label_restart: String = " restart_validation_ns=";
+                            erg label_files: String = " files=";
+                            erg label_columns: String = " max_profile_columns=";
+                            erg file_count: u64 = 3u64;
+                            erg max_profile_columns: u64 = 32u64;
+                            erg newline: String = "";
+                            emit_metric(label: abs label_small, value: erg small_write);
+                            emit_metric(label: abs label_medium, value: erg medium_write);
+                            emit_metric(label: abs label_large, value: erg large_write);
+                            emit_metric(label: abs label_sequential, value: erg sequential_nanos);
+                            emit_metric(label: abs label_random, value: erg random_nanos);
+                            emit_metric(label: abs label_selective, value: erg selective_nanos);
+                            emit_metric(label: abs label_flush, value: erg flush_nanos);
+                            emit_metric(label: abs label_restart, value: erg restart_nanos);
+                            emit_metric(label: abs label_files, value: erg file_count);
+                            emit_metric(label: abs label_columns, value: erg max_profile_columns);
+                            println(text: abs newline);
+                            return 0;
+                        },
+                    };
+                },
+            };
+        },
+    };
+}

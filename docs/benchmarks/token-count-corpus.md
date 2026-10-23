@@ -8,15 +8,15 @@ example and uses nine bounded rules for repeated word fragments.
 
 ```sh
 actus build --strict --emit exe \
-  -o /tmp/twin-e-token-count-corpus.aie \
-  benchmarks/aie_token_count_corpus.act
-/tmp/twin-e-token-count-corpus.aie
+  -o /tmp/twin-e-token-count-corpus.ie \
+  benchmarks/ie_token_count_corpus.act
+/tmp/twin-e-token-count-corpus.ie
 ```
 
 ## Recorded result
 
 ```text
-AIE_TOKEN_CORPUS byte_tokens=55
+IE_TOKEN_CORPUS byte_tokens=55
  bpe_tokens=27
  reduction=28
 ```

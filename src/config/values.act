@@ -1,4 +1,4 @@
-"""Package-wide typed constants for AIE policy and binary formats."""
+"""Package-wide typed constants for IE policy and binary formats."""
 """Arena index sentinel used for an unconnected axon, link, or free-list entry."""
 open const NULL_INDEX: u32 = 4294967295u32;
 

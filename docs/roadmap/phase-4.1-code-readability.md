@@ -2,7 +2,7 @@
 
 ## Objective
 
-Make the AIE source easier to read, review, extend, and operate without changing
+Make the IE source easier to read, review, extend, and operate without changing
 its observable behavior. This phase applies the current Actus language surface
 to the existing engine and persistence code. Every refactor must preserve the
 current public contracts, binary layouts, ownership rules, and test behavior.
@@ -13,11 +13,11 @@ paths, and ownership behavior of each public operation from the source.
 
 ## Scope
 
-- `src/aie/`
+- `src/ie/`
 - `src/tokenizer/`
 - `src/encoding/`
 - `src/config/`
-- Relevant AIE tests and public documentation
+- Relevant IE tests and public documentation
 
 This phase does not change the binary snapshot format, minicolumn layout,
 token code contract, persistence protocol, or runtime semantics unless a
@@ -56,33 +56,33 @@ The current function inventory above the preferred 30-line threshold is:
 
 | File | Verb | Lines |
 | --- | --- | ---: |
-| `src/aie/persistence/file.act` | `read_brain_bytes` | 34 |
-| `src/aie/persistence/shard.act` | `write_shard` | 57 |
-| `src/aie/persistence/shard.act` | `read_shard_bytes` | 50 |
-| `src/aie/persistence/shard.act` | `write_dynamic_shard` | 62 |
-| `src/aie/persistence/shard.act` | `write_dynamic_shard_with_bindings` | 76 |
-| `src/aie/persistence/shard.act` | `dynamic_shard_with_bindings_is_valid` | 42 |
-| `src/aie/persistence/shard.act` | `dynamic_shard_bytes_are_valid` | 41 |
-| `src/aie/persistence/shard.act` | `load_dynamic_shard_bytes` | 35 |
-| `src/aie/runtime/coincidence.act` | `evaluate_minicolumn_core` | 41 |
-| `src/aie/runtime/fabric.act` | `fabric_init_core` | 34 |
-| `src/aie/runtime/forwarding.act` | `forward_group_a` | 31 |
-| `src/aie/runtime/forwarding.act` | `forward_group_b` | 31 |
-| `src/aie/runtime/forwarding.act` | `evaluate_active_source` | 34 |
-| `src/aie/runtime/forwarding.act` | `forward_step_destinations` | 80 |
-| `src/aie/runtime/generation.act` | `generate_associative_core` | 79 |
-| `src/aie/runtime/neurogenesis.act` | `link_first_four` | 31 |
-| `src/aie/runtime/neurogenesis.act` | `link_last_four` | 31 |
+| `src/ie/persistence/file.act` | `read_brain_bytes` | 34 |
+| `src/ie/persistence/shard.act` | `write_shard` | 57 |
+| `src/ie/persistence/shard.act` | `read_shard_bytes` | 50 |
+| `src/ie/persistence/shard.act` | `write_dynamic_shard` | 62 |
+| `src/ie/persistence/shard.act` | `write_dynamic_shard_with_bindings` | 76 |
+| `src/ie/persistence/shard.act` | `dynamic_shard_with_bindings_is_valid` | 42 |
+| `src/ie/persistence/shard.act` | `dynamic_shard_bytes_are_valid` | 41 |
+| `src/ie/persistence/shard.act` | `load_dynamic_shard_bytes` | 35 |
+| `src/ie/runtime/coincidence.act` | `evaluate_minicolumn_core` | 41 |
+| `src/ie/runtime/fabric.act` | `fabric_init_core` | 34 |
+| `src/ie/runtime/forwarding.act` | `forward_group_a` | 31 |
+| `src/ie/runtime/forwarding.act` | `forward_group_b` | 31 |
+| `src/ie/runtime/forwarding.act` | `evaluate_active_source` | 34 |
+| `src/ie/runtime/forwarding.act` | `forward_step_destinations` | 80 |
+| `src/ie/runtime/generation.act` | `generate_associative_core` | 79 |
+| `src/ie/runtime/neurogenesis.act` | `link_first_four` | 31 |
+| `src/ie/runtime/neurogenesis.act` | `link_last_four` | 31 |
 | `src/tokenizer/bpe.act` | `find_best_merge` | 32 |
 | `src/tokenizer/bpe.act` | `bpe_decode_bytes` | 53 |
 | `src/tokenizer/byte.act` | `tokenize_string` | 36 |
 
 The primary file-level decomposition targets are:
 
-- `src/aie/persistence/shard.act` — 640 physical lines, with serialization,
+- `src/ie/persistence/shard.act` — 640 physical lines, with serialization,
   validation, checksum, publication, and loading responsibilities mixed in one
   implementation boundary.
-- `src/aie/runtime/forwarding.act` — 414 physical lines, with repeated fixed
+- `src/ie/runtime/forwarding.act` — 414 physical lines, with repeated fixed
   axon-slot forwarding and public step orchestration in one file.
 - `src/tokenizer/bpe.act` — 305 physical lines, with vocabulary validation,
   merge selection, encoding, special-token handling, and decoding together.
@@ -98,19 +98,19 @@ The inventory also identified repeated logic that Gate 4 must address:
 
 The canonical public facades identified for preservation are:
 
-- `src/aie/layout/layout.act`
-- `src/aie/runtime/runtime.act`
-- `src/aie/persistence/persistence.act`
-- `src/aie/persistence/manifest/manifest.act`
-- `src/aie/persistence/manifest/fixed/fixed.act`
-- `src/aie/persistence/manifest/dynamic_manifest/dynamic_manifest.act`
+- `src/ie/layout/layout.act`
+- `src/ie/runtime/runtime.act`
+- `src/ie/persistence/persistence.act`
+- `src/ie/persistence/manifest/manifest.act`
+- `src/ie/persistence/manifest/fixed/fixed.act`
+- `src/ie/persistence/manifest/dynamic_manifest/dynamic_manifest.act`
 - `src/config/config.act`
 - `src/encoding/encoding.act`
 - `src/tokenizer/tokenizer.act`
 
 Planned refactors must preserve fixed binary offsets and widths, public facade
 paths, ownership roles, checksum and validation behavior, deterministic axon
-selection, bounded storage, and the current 16-test strict AIE baseline.
+selection, bounded storage, and the current 16-test strict IE baseline.
 
 The standalone `actus conformance --strict` command currently reports a source
 root scan error before producing a report. This is recorded as a tooling issue
@@ -131,17 +131,17 @@ for Gate 7; it does not invalidate the source inventory above.
 The boundary audit preserved public behavior and identified the existing
 canonical facade structure for each public subsystem:
 
-- `src/aie/aie.act` exports layout, runtime, and persistence through the AIE
+- `src/ie/ie.act` exports layout, runtime, and persistence through the IE
   package facade.
-- `src/aie/layout/layout.act` exports packed layout types.
-- `src/aie/runtime/runtime.act` exports runtime state, selection, forwarding,
+- `src/ie/layout/layout.act` exports packed layout types.
+- `src/ie/runtime/runtime.act` exports runtime state, selection, forwarding,
   context, neurogenesis, decay, and generation operations.
-- `src/aie/persistence/persistence.act` exports serialization, file, shard,
+- `src/ie/persistence/persistence.act` exports serialization, file, shard,
   manifest, and cache operations.
-- `src/aie/persistence/manifest/manifest.act` owns the manifest facade and
+- `src/ie/persistence/manifest/manifest.act` owns the manifest facade and
   exports its fixed and dynamic implementations through child facades.
-- `src/aie/persistence/manifest/fixed/fixed.act` and
-  `src/aie/persistence/manifest/dynamic_manifest/dynamic_manifest.act` keep
+- `src/ie/persistence/manifest/fixed/fixed.act` and
+  `src/ie/persistence/manifest/dynamic_manifest/dynamic_manifest.act` keep
   their respective manifest implementations behind dedicated child facades.
 - `src/config/config.act`, `src/encoding/encoding.act`, and
   `src/tokenizer/tokenizer.act` are the canonical facades for package-wide
@@ -220,7 +220,7 @@ indexed access.
 - [x] Split the snapshot reader, coincidence state update, and byte tokenizer
       helpers where strict function-size validation required clearer
       responsibilities.
-- [x] Added an explicit `src/aie/api.act` facade for dynamic shard write and
+- [x] Added an explicit `src/ie/api.act` facade for dynamic shard write and
       publish operations so nested persistence declarations cross the package
       boundary through a canonical public API.
 

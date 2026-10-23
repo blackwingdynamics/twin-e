@@ -13,18 +13,18 @@ repository:
 ```sh
 actus=/home/magradze/Projects/actus_project/actus/target/debug/actus
 sha256sum "$actus"
-"$actus" fmt --check benchmarks/aie_fallback_persistence.act
-"$actus" build --strict --emit exe -o /tmp/twin-e-fallback-persistence.aie \
-  benchmarks/aie_fallback_persistence.act
-/tmp/twin-e-fallback-persistence.aie
-"$actus" fmt --check benchmarks/aie_fallback_restart_write.act
-"$actus" fmt --check benchmarks/aie_fallback_restart_read.act
-"$actus" build --strict --emit exe -o /tmp/twin-e-fallback-restart-write.aie \
-  benchmarks/aie_fallback_restart_write.act
-"$actus" build --strict --emit exe -o /tmp/twin-e-fallback-restart-read.aie \
-  benchmarks/aie_fallback_restart_read.act
-/tmp/twin-e-fallback-restart-write.aie
-/tmp/twin-e-fallback-restart-read.aie
+"$actus" fmt --check benchmarks/ie_fallback_persistence.act
+"$actus" build --strict --emit exe -o /tmp/twin-e-fallback-persistence.ie \
+  benchmarks/ie_fallback_persistence.act
+/tmp/twin-e-fallback-persistence.ie
+"$actus" fmt --check benchmarks/ie_fallback_restart_write.act
+"$actus" fmt --check benchmarks/ie_fallback_restart_read.act
+"$actus" build --strict --emit exe -o /tmp/twin-e-fallback-restart-write.ie \
+  benchmarks/ie_fallback_restart_write.act
+"$actus" build --strict --emit exe -o /tmp/twin-e-fallback-restart-read.ie \
+  benchmarks/ie_fallback_restart_read.act
+/tmp/twin-e-fallback-restart-write.ie
+/tmp/twin-e-fallback-restart-read.ie
 ```
 
 Conditions: Twin-e commit `acdcf6593c3a2e12752e3331436188f3b9e88c71`, host
@@ -36,11 +36,11 @@ floating-point instructions.
 ## Recorded output
 
 ```text
-AIE_FALLBACK_PERSISTENCE first_brain_bytes=5702 repeated_brain_bytes=5702
-AIE_FALLBACK_PERSISTENCE training_passes=2 events=62 active_bindings=62 active_columns=64 shard_columns=64 binding_slots=64
+IE_FALLBACK_PERSISTENCE first_brain_bytes=5702 repeated_brain_bytes=5702
+IE_FALLBACK_PERSISTENCE training_passes=2 events=62 active_bindings=62 active_columns=64 shard_columns=64 binding_slots=64
  growth_bytes=0 oversized_rejected=1 unchanged=1 failed_save_unchanged=1
-AIE_FALLBACK_RESTART save=1 events=63 active_bindings=63 active_columns=64 process=writer
-AIE_FALLBACK_RESTART reload=1 events=63 active_bindings=63 active_columns=64 process=reader
+IE_FALLBACK_RESTART save=1 events=63 active_bindings=63 active_columns=64 process=writer
+IE_FALLBACK_RESTART reload=1 events=63 active_bindings=63 active_columns=64 process=reader
 ```
 
 The first executable fills the 64-column arena after two bounded training

@@ -1,0 +1,304 @@
+"""End-to-end evidence for bounded multi-shard resident teaching."""
+import ie;
+
+import config;
+
+import std::io;
+
+import tokenizer;
+
+import runner;
+
+open io;
+
+open runner;
+
+open tokenizer;
+
+verb logical_test_token(abs seed: u32, abs position: u32) -> Token {
+    erg token: Token = Token {id: 0u32, byte_offset: 0u32, byte_length: 1u16, tokenizer_version: TOKENIZER_VERSION};
+    token.id = seed + position;
+    token.byte_offset = position;
+    return token;
+}
+
+verb logical_test_sequence(erg seed: u32) -> TokenSequence {
+    erg sequence: TokenSequence = TokenSequence {tokens: Array[Token, 256](), length: 256u32, valid: true};
+    erg position: u32 = 0u32;
+    loop {
+        if position >= 256u32 {
+            break;
+        }
+        sequence.tokens[position as Usize] = logical_test_token(seed: abs seed, position: abs position);
+        position += 1u32;
+    }
+    return sequence;
+}
+
+verb logical_test_init(ins brain: LogicalTeachingBrain) -> Bool {
+    erg initialized = logical_teaching_init(brain: ins brain);
+    return case dat initialized {
+        Result.Err(_) => false,
+        Result.Ok(_) => true,
+    };
+}
+
+verb logical_test_teach(ins brain: LogicalTeachingBrain, erg seed: u32) -> Bool {
+    erg sequence: TokenSequence = logical_test_sequence(seed: erg seed);
+    erg taught = logical_teaching_sequence(brain: ins brain, sequence: abs sequence);
+    return case dat taught {
+        Result.Err(_) => false,
+        Result.Ok(_) => true,
+    };
+}
+
+verb logical_test_capacity_sequence(erg seed: u32) -> TokenSequence {
+    erg sequence: TokenSequence = logical_test_sequence(seed: erg seed);
+    sequence.length = 255u32;
+    return sequence;
+}
+
+verb logical_test_teach_capacity(ins brain: LogicalTeachingBrain, erg seed: u32) -> Bool {
+    erg sequence: TokenSequence = logical_test_capacity_sequence(seed: erg seed);
+    erg taught = logical_teaching_sequence(brain: ins brain, sequence: abs sequence);
+    return case dat taught {
+        Result.Err(_) => false,
+        Result.Ok(_) => true,
+    };
+}
+
+verb logical_test_teach_three_capacity(
+    ins brain: LogicalTeachingBrain,
+    erg seed: u32
+) -> Bool {
+    if !logical_test_teach_capacity(brain: ins brain, seed: erg seed) {
+        return false;
+    }
+    erg second_seed: u32 = seed + 1000u32;
+    if !logical_test_teach_capacity(brain: ins brain, seed: erg second_seed) {
+        return false;
+    }
+    erg third_seed: u32 = second_seed + 1000u32;
+    return logical_test_teach_capacity(brain: ins brain, seed: erg third_seed);
+}
+
+verb logical_test_has_binding(
+    abs bindings: Array[TokenBinding, 1024],
+    erg token_id: u32
+) -> Bool {
+    erg bos_token_id: u32 = BPE_BOS_TOKEN_ID;
+    erg context: u64 = context_key(previous_token_id: erg bos_token_id, token_id: erg token_id);
+    erg found = lookup_token_context[1024](
+        bindings: abs bindings,
+        token_id: erg token_id,
+        context_key: erg context
+    );
+    return case dat found {
+        Option.None => false,
+        Option.Some(_) => true,
+    };
+}
+
+verb logical_test_recall_two_shards(
+    abs brain: LogicalTeachingBrain,
+    erg first_seed: u32,
+    erg second_seed: u32
+) -> Bool {
+    if brain.fabrics[0u32].active_count != 1024u32 || brain.fabrics[1u32].active_count == 0u32 {
+        return false;
+    }
+    if !logical_test_has_binding(bindings: abs brain.bindings[0u32], token_id: erg first_seed) {
+        return false;
+    }
+    return logical_test_has_binding(bindings: abs brain.bindings[1u32], token_id: erg second_seed);
+}
+
+verb logical_test_two_shards() -> Bool {
+    erg brain: LogicalTeachingBrain = logical_teaching_empty();
+    if !logical_test_init(brain: ins brain) {
+        return false;
+    }
+    erg first_seed: u32 = 1000u32;
+    if !logical_test_teach_three_capacity(brain: ins brain, seed: erg first_seed) {
+        return false;
+    }
+    erg fourth_seed: u32 = 4000u32;
+    if !logical_test_teach_capacity(brain: ins brain, seed: erg fourth_seed) {
+        return false;
+    }
+    erg fifth_seed: u32 = fourth_seed + 1000u32;
+    if !logical_test_teach_capacity(brain: ins brain, seed: erg fifth_seed) {
+        return false;
+    }
+    if brain.logical.shard_count != 2u32 || brain.logical.shard_transitions != 1u32 {
+        return false;
+    }
+    if !logical_test_recall_two_shards(
+        brain: abs brain,
+        first_seed: erg first_seed,
+        second_seed: erg fifth_seed
+    ) {
+        return false;
+    }
+    return true;
+}
+
+meta test
+verb test_logical_teaching_crosses_shards_and_recalls_state() -> Int {
+    if logical_test_two_shards() {
+        return 0;
+    }
+    return 1;
+}
+
+verb logical_test_teach_three_sequences(
+    ins brain: LogicalTeachingBrain,
+    erg seed: u32
+) -> Bool {
+    erg first_seed: u32 = seed;
+    erg second_seed: u32 = first_seed + 1000u32;
+    erg third_seed: u32 = second_seed + 1000u32;
+    if !logical_test_teach(brain: ins brain, seed: erg first_seed) {
+        return false;
+    }
+    if !logical_test_teach(brain: ins brain, seed: erg second_seed) {
+        return false;
+    }
+    if !logical_test_teach(brain: ins brain, seed: erg third_seed) {
+        return false;
+    }
+    return true;
+}
+
+verb logical_test_teach_three_shards(ins brain: LogicalTeachingBrain) -> Bool {
+    erg first_seed: u32 = 10000u32;
+    if !logical_test_teach_three_sequences(brain: ins brain, seed: erg first_seed) {
+        return false;
+    }
+    erg second_seed: u32 = 20000u32;
+    if !logical_test_teach_three_sequences(brain: ins brain, seed: erg second_seed) {
+        return false;
+    }
+    erg third_seed: u32 = 30000u32;
+    if !logical_test_teach_three_sequences(brain: ins brain, seed: erg third_seed) {
+        return false;
+    }
+    return true;
+}
+
+verb logical_test_flush_and_resume(
+    ins brain: LogicalTeachingBrain,
+    abs sequence: TokenSequence
+) -> Int {
+    erg flushed: Result[Int,IoError] = Result[Int, IoError].Ok(0);
+    erg first_shard_id: u32 = 0u32;
+    erg flush_result = logical_teaching_complete_flush(
+        brain: ins brain,
+        shard_id: erg first_shard_id,
+        flushed: abs flushed
+    );
+    erg flush_status: Int = case dat flush_result {
+        Result.Err(_) => 6,
+        Result.Ok(_) => 0,
+    };
+    if flush_status != 0 {
+        return flush_status;
+    }
+    erg resumed = logical_teaching_sequence(brain: ins brain, sequence: abs sequence);
+    return case dat resumed {
+        Result.Err(_) => 7,
+        Result.Ok(_) => 0,
+    };
+}
+
+meta test
+verb test_runner_flushes_before_retrying_rotation() -> Int {
+    erg brain: LogicalTeachingBrain = logical_teaching_empty();
+    if !logical_test_init(brain: ins brain) {
+        return 1;
+    }
+    if !logical_test_teach_three_shards(brain: ins brain) {
+        return 2;
+    }
+    erg pending_seed: u32 = 50000u32;
+    erg pending: TokenSequence = logical_test_sequence(seed: erg pending_seed);
+    erg flushed: Result[Int,IoError] = Result[Int, IoError].Ok(0);
+    erg result = runner_teach_sequence(
+        brain: ins brain,
+        sequence: abs pending,
+        flushed: abs flushed
+    );
+    return case dat result {
+        Result.Err(_) => 3,
+        Result.Ok(_) => 0,
+    };
+}
+
+meta test
+verb test_runner_failed_flush_preserves_dirty_state() -> Int {
+    erg brain: LogicalTeachingBrain = logical_teaching_empty();
+    if !logical_test_init(brain: ins brain) {
+        return 1;
+    }
+    if !logical_test_teach_three_shards(brain: ins brain) {
+        return 2;
+    }
+    erg pending_seed: u32 = 60000u32;
+    erg pending: TokenSequence = logical_test_sequence(seed: erg pending_seed);
+    erg failed: Result[Int,IoError] = Result[Int, IoError].Err(IoError.Failed);
+    erg result = runner_teach_sequence(
+        brain: ins brain,
+        sequence: abs pending,
+        flushed: abs failed
+    );
+    erg rejected: Bool = case dat result {
+        Result.Err(error) => error == LogicalTeachingError.FlushRequired,
+        Result.Ok(_) => false,
+    };
+    if !rejected {
+        return 3;
+    }
+    return 0;
+}
+
+meta test
+verb test_high_watermark_requires_flush_before_rotation() -> Int {
+    erg brain: LogicalTeachingBrain = logical_teaching_empty();
+    if !logical_test_init(brain: ins brain) {
+        return 1;
+    }
+    if !logical_test_teach_three_shards(brain: ins brain) {
+        return 2;
+    }
+    erg blocked_seed: u32 = 40000u32;
+    erg blocked_sequence: TokenSequence = logical_test_sequence(seed: erg blocked_seed);
+    erg blocked = logical_teaching_sequence(brain: ins brain, sequence: abs blocked_sequence);
+    erg blocked_status: Bool = case dat blocked {
+        Result.Err(error) => error == LogicalTeachingError.FlushRequired,
+        Result.Ok(_) => false,
+    };
+    if !blocked_status {
+        return 3;
+    }
+    return logical_test_flush_and_resume(brain: ins brain, sequence: abs blocked_sequence);
+}
+
+meta test
+verb test_dataset_boundary_reports_flush_request() -> Int {
+    erg brain: LogicalTeachingBrain = logical_teaching_empty();
+    if !logical_test_init(brain: ins brain) {
+        return 1;
+    }
+    if !logical_test_teach_three_shards(brain: ins brain) {
+        return 2;
+    }
+    erg boundary = dataset_teaching_boundary_error(brain: abs brain);
+    return case dat boundary {
+        Option.Some(error) => if error == DatasetTeachingError.FlushRequired {
+            0;
+        } else {
+            3;
+        },
+        Option.None => 4,
+    };
+}

@@ -12,35 +12,35 @@
 ## Reproduction commands
 
 ```sh
-actus build --strict --emit exe benchmarks/aie_text_brain_file.act \
-  -o /tmp/twin-e-p57-brain-file.aie
-/tmp/twin-e-p57-brain-file.aie
+actus build --strict --emit exe benchmarks/ie_text_brain_file.act \
+  -o /tmp/twin-e-p57-brain-file.ie
+/tmp/twin-e-p57-brain-file.ie
 
-actus build --strict --emit exe benchmarks/aie_text_brain_bounds.act \
-  -o /tmp/twin-e-p57-brain-bounds.aie
-/tmp/twin-e-p57-brain-bounds.aie
+actus build --strict --emit exe benchmarks/ie_text_brain_bounds.act \
+  -o /tmp/twin-e-p57-brain-bounds.ie
+/tmp/twin-e-p57-brain-bounds.ie
 
-actus build --strict --emit exe benchmarks/aie_bpe.act \
-  -o /tmp/twin-e-p57-bpe.aie
-/tmp/twin-e-p57-bpe.aie
+actus build --strict --emit exe benchmarks/ie_bpe.act \
+  -o /tmp/twin-e-p57-bpe.ie
+/tmp/twin-e-p57-bpe.ie
 
-actus build --strict --emit exe benchmarks/aie_text_brain_vocabulary.act \
-  -o /tmp/twin-e-p57-vocab.aie
-/tmp/twin-e-p57-vocab.aie
+actus build --strict --emit exe benchmarks/ie_text_brain_vocabulary.act \
+  -o /tmp/twin-e-p57-vocab.ie
+/tmp/twin-e-p57-vocab.ie
 
-actus build --strict --emit exe benchmarks/aie_brain_shards.act \
-  -o /tmp/twin-e-p57-shards.aie
-/tmp/twin-e-p57-shards.aie
+actus build --strict --emit exe benchmarks/ie_brain_shards.act \
+  -o /tmp/twin-e-p57-shards.ie
+/tmp/twin-e-p57-shards.ie
 ```
 
 ## Observed results
 
 ```text
-AIE_P5_BRAIN roundtrip=1 bytes=5702 fabric=1 bindings=1 compatibility=1 corrupted_rejected=1 unchanged=1
-AIE_P5_BRAIN_BOUNDS truncated_rejected=1 oversized_rejected=1 unchanged=1
-AIE_BPE input_bytes=2 output_tokens=3 special_tokens=2 decoded_bytes=2 merged_decode=2 artifact=valid rejected=1 invalid_rank_rejected=1 oversized_span_rejected=1 unknown_rejected=1
-AIE_P5_BRAIN_VOCAB bytes=11106 rules=3 tokens=3 repeated_merge=1 reload_decode=1 compatibility=1 corrupted_rejected=1 unchanged=1
-AIE_BRAIN_SHARDS roundtrip=1 shard0=1 shard1=1 cross_shard_axon=32 corrupted_rejected=1 fabric_unchanged=1
+IE_P5_BRAIN roundtrip=1 bytes=5702 fabric=1 bindings=1 compatibility=1 corrupted_rejected=1 unchanged=1
+IE_P5_BRAIN_BOUNDS truncated_rejected=1 oversized_rejected=1 unchanged=1
+IE_BPE input_bytes=2 output_tokens=3 special_tokens=2 decoded_bytes=2 merged_decode=2 artifact=valid rejected=1 invalid_rank_rejected=1 oversized_span_rejected=1 unknown_rejected=1
+IE_P5_BRAIN_VOCAB bytes=11106 rules=3 tokens=3 repeated_merge=1 reload_decode=1 compatibility=1 corrupted_rejected=1 unchanged=1
+IE_BRAIN_SHARDS roundtrip=1 shard0=1 shard1=1 cross_shard_axon=32 corrupted_rejected=1 fabric_unchanged=1
 ```
 
 All five executables exited with status `0`. The evidence covers the combined
@@ -54,11 +54,11 @@ durability or board performance.
 Additional strict executions with the same compiler produced:
 
 ```text
-AIE_TRAINING events=32 recall_profile=AB bounded=1
-AIE_TRAINING training_ns=12917 allocated_columns=3 active_bindings=3 snapshot_bytes=5702
-AIE_P5_RESTART save=1 bytes=5702 process=writer
-AIE_P5_RESTART reload=1 recalled=1 process=reader
-AIE_OBSERVATION_ROUNDTRIP bytes=20 code_roundtrip=1 active_bits=8
+IE_TRAINING events=32 recall_profile=AB bounded=1
+IE_TRAINING training_ns=12917 allocated_columns=3 active_bindings=3 snapshot_bytes=5702
+IE_P5_RESTART save=1 bytes=5702 process=writer
+IE_P5_RESTART reload=1 recalled=1 process=reader
+IE_OBSERVATION_ROUNDTRIP bytes=20 code_roundtrip=1 active_bits=8
 ```
 
 `actus test --strict` also passed the deterministic action, conflict, safety,

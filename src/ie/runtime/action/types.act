@@ -1,0 +1,44 @@
+"""Bounded action types emitted by the hardware-neutral IE boundary."""
+import config;
+
+"""Actions understood by the current host-testable routing profile."""
+open enum ActionKind {
+    Stop,
+    Move,
+    Turn,
+    Follow,
+    Signal,
+}
+
+"""Reasons a sensor event cannot enter the routing boundary."""
+open enum SensorError {
+    InvalidObservation,
+    UnsupportedObservation,
+}
+
+"""Reasons an observation cannot produce a safe action event."""
+open enum ActionError {
+    InvalidObservation,
+    MissingContext,
+    StaleSequence,
+    ConflictingActions,
+    RepeatedAction,
+    NoSuccessor,
+    InvalidAction,
+}
+
+"""Validated action output with bounded values and source indexes.
+
+The event is an in-memory adapter contract. `source_index` identifies the
+context column and `successor_index` identifies the selected action column.
+Neither field is a pointer or a device handle.
+"""
+open struct ActionEvent {
+    erg kind: ActionKind,
+    erg primary_value: u16,
+    erg secondary_value: u16,
+    erg sequence: u32,
+    erg source_index: u32,
+    erg successor_index: u32,
+    erg valid: Bool,
+}

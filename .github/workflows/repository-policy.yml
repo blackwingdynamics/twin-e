@@ -37,7 +37,7 @@ jobs:
       - name: Reject filesystem calls in resident hot-path source
         shell: bash
         run: |
-          if grep -R -n -E 'write_file|read_to_bytes|remove_file|rename|create_dir' src/aie/resident.act src/aie/runtime src/aie/layout 2>/dev/null; then
+          if grep -R -n -E 'write_file|read_to_bytes|remove_file|rename|create_dir' src/ie/resident.act src/ie/runtime src/ie/layout 2>/dev/null; then
             echo 'Filesystem I/O found in resident hot-path source.'
             exit 1
           fi

@@ -89,7 +89,7 @@ embedded path.
 
 ## Non-goals for the deferred phase
 
-- Do not start this phase by rewriting working hosted Region or AIE code.
+- Do not start this phase by rewriting working hosted Region or IE code.
 - Do not introduce Rust, C, or undocumented Actus syntax into `.act` sources.
 - Do not claim STM32 support from a compiler check, object build, or simulated
   target alone.

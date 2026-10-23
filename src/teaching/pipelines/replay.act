@@ -1,5 +1,5 @@
 """Bounded deterministic replay pipeline for an accepted token sequence."""
-import aie;
+import ie;
 
 import config;
 
@@ -89,7 +89,7 @@ verb finish_replay(
 
 """Replay one already normalized sequence a bounded number of times.
 
-The first pass creates the resident sequence. Later passes use the AIE replay
+The first pass creates the resident sequence. Later passes use the IE replay
 entry point, which reuses the first pass root and reinforces existing links.
 The caller owns the sequence and no persistence or external I/O occurs.
 """

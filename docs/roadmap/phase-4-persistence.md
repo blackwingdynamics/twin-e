@@ -34,7 +34,7 @@ in `phase-4.md` so that persistence progress remains reviewable.
 Evidence:
 
 ```text
-AIE_BRAIN_SHARDS roundtrip=1 shard0=1 shard1=1 cross_shard_axon=32 corrupted_rejected=1
+IE_BRAIN_SHARDS roundtrip=1 shard0=1 shard1=1 cross_shard_axon=32 corrupted_rejected=1
 ```
 
 ## P4S.2 — Manifest index
@@ -51,7 +51,7 @@ AIE_BRAIN_SHARDS roundtrip=1 shard0=1 shard1=1 cross_shard_axon=32 corrupted_rej
 Evidence:
 
 ```text
-AIE_BRAIN_MANIFEST roundtrip=1 generation=7 shards=2 checksums=2 lookup=1 corrupted_rejected=1
+IE_BRAIN_MANIFEST roundtrip=1 generation=7 shards=2 checksums=2 lookup=1 corrupted_rejected=1
 ```
 
 ## P4S.3 — Selective loading
@@ -126,7 +126,7 @@ selective_load=1
 Evidence:
 
 ```text
-AIE_SHARD_BINDINGS_DYNAMIC columns=2 bindings=2 stride=24 validated=1
+IE_SHARD_BINDINGS_DYNAMIC columns=2 bindings=2 stride=24 validated=1
 ```
 
 ## P4S.7 — Generation and crash recovery
@@ -143,9 +143,9 @@ AIE_SHARD_BINDINGS_DYNAMIC columns=2 bindings=2 stride=24 validated=1
 Evidence:
 
 ```text
-AIE_MANIFEST_DYNAMIC generation_publish=1 newest_generation=10 stale_rejected=1
-AIE_SHARDS_DYNAMIC staged_shard=1 validated=3 manifest_bound=2
-AIE_SHARDS_DYNAMIC dynamic_collection=3 reallocated=2
+IE_MANIFEST_DYNAMIC generation_publish=1 newest_generation=10 stale_rejected=1
+IE_SHARDS_DYNAMIC staged_shard=1 validated=3 manifest_bound=2
+IE_SHARDS_DYNAMIC dynamic_collection=3 reallocated=2
 ```
 
 ## P4S.8 — Scale and operational evidence
@@ -161,10 +161,10 @@ AIE_SHARDS_DYNAMIC dynamic_collection=3 reallocated=2
 - [x] Document the tested hardware limits and the difference between logical
   scale and resident memory.
 
-Evidence from `benchmarks/aie_persistence_scale.act` (one local run):
+Evidence from `benchmarks/ie_persistence_scale.act` (one local run):
 
 ```text
-AIE_SCALE small_write_ns=37485 medium_write_ns=32625 large_write_ns=52469
+IE_SCALE small_write_ns=37485 medium_write_ns=32625 large_write_ns=52469
  sequential_ns=14041 random_lookup_ns=1870 selective_load_ns=1274
  flush_ns=13808 restart_validation_ns=1926 files=3 max_profile_columns=32
 ```
@@ -173,20 +173,20 @@ These timings are operational evidence for the current host and debug-style
 benchmark executable. They do not define a hardware-independent latency
 guarantee or a final resident-memory limit.
 
-Operational evidence from `benchmarks/aie_manifest_dynamic.act`:
+Operational evidence from `benchmarks/ie_manifest_dynamic.act`:
 
 ```text
-AIE_OPERATIONAL manifest_bytes=224 shard_files=3 cache_working_set=4
+IE_OPERATIONAL manifest_bytes=224 shard_files=3 cache_working_set=4
 ```
 
 This profile uses a 64-byte manifest header and four 40-byte descriptors after
 the append operation. The cache working set is four metadata entries; shard
 payloads remain disk-backed and are loaded selectively.
 
-Bounded-cache evidence from `benchmarks/aie_cache.act`:
+Bounded-cache evidence from `benchmarks/ie_cache.act`:
 
 ```text
-AIE_CACHE capacity=4 working_set=4 dirty_rejected=1 pinned_rejected=1 clean_evicted=1 replacement=1
+IE_CACHE capacity=4 working_set=4 dirty_rejected=1 pinned_rejected=1 clean_evicted=1 replacement=1
 ```
 
 The current hardware evidence is limited to the local host and the tested

@@ -1,0 +1,134 @@
+"""Bounded associative continuation orchestration."""
+import config;
+
+import tokenizer;
+
+open tokenizer;
+
+open selection;
+
+"""Bounded associative continuation over context-bound IE transitions."""
+import config;
+
+import tokenizer;
+
+open tokenizer;
+
+"""Bounded output of associative continuation generation.
+
+The result owns a fixed token sequence, the number of generated events, a
+stable termination reason, validity state, and the last token identity.
+"""
+open struct GenerationResult {
+    erg tokens: TokenSequence,
+    erg generated_count: u32,
+    erg termination_reason: u8,
+    erg valid: Bool,
+    erg last_token_id: u32,
+}
+
+verb empty_generation_result(erg reason: u8) -> GenerationResult {
+    return GenerationResult {tokens: TokenSequence {tokens: Array[Token, 256](), length: 0u32, valid: false}, generated_count: 0u32, termination_reason: reason, valid: false, last_token_id: 0u32};
+}
+
+"""Generate a bounded continuation from a tokenized prompt."""
+meta limitless("verb")
+verb generate_associative_core(
+    ins fabric: CorticalFabric[64],
+    abs bindings: Array[TokenBinding, 64],
+    abs prompt: TokenSequence,
+    abs vocabulary: BpeVocabulary,
+    erg max_tokens: u32
+) -> GenerationResult {
+    if !prompt.valid || prompt.length == 0u32 || max_tokens == 0u32 || max_tokens > TOKENIZER_MAX_BYTES {
+        erg invalid_reason: u8 = GENERATION_STOP_INVALID_PROMPT;
+        return empty_generation_result(reason: erg invalid_reason);
+    }
+    erg result: GenerationResult = GenerationResult {tokens: TokenSequence {tokens: Array[Token, 256](
+    ), length: 0u32, valid: true}, generated_count: 0u32, termination_reason: GENERATION_STOP_MAX_TOKENS, valid: true, last_token_id: prompt.tokens[prompt.length - 1u32].id};
+    erg current_token_id: u32 = prompt.tokens[prompt.length - 1u32].id;
+    erg previous_token_id: u32 = vocabulary.bos_token_id;
+    if prompt.length > 1u32 {
+        previous_token_id = prompt.tokens[prompt.length - 2u32].id;
+    }
+    erg history: Array[u32,8] = Array[u32, 8]();
+    erg history_count: u32 = 0u32;
+    loop {
+        if result.generated_count >= max_tokens {
+            break;
+        }
+        erg context_previous_token_id: u32 = 0u32;
+        erg context_current_token_id: u32 = 0u32;
+        context_previous_token_id = previous_token_id;
+        context_current_token_id = current_token_id;
+        erg context: u64 = context_key(previous_token_id: erg context_previous_token_id, token_id: erg context_current_token_id);
+        erg lookup_token_id: u32 = 0u32;
+        erg lookup_context: u64 = 0u64;
+        lookup_token_id = current_token_id;
+        lookup_context = context;
+        erg source: Option[u32] = lookup_token_context[64](
+            bindings: abs bindings,
+            token_id: erg lookup_token_id,
+            context_key: erg lookup_context
+        );
+        erg source_idx: u32 = case dat source {
+            Option.Some(index) => index,
+            Option.None => null_index(),
+        };
+        if source_idx == null_index() {
+            result.termination_reason = GENERATION_STOP_MISSING_CONTEXT;
+            break;
+        }
+        erg choice: SuccessorChoice = choose_successor(
+            fabric: abs fabric,
+            bindings: abs bindings,
+            history: abs history,
+            history_count: erg history_count,
+            source_idx: erg source_idx,
+            current_token_id: erg current_token_id
+        );
+        if !choice.found {
+            if choice.loop_guarded {
+                result.termination_reason = GENERATION_STOP_LOOP_GUARD;
+            } else {
+                result.termination_reason = GENERATION_STOP_NO_SUCCESSOR;
+            }
+            break;
+        }
+        erg chosen_index: u32 = choice.index;
+        erg next_token_id: u32 = bindings[chosen_index].token_id;
+        result.tokens.tokens[result.generated_count] = Token {id: bindings[chosen_index].token_id, byte_offset: 0u32, byte_length: 0u16, tokenizer_version: TOKENIZER_VERSION};
+        result.tokens.length += 1u32;
+        result.generated_count += 1u32;
+        result.last_token_id = next_token_id;
+        history_count = push_history(
+            history: ins history,
+            history_count: erg history_count,
+            candidate: erg chosen_index
+        );
+        previous_token_id = current_token_id;
+        current_token_id = next_token_id;
+        if next_token_id == vocabulary.eos_token_id {
+            result.termination_reason = GENERATION_STOP_EOS;
+            break;
+        }
+    }
+    return result;
+}
+
+"""Expose the bounded generation contract through the public runtime facade."""
+open verb generate_associative(
+    ins fabric: CorticalFabric[64],
+    abs bindings: Array[TokenBinding, 64],
+    abs prompt: TokenSequence,
+    abs vocabulary: BpeVocabulary,
+    erg max_tokens: u32
+) -> GenerationResult {
+    return generate_associative_core(
+        fabric: ins fabric,
+        bindings: abs bindings,
+        prompt: abs prompt,
+        vocabulary: abs vocabulary,
+        max_tokens: erg max_tokens
+    );
+}

@@ -2,14 +2,14 @@
 
 - **Status:** Accepted
 - **Date:** 2026-10-04
-- **Scope:** AIE sequence memory, token representation, context routing, and
+- **Scope:** IE sequence memory, token representation, context routing, and
   text generation
 - **Related work:** ADR-0001, P3.1 public engine API, P3.2 executable demo,
   P3.6 tokenizer and sparse codebook foundation
 
 ## Context
 
-The Actus Impulse Engine (AIE) currently provides a working sparse associative
+The Actus Impulse Engine (IE) currently provides a working sparse associative
 substrate:
 
 - each cortical minicolumn occupies a fixed 64-byte cache-line-shaped record;
@@ -19,7 +19,7 @@ substrate:
 - firing reinforces myelination, propagates through bounded axon slots, and
   supports lateral inhibition and homeostatic decay;
 - a String can be tokenized through the current byte-token adapter, encoded as
-  a deterministic sparse 128-bit code, trained into the AIE arena, and recalled
+  a deterministic sparse 128-bit code, trained into the IE arena, and recalled
   as `Hello Giorgi`.
 
 The current representation identifies a token by its code alone. If the same
@@ -36,7 +36,7 @@ enough information to select the correct continuation. A token identity and a
 bounded temporal context must participate in the state identity.
 
 The current tokenizer is also a byte-token transition adapter. It proves the
-String-to-AIE path, but byte-level sequences become long as input grows. A
+String-to-IE path, but byte-level sequences become long as input grows. A
 versioned BPE-style subword vocabulary is needed to reduce sequence length,
 provide reusable word fragments, and define unknown-token behavior.
 
@@ -54,13 +54,13 @@ text
   -> token IDs
   -> context-bound token identity
   -> sparse 128-bit Wavefront
-  -> AIE transition graph
+  -> IE transition graph
   -> selected token IDs
   -> tokenizer decoder
   -> text
 ```
 
-The AIE core remains token- and text-agnostic. Tokenization, context-key
+The IE core remains token- and text-agnostic. Tokenization, context-key
 construction, successor selection, and decoding live behind package facades.
 
 ### 1. Temporal binding
@@ -85,7 +85,7 @@ must be stored in package configuration and included in the profile version.
 
 The current implementation already has a deterministic bounded context-key
 contract and probe. The next implementation step is to bind that context
-identity to token sidecar state and AIE routing. A rotational XOR implementation
+identity to token sidecar state and IE routing. A rotational XOR implementation
 must preserve a tested active-bit policy. XOR can cancel bits, so the resulting
 code must be measured and either repaired by deterministic re-seeding or
 encoded through a second-stage sparse codebook.
@@ -183,7 +183,7 @@ versioned BPE-style implementation. The facade owns:
 - bounded encode and decode operations;
 - vocabulary artifact compatibility checks.
 
-The AIE package consumes token IDs and encoded wavefronts. It does not inspect
+The IE package consumes token IDs and encoded wavefronts. It does not inspect
 token strings or implement merge rules. The tokenizer and codebook versions
 must be stored with snapshots and rejected when incompatible.
 
@@ -277,7 +277,7 @@ fixtures and non-sequential classification tasks.
 
 ### Dense self-attention or GEMM
 
-Rejected for the AIE core because it changes the memory layout, execution
+Rejected for the IE core because it changes the memory layout, execution
 model, and zero-floating-point design contract.
 
 ### Unbounded context history

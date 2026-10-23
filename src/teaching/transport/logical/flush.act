@@ -6,7 +6,7 @@ retried after a successful resident flush.
 """
 import adapters;
 
-import aie;
+import ie;
 
 import config;
 

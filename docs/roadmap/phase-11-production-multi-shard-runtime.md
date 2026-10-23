@@ -110,7 +110,7 @@ filesystem I/O to the learning hot path.
       failed-flush fixture proves resident and published state are unchanged.
 
 The bounded logical admission boundary is covered by
-`tests/aie_shard_admission.act` and `tests/aie_logical_teaching.act`. The
+`tests/ie_shard_admission.act` and `tests/ie_logical_teaching.act`. The
 runner boundary now selects a dirty shard, commits the caller-provided explicit
 flush result, and retries admission only after successful publication. Failed
 flushes preserve dirty resident state. The CLI's legacy single-fabric file and
@@ -131,9 +131,9 @@ stdin adapters remain part of Gate 11.7 and are not claimed as complete here.
 - [x] Auxiliary recovery restores the same resident behavior after reload.
 - [x] Invalid sidecar data is rejected before live-state mutation.
 
-Gate 11.5 is covered by `tests/aie_logical_teaching.act`,
-`tests/aie_logical_auxiliary.act`, `tests/aie_shard_routing.act`,
-`tests/aie_fanout_sidecar.act`, `tests/aie_fanout_persistence_diagnostic.act`,
+Gate 11.5 is covered by `tests/ie_logical_teaching.act`,
+`tests/ie_logical_auxiliary.act`, `tests/ie_shard_routing.act`,
+`tests/ie_fanout_sidecar.act`, `tests/ie_fanout_persistence_diagnostic.act`,
 and the manifest auxiliary/recovery fixtures. The logical teaching facade keeps
 bindings in the source shard's bounded binding array; auxiliary links retain
 global target indexes while records remain in the source shard's auxiliary
@@ -242,7 +242,7 @@ twice. Their normalized logical/profile outputs matched byte-for-byte while
 timing fields remained explicitly variable and separate.
 
 Evidence (2026-10-22): a fresh strict native build of
-`benchmarks/aie_logical_scale_profiles.act` reported
+`benchmarks/ie_logical_scale_profiles.act` reported
 `verified generated native IR: no floating-point instructions`; its executable
 checksum is recorded in `docs/benchmarks/phase-11-provenance.md`.
 

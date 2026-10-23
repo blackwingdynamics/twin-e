@@ -7,15 +7,15 @@ token/context sidecar entry described by ADR-0002.
 
 ```text
 actus build --strict --emit exe \
-  -o /tmp/twin-e-binding-probe.aie \
-  benchmarks/aie_binding_probe.act
-/tmp/twin-e-binding-probe.aie
+  -o /tmp/twin-e-binding-probe.ie \
+  benchmarks/ie_binding_probe.act
+/tmp/twin-e-binding-probe.ie
 ```
 
 ## Recorded result
 
 ```text
-AIE_BINDING bytes=24 context_offset=8 verified=1
+IE_BINDING bytes=24 context_offset=8 verified=1
 ```
 
 The probe writes representative values into the packed fields and verifies

@@ -20,7 +20,7 @@ Each executable Phase 5 benchmark records:
 The compatibility and integer-only baseline uses this shape:
 
 ```text
-AIE_P5_CONTRACT profile=integer_v1 brain_format=1 tokenizer=1 context=1 codebook=1 deterministic=1 zero_float=1
+IE_P5_CONTRACT profile=integer_v1 brain_format=1 tokenizer=1 context=1 codebook=1 deterministic=1 zero_float=1
 ```
 
 The values are populated only by an executable benchmark after the supported
@@ -31,8 +31,8 @@ profile has been implemented and verified.
 Hot-path and persistence work must be measured separately:
 
 ```text
-AIE_P5_HOT_PATH inference_ns=<value> training_ns=<value> neurogenesis_ns=<value> disk_writes=0
-AIE_P5_PERSISTENCE save=1 flush_ns=<value> restart_recall=1 recovery=1
+IE_P5_HOT_PATH inference_ns=<value> training_ns=<value> neurogenesis_ns=<value> disk_writes=0
+IE_P5_PERSISTENCE save=1 flush_ns=<value> restart_recall=1 recovery=1
 ```
 
 `disk_writes=0` applies only to the measured hot-path operation. The save and

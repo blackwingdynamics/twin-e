@@ -96,7 +96,7 @@ or tokenizer behavior:
   or oversized state before live-state mutation.
 
 The current repository provides the first item through the training-accounting
-benchmark and `tests/aie_fallback_reuse.act`. The paired cleanup, exhaustion,
+benchmark and `tests/ie_fallback_reuse.act`. The paired cleanup, exhaustion,
 and fallback persistence checks remain open roadmap work. This ADR closes the
 policy-definition gate only; it does not claim those implementation gates are
 complete.

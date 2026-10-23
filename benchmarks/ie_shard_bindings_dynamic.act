@@ -1,0 +1,1090 @@
+meta limitless("file")
+
+
+"""Verify dynamic shard column and TokenBinding payload persistence."""
+import ie;
+
+import std::io;
+
+import std::fs;
+
+import std::path;
+
+open fs;
+
+meta limitless("verb")
+verb binding_path() -> Result[Path, PathError] {
+    erg raw = Buffer[0];
+    erg bytes: Array[u8,32] = Array[u8, 32]();
+    bytes[0u32] = 47u8;
+    bytes[1u32] = 116u8;
+    bytes[2u32] = 109u8;
+    bytes[3u32] = 112u8;
+    bytes[4u32] = 47u8;
+    bytes[5u32] = 116u8;
+    bytes[6u32] = 119u8;
+    bytes[7u32] = 105u8;
+    bytes[8u32] = 110u8;
+    bytes[9u32] = 45u8;
+    bytes[10u32] = 101u8;
+    bytes[11u32] = 45u8;
+    bytes[12u32] = 98u8;
+    bytes[13u32] = 105u8;
+    bytes[14u32] = 110u8;
+    bytes[15u32] = 100u8;
+    bytes[16u32] = 105u8;
+    bytes[17u32] = 110u8;
+    bytes[18u32] = 103u8;
+    bytes[19u32] = 45u8;
+    bytes[20u32] = 115u8;
+    bytes[21u32] = 104u8;
+    bytes[22u32] = 97u8;
+    bytes[23u32] = 114u8;
+    bytes[24u32] = 100u8;
+    bytes[25u32] = 46u8;
+    bytes[26u32] = 98u8;
+    bytes[27u32] = 114u8;
+    bytes[28u32] = 97u8;
+    bytes[29u32] = 105u8;
+    bytes[30u32] = 110u8;
+    bytes[31u32] = 0u8;
+    for erg index: u32 in 0u32 .. 32u32 {
+        append(raw, bytes[index]);
+    }
+    return path_from_ascii(storage: dat raw);
+}
+
+meta limitless("verb")
+verb binding_staged_path() -> Result[Path, PathError] {
+    erg raw = Buffer[0];
+    erg bytes: Array[u8,24] = Array[u8, 24]();
+    bytes[0u32] = 47u8;
+    bytes[1u32] = 116u8;
+    bytes[2u32] = 109u8;
+    bytes[3u32] = 112u8;
+    bytes[4u32] = 47u8;
+    bytes[5u32] = 116u8;
+    bytes[6u32] = 119u8;
+    bytes[7u32] = 105u8;
+    bytes[8u32] = 110u8;
+    bytes[9u32] = 45u8;
+    bytes[10u32] = 101u8;
+    bytes[11u32] = 45u8;
+    bytes[12u32] = 115u8;
+    bytes[13u32] = 116u8;
+    bytes[14u32] = 97u8;
+    bytes[15u32] = 103u8;
+    bytes[16u32] = 101u8;
+    bytes[17u32] = 46u8;
+    bytes[18u32] = 98u8;
+    bytes[19u32] = 114u8;
+    bytes[20u32] = 97u8;
+    bytes[21u32] = 105u8;
+    bytes[22u32] = 110u8;
+    bytes[23u32] = 0u8;
+    for erg index: u32 in 0u32 .. 24u32 {
+        append(raw, bytes[index]);
+    }
+    return path_from_ascii(storage: dat raw);
+}
+
+verb write_u32(ins output: Buffer, abs offset: u32, abs value: u32) {
+    output[offset] = (value & 255u32) as u8;
+    output[offset + 1u32] = ((value / 256u32) & 255u32) as u8;
+    output[offset + 2u32] = ((value / 65536u32) & 255u32) as u8;
+    output[offset + 3u32] = ((value / 16777216u32) & 255u32) as u8;
+}
+
+verb write_u64(ins output: Buffer, abs offset: u32, abs value: u64) {
+    erg low: u32 = (value & 4294967295u64) as u32;
+    erg high: u32 = (value / 4294967296u64) as u32;
+    erg high_offset: u32 = offset + 4u32;
+    write_u32(
+        output: ins output,
+        offset: abs offset,
+        value: abs low
+    );
+    write_u32(
+        output: ins output,
+        offset: abs high_offset,
+        value: abs high
+    );
+}
+
+verb make_payload() -> Buffer {
+    erg payload: Buffer = Buffer[0];
+    erg index: u32 = 0u32;
+    loop {
+        if index >= 128u32 {
+            break;
+        }
+        append(payload, 0u8);
+        index += 1u32;
+    }
+    return payload;
+}
+
+verb make_bindings() -> Buffer {
+    erg bindings: Buffer = Buffer[0];
+    erg index: u32 = 0u32;
+    loop {
+        if index >= 48u32 {
+            break;
+        }
+        append(bindings, 0u8);
+        index += 1u32;
+    }
+    erg token_id: u32 = 16909060u32;
+    erg context_key: u64 = 72623859790382856u64;
+    erg version: u16 = TOKENIZER_VERSION;
+    erg context_version: u16 = CONTEXT_VERSION;
+    erg code_version: u16 = TOKEN_CODE_VERSION;
+    erg flags: u8 = BINDING_ACTIVE_FLAG;
+    erg token_offset: u32 = 0u32;
+    erg context_offset: u32 = 4u32;
+    write_u32(
+        output: ins bindings,
+        offset: abs token_offset,
+        value: abs token_id
+    );
+    write_u64(
+        output: ins bindings,
+        offset: abs context_offset,
+        value: abs context_key
+    );
+    bindings[12u32] = version as u8;
+    bindings[14u32] = context_version as u8;
+    bindings[16u32] = code_version as u8;
+    bindings[18u32] = flags;
+    return bindings;
+}
+
+verb verify_bytes(abs bytes: Buffer) -> Int {
+    if bytes[176u32] != 4u8 || bytes[177u32] != 3u8 || bytes[178u32] != 2u8 || bytes[179u32] != 1u8 || bytes[188u32] != 1u8 {
+        return 4;
+    }
+    return 0;
+}
+
+verb manifest_descriptor_storage() -> Buffer {
+    erg descriptor: Buffer = Buffer[0];
+    erg index: u32 = 0u32;
+    loop {
+        if index >= BRAIN_MANIFEST_DESCRIPTOR_BYTES as u32 {
+            break;
+        }
+        append(descriptor, 0u8);
+        index += 1u32;
+    }
+    return descriptor;
+}
+
+verb binding_manifest_descriptor(abs checksum: u64) -> Buffer {
+    erg descriptor: Buffer = manifest_descriptor_storage();
+    erg shard_id: u32 = 0u32;
+    erg first_column: u32 = 0u32;
+    erg column_count: u32 = 2u32;
+    erg payload_offset: u32 = BRAIN_SHARD_HEADER_BYTES as u32;
+    erg payload_bytes: u32 = 128u32;
+    erg binding_offset: u32 = BRAIN_SHARD_HEADER_BYTES as u32 + payload_bytes;
+    erg binding_bytes: u32 = 48u32;
+    erg auxiliary_offset: u32 = binding_offset + binding_bytes;
+    erg zero: u32 = 0u32;
+    erg state: u32 = 1u32;
+    erg offset_id: u32 = 0u32;
+    erg offset_first: u32 = 4u32;
+    erg offset_count: u32 = 8u32;
+    erg offset_payload: u32 = 12u32;
+    erg offset_payload_bytes: u32 = 16u32;
+    erg offset_binding: u32 = 20u32;
+    erg offset_binding_bytes: u32 = 24u32;
+    erg offset_auxiliary: u32 = 28u32;
+    erg offset_auxiliary_bytes: u32 = 32u32;
+    erg offset_checksum: u32 = 36u32;
+    erg offset_state: u32 = 44u32;
+    write_u32(
+        output: ins descriptor,
+        offset: abs offset_id,
+        value: abs shard_id
+    );
+    write_u32(
+        output: ins descriptor,
+        offset: abs offset_first,
+        value: abs first_column
+    );
+    write_u32(
+        output: ins descriptor,
+        offset: abs offset_count,
+        value: abs column_count
+    );
+    write_u32(
+        output: ins descriptor,
+        offset: abs offset_payload,
+        value: abs payload_offset
+    );
+    write_u32(
+        output: ins descriptor,
+        offset: abs offset_payload_bytes,
+        value: abs payload_bytes
+    );
+    write_u32(
+        output: ins descriptor,
+        offset: abs offset_binding,
+        value: abs binding_offset
+    );
+    write_u32(
+        output: ins descriptor,
+        offset: abs offset_binding_bytes,
+        value: abs binding_bytes
+    );
+    write_u32(
+        output: ins descriptor,
+        offset: abs offset_auxiliary,
+        value: abs auxiliary_offset
+    );
+    write_u32(
+        output: ins descriptor,
+        offset: abs offset_auxiliary_bytes,
+        value: abs zero
+    );
+    write_u64(
+        output: ins descriptor,
+        offset: abs offset_checksum,
+        value: abs checksum
+    );
+    write_u32(
+        output: ins descriptor,
+        offset: abs offset_state,
+        value: abs state
+    );
+    return descriptor;
+}
+
+verb validate_binding_manifest_path(
+    abs path: Path,
+    dat shard: Buffer,
+    abs descriptor: Buffer
+) -> Int {
+    erg null_head: u32 = NULL_INDEX;
+    erg generation: u64 = 1u64;
+    erg active_count: u32 = 2u32;
+    erg total_columns: u32 = 2u32;
+    erg shard_count: u32 = 1u32;
+    erg manifest_saved = write_manifest_dynamic(
+        path: abs path,
+        generation: erg generation,
+        active_count: erg active_count,
+        free_list_head: erg null_head,
+        total_column_count: erg total_columns,
+        shard_count: erg shard_count,
+        descriptors: abs descriptor
+    );
+    return case dat manifest_saved {
+        Result.Err(_) => 6,
+        Result.Ok(_) => {
+            erg manifest_result = read_to_bytes(path: abs path);
+            return case dat manifest_result {
+                Result.Err(_) => 7,
+                Result.Ok(manifest) => {
+                    erg descriptor_index: u32 = 0u32;
+                    erg validated = validate_dynamic_manifest_binding_shard(
+                        manifest: abs manifest,
+                        shard: abs shard,
+                        descriptor_index: erg descriptor_index
+                    );
+                    return case dat validated {
+                        Result.Err(_) => 8,
+                        Result.Ok(_) => 0,
+                    };
+                },
+            };
+        },
+    };
+}
+
+verb binding_io_error_status(dat error: IoError) -> Int {
+    return case dat error {
+        IoError.EndOfStream => 10,
+        IoError.Failed => 11,
+        IoError.InvalidInput => 12,
+        IoError.InvalidData => 13,
+    };
+}
+
+verb benchmark_cache_entry_is_dirty(abs cache: ShardCache, erg slot: u8) -> Bool {
+    return case cache.entries[slot as Usize].lifecycle {
+        ShardLifecycle.Dirty => true,
+        _ => false,
+    };
+}
+
+verb benchmark_cache_entry_is_persisted(abs cache: ShardCache, erg slot: u8) -> Bool {
+    return case cache.entries[slot as Usize].lifecycle {
+        ShardLifecycle.Persisted => true,
+        _ => false,
+    };
+}
+
+verb benchmark_cache_entry_is_usable(
+    ins cache: ShardCache,
+    erg slot: u8,
+    erg shard_id: u32
+) -> Bool {
+    erg found = shard_cache_find(cache: abs cache, shard_id: erg shard_id);
+    erg found_slot: u8 = case dat found {
+        Option.None => BRAIN_CACHE_CAPACITY,
+        Option.Some(value) => value,
+    };
+    if found_slot != slot {
+        return false;
+    }
+    erg touched = shard_cache_touch(cache: ins cache, slot: abs slot);
+    return case dat touched {
+        Result.Err(_) => false,
+        Result.Ok(_) => benchmark_cache_entry_is_dirty(cache: abs cache, slot: erg slot),
+    };
+}
+
+verb verify_failed_save_stays_dirty() -> Int {
+    erg path_result = binding_path();
+    return case dat path_result {
+        Result.Err(_) => 21,
+        Result.Ok(path) => {
+            erg staged_result = binding_staged_path();
+            return case dat staged_result {
+                Result.Err(_) => {
+                    drop(path);
+                    return 22;
+                },
+                Result.Ok(staged) => {
+                    erg cache: ShardCache = ShardCache {entries: Array[ShardCacheEntry, 4](), clock: 0u64};
+                    shard_cache_init(cache: ins cache);
+                    erg shard_id: u32 = 0u32;
+                    erg generation: u64 = 1u64;
+                    erg checksum: u64 = 0u64;
+                    erg inserted = shard_cache_insert(
+                        cache: ins cache,
+                        shard_id: erg shard_id,
+                        generation: erg generation,
+                        checksum: erg checksum
+                    );
+                    erg slot: u8 = case dat inserted {
+                        Result.Err(_) => 7u8,
+                        Result.Ok(value) => value,
+                    };
+                    if slot == 7u8 {
+                        drop(path);
+                        drop(staged);
+                        return 7;
+                    }
+                    erg dirtied = shard_cache_mark_dirty(cache: ins cache, slot: erg slot);
+                    erg dirty_status: Int = case dat dirtied {
+                        Result.Err(_) => 8,
+                        Result.Ok(_) => 0,
+                    };
+                    if dirty_status != 0 {
+                        drop(path);
+                        drop(staged);
+                        return dirty_status;
+                    }
+                    erg created = create_dir(path: abs path);
+                    return case dat created {
+                        Result.Err(_) => {
+                            drop(path);
+                            drop(staged);
+                            return 23;
+                        },
+                        Result.Ok(_) => {
+                            erg payload: Buffer = make_payload();
+                            erg bindings: Buffer = make_bindings();
+                            erg first_column_index: u32 = 0u32;
+                            erg column_count: u32 = 2u32;
+                            erg request: ShardSaveRequest = ShardSaveRequest {staged: staged, active: path, shard_id: shard_id, first_column_index: first_column_index, column_count: column_count, payload: payload, bindings: bindings};
+                            erg saved = save_dynamic_shard_with_bindings(
+                                cache: ins cache,
+                                slot: erg slot,
+                                request: abs request
+                            );
+                            erg save_status: Int = case dat saved {
+                                Result.Err(_) => 0,
+                                Result.Ok(_) => 24,
+                            };
+                            if save_status != 0 {
+                                erg removed_active_after_status = remove_dir(path: abs request.active);
+                                drop(request);
+                                case dat removed_active_after_status {
+                                    Result.Ok(_) => {},
+                                    Result.Err(_) => {},
+                                };
+                                return save_status;
+                            }
+                            if !benchmark_cache_entry_is_dirty(cache: abs cache, slot: erg slot) {
+                                erg removed_active_dirty_check = remove_dir(path: abs request.active);
+                                drop(request);
+                                case dat removed_active_dirty_check {
+                                    Result.Ok(_) => {},
+                                    Result.Err(_) => {},
+                                };
+                                return 25;
+                            }
+                            erg persisted_shard_id: u32 = request.shard_id;
+                            if !benchmark_cache_entry_is_usable(
+                                cache: ins cache,
+                                slot: erg slot,
+                                shard_id: erg persisted_shard_id
+                            ) {
+                                erg removed_active_usable_check = remove_dir(path: abs request.active);
+                                drop(request);
+                                case dat removed_active_usable_check {
+                                    Result.Ok(_) => {},
+                                    Result.Err(_) => {},
+                                };
+                                return 28;
+                            }
+                            erg removed_staged = remove_file(path: abs request.staged);
+                            erg removed_active_final = remove_dir(path: abs request.active);
+                            drop(request);
+                            erg staged_cleanup_status: Int = case dat removed_staged {
+                                Result.Err(_) => 26,
+                                Result.Ok(_) => 0,
+                            };
+                            erg active_cleanup_status: Int = case dat removed_active_final {
+                                Result.Err(_) => 27,
+                                Result.Ok(_) => 0,
+                            };
+                            if staged_cleanup_status != 0 {
+                                return staged_cleanup_status;
+                            }
+                            if active_cleanup_status != 0 {
+                                return active_cleanup_status;
+                            }
+                            erg message: String = "IE_BINDING_STAGE dirty_after_failed_save resident_usable_after_failed_save";
+                            println(text: abs message);
+                            return 0;
+                        },
+                    };
+                },
+            };
+        },
+    };
+}
+
+verb print_binding_stage(erg stage: u8) {
+    erg message: String = case stage {
+        1 => "IE_BINDING_STAGE write_failed error=IoError.Failed status=11",
+        2 => "IE_BINDING_STAGE staged_read_failed error=IoError.Failed status=11",
+        3 => "IE_BINDING_STAGE validation_failed error=IoError.InvalidData status=13",
+        5 => "IE_BINDING_STAGE path_probe_failed error=IoError.Failed status=11",
+        _ => "IE_BINDING_STAGE staged_cleanup_failed error=IoError.Failed status=11",
+    };
+    println(text: abs message);
+}
+
+verb probe_staged_path(abs staged: Path, abs bindings: Buffer) -> Int {
+    erg path_probe = write_file(path: abs staged, contents: abs bindings);
+    return case dat path_probe {
+        Result.Err(error) => {
+            erg stage: u8 = 5u8;
+            print_binding_stage(stage: erg stage);
+            return binding_io_error_status(dat error);
+        },
+        Result.Ok(_) => 0,
+    };
+}
+
+verb diagnose_staged_save(
+    abs staged: Path,
+    abs payload: Buffer,
+    abs bindings: Buffer,
+    erg shard_id: u32,
+    erg first_column_index: u32,
+    erg column_count: u32
+) -> Int {
+    erg probe_status: Int = probe_staged_path(staged: abs staged, bindings: abs bindings);
+    if probe_status != 0 {
+        return probe_status;
+    }
+    erg written = write_dynamic_shard_with_bindings(
+        path: abs staged,
+        shard_id: erg shard_id,
+        first_column_index: erg first_column_index,
+        column_count: erg column_count,
+        payload: abs payload,
+        bindings: abs bindings
+    );
+    return case dat written {
+        Result.Err(error) => {
+            erg stage: u8 = 1u8;
+            print_binding_stage(stage: erg stage);
+            return binding_io_error_status(dat error);
+        },
+        Result.Ok(_) => {},
+    };
+    erg loaded = read_to_bytes(path: abs staged);
+    return case dat loaded {
+        Result.Err(error) => {
+            erg stage: u8 = 2u8;
+            print_binding_stage(stage: erg stage);
+            return binding_io_error_status(dat error);
+        },
+        Result.Ok(bytes) => {
+            erg validation = validate_dynamic_shard_with_bindings_bytes(
+                bytes: dat bytes,
+                expected_shard_id: erg shard_id,
+                expected_first_column_index: erg first_column_index,
+                expected_column_count: erg column_count
+            );
+            return case dat validation {
+                Result.Err(error) => {
+                    erg stage: u8 = 3u8;
+                    print_binding_stage(stage: erg stage);
+                    return binding_io_error_status(dat error);
+                },
+                Result.Ok(_) => {
+                    erg removed = remove_file(path: abs staged);
+                    return case dat removed {
+                        Result.Err(error) => {
+                            erg stage: u8 = 4u8;
+                            print_binding_stage(stage: erg stage);
+                            return binding_io_error_status(dat error);
+                        },
+                        Result.Ok(_) => 0,
+                    };
+                },
+            };
+        },
+    };
+}
+
+verb verify_corrupt_staged_rejected(
+    abs staged: Path,
+    erg shard_id: u32,
+    erg first_column_index: u32,
+    erg column_count: u32
+) -> Int {
+    erg invalid: Buffer = Buffer[0];
+    append(invalid, 0u8);
+    erg written = write_file(path: abs staged, contents: abs invalid);
+    return case dat written {
+        Result.Err(error) => binding_io_error_status(dat error),
+        Result.Ok(_) => {
+            erg loaded = read_to_bytes(path: abs staged);
+            return case dat loaded {
+                Result.Err(error) => binding_io_error_status(dat error),
+                Result.Ok(bytes) => {
+                    erg validation = validate_dynamic_shard_with_bindings_bytes(
+                        bytes: dat bytes,
+                        expected_shard_id: erg shard_id,
+                        expected_first_column_index: erg first_column_index,
+                        expected_column_count: erg column_count
+                    );
+                    return case dat validation {
+                        Result.Err(error) => {
+                            erg status: Int = binding_io_error_status(dat error);
+                            if status == 13 {
+                                erg message: String = "IE_BINDING_STAGE validation_rejected error=IoError.InvalidData status=13";
+                                println(text: abs message);
+                                erg removed = remove_file(path: abs staged);
+                                return case dat removed {
+                                    Result.Ok(_) => 0,
+                                    Result.Err(cleanup_error) => binding_io_error_status(dat cleanup_error),
+                                };
+                            }
+                            return status;
+                        },
+                        Result.Ok(_) => 14,
+                    };
+                },
+            };
+        },
+    };
+}
+
+verb verify_staged_read_failure(abs staged: Path) -> Int {
+    erg stale = remove_file(path: abs staged);
+    case dat stale {
+        Result.Ok(_) => {},
+        Result.Err(_) => {},
+    };
+    erg loaded = read_to_bytes(path: abs staged);
+    return case dat loaded {
+        Result.Err(error) => {
+            erg status: Int = binding_io_error_status(dat error);
+            if status == 11 {
+                erg message: String = "IE_BINDING_STAGE staged_read_failed error=IoError.Failed status=11";
+                println(text: abs message);
+                return 0;
+            }
+            return status;
+        },
+        Result.Ok(bytes) => {
+            drop(bytes);
+            return 15;
+        },
+    };
+}
+
+verb verify_staged_write_failure(abs staged: Path) -> Int {
+    erg created = create_dir(path: abs staged);
+    return case dat created {
+        Result.Err(error) => binding_io_error_status(dat error),
+        Result.Ok(_) => {
+            erg contents: Buffer = Buffer[0];
+            append(contents, 1u8);
+            erg written = write_file(path: abs staged, contents: abs contents);
+            return case dat written {
+                Result.Err(error) => {
+                    erg status: Int = binding_io_error_status(dat error);
+                    erg removed = remove_dir(path: abs staged);
+                    return case dat removed {
+                        Result.Err(cleanup_error) => binding_io_error_status(dat cleanup_error),
+                        Result.Ok(_) => {
+                            if status == 11 {
+                                erg message: String = "IE_BINDING_STAGE write_failed error=IoError.Failed status=11";
+                                println(text: abs message);
+                                return 0;
+                            }
+                            return status;
+                        },
+                    };
+                },
+                Result.Ok(_) => {
+                    erg removed = remove_file(path: abs staged);
+                    return case dat removed {
+                        Result.Ok(_) => 16,
+                        Result.Err(error) => binding_io_error_status(dat error),
+                    };
+                },
+            };
+        },
+    };
+}
+
+verb verify_rename_failure(
+    abs staged: Path,
+    abs active: Path,
+    abs payload: Buffer,
+    abs bindings: Buffer,
+    erg shard_id: u32,
+    erg first_column_index: u32,
+    erg column_count: u32
+) -> Int {
+    erg created = create_dir(path: abs active);
+    return case dat created {
+        Result.Err(error) => binding_io_error_status(dat error),
+        Result.Ok(_) => {
+            erg written = write_dynamic_shard_with_bindings(
+                path: abs staged,
+                shard_id: erg shard_id,
+                first_column_index: erg first_column_index,
+                column_count: erg column_count,
+                payload: abs payload,
+                bindings: abs bindings
+            );
+            return case dat written {
+                Result.Err(error) => {
+                    erg status: Int = binding_io_error_status(dat error);
+                    erg removed = remove_dir(path: abs active);
+                    return case dat removed {
+                        Result.Ok(_) => status,
+                        Result.Err(cleanup_error) => binding_io_error_status(dat cleanup_error),
+                    };
+                },
+                Result.Ok(_) => {
+                    erg published = publish_dynamic_shard_with_bindings(
+                        staged: abs staged,
+                        active: abs active,
+                        expected_shard_id: erg shard_id,
+                        expected_first_column_index: erg first_column_index,
+                        expected_column_count: erg column_count
+                    );
+                    return case dat published {
+                        Result.Err(error) => {
+                            erg status: Int = binding_io_error_status(dat error);
+                            erg removed_staged = remove_file(path: abs staged);
+                            erg staged_cleanup_status: Int = case dat removed_staged {
+                                Result.Err(cleanup_error) => binding_io_error_status(dat cleanup_error),
+                                Result.Ok(_) => 0,
+                            };
+                            if staged_cleanup_status != 0 {
+                                return staged_cleanup_status;
+                            }
+                            erg removed_active = remove_dir(path: abs active);
+                            return case dat removed_active {
+                                Result.Err(cleanup_error) => binding_io_error_status(dat cleanup_error),
+                                Result.Ok(_) => {
+                                    if status == 11 {
+                                        erg message: String = "IE_BINDING_STAGE rename_failed error=IoError.Failed status=11";
+                                        println(text: abs message);
+                                        return 0;
+                                    }
+                                    return status;
+                                },
+                            };
+                        },
+                        Result.Ok(_) => 17,
+                    };
+                },
+            };
+        },
+    };
+}
+
+verb verify_previous_generation_preserved(
+    abs staged: Path,
+    abs active: Path,
+    abs payload: Buffer,
+    abs bindings: Buffer,
+    erg shard_id: u32,
+    erg first_column_index: u32,
+    erg column_count: u32
+) -> Int {
+    erg stale_active = remove_file(path: abs active);
+    case dat stale_active {
+        Result.Ok(_) => {},
+        Result.Err(_) => {},
+    };
+    erg stale_staged = remove_file(path: abs staged);
+    case dat stale_staged {
+        Result.Ok(_) => {},
+        Result.Err(_) => {},
+    };
+    erg written = write_dynamic_shard_with_bindings(
+        path: abs active,
+        shard_id: erg shard_id,
+        first_column_index: erg first_column_index,
+        column_count: erg column_count,
+        payload: abs payload,
+        bindings: abs bindings
+    );
+    return case dat written {
+        Result.Err(error) => binding_io_error_status(dat error),
+        Result.Ok(_) => {
+            erg staged_directory = create_dir(path: abs staged);
+            return case dat staged_directory {
+                Result.Err(error) => binding_io_error_status(dat error),
+                Result.Ok(_) => {
+                    erg attempted = rename(from: abs staged, to: abs active);
+                    return case dat attempted {
+                        Result.Ok(_) => 18,
+                        Result.Err(error) => {
+                            erg status: Int = binding_io_error_status(dat error);
+                            erg loaded = read_to_bytes(path: abs active);
+                            return case dat loaded {
+                                Result.Err(read_error) => binding_io_error_status(dat read_error),
+                                Result.Ok(bytes) => {
+                                    erg valid = validate_dynamic_shard_with_bindings_bytes(
+                                        bytes: dat bytes,
+                                        expected_shard_id: erg shard_id,
+                                        expected_first_column_index: erg first_column_index,
+                                        expected_column_count: erg column_count
+                                    );
+                                    return case dat valid {
+                                        Result.Err(validation_error) => binding_io_error_status(
+                                            dat validation_error
+                                        ),
+                                        Result.Ok(_) => {
+                                            erg removed_staged = remove_dir(path: abs staged);
+                                            return case dat removed_staged {
+                                                Result.Err(cleanup_error) => binding_io_error_status(
+                                                    dat cleanup_error
+                                                ),
+                                                Result.Ok(_) => {
+                                                    erg removed_active = remove_file(path: abs active);
+                                                    return case dat removed_active {
+                                                        Result.Err(cleanup_error) => binding_io_error_status(
+                                                            dat cleanup_error
+                                                        ),
+                                                        Result.Ok(_) => {
+                                                            if status == 11 {
+                                                                erg message: String = "IE_BINDING_STAGE previous_generation_preserved";
+                                                                println(text: abs message);
+                                                                return 0;
+                                                            }
+                                                            return status;
+                                                        },
+                                                    };
+                                                },
+                                            };
+                                        },
+                                    };
+                                },
+                            };
+                        },
+                    };
+                },
+            };
+        },
+    };
+}
+
+meta limitless("verb")
+verb run(dat path: Path, dat staged: Path) -> Int {
+    erg payload: Buffer = make_payload();
+    erg bindings: Buffer = make_bindings();
+    erg shard_id: u32 = 0u32;
+    erg first_column: u32 = 0u32;
+    erg column_count: u32 = 2u32;
+    erg cache: ShardCache = ShardCache {entries: Array[ShardCacheEntry, 4](), clock: 0u64};
+    shard_cache_init(cache: ins cache);
+    erg generation: u64 = 1u64;
+    erg cache_checksum: u64 = 0u64;
+    erg inserted = shard_cache_insert(
+        cache: ins cache,
+        shard_id: erg shard_id,
+        generation: erg generation,
+        checksum: erg cache_checksum
+    );
+    erg slot: u8 = case dat inserted {
+        Result.Err(_) => 7u8,
+        Result.Ok(value) => value,
+    };
+    if slot == 7u8 {
+        return 7;
+    }
+    erg dirtied = shard_cache_mark_dirty(cache: ins cache, slot: erg slot);
+    erg dirty_status: Int = case dat dirtied {
+        Result.Err(_) => 8,
+        Result.Ok(_) => 0,
+    };
+    if dirty_status != 0 {
+        return dirty_status;
+    }
+    erg start_message: String = "IE_BINDING_STAGE start";
+    println(text: abs start_message);
+    erg diagnostic_status: Int = diagnose_staged_save(
+        staged: abs staged,
+        payload: abs payload,
+        bindings: abs bindings,
+        shard_id: erg shard_id,
+        first_column_index: erg first_column,
+        column_count: erg column_count
+    );
+    if diagnostic_status != 0 {
+        return diagnostic_status;
+    }
+    erg read_status: Int = verify_staged_read_failure(staged: abs staged);
+    if read_status != 0 {
+        return read_status;
+    }
+    erg staged_write_status: Int = verify_staged_write_failure(staged: abs staged);
+    if staged_write_status != 0 {
+        return staged_write_status;
+    }
+    erg rename_status: Int = verify_rename_failure(
+        staged: abs staged,
+        active: abs path,
+        payload: abs payload,
+        bindings: abs bindings,
+        shard_id: erg shard_id,
+        first_column_index: erg first_column,
+        column_count: erg column_count
+    );
+    if rename_status != 0 {
+        return rename_status;
+    }
+    erg preserved_status: Int = verify_previous_generation_preserved(
+        staged: abs staged,
+        active: abs path,
+        payload: abs payload,
+        bindings: abs bindings,
+        shard_id: erg shard_id,
+        first_column_index: erg first_column,
+        column_count: erg column_count
+    );
+    if preserved_status != 0 {
+        return preserved_status;
+    }
+    erg failed_save_status: Int = verify_failed_save_stays_dirty();
+    if failed_save_status != 0 {
+        return failed_save_status;
+    }
+    erg invalid_status: Int = verify_corrupt_staged_rejected(
+        staged: abs staged,
+        shard_id: erg shard_id,
+        first_column_index: erg first_column,
+        column_count: erg column_count
+    );
+    if invalid_status != 0 {
+        return invalid_status;
+    }
+    erg request: ShardSaveRequest = ShardSaveRequest {staged: staged, active: path, shard_id: shard_id, first_column_index: first_column, column_count: column_count, payload: payload, bindings: bindings};
+    erg expected_shard_id: u32 = request.shard_id;
+    erg expected_first_column_index: u32 = request.first_column_index;
+    erg expected_column_count: u32 = request.column_count;
+    erg written = save_dynamic_shard_with_bindings(
+        cache: ins cache,
+        slot: erg slot,
+        request: abs request
+    );
+    erg write_status: Int = case dat written {
+        Result.Err(error) => binding_io_error_status(dat error),
+        Result.Ok(_) => 0,
+    };
+    if write_status != 0 {
+        return write_status;
+    }
+    if !benchmark_cache_entry_is_persisted(cache: abs cache, slot: erg slot) {
+        return 20;
+    }
+    erg persisted_message: String = "IE_BINDING_STAGE persisted_after_successful_save";
+    println(text: abs persisted_message);
+    erg write_message: String = "IE_BINDING_STAGE write_ok";
+    println(text: abs write_message);
+    erg loaded = read_to_bytes(path: abs request.active);
+    return case dat loaded {
+        Result.Err(_) => 2,
+        Result.Ok(bytes) => {
+            erg validation = validate_dynamic_shard_with_bindings_bytes(
+                bytes: dat bytes,
+                expected_shard_id: erg expected_shard_id,
+                expected_first_column_index: erg expected_first_column_index,
+                expected_column_count: erg expected_column_count
+            );
+            return case dat validation {
+                Result.Err(_) => 3,
+                Result.Ok(_) => {
+                    erg validate_message: String = "IE_BINDING_STAGE validate_ok";
+                    println(text: abs validate_message);
+                    erg publication_message: String = "IE_BINDING_STAGE publication_ok";
+                    println(text: abs publication_message);
+                    erg section_message: String = "IE_BINDING_STAGE payload_bindings_checksum_metadata_ok";
+                    println(text: abs section_message);
+                    erg shard_copy_result = read_to_bytes(path: abs request.active);
+                    return case dat shard_copy_result {
+                        Result.Err(_) => 5,
+                        Result.Ok(shard_copy) => {
+                            erg checksum_result = dynamic_shard_file_checksum(path: abs request.active);
+                            return case dat checksum_result {
+                                Result.Err(_) => 6,
+                                Result.Ok(checksum) => {
+                                    erg descriptor: Buffer = binding_manifest_descriptor(checksum: abs checksum);
+                                    return validate_binding_manifest_path(
+                                        path: abs request.active,
+                                        shard: dat shard_copy,
+                                        descriptor: abs descriptor
+                                    );
+                                },
+                            };
+                        },
+                    };
+                },
+            };
+        },
+    };
+}
+
+verb verify_capacity_recovery_after_flush() -> Int {
+    erg path_result = binding_path();
+    return case dat path_result {
+        Result.Err(_) => 31,
+        Result.Ok(path) => {
+            erg staged_result = binding_staged_path();
+            return case dat staged_result {
+                Result.Err(_) => {
+                    drop(path);
+                    return 32;
+                },
+                Result.Ok(staged) => {
+                    erg cache: ShardCache = ShardCache {entries: Array[ShardCacheEntry, 4](), clock: 0u64};
+                    shard_cache_init(cache: ins cache);
+                    erg generation: u64 = 1u64;
+                    erg checksum: u64 = 0u64;
+                    erg index: u32 = 0u32;
+                    loop {
+                        if index >= 4u32 {
+                            break;
+                        }
+                        erg shard_id: u32 = index + 0u32;
+                        erg inserted = shard_cache_insert(
+                            cache: ins cache,
+                            shard_id: erg shard_id,
+                            generation: erg generation,
+                            checksum: erg checksum
+                        );
+                        erg slot: u8 = case dat inserted {
+                            Result.Err(_) => 4u8,
+                            Result.Ok(value) => value,
+                        };
+                        if slot >= BRAIN_CACHE_CAPACITY {
+                            drop(path);
+                            drop(staged);
+                            return 33;
+                        }
+                        shard_cache_mark_dirty(cache: ins cache, slot: erg slot);
+                        index += 1u32;
+                    }
+                    erg payload: Buffer = make_payload();
+                    erg bindings: Buffer = make_bindings();
+                    erg zero_id: u32 = 0u32;
+                    erg first_column: u32 = 0u32;
+                    erg column_count: u32 = 2u32;
+                    erg saved_slot: u8 = 0u8;
+                    erg request: ShardSaveRequest = ShardSaveRequest {staged: staged, active: path, shard_id: zero_id, first_column_index: first_column, column_count: column_count, payload: payload, bindings: bindings};
+                    erg saved = save_dynamic_shard_with_bindings(
+                        cache: ins cache,
+                        slot: erg saved_slot,
+                        request: abs request
+                    );
+                    erg persisted: Bool = case dat saved {
+                        Result.Err(_) => false,
+                        Result.Ok(_) => benchmark_cache_entry_is_persisted(cache: abs cache, slot: erg saved_slot),
+                    };
+                    erg next_id: u32 = 4u32;
+                    erg next_generation: u64 = 2u64;
+                    erg next_checksum: u64 = 0u64;
+                    erg admitted = shard_cache_insert(
+                        cache: ins cache,
+                        shard_id: erg next_id,
+                        generation: erg next_generation,
+                        checksum: erg next_checksum
+                    );
+                    erg admission_ok: Bool = case dat admitted {
+                        Result.Err(_) => false,
+                        Result.Ok(_) => true,
+                    };
+                    remove_file(path: abs request.active);
+                    remove_file(path: abs request.staged);
+                    drop(request);
+                    if persisted && admission_ok {
+                        erg message: String = "IE_BINDING_STAGE capacity_recovered_after_flush";
+                        println(text: abs message);
+                        return 0;
+                    }
+                    return 34;
+                },
+            };
+        },
+    };
+}
+
+verb emit(dat path: Path, dat staged: Path) -> Int {
+    erg status: Int = run(path: dat path, staged: dat staged);
+    if status != 0 {
+        return status;
+    }
+    erg recovery_status: Int = verify_capacity_recovery_after_flush();
+    if recovery_status != 0 {
+        return recovery_status;
+    }
+    erg message: String = "IE_SHARD_BINDINGS_DYNAMIC columns=2 bindings=2 stride=24 validated=1";
+    println(text: abs message);
+    return 0;
+}
+
+verb main() -> Int {
+    erg path_result = binding_path();
+    return case dat path_result {
+        Result.Err(_) => 6,
+        Result.Ok(path) => {
+            erg staged_result = binding_staged_path();
+            return case dat staged_result {
+                Result.Err(_) => {
+                    drop(path);
+                    return 9;
+                },
+                Result.Ok(staged) => emit(path: dat path, staged: dat staged),
+            };
+        },
+    };
+}

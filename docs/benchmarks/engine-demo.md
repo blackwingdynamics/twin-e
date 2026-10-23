@@ -12,9 +12,9 @@ and prints the reconstructed answer.
 
 ```sh
 actus build --strict --emit exe \
-  -o /tmp/twin-e-human-demo.aie \
-  benchmarks/aie_string_example.act
-/tmp/twin-e-human-demo.aie
+  -o /tmp/twin-e-human-demo.ie \
+  benchmarks/ie_string_example.act
+/tmp/twin-e-human-demo.ie
 ```
 
 Expected output shape:
@@ -53,9 +53,9 @@ The underlying commands are:
 
 ```sh
 actus build --strict --emit exe \
-  -o /tmp/twin-e-human-brain-demo.aie \
-  benchmarks/aie_human_brain_demo.act
-/tmp/twin-e-human-brain-demo.aie
+  -o /tmp/twin-e-human-brain-demo.ie \
+  benchmarks/ie_human_brain_demo.act
+/tmp/twin-e-human-brain-demo.ie
 ```
 
 Observed runtime output:
@@ -82,19 +82,19 @@ successor, or if decay fails to remove the weak path.
 From the Twin-e repository root:
 
 ```sh
-actus build --strict --emit exe -o /tmp/twin-e-engine-demo.aie
-/tmp/twin-e-engine-demo.aie
+actus build --strict --emit exe -o /tmp/twin-e-engine-demo.ie
+/tmp/twin-e-engine-demo.ie
 ```
 
 Expected output:
 
 ```text
-built `/tmp/twin-e-engine-demo.aie` (strict)
+built `/tmp/twin-e-engine-demo.ie` (strict)
 verified generated native IR: no floating-point instructions
-AIE_DEMO firing payload=41 destination=2 inhibition=1
-AIE_DEMO neurogenesis linked=1
-AIE_DEMO decay reclaimed=1
-AIE_DEMO complete
+IE_DEMO firing payload=41 destination=2 inhibition=1
+IE_DEMO neurogenesis linked=1
+IE_DEMO decay reclaimed=1
+IE_DEMO complete
 ```
 
 The lines mean:
@@ -110,17 +110,17 @@ The lines mean:
 
 ```sh
 actus build --strict --emit exe \
-  -o /tmp/twin-e-observation-demo.aie \
-  benchmarks/aie_observation_roundtrip.act
-/tmp/twin-e-observation-demo.aie
+  -o /tmp/twin-e-observation-demo.ie \
+  benchmarks/ie_observation_roundtrip.act
+/tmp/twin-e-observation-demo.ie
 ```
 
 Expected output:
 
 ```text
-built `/tmp/twin-e-observation-demo.aie` (strict)
+built `/tmp/twin-e-observation-demo.ie` (strict)
 verified generated native IR: no floating-point instructions
-AIE_OBSERVATION_ROUNDTRIP bytes=20 code_roundtrip=1 active_bits=8
+IE_OBSERVATION_ROUNDTRIP bytes=20 code_roundtrip=1 active_bits=8
 ```
 
 This confirms that one bounded observation can be serialized into a 20-byte

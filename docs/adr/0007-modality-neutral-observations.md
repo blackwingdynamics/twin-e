@@ -39,20 +39,20 @@ keys with the same bounded integer mixer before sparse encoding. Therefore the
 same current event can produce different codes when its preceding observation
 differs, while the event window remains explicitly bounded to two events.
 
-The observation module is exposed through the canonical `aie` facade. Sensor
+The observation module is exposed through the canonical `ie` facade. Sensor
 drivers will later translate device data into this event; they will not be
-imported by the AIE runtime.
+imported by the IE runtime.
 
 ## Evidence
 
-`tests/aie_observation.act` verifies deterministic encoding, typed rejection of
+`tests/ie_observation.act` verifies deterministic encoding, typed rejection of
 an out-of-range value, separation of the same current event under two
 different predecessors, fixed snapshot round-trip, and invalid-header
 rejection. The `ObservationSnapshot` format is 20 bytes with a magic value,
 format version, kind, validity marker, bounded values, sequence, and event
 version. The executable fixture
-`benchmarks/aie_observation_roundtrip.act` prints
-`AIE_OBSERVATION_ROUNDTRIP bytes=20 code_roundtrip=1 active_bits=8` and builds
+`benchmarks/ie_observation_roundtrip.act` prints
+`IE_OBSERVATION_ROUNDTRIP bytes=20 code_roundtrip=1 active_bits=8` and builds
 with strict zero-floating-point verification.
 
 ## Consequences

@@ -1,6 +1,6 @@
-# AIE Phase 2 Roadmap
+# IE Phase 2 Roadmap
 
-Phase 2 organizes the AIE source tree, establishes hierarchical Actus
+Phase 2 organizes the IE source tree, establishes hierarchical Actus
 facades, and centralizes package-level configuration.
 
 ## Status legend
@@ -13,9 +13,9 @@ facades, and centralizes package-level configuration.
 
 - [x] Split the former engine implementation into coincidence, forwarding,
   neurogenesis, and decay modules.
-- [x] Organize AIE modules under `layout/`, `runtime/`, and `persistence/`.
+- [x] Organize IE modules under `layout/`, `runtime/`, and `persistence/`.
 - [x] Add canonical directory facades for each nested module.
-- [x] Keep `src/aie/aie.act` as the public AIE facade.
+- [x] Keep `src/ie/ie.act` as the public IE facade.
 - [x] Add public documentation to the facade and public split modules.
 - [~] Retain narrowly scoped `meta limitless("verb")` exceptions where the
   compiler source-limit contract still requires them.
@@ -24,20 +24,20 @@ facades, and centralizes package-level configuration.
 
 - [x] Create the package-level `src/config/config.act` facade.
 - [x] Create `src/config/values.act` for typed compile-time constants.
-- [x] Centralize AIE sentinel, flag, threshold, decay, and snapshot constants.
+- [x] Centralize IE sentinel, flag, threshold, decay, and snapshot constants.
 - [x] Replace duplicated runtime policy literals with named configuration
   constants.
 - [x] Keep binary layout offsets and fixed storage widths in their owning pack
   and serialization contracts.
 - [x] Add a package configuration regression test.
-- [x] Verify configuration constants through nested AIE modules during native
+- [x] Verify configuration constants through nested IE modules during native
   object and executable emission.
 
 ## P2.3 — Validation
 
 - [x] `actus fmt --check` passes.
 - [x] `actus check --strict` passes.
-- [x] All AIE tests pass.
+- [x] All IE tests pass.
 - [x] Native object emission passes.
 - [x] Native executable emission passes.
 - [x] Native executable runs with exit code `0`.
@@ -48,7 +48,7 @@ facades, and centralizes package-level configuration.
 
 Phase 2 is complete when:
 
-- [x] AIE source responsibilities are separated into nested canonical modules.
+- [x] IE source responsibilities are separated into nested canonical modules.
 - [x] Package-level configuration is available through `import config;`.
 - [x] Runtime and serialization code use named policy and format constants.
 - [x] The complete strict/native validation pipeline passes.

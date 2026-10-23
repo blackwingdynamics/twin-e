@@ -1,0 +1,231 @@
+"""Region-backed 500,000-entry exact-duplicate stress measurement."""
+import config;
+
+import encoding;
+
+import std::io;
+
+import std::region;
+
+import std::time;
+
+const POPULATION_SIZE: u32 = 500000u32;
+
+
+const TABLE_SIZE: u64 = 1048576u64;
+
+
+const TABLE_MASK: u64 = 1048575u64;
+
+
+const SLOT_BYTES: u32 = 16u32;
+
+
+const TRANSFER_BYTES: u32 = 131072u32;
+
+
+const TRANSFER_ELEMENTS: u64 = 16384u64;
+
+
+verb read_u64(abs bytes: Buffer, erg offset: u32) -> u64 {
+    erg low: u32 = (bytes[offset] as u32) + ((bytes[offset + 1u32] as u32) * 256u32) + ((bytes[offset + 2u32] as u32) * 65536u32) + ((bytes[offset + 3u32] as u32) * 16777216u32);
+    erg high: u32 = (bytes[offset + 4u32] as u32) + ((bytes[offset + 5u32] as u32) * 256u32) + ((bytes[offset + 6u32] as u32) * 65536u32) + ((bytes[offset + 7u32] as u32) * 16777216u32);
+    return (low as u64) + ((high as u64) * 4294967296u64);
+}
+
+verb write_u64(ins bytes: Buffer, erg offset: u32, erg value: u64) {
+    erg low: u64 = value & 4294967295u64;
+    erg high: u64 = value / 4294967296u64;
+    bytes[offset] = (low & 255u64) as u8;
+    bytes[offset + 1u32] = ((low / 256u64) & 255u64) as u8;
+    bytes[offset + 2u32] = ((low / 65536u64) & 255u64) as u8;
+    bytes[offset + 3u32] = ((low / 16777216u64) & 255u64) as u8;
+    bytes[offset + 4u32] = (high & 255u64) as u8;
+    bytes[offset + 5u32] = ((high / 256u64) & 255u64) as u8;
+    bytes[offset + 6u32] = ((high / 65536u64) & 255u64) as u8;
+    bytes[offset + 7u32] = ((high / 16777216u64) & 255u64) as u8;
+}
+
+verb mix_slot_hash(erg state: u64) -> u64 {
+    state ^= state >> 33u8;
+    state *= 11400714819323198485u64;
+    state ^= state >> 29u8;
+    state *= 14029467366897019727u64;
+    state ^= state >> 32u8;
+    return state;
+}
+
+meta limitless("verb")
+verb main() -> Int {
+    erg backing: Buffer = Buffer[16777216];
+    erg resident: Buffer = Buffer[16777216];
+    erg logical_length: u64 = 2097152u64;
+    erg window_start: u64 = 0u64;
+    erg window_count: u64 = 2097152u64;
+    erg opened = region_open[u64](
+        backing: dat backing,
+        logical_length: erg logical_length,
+        window_start: erg window_start,
+        window_count: erg window_count
+    );
+    return case dat opened {
+        Result.Err(_) => 10,
+        Result.Ok(table) => {
+            erg start_index: u64 = 0u64;
+            erg element_count: u64 = TRANSFER_ELEMENTS;
+            erg transfer: Buffer = Buffer[131072];
+            erg loaded = region_read_range[u64](
+                region: abs table,
+                start_index: erg start_index,
+                element_count: erg element_count,
+                destination: ins transfer
+            );
+            return case dat loaded {
+                Result.Err(_) => {
+                    region_close[u64](region: ins table);
+                    11;
+                },
+                Result.Ok(_) => {
+                    erg started: u64 = monotonic_nanos();
+                    erg duplicate_count: u32 = 0u32;
+                    erg first_duplicate: u32 = POPULATION_SIZE;
+                    erg occupied_count: u32 = 0u32;
+                    erg probe_exhausted: Bool = false;
+                    erg token_id: u32 = 0u32;
+                    loop {
+                        if token_id >= POPULATION_SIZE || probe_exhausted {
+                            break;
+                        }
+                        erg code: TokenCode = encode_token_id(token_id: erg token_id);
+                        erg code_low: u64 = code.mask_low;
+                        erg code_high: u64 = code.mask_high;
+                        erg slot_seed: u64 = code.mask_low ^ code.mask_high;
+                        erg slot_hash: u64 = mix_slot_hash(state: erg slot_seed);
+                        erg slot_index: u64 = slot_hash & TABLE_MASK;
+                        erg probe_count: u32 = 0u32;
+                        erg inserted: Bool = false;
+                        loop {
+                            if probe_count >= TABLE_SIZE as u32 {
+                                probe_exhausted = true;
+                                break;
+                            }
+                            erg slot_offset: u32 = (slot_index * 16u64) as u32;
+                            erg low_offset: u32 = slot_offset;
+                            erg high_offset: u32 = low_offset + SLOT_BYTES / 2u32;
+                            erg stored_low: u64 = read_u64(bytes: abs resident, offset: erg low_offset);
+                            erg stored_high: u64 = read_u64(bytes: abs resident, offset: erg high_offset);
+                            if stored_low == 0u64 && stored_high == 0u64 {
+                                write_u64(
+                                    bytes: ins resident,
+                                    offset: erg low_offset,
+                                    value: erg code_low
+                                );
+                                write_u64(
+                                    bytes: ins resident,
+                                    offset: erg high_offset,
+                                    value: erg code_high
+                                );
+                                occupied_count += 1u32;
+                                inserted = true;
+                                break;
+                            }
+                            if stored_low == code_low && stored_high == code_high {
+                                duplicate_count += 1u32;
+                                if first_duplicate == POPULATION_SIZE {
+                                    first_duplicate = token_id;
+                                }
+                                inserted = true;
+                                break;
+                            }
+                            slot_index = (slot_index + 1u64) & TABLE_MASK;
+                            probe_count += 1u32;
+                        }
+                        if !inserted && !probe_exhausted {
+                            probe_exhausted = true;
+                        }
+                        token_id += 1u32;
+                    }
+                    erg finished: u64 = monotonic_nanos();
+                    erg chunk_start: u64 = 0u64;
+                    erg chunk_failed: Bool = false;
+                    loop {
+                        if chunk_start >= 2097152u64 || chunk_failed {
+                            break;
+                        }
+                        erg base_byte: u32 = (chunk_start * 8u64) as u32;
+                        erg chunk_byte: u32 = 0u32;
+                        loop {
+                            if chunk_byte >= TRANSFER_BYTES {
+                                break;
+                            }
+                            transfer[chunk_byte] = resident[base_byte + chunk_byte];
+                            chunk_byte += 1u32;
+                        }
+                        erg write_count: u64 = TRANSFER_ELEMENTS;
+                        erg chunk_write = region_write_range[u64](
+                            region: ins table,
+                            start_index: erg chunk_start,
+                            element_count: erg write_count,
+                            source: abs transfer
+                        );
+                        erg write_succeeded: Bool = case dat chunk_write {
+                            Result.Err(_) => false,
+                            Result.Ok(_) => true,
+                        };
+                        if write_succeeded {
+                            chunk_start += TRANSFER_ELEMENTS;
+                        } else {
+                            chunk_failed = true;
+                        }
+                    }
+                    erg heading: String = "IE_CODEBOOK_REGION population=token_ids size=500000 codebook_version=1 active_bits=12 seed=11400714819323198485 generation=sequential_u32";
+                    erg occupied_label: String = "IE_CODEBOOK_REGION occupied_slots=";
+                    erg duplicate_label: String = "IE_CODEBOOK_REGION exact_duplicate_count=";
+                    erg first_duplicate_label: String = "IE_CODEBOOK_REGION first_duplicate_token=";
+                    erg exhausted_label: String = "IE_CODEBOOK_REGION table_exhausted=";
+                    erg elapsed_label: String = "IE_CODEBOOK_REGION elapsed_ms=";
+                    erg true_label: String = "true";
+                    erg false_label: String = "false";
+                    erg occupied_value: Int = occupied_count as Int;
+                    erg duplicate_value: Int = duplicate_count as Int;
+                    erg first_duplicate_value: Int = first_duplicate as Int;
+                    erg elapsed_value: Int = ((finished - started) / 1000000u64) as Int;
+                    println(text: abs heading);
+                    print(text: abs occupied_label);
+                    print_int(value: erg occupied_value);
+                    print(text: abs duplicate_label);
+                    print_int(value: erg duplicate_value);
+                    print(text: abs first_duplicate_label);
+                    print_int(value: erg first_duplicate_value);
+                    print(text: abs exhausted_label);
+                    if probe_exhausted {
+                        println(text: abs true_label);
+                    } else {
+                        println(text: abs false_label);
+                    }
+                    print(text: abs elapsed_label);
+                    print_int(value: erg elapsed_value);
+                    if chunk_failed {
+                        region_close[u64](region: ins table);
+                        return 12;
+                    }
+                    erg published = region_publish[u64](region: ins table);
+                    return case dat published {
+                        Result.Err(_) => 13,
+                        Result.Ok(_) => {
+                            erg closed = region_close[u64](region: ins table);
+                            return case dat closed {
+                                Result.Err(_) => 14,
+                                Result.Ok(_) => if occupied_count != POPULATION_SIZE || duplicate_count != 0u32 || probe_exhausted {
+                                    1;
+                                } else {
+                                    0;
+                                },
+                            };
+                        },
+                    };
+                },
+            };
+        },
+    };
+}

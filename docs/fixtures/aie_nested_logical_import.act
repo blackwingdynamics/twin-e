@@ -1,6 +1,0 @@
-"""Negative fixture: callers must use the public `aie` facade."""
-import logical;
-
-verb main() -> Int {
-    return 0;
-}

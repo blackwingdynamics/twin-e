@@ -8,15 +8,15 @@ array.
 
 ```text
 actus build --strict --emit exe \
-  -o /tmp/twin-e-binding-snapshot.aie \
-  benchmarks/aie_binding_snapshot.act
-/tmp/twin-e-binding-snapshot.aie
+  -o /tmp/twin-e-binding-snapshot.ie \
+  benchmarks/ie_binding_snapshot.act
+/tmp/twin-e-binding-snapshot.ie
 ```
 
 ## Recorded result
 
 ```text
-AIE_BINDING_SNAPSHOT slot=3 roundtrip=1 context_offset=8
+IE_BINDING_SNAPSHOT slot=3 roundtrip=1 context_offset=8
 ```
 
 The probe verifies the sidecar header/version contract, restores a populated

@@ -7,10 +7,10 @@ state before loading the same `.brain` file.
 ## Commands
 
 ```sh
-actus build --strict --emit exe -o /tmp/twin-e-p5-restart-write.aie benchmarks/aie_text_brain_restart_write.act
-actus build --strict --emit exe -o /tmp/twin-e-p5-restart-read.aie benchmarks/aie_text_brain_restart_read.act
-/tmp/twin-e-p5-restart-write.aie
-/tmp/twin-e-p5-restart-read.aie
+actus build --strict --emit exe -o /tmp/twin-e-p5-restart-write.ie benchmarks/ie_text_brain_restart_write.act
+actus build --strict --emit exe -o /tmp/twin-e-p5-restart-read.ie benchmarks/ie_text_brain_restart_read.act
+/tmp/twin-e-p5-restart-write.ie
+/tmp/twin-e-p5-restart-read.ie
 ```
 
 ## Recorded evidence
@@ -22,8 +22,8 @@ separate process with fresh state and restored the saved payload, strength,
 token, context, and binding flag.
 
 ```text
-AIE_P5_RESTART save=1 bytes=5702 process=writer
-AIE_P5_RESTART reload=1 recalled=1 process=reader
+IE_P5_RESTART save=1 bytes=5702 process=writer
+IE_P5_RESTART reload=1 recalled=1 process=reader
 ```
 
 The paired process check proves restart recovery for the current fixed
@@ -33,6 +33,6 @@ merge-rule artifact persistence.
 ## Expected evidence
 
 ```text
-AIE_P5_RESTART save=1 bytes=5702 process=writer
-AIE_P5_RESTART reload=1 recalled=1 process=reader
+IE_P5_RESTART save=1 bytes=5702 process=writer
+IE_P5_RESTART reload=1 recalled=1 process=reader
 ```

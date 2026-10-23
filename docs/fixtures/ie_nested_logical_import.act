@@ -1,0 +1,6 @@
+"""Negative fixture: callers must use the public `ie` facade."""
+import logical;
+
+verb main() -> Int {
+    return 0;
+}

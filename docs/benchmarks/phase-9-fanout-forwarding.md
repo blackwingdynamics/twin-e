@@ -7,12 +7,12 @@ measure filesystem persistence, allocation setup, or hardware performance.
 ## Command
 
 ```text
-actus fmt --check benchmarks/aie_fanout_forwarding.act
-actus check --strict benchmarks/aie_fanout_forwarding.act
+actus fmt --check benchmarks/ie_fanout_forwarding.act
+actus check --strict benchmarks/ie_fanout_forwarding.act
 actus build --strict --emit exe \
-  -o /tmp/twin-e-fanout-forwarding.aie \
-  benchmarks/aie_fanout_forwarding.act
-/tmp/twin-e-fanout-forwarding.aie
+  -o /tmp/twin-e-fanout-forwarding.ie \
+  benchmarks/ie_fanout_forwarding.act
+/tmp/twin-e-fanout-forwarding.ie
 ```
 
 Compiler profile: Actus strict hosted build with Cranelift on the local
@@ -22,9 +22,9 @@ floating-point instructions.
 ## Result
 
 ```text
-AIE_FANOUT_FORWARDING iterations=10000 inline_targets=8 overflow_targets=9
-AIE_FANOUT_FORWARDING inline_only_ns=1414118
-AIE_FANOUT_FORWARDING overflow_ns=1581395
+IE_FANOUT_FORWARDING iterations=10000 inline_targets=8 overflow_targets=9
+IE_FANOUT_FORWARDING inline_only_ns=1414118
+IE_FANOUT_FORWARDING overflow_ns=1581395
 ```
 
 The overflow fixture took 167,277 ns more for 10,000 calls, approximately
@@ -39,10 +39,10 @@ The same strict executable also reports the bounded-state and failure
 contracts:
 
 ```text
-AIE_FANOUT_FORWARDING auxiliary_serialized_bytes=456
-AIE_FANOUT_FORWARDING auxiliary_record_capacity=8
-AIE_FANOUT_FORWARDING traversal_order_verified=1
-AIE_FANOUT_FORWARDING exhaustion_rejection_verified=1
+IE_FANOUT_FORWARDING auxiliary_serialized_bytes=456
+IE_FANOUT_FORWARDING auxiliary_record_capacity=8
+IE_FANOUT_FORWARDING traversal_order_verified=1
+IE_FANOUT_FORWARDING exhaustion_rejection_verified=1
 ```
 
 The 456 bytes are the fixed auxiliary source directory, eight 40-byte records,

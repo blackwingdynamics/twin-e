@@ -1,5 +1,5 @@
 """Acceptance tests for direct text teaching through public facades."""
-import aie;
+import ie;
 
 import config;
 

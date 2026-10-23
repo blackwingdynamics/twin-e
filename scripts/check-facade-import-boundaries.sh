@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ACTUS_COMMAND="${ACTUS:-actus}"
-FIXTURE="docs/fixtures/aie_nested_logical_import.act"
+FIXTURE="docs/fixtures/ie_nested_logical_import.act"
 
 set +e
 diagnostic="$(${ACTUS_COMMAND} check --strict "${FIXTURE}" 2>&1)"

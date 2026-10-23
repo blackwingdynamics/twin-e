@@ -149,7 +149,7 @@ separately. The recorded hosted result is `1,414,118 ns` inline-only versus
 `1,581,395 ns` with one auxiliary target, approximately `11.8%` additional
 time in this fixture. This is not a hardware-performance claim.
 
-The final strict hosted executable build produced `/tmp/twin-e-engine.aie`;
+The final strict hosted executable build produced `/tmp/twin-e-engine.ie`;
 Actus verified that the generated native IR contains no floating-point
 instructions, and the executable completed the firing, neurogenesis, and decay
 demo stages successfully.

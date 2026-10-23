@@ -1,0 +1,176 @@
+"""Verify truncated and oversized `.brain` files are rejected safely."""
+import ie;
+
+import config;
+
+import encoding;
+
+import std::fs;
+
+import std::path;
+
+verb append_bounds_prefix(ins raw: Buffer) {
+    erg prefix: Array[u8,11] = Array[u8, 11]();
+    prefix[0u32] = 47u8;
+    prefix[1u32] = 116u8;
+    prefix[2u32] = 109u8;
+    prefix[3u32] = 112u8;
+    prefix[4u32] = 47u8;
+    prefix[5u32] = 116u8;
+    prefix[6u32] = 119u8;
+    prefix[7u32] = 105u8;
+    prefix[8u32] = 110u8;
+    prefix[9u32] = 45u8;
+    prefix[10u32] = 101u8;
+    for erg index: u32 in 0u32 .. 11u32 {
+        append(raw, prefix[index]);
+    }
+}
+
+verb append_bounds_suffix(ins raw: Buffer) {
+    erg suffix: Array[u8,22] = Array[u8, 22]();
+    suffix[0u32] = 45u8;
+    suffix[1u32] = 112u8;
+    suffix[2u32] = 53u8;
+    suffix[3u32] = 45u8;
+    suffix[4u32] = 98u8;
+    suffix[5u32] = 111u8;
+    suffix[6u32] = 117u8;
+    suffix[7u32] = 110u8;
+    suffix[8u32] = 100u8;
+    suffix[9u32] = 115u8;
+    suffix[10u32] = 45u8;
+    suffix[11u32] = 98u8;
+    suffix[12u32] = 114u8;
+    suffix[13u32] = 97u8;
+    suffix[14u32] = 105u8;
+    suffix[15u32] = 110u8;
+    suffix[16u32] = 46u8;
+    suffix[17u32] = 98u8;
+    suffix[18u32] = 114u8;
+    suffix[19u32] = 97u8;
+    suffix[20u32] = 105u8;
+    suffix[21u32] = 0u8;
+    for erg index: u32 in 0u32 .. 22u32 {
+        append(raw, suffix[index]);
+    }
+}
+
+verb bounds_path() -> Result[Path, PathError] {
+    erg raw = Buffer[0];
+    append_bounds_prefix(raw: ins raw);
+    append_bounds_suffix(raw: ins raw);
+    return path_from_ascii(storage: dat raw);
+}
+
+verb make_fabric() -> CorticalFabric[64] {
+    erg fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](), free_list_head: 0u32, active_count: 0u32};
+    fabric_init(fabric: ins fabric);
+    erg slot: u32 = allocate_column_index(fabric: ins fabric);
+    fabric.columns[slot].payload = 52u8;
+    return fabric;
+}
+
+verb make_bindings() -> Array[TokenBinding, 64] {
+    erg bindings: Array[TokenBinding,64] = Array[TokenBinding, 64]();
+    bindings[0u32].token_id = 7001u32;
+    bindings[0u32].binding_flags = BINDING_ACTIVE_FLAG;
+    return bindings;
+}
+
+verb save_fixture(abs path: Path) -> Int {
+    erg fabric: CorticalFabric[64] = make_fabric();
+    erg bindings: Array[TokenBinding,64] = make_bindings();
+    erg saved = write_text_brain(
+        path: abs path,
+        fabric: abs fabric,
+        bindings: abs bindings
+    );
+    return case dat saved {
+        Result.Ok(_) => 0,
+        Result.Err(_) => 1,
+    };
+}
+
+verb rewrite_truncated(abs path: Path) -> Int {
+    erg loaded = read_to_bytes(path: abs path);
+    return case dat loaded {
+        Result.Err(_) => 1,
+        Result.Ok(bytes) => {
+            erg short_bytes: Buffer = Buffer[0];
+            erg capacity: Int = 32;
+            erg reserved = reserve(buffer: ins short_bytes, capacity: erg capacity);
+            for erg index: u32 in 0u32 .. 32u32 {
+                append(short_bytes, bytes[index]);
+            }
+            erg rewritten = write_file(path: abs path, contents: abs short_bytes);
+            drop(bytes);
+            drop(short_bytes);
+            return case dat rewritten {
+                Result.Ok(_) => 0,
+                Result.Err(_) => 2,
+            };
+        },
+    };
+}
+
+verb rewrite_oversized(abs path: Path) -> Int {
+    erg loaded = read_to_bytes(path: abs path);
+    return case dat loaded {
+        Result.Err(_) => 1,
+        Result.Ok(bytes) => {
+            append(bytes, 0u8);
+            erg rewritten = write_file(path: abs path, contents: abs bytes);
+            drop(bytes);
+            return case dat rewritten {
+                Result.Ok(_) => 0,
+                Result.Err(_) => 2,
+            };
+        },
+    };
+}
+
+verb verify_rejected_without_mutation(abs path: Path) -> Int {
+    erg fabric: CorticalFabric[64] = make_fabric();
+    erg bindings: Array[TokenBinding,64] = make_bindings();
+    fabric.columns[0u32].payload = 99u8;
+    bindings[0u32].token_id = 777u32;
+    erg loaded = read_text_brain(
+        fabric: ins fabric,
+        bindings: ins bindings,
+        path: abs path
+    );
+    return case dat loaded {
+        Result.Ok(_) => 1,
+        Result.Err(_) => {
+            if fabric.columns[0u32].payload != 99u8 || bindings[0u32].token_id != 777u32 {
+                return 2;
+            }
+            return 0;
+        },
+    };
+}
+
+verb run_bounds(dat path: Path) -> Int {
+    if save_fixture(path: abs path) != 0 || rewrite_truncated(path: abs path) != 0 || verify_rejected_without_mutation(
+        path: abs path
+    ) != 0 {
+        return 1;
+    }
+    if save_fixture(path: abs path) != 0 || rewrite_oversized(path: abs path) != 0 || verify_rejected_without_mutation(
+        path: abs path
+    ) != 0 {
+        return 2;
+    }
+    erg message: String = "IE_P5_BRAIN_BOUNDS truncated_rejected=1 oversized_rejected=1 unchanged=1";
+    println(text: abs message);
+    return 0;
+}
+
+verb main() -> Int {
+    erg result = bounds_path();
+    return case dat result {
+        Result.Ok(path) => run_bounds(path: dat path),
+        Result.Err(_) => 3,
+    };
+}

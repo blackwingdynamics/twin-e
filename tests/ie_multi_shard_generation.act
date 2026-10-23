@@ -1,0 +1,134 @@
+"""Gate 11.6 evidence for a complete two-shard generation."""
+import ie;
+
+import config;
+
+import std::fs;
+
+import std::path;
+
+verb generation_test_path(erg suffix: u8) -> Result[Path, PathError] {
+    erg raw: Buffer = Buffer[0];
+    append(raw, 47u8);
+    append(raw, 116u8);
+    append(raw, 109u8);
+    append(raw, 112u8);
+    append(raw, 47u8);
+    append(raw, 116u8);
+    append(raw, 119u8);
+    append(raw, 105u8);
+    append(raw, 110u8);
+    append(raw, 45u8);
+    append(raw, 101u8);
+    append(raw, 45u8);
+    append(raw, 103u8);
+    append(raw, 101u8);
+    append(raw, 110u8);
+    append(raw, 45u8);
+    append(raw, suffix);
+    append(raw, 0u8);
+    return path_from_ascii(storage: dat raw);
+}
+
+verb generation_cleanup(abs brain_dir: Path) {
+    erg manifest = persistence_manifest_path(brain_dir: abs brain_dir);
+    case dat manifest {
+        Result.Err(_) => {},
+        Result.Ok(path) => remove_file(path: abs path),
+    };
+    for erg shard_id: u32 in 0u32 .. 2u32 {
+        erg shard = persistence_format_shard_path(brain_dir: abs brain_dir, shard_id: erg shard_id);
+        case dat shard {
+            Result.Err(_) => {},
+            Result.Ok(path) => remove_file(path: abs path),
+        };
+    }
+    remove_dir(path: abs brain_dir);
+}
+
+verb generation_run_with_directory(dat brain_dir: Path) -> Int {
+    remove_dir(path: abs brain_dir);
+    erg created = create_dir(path: abs brain_dir);
+    erg status: Int = case dat created {
+        Result.Err(_) => 1,
+        Result.Ok(_) => generation_run_test(brain_dir: erg brain_dir),
+    };
+    drop(brain_dir);
+    return status;
+}
+
+verb generation_zero_columns() -> Array[u8, 4096] {
+    erg columns: Array[u8,4096] = Array[u8, 4096]();
+    columns[0u32] = 41u8;
+    columns[2048u32] = 99u8;
+    return columns;
+}
+
+verb generation_zero_bindings() -> Array[u8, 1536] {
+    erg bindings: Array[u8,1536] = Array[u8, 1536]();
+    bindings[0u32] = BINDING_ACTIVE_FLAG;
+    bindings[768u32] = BINDING_ACTIVE_FLAG;
+    return bindings;
+}
+
+verb generation_result_ok(dat result: Result[Int, IoError]) -> Bool {
+    return case dat result {
+        Result.Err(_) => false,
+        Result.Ok(_) => true,
+    };
+}
+
+verb generation_load_and_check(abs brain_dir: Path) -> Int {
+    erg fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](), free_list_head: 0u32, active_count: 0u32};
+    erg shard_count: u32 = 2u32;
+    fabric_init(fabric: ins fabric);
+    erg manifest_path = persistence_manifest_path(brain_dir: abs brain_dir);
+    erg loaded = case dat manifest_path {
+        Result.Err(_) => Result[Int, IoError].Err(IoError.InvalidInput),
+        Result.Ok(path) => load_all_dynamic_shards(
+            fabric: ins fabric,
+            manifest_path: abs path,
+            brain_dir: abs brain_dir,
+            shard_count: erg shard_count
+        ),
+    };
+    if !generation_result_ok(result: dat loaded) {
+        return 10;
+    }
+    if fabric.columns[0u32].storage[0u32] != 41u8 || fabric.columns[32u32].storage[0u32] != 99u8 {
+        return 11;
+    }
+    return 0;
+}
+
+verb generation_run_test(erg brain_dir: Path) -> Int {
+    erg columns: Array[u8,4096] = generation_zero_columns();
+    erg bindings: Array[u8,1536] = generation_zero_bindings();
+    erg active_count: u32 = 4u32;
+    erg free_list_head: u32 = NULL_INDEX;
+    erg generation: u64 = 7u64;
+    erg generated = write_sharded_snapshot(
+        brain_dir: abs brain_dir,
+        columns: abs columns,
+        entries: abs bindings,
+        active_count: erg active_count,
+        free_list_head: erg free_list_head,
+        generation: erg generation
+    );
+    erg result: Int = case dat generated {
+        Result.Err(_) => 2,
+        Result.Ok(_) => generation_load_and_check(brain_dir: abs brain_dir),
+    };
+    generation_cleanup(brain_dir: abs brain_dir);
+    return result;
+}
+
+meta test
+verb test_complete_two_shard_generation_loads_in_descriptor_order() -> Int {
+    erg suffix: u8 = 61u8;
+    erg brain_dir_result = generation_test_path(suffix: erg suffix);
+    return case dat brain_dir_result {
+        Result.Err(_) => 1,
+        Result.Ok(brain_dir) => generation_run_with_directory(brain_dir: dat brain_dir),
+    };
+}

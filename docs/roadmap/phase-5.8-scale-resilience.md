@@ -200,11 +200,11 @@ task.
       `docs/benchmarks/phase-5-cache-lifecycle.md`.
 - [x] Guarantee that recall of already resident state can continue when a new
       mutation or shard admission is refused. See
-      `tests/aie_api.act::test_resident_recall_survives_capacity_rejection`.
+      `tests/ie_api.act::test_resident_recall_survives_capacity_rejection`.
 - [x] Return a typed, observable capacity result without discarding the live
       fabric or dirty resident state. `NoResidentCapacity` is asserted together
       with resident recall, unchanged fabric links, and unchanged dirty cache
-      entries in `tests/aie_api.act::test_resident_recall_survives_capacity_rejection`.
+      entries in `tests/ie_api.act::test_resident_recall_survives_capacity_rejection`.
 - [x] Define whether admission may retry, defer, or require an explicit flush
       boundary; admission returns a final typed error for the current request,
       with retry allowed only after caller-driven explicit flush. No implicit
@@ -220,7 +220,7 @@ task.
 - [x] Start flush work at the configured high-watermark before capacity is
       exhausted. `shard_cache_flush_requested` becomes true at the configured
       watermark without queueing work or performing filesystem I/O; see
-      `tests/aie_api.act::test_dirty_high_watermark_requests_flush`.
+      `tests/ie_api.act::test_dirty_high_watermark_requests_flush`.
 - [x] Bound the amount of work and memory held by the flush queue. The current
       profile sets `BRAIN_CACHE_FLUSH_QUEUE_CAPACITY=0`, so the runtime retains
       zero queued flush work and zero queue-owned memory; see ADR-0012,
@@ -278,7 +278,7 @@ task.
       `full_pressure_rejected=1` without mutating the working set. See
       `docs/benchmarks/phase-5-cache-lifecycle.md`.
 - [x] Add a high-watermark flush benchmark with clean and dirty residents.
-      `aie_cache` reports `dirty_before_signal=2`,
+      `ie_cache` reports `dirty_before_signal=2`,
       `dirty_at_signal=3`, and `flush_requested=1`.
 - [x] Add corruption, interrupted-publication, retry, and previous-generation
       recovery fixtures. The dynamic-shard fixture reports
