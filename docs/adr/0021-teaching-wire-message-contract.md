@@ -29,6 +29,8 @@ maximum frame size, and CRC validation. Twin-e owns:
 - complete-frame decoding delegates unsupported versions, bad checksums,
   truncation, and payload bounds to `std::wire` before the teaching message is
   exposed to admission;
+- `sequence_num` is preserved as the deterministic response-correlation key
+  and is admitted through the caller-owned `std::wire` sequence window;
 - validation that the frame and application message versions match the
   supported contract and that the payload fits `std::wire`'s maximum.
 

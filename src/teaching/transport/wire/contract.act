@@ -112,3 +112,25 @@ open verb teaching_wire_decode_request(
         },
     };
 }
+
+"""Accept a decoded request in its caller-owned deterministic sequence window.
+
+The message sequence is the response-correlation key and is passed unchanged
+to `std::wire` replay protection. Duplicate, stale, context-mismatched, and
+unreasonable sequence values are rejected without changing the window.
+"""
+open verb teaching_wire_accept_request(
+    ins window: WireSequenceWindow,
+    erg context_id: u32,
+    abs message: TeachingWireMessage
+) -> Result[Int, WireError] {
+    if !teaching_wire_message_is_valid(message: abs message) {
+        return Result[Int, WireError].Err(WireError.PolicyRejected);
+    }
+    erg sequence_num: u32 = message.sequence_num;
+    return wire_sequence_accept(
+        window: ins window,
+        context_id: erg context_id,
+        sequence_num: erg sequence_num
+    );
+}

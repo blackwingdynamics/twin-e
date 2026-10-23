@@ -409,7 +409,7 @@ profile is checked before resident state loading.
       bounded batch.
 - [x] Reject unsupported versions, bad checksums, truncated frames, and
       oversized payloads before admission.
-- [ ] Preserve request ordering and deterministic response correlation.
+- [x] Preserve request ordering and deterministic response correlation.
 - [ ] Keep wire parsing independent from modality adapters and IE state.
 
 ### Required evidence

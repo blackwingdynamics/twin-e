@@ -199,3 +199,34 @@ verb test_teaching_wire_decoder_rejects_unsupported_version() -> Int {
     }
     return 0;
 }
+
+meta test
+verb test_teaching_wire_sequence_preserves_order_and_correlation() -> Int {
+    erg window = wire_sequence_empty();
+    erg first_sequence: u32 = 30u32;
+    erg first = teaching_wire_request_message(sequence_num: erg first_sequence, payload_length: erg first_sequence);
+    erg first_result = teaching_wire_accept_request(
+        window: ins window,
+        context_id: erg first_sequence,
+        message: abs first
+    );
+    case dat first_result {
+        Result.Err(_) => {
+            return 1;
+        },
+        Result.Ok(_) => {},
+    };
+    erg duplicate_result = teaching_wire_accept_request(
+        window: ins window,
+        context_id: erg first_sequence,
+        message: abs first
+    );
+    return case dat duplicate_result {
+        Result.Err(error) => if error == WireError.SequenceDuplicate {
+            0;
+        } else {
+            2;
+        },
+        Result.Ok(_) => 3,
+    };
+}
