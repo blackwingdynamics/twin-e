@@ -410,14 +410,14 @@ profile is checked before resident state loading.
 - [x] Reject unsupported versions, bad checksums, truncated frames, and
       oversized payloads before admission.
 - [x] Preserve request ordering and deterministic response correlation.
-- [ ] Keep wire parsing independent from modality adapters and IE state.
+- [x] Keep wire parsing independent from modality adapters and IE state.
 
 ### Required evidence
 
-- [ ] A split-frame fixture reconstructs one valid request deterministically.
-- [ ] Corrupted, replayed, truncated, and oversized frames are rejected.
-- [ ] A failed frame causes no partial teaching mutation.
-- [ ] Native output confirms no floating-point instructions are introduced.
+- [x] A split-frame fixture reconstructs one valid request deterministically.
+- [x] Corrupted, replayed, truncated, and oversized frames are rejected.
+- [x] A failed frame causes no partial teaching mutation.
+- [x] Native output confirms no floating-point instructions are introduced.
 
 ## Gate 10.6 — Define transport-independent batching and backpressure
 

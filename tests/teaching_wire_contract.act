@@ -145,6 +145,7 @@ verb test_teaching_wire_decoder_rejects_corrupt_frame() -> Int {
     };
     frame[12] = 43u8;
     erg payload: Buffer = Buffer[1];
+    payload[0] = 99u8;
     erg corrupt = teaching_wire_decode_request(frame: abs frame, payload_output: ins payload);
     erg corrupt_rejected: Bool = case dat corrupt {
         Result.Err(error) => error == WireError.ChecksumMismatch,
@@ -152,6 +153,9 @@ verb test_teaching_wire_decoder_rejects_corrupt_frame() -> Int {
     };
     if !corrupt_rejected {
         return 2;
+    }
+    if payload[0] != 99u8 {
+        return 3;
     }
     return 0;
 }

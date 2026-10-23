@@ -100,17 +100,24 @@ open verb teaching_wire_decode_request(
     erg decoded = wire_frame_decode(input: abs frame, payload_output: ins payload_output);
     return case dat decoded {
         Result.Err(error) => Result[TeachingWireMessage, WireError].Err(error),
-        Result.Ok(header) => {
-            if header.message_id != TEACHING_WIRE_MESSAGE_ID {
-                return Result[TeachingWireMessage, WireError].Err(WireError.PolicyRejected);
-            }
-            erg message = TeachingWireMessage {frame_version: header.version, message_id: header.message_id, message_version: TEACHING_WIRE_MESSAGE_VERSION, message_type: TeachingWireMessageType.TeachingRequest, sequence_num: header.sequence_num, payload_length: header.payload_len as u32};
-            if !teaching_wire_message_is_valid(message: abs message) {
-                return Result[TeachingWireMessage, WireError].Err(WireError.PolicyRejected);
-            }
-            Result[TeachingWireMessage, WireError].Ok(message);
-        },
+        Result.Ok(header) => teaching_wire_message_from_header(header: abs header),
     };
+}
+
+"""Convert a validated standard-wire header into teaching metadata.
+
+This adapter is pure metadata conversion. It does not read or write payload
+bytes, invoke an adapter, or access IE state.
+"""
+open verb teaching_wire_message_from_header(abs header: WireHeader) -> Result[TeachingWireMessage, WireError] {
+    if header.message_id != TEACHING_WIRE_MESSAGE_ID {
+        return Result[TeachingWireMessage, WireError].Err(WireError.PolicyRejected);
+    }
+    erg message = TeachingWireMessage {frame_version: header.version, message_id: header.message_id, message_version: TEACHING_WIRE_MESSAGE_VERSION, message_type: TeachingWireMessageType.TeachingRequest, sequence_num: header.sequence_num, payload_length: header.payload_len as u32};
+    if !teaching_wire_message_is_valid(message: abs message) {
+        return Result[TeachingWireMessage, WireError].Err(WireError.PolicyRejected);
+    }
+    return Result[TeachingWireMessage, WireError].Ok(message);
 }
 
 """Accept a decoded request in its caller-owned deterministic sequence window.

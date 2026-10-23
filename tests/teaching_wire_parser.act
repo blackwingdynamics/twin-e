@@ -1,0 +1,105 @@
+"""Acceptance tests for incremental teaching wire reconstruction."""
+import teaching;
+
+verb teaching_wire_parser_frame(ins output: Buffer) -> Result[u32, WireError] {
+    erg header = WireHeader {storage: Array[u8, 12]()};
+    header.magic_0 = WIRE_MAGIC_0;
+    header.magic_1 = WIRE_MAGIC_1;
+    header.version = WIRE_VERSION;
+    header.message_id = TEACHING_WIRE_MESSAGE_ID;
+    header.sequence_num = 21u32;
+    header.payload_len = 1u16;
+    erg payload: Buffer = Buffer[1];
+    payload[0] = 42u8;
+    return wire_frame_encode(
+        header: abs header,
+        payload: abs payload,
+        output: ins output
+    );
+}
+
+verb teaching_wire_feed_chunk(
+    ins parser: WireParser,
+    abs chunk: Buffer,
+    ins payload: Buffer
+) -> Int {
+    erg result = wire_parser_feed(
+        parser: ins parser,
+        chunk: abs chunk,
+        payload_output: ins payload
+    );
+    return case dat result {
+        Result.Err(_) => 1,
+        Result.Ok(_) => 0,
+    };
+}
+
+verb teaching_wire_validate_split(abs parser: WireParser, abs payload: Buffer) -> Int {
+    if wire_parser_status(parser: abs parser) != WireParserStatus.Ready || payload[0] != 42u8 {
+        return 1;
+    }
+    erg header = wire_parser_header(parser: abs parser);
+    erg message = teaching_wire_message_from_header(header: abs header);
+    return case dat message {
+        Result.Err(_) => 2,
+        Result.Ok(value) => if value.sequence_num == 21u32 {
+            0;
+        } else {
+            3;
+        },
+    };
+}
+
+verb teaching_wire_split_run(
+    ins parser: WireParser,
+    abs first: Buffer,
+    abs second: Buffer,
+    ins payload: Buffer
+) -> Int {
+    if teaching_wire_feed_chunk(
+        parser: ins parser,
+        chunk: abs first,
+        payload: ins payload
+    ) != 0 {
+        return 1;
+    }
+    if wire_parser_status(parser: abs parser) != WireParserStatus.Collecting {
+        return 2;
+    }
+    if teaching_wire_feed_chunk(
+        parser: ins parser,
+        chunk: abs second,
+        payload: ins payload
+    ) != 0 {
+        return 3;
+    }
+    return teaching_wire_validate_split(parser: abs parser, payload: abs payload);
+}
+
+meta test
+verb test_teaching_wire_split_frame_reconstructs_deterministically() -> Int {
+    erg frame: Buffer = Buffer[15];
+    erg encoded = teaching_wire_parser_frame(output: ins frame);
+    case dat encoded {
+        Result.Err(_) => {
+            return 1;
+        },
+        Result.Ok(_) => {},
+    };
+    erg first: Buffer = Buffer[7];
+    erg second: Buffer = Buffer[8];
+    for erg index: u32 in 0u32 .. 7u32 {
+        first[index] = frame[index];
+    }
+    for erg index: u32 in 0u32 .. 8u32 {
+        second[index] = frame[index + 7u32];
+    }
+    erg parser = wire_parser_empty();
+    erg payload: Buffer = Buffer[1];
+    return teaching_wire_split_run(
+        parser: ins parser,
+        first: abs first,
+        second: abs second,
+        payload: ins payload
+    );
+}
