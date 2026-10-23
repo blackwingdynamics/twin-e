@@ -1,0 +1,249 @@
+import ie;
+
+import config;
+
+import std::fs;
+
+import std::path;
+
+verb publication_test_path(erg suffix: u8) -> Result[Path, PathError] {
+    erg raw: Buffer = Buffer[0];
+    append(raw, 47u8);
+    append(raw, 116u8);
+    append(raw, 109u8);
+    append(raw, 112u8);
+    append(raw, 47u8);
+    append(raw, 116u8);
+    append(raw, 119u8);
+    append(raw, 101u8);
+    append(raw, 45u8);
+    append(raw, 112u8);
+    append(raw, 117u8);
+    append(raw, 98u8);
+    append(raw, 45u8);
+    append(raw, suffix);
+    append(raw, 0u8);
+    return path_from_ascii(storage: dat raw);
+}
+
+verb publication_zero_buffer(erg length: u32) -> Buffer {
+    erg output: Buffer = Buffer[0];
+    erg index: u32 = 0u32;
+    loop {
+        if index >= length {
+            break;
+        }
+        append(output, 0u8);
+        index += 1u32;
+    }
+    return output;
+}
+
+verb publication_cleanup(
+    abs staged_shard: Path,
+    abs active_shard: Path,
+    abs staged_manifest: Path,
+    abs active_manifest: Path
+) {
+    remove_file(path: abs staged_shard);
+    remove_file(path: abs active_shard);
+    remove_file(path: abs staged_manifest);
+    remove_file(path: abs active_manifest);
+}
+
+verb publication_release(
+    dat staged_shard: Path,
+    dat active_shard: Path,
+    dat staged_manifest: Path,
+    dat active_manifest: Path
+) {
+    publication_cleanup(
+        staged_shard: abs staged_shard,
+        active_shard: abs active_shard,
+        staged_manifest: abs staged_manifest,
+        active_manifest: abs active_manifest
+    );
+    drop(staged_shard);
+    drop(active_shard);
+    drop(staged_manifest);
+    drop(active_manifest);
+}
+
+verb publication_observe_manifest_failure(
+    abs active_shard: Path,
+    abs active_manifest: Path
+) -> Int {
+    erg loaded_shard = read_to_bytes(path: abs active_shard);
+    erg loaded_manifest = read_to_bytes(path: abs active_manifest);
+    return case dat loaded_shard {
+        Result.Err(_) => 6,
+        Result.Ok(shard) => {
+            drop(shard);
+            return case dat loaded_manifest {
+                Result.Err(_) => 0,
+                Result.Ok(manifest) => {
+                    drop(manifest);
+                    7;
+                },
+            };
+        },
+    };
+}
+
+verb publication_call_boundary(
+    abs staged_shard: Path,
+    abs active_shard: Path,
+    abs staged_manifest: Path,
+    abs active_manifest: Path,
+    abs payload: Buffer,
+    abs bindings: Buffer,
+    abs auxiliary: Buffer
+) -> Int {
+    erg shard_id: u32 = 0u32;
+    erg first_column_index: u32 = 0u32;
+    erg column_count: u32 = 2u32;
+    erg published = publish_dynamic_shard_generation(
+        staged_shard: abs staged_shard,
+        active_shard: abs active_shard,
+        shard_id: erg shard_id,
+        first_column_index: erg first_column_index,
+        column_count: erg column_count,
+        payload: abs payload,
+        bindings: abs bindings,
+        auxiliary: abs auxiliary,
+        staged_manifest: abs staged_manifest,
+        active_manifest: abs active_manifest
+    );
+    return case dat published {
+        Result.Err(_) => publication_observe_manifest_failure(active_shard: abs active_shard, active_manifest: abs active_manifest),
+        Result.Ok(_) => 8,
+    };
+}
+
+verb publication_publish_with_buffers(
+    abs staged_shard: Path,
+    abs active_shard: Path,
+    abs staged_manifest: Path,
+    abs active_manifest: Path,
+    abs payload: Buffer,
+    abs bindings: Buffer,
+    abs auxiliary: Buffer
+) -> Int {
+    erg invalid_manifest: Buffer = Buffer[224u32];
+    erg staged_manifest_write = write_file(path: abs staged_manifest, contents: abs invalid_manifest);
+    drop(invalid_manifest);
+    return case dat staged_manifest_write {
+        Result.Err(_) => 5,
+        Result.Ok(_) => publication_call_boundary(
+            staged_shard: abs staged_shard,
+            active_shard: abs active_shard,
+            staged_manifest: abs staged_manifest,
+            active_manifest: abs active_manifest,
+            payload: abs payload,
+            bindings: abs bindings,
+            auxiliary: abs auxiliary
+        ),
+    };
+}
+
+verb publication_execute(
+    abs staged_shard: Path,
+    abs active_shard: Path,
+    abs staged_manifest: Path,
+    abs active_manifest: Path
+) -> Int {
+    erg payload_length: u32 = 128u32;
+    erg bindings_length: u32 = 48u32;
+    erg auxiliary_length: u32 = BRAIN_AUXILIARY_PAYLOAD_BYTES;
+    erg payload: Buffer = publication_zero_buffer(length: erg payload_length);
+    erg bindings: Buffer = publication_zero_buffer(length: erg bindings_length);
+    erg auxiliary: Buffer = publication_zero_buffer(length: erg auxiliary_length);
+    erg result = publication_publish_with_buffers(
+        staged_shard: abs staged_shard,
+        active_shard: abs active_shard,
+        staged_manifest: abs staged_manifest,
+        active_manifest: abs active_manifest,
+        payload: abs payload,
+        bindings: abs bindings,
+        auxiliary: abs auxiliary
+    );
+    publication_cleanup(
+        staged_shard: abs staged_shard,
+        active_shard: abs active_shard,
+        staged_manifest: abs staged_manifest,
+        active_manifest: abs active_manifest
+    );
+    return result;
+}
+
+verb publication_run_manifest_paths(
+    abs staged_shard: Path,
+    abs active_shard: Path,
+    abs staged_manifest: Path
+) -> Int {
+    erg active_manifest_suffix: u8 = 4u8;
+    erg active_manifest_result: Result[Path,PathError] = publication_test_path(suffix: erg active_manifest_suffix);
+    case dat active_manifest_result {
+        Result.Err(_) => {
+            return 4;
+        },
+        Result.Ok(active_manifest) => {
+            erg result = publication_execute(
+                staged_shard: abs staged_shard,
+                active_shard: abs active_shard,
+                staged_manifest: abs staged_manifest,
+                active_manifest: abs active_manifest
+            );
+            return result;
+        },
+    };
+    return 4;
+}
+
+verb publication_run_paths(abs staged_shard: Path, abs active_shard: Path) -> Int {
+    erg staged_manifest_suffix: u8 = 3u8;
+    erg staged_manifest_result: Result[Path,PathError] = publication_test_path(suffix: erg staged_manifest_suffix);
+    case dat staged_manifest_result {
+        Result.Err(_) => {
+            return 3;
+        },
+        Result.Ok(staged_manifest) => {
+            erg result = publication_run_manifest_paths(
+                staged_shard: abs staged_shard,
+                active_shard: abs active_shard,
+                staged_manifest: abs staged_manifest
+            );
+            drop(staged_manifest);
+            return result;
+        },
+    };
+    return 3;
+}
+
+verb publication_run_staged_shard(dat staged_shard: Path) -> Int {
+    erg active_shard_suffix: u8 = 2u8;
+    erg active_shard_result: Result[Path,PathError] = publication_test_path(suffix: erg active_shard_suffix);
+    case dat active_shard_result {
+        Result.Err(_) => {
+            drop(staged_shard);
+            return 2;
+        },
+        Result.Ok(active_shard) => {
+            erg result = publication_run_paths(staged_shard: abs staged_shard, active_shard: abs active_shard);
+            drop(staged_shard);
+            drop(active_shard);
+            return result;
+        },
+    };
+    return 2;
+}
+
+meta test
+verb test_publication_rejects_manifest_after_complete_shard_publish() -> Int {
+    erg staged_shard_suffix: u8 = 1u8;
+    erg staged_shard_result: Result[Path,PathError] = publication_test_path(suffix: erg staged_shard_suffix);
+    return case dat staged_shard_result {
+        Result.Err(_) => 1,
+        Result.Ok(staged_shard) => publication_run_staged_shard(staged_shard: dat staged_shard),
+    };
+}

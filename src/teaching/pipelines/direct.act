@@ -1,7 +1,7 @@
-"""Fast in-memory teaching path from text adapter output to AIE training."""
+"""Fast in-memory teaching path from text adapter output to IE training."""
 import adapters;
 
-import aie;
+import ie;
 
 import config;
 
@@ -138,7 +138,7 @@ open verb teach_direct_request(
 
 The caller owns the input String. The text adapter produces a validated
 envelope, which is converted to the existing bounded TokenSequence contract
-and submitted to public AIE training. No filesystem, network, or persistence
+and submitted to public IE training. No filesystem, network, or persistence
 operation is performed.
 """
 open verb teach_text_direct(

@@ -1,5 +1,5 @@
 """Bounded discovery and teaching of TWF files from one input directory."""
-import aie;
+import ie;
 
 import cli;
 
@@ -9,7 +9,7 @@ import std::path;
 
 import teaching;
 
-open aie;
+open ie;
 
 open cli;
 

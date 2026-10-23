@@ -1,0 +1,307 @@
+"""Integration evidence for a non-empty shard-local auxiliary section."""
+import ie;
+
+import config;
+
+import std::fs;
+
+import std::path;
+
+verb test_path(erg suffix: u8) -> Result[Path, PathError] {
+    erg raw: Buffer = Buffer[0];
+    append(raw, 47u8);
+    append(raw, 116u8);
+    append(raw, 109u8);
+    append(raw, 112u8);
+    append(raw, 47u8);
+    append(raw, 116u8);
+    append(raw, 119u8);
+    append(raw, 105u8);
+    append(raw, 110u8);
+    append(raw, 45u8);
+    append(raw, 101u8);
+    append(raw, 45u8);
+    append(raw, 97u8);
+    append(raw, 117u8);
+    append(raw, 120u8);
+    append(raw, 45u8);
+    append(raw, suffix);
+    append(raw, 0u8);
+    return path_from_ascii(storage: dat raw);
+}
+
+verb append_test_u32(ins output: Buffer, abs value: u32) {
+    append(output, (value & 255u32) as u8);
+    append(output, ((value / 256u32) & 255u32) as u8);
+    append(output, ((value / 65536u32) & 255u32) as u8);
+    append(output, ((value / 16777216u32) & 255u32) as u8);
+}
+
+verb append_test_u64(ins output: Buffer, abs value: u64) {
+    erg low: u32 = (value & 4294967295u64) as u32;
+    erg high: u32 = (value / 4294967296u64) as u32;
+    append_test_u32(output: ins output, value: abs low);
+    append_test_u32(output: ins output, value: abs high);
+}
+
+verb zero_test_buffer(erg length: u32) -> Buffer {
+    erg output: Buffer = Buffer[0];
+    erg index: u32 = 0u32;
+    loop {
+        if index >= length {
+            break;
+        }
+        append(output, 0u8);
+        index += 1u32;
+    }
+    return output;
+}
+
+verb auxiliary_manifest_descriptor(abs checksum: u64) -> Buffer {
+    erg descriptor: Buffer = Buffer[0];
+    append_test_u32(output: ins descriptor, value: abs 0u32);
+    append_test_u32(output: ins descriptor, value: abs 0u32);
+    append_test_u32(output: ins descriptor, value: abs 2u32);
+    append_test_u32(output: ins descriptor, value: abs 48u32);
+    append_test_u32(output: ins descriptor, value: abs 128u32);
+    append_test_u32(output: ins descriptor, value: abs 176u32);
+    append_test_u32(output: ins descriptor, value: abs 48u32);
+    append_test_u32(output: ins descriptor, value: abs 224u32);
+    append_test_u32(output: ins descriptor, value: abs BRAIN_AUXILIARY_PAYLOAD_BYTES);
+    append_test_u64(output: ins descriptor, value: abs checksum);
+    append_test_u32(output: ins descriptor, value: abs 1u32);
+    return descriptor;
+}
+
+verb write_auxiliary_shard(abs path: Path) -> Result[u64, IoError] {
+    erg payload_length: u32 = 128u32;
+    erg bindings_length: u32 = 48u32;
+    erg auxiliary_length: u32 = BRAIN_AUXILIARY_PAYLOAD_BYTES;
+    erg payload: Buffer = zero_test_buffer(length: erg payload_length);
+    erg bindings: Buffer = zero_test_buffer(length: erg bindings_length);
+    erg auxiliary: Buffer = zero_test_buffer(length: erg auxiliary_length);
+    erg shard_id: u32 = 0u32;
+    erg first_column_index: u32 = 0u32;
+    erg column_count: u32 = 2u32;
+    erg written = write_dynamic_shard_with_bindings_and_auxiliary(
+        path: abs path,
+        shard_id: erg shard_id,
+        first_column_index: erg first_column_index,
+        column_count: erg column_count,
+        payload: abs payload,
+        bindings: abs bindings,
+        auxiliary: abs auxiliary
+    );
+    return case dat written {
+        Result.Err(error) => Err(error),
+        Result.Ok(_) => dynamic_shard_file_checksum(path: abs path),
+    };
+}
+
+verb write_auxiliary_manifest(
+    abs path: Path,
+    erg checksum: u64,
+    erg generation: u64
+) -> Result[Int, IoError] {
+    erg descriptor: Buffer = auxiliary_manifest_descriptor(checksum: abs checksum);
+    erg active_count: u32 = 2u32;
+    erg free_list_head: u32 = NULL_INDEX;
+    erg total_column_count: u32 = 2u32;
+    erg shard_count: u32 = 1u32;
+    return write_manifest_dynamic(
+        path: abs path,
+        generation: erg generation,
+        active_count: erg active_count,
+        free_list_head: erg free_list_head,
+        total_column_count: erg total_column_count,
+        shard_count: erg shard_count,
+        descriptors: abs descriptor
+    );
+}
+
+verb validate_loaded_auxiliary_manifest(
+    abs shard_path: Path,
+    dat manifest: Buffer
+) -> Int {
+    erg loaded_shard = read_to_bytes(path: abs shard_path);
+    erg descriptor_index: u32 = 0u32;
+    return case dat loaded_shard {
+        Result.Err(_) => {
+            drop(manifest);
+            6;
+        },
+        Result.Ok(shard) => {
+            erg validated = validate_dynamic_manifest_binding_shard(
+                manifest: abs manifest,
+                shard: abs shard,
+                descriptor_index: erg descriptor_index
+            );
+            drop(manifest);
+            return case dat validated {
+                Result.Err(_) => 7,
+                Result.Ok(_) => 0,
+            };
+        },
+    };
+}
+
+verb validate_auxiliary_manifest(abs manifest_path: Path, abs shard_path: Path) -> Int {
+    erg loaded_manifest = read_to_bytes(path: abs manifest_path);
+    return case dat loaded_manifest {
+        Result.Err(_) => 5,
+        Result.Ok(manifest) => validate_loaded_auxiliary_manifest(shard_path: abs shard_path, manifest: dat manifest),
+    };
+}
+
+verb corrupt_auxiliary_shard_file(abs shard_path: Path) -> Int {
+    erg loaded = read_to_bytes(path: abs shard_path);
+    return case dat loaded {
+        Result.Err(_) => 8,
+        Result.Ok(shard) => {
+            shard[224u32] = 1u8;
+            erg written = write_file(path: abs shard_path, contents: abs shard);
+            drop(shard);
+            return case dat written {
+                Result.Err(_) => 9,
+                Result.Ok(_) => 0,
+            };
+        },
+    };
+}
+
+verb verify_corrupted_auxiliary_generation(
+    abs manifest_path: Path,
+    abs shard_path: Path
+) -> Int {
+    erg corrupted = corrupt_auxiliary_shard_file(shard_path: abs shard_path);
+    if corrupted != 0 {
+        return corrupted;
+    }
+    erg rejected = validate_auxiliary_manifest(manifest_path: abs manifest_path, shard_path: abs shard_path);
+    erg generation = dynamic_manifest_generation(path: abs manifest_path);
+    return case dat generation {
+        Result.Err(_) => 12,
+        Result.Ok(value) => if rejected == 7 && value == 1u64 {
+            0;
+        } else {
+            10;
+        },
+    };
+}
+
+verb truncate_auxiliary_shard_file(abs shard_path: Path) -> Int {
+    erg truncated: Buffer = Buffer[224u32];
+    erg written = write_file(path: abs shard_path, contents: abs truncated);
+    drop(truncated);
+    return case dat written {
+        Result.Err(_) => 13,
+        Result.Ok(_) => 0,
+    };
+}
+
+verb verify_truncated_auxiliary_generation(
+    abs manifest_path: Path,
+    abs shard_path: Path
+) -> Int {
+    erg truncated = truncate_auxiliary_shard_file(shard_path: abs shard_path);
+    if truncated != 0 {
+        return truncated;
+    }
+    erg rejected = validate_auxiliary_manifest(manifest_path: abs manifest_path, shard_path: abs shard_path);
+    erg generation = dynamic_manifest_generation(path: abs manifest_path);
+    return case dat generation {
+        Result.Err(_) => 16,
+        Result.Ok(value) => if rejected == 7 && value == 1u64 {
+            0;
+        } else {
+            14;
+        },
+    };
+}
+
+verb restore_and_verify_truncated_auxiliary_generation(
+    abs manifest_path: Path,
+    abs shard_path: Path
+) -> Int {
+    erg restored = write_auxiliary_shard(path: abs shard_path);
+    return case dat restored {
+        Result.Err(_) => 15,
+        Result.Ok(_) => verify_truncated_auxiliary_generation(manifest_path: abs manifest_path, shard_path: abs shard_path),
+    };
+}
+
+verb cleanup_auxiliary_paths(abs manifest_path: Path, abs shard_path: Path) {
+    remove_file(path: abs shard_path);
+    remove_file(path: abs manifest_path);
+}
+
+verb finish_auxiliary_manifest(
+    abs manifest_path: Path,
+    abs shard_path: Path,
+    erg checksum: u64
+) -> Int {
+    erg generation: u64 = 1u64;
+    erg manifest_written = write_auxiliary_manifest(
+        path: abs manifest_path,
+        checksum: erg checksum,
+        generation: erg generation
+    );
+    return case dat manifest_written {
+        Result.Err(_) => 4,
+        Result.Ok(_) => {
+            erg valid_status = validate_auxiliary_manifest(manifest_path: abs manifest_path, shard_path: abs shard_path);
+            if valid_status != 0 {
+                return valid_status;
+            }
+            erg corruption_status = verify_corrupted_auxiliary_generation(manifest_path: abs manifest_path, shard_path: abs shard_path);
+            if corruption_status != 0 {
+                return corruption_status;
+            }
+            erg truncation_status = restore_and_verify_truncated_auxiliary_generation(manifest_path: abs manifest_path, shard_path: abs shard_path);
+            if truncation_status != 0 {
+                return truncation_status;
+            }
+            0;
+        },
+    };
+}
+
+verb run_auxiliary_manifest_test(dat shard_path: Path) -> Int {
+    erg manifest_suffix: u8 = 50u8;
+    erg manifest_result = test_path(suffix: erg manifest_suffix);
+    case dat manifest_result {
+        Result.Err(_) => {
+            drop(shard_path);
+            return 2;
+        },
+        Result.Ok(manifest_path) => {
+            erg checksum_result = write_auxiliary_shard(path: abs shard_path);
+            case dat checksum_result {
+                Result.Err(_) => {
+                    cleanup_auxiliary_paths(manifest_path: abs manifest_path, shard_path: abs shard_path);
+                    return 3;
+                },
+                Result.Ok(checksum) => {
+                    erg manifest_status = finish_auxiliary_manifest(
+                        manifest_path: abs manifest_path,
+                        shard_path: abs shard_path,
+                        checksum: erg checksum
+                    );
+                    cleanup_auxiliary_paths(manifest_path: abs manifest_path, shard_path: abs shard_path);
+                    return manifest_status;
+                },
+            };
+        },
+    };
+    return 3;
+}
+
+meta test
+verb test_non_empty_auxiliary_shard_roundtrips_through_manifest() -> Int {
+    erg shard_suffix: u8 = 49u8;
+    erg shard_result = test_path(suffix: erg shard_suffix);
+    return case dat shard_result {
+        Result.Err(_) => 1,
+        Result.Ok(shard_path) => run_auxiliary_manifest_test(shard_path: dat shard_path),
+    };
+}

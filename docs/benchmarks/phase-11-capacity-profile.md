@@ -23,15 +23,15 @@ Command:
 
 ```sh
 actus build --strict --emit exe \
-  -o /tmp/twin-e-gate11-1-profile-benchmark.aie \
-  benchmarks/aie_logical_profile.act
-/tmp/twin-e-gate11-1-profile-benchmark.aie
+  -o /tmp/twin-e-gate11-1-profile-benchmark.ie \
+  benchmarks/ie_logical_profile.act
+/tmp/twin-e-gate11-1-profile-benchmark.ie
 ```
 
 Observed on the Arch Linux host on 2026-10-21:
 
 ```text
-AIE_PROFILE max_logical_shards=8
+IE_PROFILE max_logical_shards=8
  max_columns_per_shard=1024
  max_resident_shards=4
  max_bindings_per_shard=1024
@@ -39,7 +39,7 @@ AIE_PROFILE max_logical_shards=8
  max_request_items=8
  max_manifest_descriptors=8
 
-AIE_PROFILE shard_bytes=90616
+IE_PROFILE shard_bytes=90616
  manifest_bytes=112
  complete_bytes=90728
  header_bytes=48
@@ -64,15 +64,15 @@ Command:
 
 ```sh
 actus build --strict --emit exe \
-  -o /tmp/twin-e-gate11-1-routing-benchmark.aie \
-  benchmarks/aie_logical_routing.act
-/tmp/twin-e-gate11-1-routing-benchmark.aie
+  -o /tmp/twin-e-gate11-1-routing-benchmark.ie \
+  benchmarks/ie_logical_routing.act
+/tmp/twin-e-gate11-1-routing-benchmark.ie
 ```
 
 Observed for one million equivalent routes in one run:
 
 ```text
-AIE_PROFILE routing_shift_mask_ns=549632
+IE_PROFILE routing_shift_mask_ns=549632
  reference_arithmetic_ns=2298248
 1
 ```

@@ -1,0 +1,298 @@
+"""1000-column IE training and recall evidence for Hello Giorgi."""
+import ie;
+
+import config;
+
+import std::io;
+
+import std::time;
+
+const ARENA_COLUMNS: u32 = 1000u32;
+
+
+const PHRASE_LENGTH: u32 = 12u32;
+
+
+verb configure_trained_column[N: Usize](
+    ins fabric: CorticalFabric[N],
+    erg index: u32,
+    erg payload: u8
+) -> u32 {
+    fabric.columns[index].threshold = 1u8;
+    fabric.columns[index].payload = payload;
+    return index;
+}
+
+verb train_character[N: Usize](
+    ins fabric: CorticalFabric[N],
+    abs wave: Wavefront,
+    erg source_idx: u32,
+    erg payload: u8
+) -> u32 {
+    erg created: Option[u32] = neurogenesis(
+        fabric: ins fabric,
+        wave: abs wave,
+        source_idx: erg source_idx
+    );
+    return case dat created {
+        Option.Some(index) => configure_trained_column(
+            fabric: ins fabric,
+            index: erg index,
+            payload: erg payload
+        ),
+        Option.None => NULL_INDEX,
+    };
+}
+
+verb payload_matches(erg payload: u8, erg expected: u8) -> Bool {
+    if payload == expected {
+        return true;
+    }
+    return false;
+}
+
+verb recall_character[N: Usize](
+    ins fabric: CorticalFabric[N],
+    abs wave: Wavefront,
+    erg index: u32,
+    erg expected: u8
+) -> Bool {
+    erg result: Option[u8] = evaluate_minicolumn(
+        fabric: ins fabric,
+        wave: abs wave,
+        target_idx: erg index
+    );
+    return case dat result {
+        Option.Some(payload) => payload_matches(payload: erg payload, expected: erg expected),
+        Option.None => false,
+    };
+}
+
+verb fill_arena(ins fabric: CorticalFabric[1000]) -> Void {
+    loop {
+        if fabric.active_count >= ARENA_COLUMNS {
+            break;
+        }
+        allocate_column_index(fabric: ins fabric);
+    }
+}
+
+meta limitless("verb")
+verb main() -> Int {
+    erg fabric: CorticalFabric[1000] = CorticalFabric[1000] {columns: Array[Minicolumn, 1000](
+    ), free_list_head: 0u32, active_count: 0u32};
+    fabric_init(fabric: ins fabric);
+    erg root_idx: u32 = allocate_column_index(fabric: ins fabric);
+    erg started: u64 = monotonic_nanos();
+    erg h: Wavefront = Wavefront {mask_low: 1u64, mask_high: 0u64, energy: 1u8};
+    erg e: Wavefront = Wavefront {mask_low: 2u64, mask_high: 0u64, energy: 1u8};
+    erg l_one: Wavefront = Wavefront {mask_low: 4u64, mask_high: 0u64, energy: 1u8};
+    erg l_two: Wavefront = Wavefront {mask_low: 8u64, mask_high: 0u64, energy: 1u8};
+    erg o_one: Wavefront = Wavefront {mask_low: 16u64, mask_high: 0u64, energy: 1u8};
+    erg space: Wavefront = Wavefront {mask_low: 32u64, mask_high: 0u64, energy: 1u8};
+    erg g: Wavefront = Wavefront {mask_low: 64u64, mask_high: 0u64, energy: 1u8};
+    erg i_one: Wavefront = Wavefront {mask_low: 128u64, mask_high: 0u64, energy: 1u8};
+    erg o_two: Wavefront = Wavefront {mask_low: 0u64, mask_high: 1u64, energy: 1u8};
+    erg r: Wavefront = Wavefront {mask_low: 0u64, mask_high: 2u64, energy: 1u8};
+    erg g_two: Wavefront = Wavefront {mask_low: 0u64, mask_high: 4u64, energy: 1u8};
+    erg i_two: Wavefront = Wavefront {mask_low: 0u64, mask_high: 8u64, energy: 1u8};
+    erg source_zero: u32 = root_idx;
+    erg source_one: u32 = 1u32;
+    erg payload_h: u8 = 72u8;
+    erg payload_e: u8 = 101u8;
+    erg payload_l: u8 = 108u8;
+    erg payload_o: u8 = 111u8;
+    erg payload_space: u8 = 32u8;
+    erg payload_g: u8 = 71u8;
+    erg payload_i: u8 = 105u8;
+    erg payload_r: u8 = 114u8;
+    erg payload_g_lower: u8 = 103u8;
+    erg index_h: u32 = train_character(
+        fabric: ins fabric,
+        wave: abs h,
+        source_idx: erg source_zero,
+        payload: erg payload_h
+    );
+    erg index_e: u32 = train_character(
+        fabric: ins fabric,
+        wave: abs e,
+        source_idx: erg source_zero,
+        payload: erg payload_e
+    );
+    erg index_l_one: u32 = train_character(
+        fabric: ins fabric,
+        wave: abs l_one,
+        source_idx: erg source_zero,
+        payload: erg payload_l
+    );
+    erg index_l_two: u32 = train_character(
+        fabric: ins fabric,
+        wave: abs l_two,
+        source_idx: erg source_zero,
+        payload: erg payload_l
+    );
+    erg index_o_one: u32 = train_character(
+        fabric: ins fabric,
+        wave: abs o_one,
+        source_idx: erg source_zero,
+        payload: erg payload_o
+    );
+    erg index_space: u32 = train_character(
+        fabric: ins fabric,
+        wave: abs space,
+        source_idx: erg source_zero,
+        payload: erg payload_space
+    );
+    erg index_g: u32 = train_character(
+        fabric: ins fabric,
+        wave: abs g,
+        source_idx: erg source_zero,
+        payload: erg payload_g
+    );
+    erg index_i_one: u32 = train_character(
+        fabric: ins fabric,
+        wave: abs i_one,
+        source_idx: erg source_zero,
+        payload: erg payload_i
+    );
+    erg index_o_two: u32 = train_character(
+        fabric: ins fabric,
+        wave: abs o_two,
+        source_idx: erg source_one,
+        payload: erg payload_o
+    );
+    erg index_r: u32 = train_character(
+        fabric: ins fabric,
+        wave: abs r,
+        source_idx: erg source_one,
+        payload: erg payload_r
+    );
+    erg index_g_two: u32 = train_character(
+        fabric: ins fabric,
+        wave: abs g_two,
+        source_idx: erg source_one,
+        payload: erg payload_g_lower
+    );
+    erg index_i_two: u32 = train_character(
+        fabric: ins fabric,
+        wave: abs i_two,
+        source_idx: erg source_one,
+        payload: erg payload_i
+    );
+    fill_arena(fabric: ins fabric);
+    erg trained_at: u64 = monotonic_nanos();
+    erg recalled: u32 = 0u32;
+    if recall_character(
+        fabric: ins fabric,
+        wave: abs h,
+        index: erg index_h,
+        expected: erg payload_h
+    ) {
+        recalled += 1u32;
+    }
+    if recall_character(
+        fabric: ins fabric,
+        wave: abs e,
+        index: erg index_e,
+        expected: erg payload_e
+    ) {
+        recalled += 1u32;
+    }
+    if recall_character(
+        fabric: ins fabric,
+        wave: abs l_one,
+        index: erg index_l_one,
+        expected: erg payload_l
+    ) {
+        recalled += 1u32;
+    }
+    if recall_character(
+        fabric: ins fabric,
+        wave: abs l_two,
+        index: erg index_l_two,
+        expected: erg payload_l
+    ) {
+        recalled += 1u32;
+    }
+    if recall_character(
+        fabric: ins fabric,
+        wave: abs o_one,
+        index: erg index_o_one,
+        expected: erg payload_o
+    ) {
+        recalled += 1u32;
+    }
+    if recall_character(
+        fabric: ins fabric,
+        wave: abs space,
+        index: erg index_space,
+        expected: erg payload_space
+    ) {
+        recalled += 1u32;
+    }
+    if recall_character(
+        fabric: ins fabric,
+        wave: abs g,
+        index: erg index_g,
+        expected: erg payload_g
+    ) {
+        recalled += 1u32;
+    }
+    if recall_character(
+        fabric: ins fabric,
+        wave: abs i_one,
+        index: erg index_i_one,
+        expected: erg payload_i
+    ) {
+        recalled += 1u32;
+    }
+    if recall_character(
+        fabric: ins fabric,
+        wave: abs o_two,
+        index: erg index_o_two,
+        expected: erg payload_o
+    ) {
+        recalled += 1u32;
+    }
+    if recall_character(
+        fabric: ins fabric,
+        wave: abs r,
+        index: erg index_r,
+        expected: erg payload_r
+    ) {
+        recalled += 1u32;
+    }
+    if recall_character(
+        fabric: ins fabric,
+        wave: abs g_two,
+        index: erg index_g_two,
+        expected: erg payload_g_lower
+    ) {
+        recalled += 1u32;
+    }
+    if recall_character(
+        fabric: ins fabric,
+        wave: abs i_two,
+        index: erg index_i_two,
+        expected: erg payload_i
+    ) {
+        recalled += 1u32;
+    }
+    erg finished: u64 = monotonic_nanos();
+    if recalled != PHRASE_LENGTH || fabric.active_count != ARENA_COLUMNS {
+        return 1;
+    }
+    erg training_message: String = "IE_HELLO arena=1000 phrase_memories=12 recalled=12/12";
+    println(text: abs training_message);
+    erg recall_message: String = "IE_HELLO recall=Hello Giorgi";
+    println(text: abs recall_message);
+    erg timing_message: String = "IE_HELLO timing_ns training_and_fill=";
+    print(text: abs timing_message);
+    erg training_nanos: Int = (trained_at - started) as Int;
+    print_int(value: erg training_nanos);
+    erg recall_timing_message: String = "IE_HELLO timing_ns recall=";
+    print(text: abs recall_timing_message);
+    erg recall_nanos: Int = (finished - trained_at) as Int;
+    print_int(value: erg recall_nanos);
+    return 0;
+}

@@ -1,4 +1,4 @@
-# AIE Roadmap
+# IE Roadmap
 
 Current status and remaining work for the Actus Impulse Engine.
 
@@ -14,7 +14,7 @@ Current status and remaining work for the Actus Impulse Engine.
 
 - [x] Created the `Actus.toml` package manifest.
 - [x] Created the `src/main.act` entry point.
-- [x] Created the `src/aie/aie.act` public facade.
+- [x] Created the `src/ie/ie.act` public facade.
 - [x] Formatted all source files with the Actus formatter.
 - [x] Applied the updated Actus compiler contract and repository guide.
 
@@ -108,7 +108,7 @@ P2 is tracked in [phase-2.md](phase-2.md).
 
 ## Final acceptance criteria
 
-The AIE release is complete when:
+The IE release is complete when:
 
 - [x] All P0 tests pass.
 - [x] A complete fabric snapshot round-trips with fabric metadata.
@@ -119,8 +119,8 @@ P2 source organization and package configuration are complete. See [phase-2.md](
 
 ### Directory layout
 
-- [x] Move AIE modules into `layout/`, `runtime/`, and `persistence/` subdirectories using hierarchical canonical facades.
-- [x] Verify parent-facade exports without direct nested imports; external code continues to use `import aie;`.
+- [x] Move IE modules into `layout/`, `runtime/`, and `persistence/` subdirectories using hierarchical canonical facades.
+- [x] Verify parent-facade exports without direct nested imports; external code continues to use `import ie;`.
 
 ## Last verified toolchain result
 

@@ -1,0 +1,112 @@
+"""ADR-0016 evidence for six-digit on-demand shard filenames."""
+import ie;
+
+import std::path;
+
+open path;
+
+verb filename_expected_digits_low(erg selector: u8) -> Buffer {
+    erg value: u32 = 0u32;
+    if selector == 1u8 {
+        value = 9u32;
+    } else if selector == 2u8 {
+        value = 10u32;
+    }
+    erg digits: Buffer = Buffer[0];
+    erg divisor: u32 = 100000u32;
+    for erg index: u32 in 0u32 .. 6u32 {
+        append(digits, 48u8 + (value / divisor) as u8);
+        value = value % divisor;
+        divisor = divisor / 10u32;
+    }
+    return digits;
+}
+
+verb filename_expected_digits_high(erg selector: u8) -> Buffer {
+    erg value: u32 = 999999u32;
+    if selector == 3u8 {
+        value = 99u32;
+    } else if selector == 4u8 {
+        value = 100u32;
+    }
+    erg digits: Buffer = Buffer[0];
+    erg divisor: u32 = 100000u32;
+    for erg index: u32 in 0u32 .. 6u32 {
+        append(digits, 48u8 + (value / divisor) as u8);
+        value = value % divisor;
+        divisor = divisor / 10u32;
+    }
+    return digits;
+}
+
+verb filename_expected_digits(erg selector: u8) -> Buffer {
+    if selector < 3u8 {
+        return filename_expected_digits_low(selector: erg selector);
+    }
+    return filename_expected_digits_high(selector: erg selector);
+}
+
+verb filename_expected(erg selector: u8) -> Result[Path, PathError] {
+    erg raw: Buffer = Buffer[0];
+    append(raw, 115u8);
+    append(raw, 104u8);
+    append(raw, 97u8);
+    append(raw, 114u8);
+    append(raw, 100u8);
+    append(raw, 45u8);
+    erg digits = filename_expected_digits(selector: erg selector);
+    for erg index: u32 in 0u32 .. 6u32 {
+        append(raw, digits[index as Usize]);
+    }
+    append(raw, 46u8);
+    append(raw, 98u8);
+    append(raw, 114u8);
+    append(raw, 97u8);
+    append(raw, 105u8);
+    append(raw, 110u8);
+    append(raw, 0u8);
+    return path_from_ascii(storage: dat raw);
+}
+
+verb filename_case(erg index: u32, erg selector: u8) -> Bool {
+    erg actual = format_shard_filename(index: erg index);
+    return case dat actual {
+        Result.Err(_) => false,
+        Result.Ok(path) => {
+            erg expected = filename_expected(selector: erg selector);
+            return case dat expected {
+                Result.Err(_) => false,
+                Result.Ok(suffix) => ends_with(self: abs path, suffix: abs suffix),
+            };
+        },
+    };
+}
+
+meta test
+verb test_six_digit_shard_filename_formatting() -> Int {
+    erg zero: u32 = 0u32;
+    erg nine: u32 = 9u32;
+    erg ten: u32 = 10u32;
+    erg ninety_nine: u32 = 99u32;
+    erg one_hundred: u32 = 100u32;
+    erg maximum: u32 = 999999u32;
+    erg low_zero: u8 = 0u8;
+    erg low_nine: u8 = 1u8;
+    erg low_ten: u8 = 2u8;
+    erg high_nine: u8 = 3u8;
+    erg high_hundred: u8 = 4u8;
+    erg high_maximum: u8 = 5u8;
+    if !filename_case(index: erg zero, selector: erg low_zero) || !filename_case(index: erg nine, selector: erg low_nine) || !filename_case(
+        index: erg ten,
+        selector: erg low_ten
+    ) {
+        return 1;
+    }
+    if !filename_case(index: erg ninety_nine, selector: erg high_nine) || !filename_case(index: erg one_hundred, selector: erg high_hundred) || !filename_case(
+        index: erg maximum,
+        selector: erg high_maximum
+    ) {
+        return 2;
+    }
+    return 0;
+}

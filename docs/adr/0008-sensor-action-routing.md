@@ -9,7 +9,7 @@
 ## Context
 
 Twin-e must accept environmental observations before any camera, IMU, lidar,
-motor, or board driver is selected. The AIE core therefore needs a bounded
+motor, or board driver is selected. The IE core therefore needs a bounded
 host-testable boundary that accepts validated `ObservationEvent` values and
 does not import device APIs.
 
@@ -19,7 +19,7 @@ and repeated commands must be rejected before an action leaves the runtime.
 
 ## Decision
 
-Phase 5.5 adds a hardware-neutral action module under the AIE runtime.
+Phase 5.5 adds a hardware-neutral action module under the IE runtime.
 
 1. A sensor adapter admits an `ObservationEvent` only after the existing
    observation validator accepts it.
@@ -59,11 +59,11 @@ Phase 5.5 adds a hardware-neutral action module under the AIE runtime.
 
 - Obstacle-to-stop and person-to-follow behavior can be tested on a host with
   no hardware or filesystem access.
-- AIE remains independent of Cognitive Engine and USTARI internals.
+- IE remains independent of Cognitive Engine and USTARI internals.
 - Action token identifiers become part of the current runtime profile and must
   be versioned if their meaning changes.
 - Hardware adapters can later translate the validated action event into motor
-  or actuator commands without changing AIE routing.
+  or actuator commands without changing IE routing.
 
 ## Non-goals
 

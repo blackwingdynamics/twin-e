@@ -1,0 +1,80 @@
+"""Regression evidence that sidecar-aware forwarding preserves the inline path."""
+import ie;
+
+import config;
+
+verb configure_inline_compatibility_fixture(ins fabric: CorticalFabric[16]) {
+    fabric_init(fabric: ins fabric);
+    allocate_column_index(fabric: ins fabric);
+    allocate_column_index(fabric: ins fabric);
+    fabric.columns[0u32].threshold = 1u8;
+    fabric.columns[0u32].coincidence_low = 1u64;
+    fabric.columns[0u32].payload = 41u8;
+    fabric.columns[0u32].axons[0u32] = 1u32;
+    fabric.columns[1u32].threshold = 1u8;
+    fabric.columns[1u32].coincidence_low = 1u64;
+}
+
+verb inline_step_results_match(
+    abs left: ImpulseStepResult,
+    abs right: ImpulseStepResult
+) -> Bool {
+    return left.valid_source == right.valid_source && left.source_fired == right.source_fired && left.payload == right.payload && left.destination_0 == right.destination_0 && left.destination_1 == right.destination_1 && left.destination_2 == right.destination_2 && left.destination_3 == right.destination_3 && left.destination_4 == right.destination_4 && left.destination_5 == right.destination_5 && left.destination_6 == right.destination_6 && left.destination_7 == right.destination_7;
+}
+
+verb inline_sidecar_state_is_clean(
+    abs fabric: CorticalFabric[16],
+    abs table: AuxAxonTable[16]
+) -> Bool {
+    return (fabric.columns[0u32].flags & FLAG_HAS_AUX) == 0u8 && table.active_count == 0u32;
+}
+
+verb run_legacy_inline_step(ins fabric: CorticalFabric[16], abs wave: Wavefront) -> ImpulseStepResult {
+    erg source: u32 = 0u32;
+    return step_wavefront(
+        fabric: ins fabric,
+        wave: abs wave,
+        source_idx: erg source
+    );
+}
+
+verb run_sidecar_inline_step(
+    ins fabric: CorticalFabric[16],
+    abs table: AuxAxonTable[16],
+    abs wave: Wavefront
+) -> ExtendedImpulseStepResult {
+    erg source: u32 = 0u32;
+    return step_wavefront_with_aux(
+        fabric: ins fabric,
+        table: abs table,
+        wave: abs wave,
+        source_idx: erg source
+    );
+}
+
+meta test
+verb test_inline_step_remains_byte_for_byte_without_auxiliary_state() -> Int {
+    erg legacy_fabric: CorticalFabric[16] = CorticalFabric[16] {columns: Array[Minicolumn, 16](
+    ), free_list_head: 0u32, active_count: 0u32};
+    erg sidecar_fabric: CorticalFabric[16] = CorticalFabric[16] {columns: Array[Minicolumn, 16](
+    ), free_list_head: 0u32, active_count: 0u32};
+    erg table: AuxAxonTable[16] = AuxAxonTable[16] {source_to_record: Array[u16, 16](), records: Array[AuxAxonRecord, 8](
+    ), free_list_head: 0u32, active_count: 0u32};
+    configure_inline_compatibility_fixture(fabric: ins legacy_fabric);
+    configure_inline_compatibility_fixture(fabric: ins sidecar_fabric);
+    aux_table_init(table: ins table);
+    erg wave: Wavefront = Wavefront {mask_low: 1u64, mask_high: 0u64, energy: 1u8};
+    erg legacy = run_legacy_inline_step(fabric: ins legacy_fabric, wave: abs wave);
+    erg sidecar = run_sidecar_inline_step(
+        fabric: ins sidecar_fabric,
+        table: abs table,
+        wave: abs wave
+    );
+    if !inline_step_results_match(left: abs legacy, right: abs sidecar.base) || sidecar.auxiliary_count != 0u8 {
+        return 1;
+    }
+    if !inline_sidecar_state_is_clean(fabric: abs sidecar_fabric, table: abs table) {
+        return 1;
+    }
+    return 0;
+}

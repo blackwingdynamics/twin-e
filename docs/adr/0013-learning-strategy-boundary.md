@@ -66,7 +66,7 @@ The methods are introduced in this order:
 ### 3. Teaching and external callers
 
 A future teacher or chat service is a caller of the learning API, not part of
-the adapter or AIE core. It submits already available bounded examples and
+the adapter or IE core. It submits already available bounded examples and
 receives typed admission and training metrics. Network transport, credentials,
 prompt/session state, retries, and source acquisition remain outside
 `src/adapters/` and the hot path.
@@ -92,7 +92,7 @@ separate from future Cortex-M evidence.
 ### 6. Teaching module structure and future pipelines
 
 The learning-facing source tree will use a dedicated `src/teaching/` facade
-above the existing adapters and AIE training runtime:
+above the existing adapters and IE training runtime:
 
 ```text
 src/teaching/
@@ -122,7 +122,7 @@ src/teaching/
 
 The canonical facade and shared contract are stable boundaries. A pipeline
 selects scheduling and learning policy; it does not duplicate adapter logic,
-private AIE state, or persistence implementation. Tests mirror the pipeline
+private IE state, or persistence implementation. Tests mirror the pipeline
 names under `tests/` so each method has independent evidence.
 
 Future transport options live under the planned `src/teaching/transport/`
@@ -133,7 +133,7 @@ processes requests in array order, reports a bounded result for every item,
 skips invalid or unsupported items, and stops on the first runtime training
 failure after retaining earlier accepted items. Each transport
 adapter must translate requests into the same `TeachingRequest` contract and
-remain outside `src/adapters/`, the AIE core, and the training hot path. The
+remain outside `src/adapters/`, the IE core, and the training hot path. The
 HTTP and WebSocket files are planned interfaces only until Actus has a suitable
 TCP/socket standard library or an approved host bridge.
 

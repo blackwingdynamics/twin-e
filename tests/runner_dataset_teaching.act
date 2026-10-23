@@ -2,7 +2,7 @@ meta limitless("file")
 
 
 """Gate 12.3 public evidence for multi-file bounded-cache teaching."""
-import aie;
+import ie;
 
 import cli;
 
@@ -12,7 +12,7 @@ import std::fs;
 
 import std::path;
 
-open aie;
+open ie;
 
 open cli;
 

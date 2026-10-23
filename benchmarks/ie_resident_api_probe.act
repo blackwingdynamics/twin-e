@@ -1,0 +1,174 @@
+"""Isolate the resident cache and neurogenesis native execution path."""
+import ie;
+
+import config;
+
+import std::io;
+
+verb emit_stage(abs text: String) {
+    println(text: abs text);
+}
+
+meta limitless("verb")
+verb main() -> Int {
+    erg start: String = "IE_RESIDENT_PROBE start";
+    emit_stage(text: abs start);
+    erg fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](), free_list_head: 0u32, active_count: 0u32};
+    fabric_init(fabric: ins fabric);
+    erg fabric_ready: String = "IE_RESIDENT_PROBE fabric_ready";
+    emit_stage(text: abs fabric_ready);
+    allocate_column_index(fabric: ins fabric);
+    erg cache: ShardCache = ShardCache {entries: Array[ShardCacheEntry, 4](), clock: 0u64};
+    shard_cache_init(cache: ins cache);
+    erg cache_ready: String = "IE_RESIDENT_PROBE cache_ready";
+    emit_stage(text: abs cache_ready);
+    erg shard_id: u32 = 0u32;
+    erg generation: u64 = 1u64;
+    erg checksum: u64 = 0u64;
+    erg inserted = shard_cache_insert(
+        cache: ins cache,
+        shard_id: erg shard_id,
+        generation: erg generation,
+        checksum: erg checksum
+    );
+    erg inserted_stage: String = "IE_RESIDENT_PROBE inserted";
+    emit_stage(text: abs inserted_stage);
+    erg slot: u8 = case dat inserted {
+        Result.Err(_) => 4u8,
+        Result.Ok(value) => value,
+    };
+    if slot == 4u8 {
+        return 1;
+    }
+    erg marked = shard_cache_mark_dirty(cache: ins cache, slot: erg slot);
+    erg marked_ok: Bool = case dat marked {
+        Result.Err(_) => false,
+        Result.Ok(_) => true,
+    };
+    if !marked_ok {
+        return 2;
+    }
+    erg dirty_stage: String = "IE_RESIDENT_PROBE dirty_marked";
+    emit_stage(text: abs dirty_stage);
+    erg direct_fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](
+    ), free_list_head: 0u32, active_count: 0u32};
+    fabric_init(fabric: ins direct_fabric);
+    erg direct_source: u32 = allocate_column_index(fabric: ins direct_fabric);
+    erg direct_wave: Wavefront = Wavefront {mask_low: 1u64, mask_high: 0u64, energy: 1u8};
+    erg direct_result = neurogenesis(
+        fabric: ins direct_fabric,
+        wave: abs direct_wave,
+        source_idx: erg direct_source
+    );
+    case dat direct_result {
+        Option.None => {},
+        Option.Some(_) => {},
+    };
+    erg direct_stage: String = "IE_RESIDENT_PROBE direct_neurogenesis_complete";
+    emit_stage(text: abs direct_stage);
+    erg invalid_source: u32 = 64u32;
+    erg invalid_result = neurogenesis_with_resident_cache_result(
+        fabric: ins fabric,
+        cache: ins cache,
+        wave: abs direct_wave,
+        source_idx: erg invalid_source,
+        shard_id: erg shard_id,
+        generation: erg generation,
+        checksum: erg checksum
+    );
+    case dat invalid_result {
+        Result.Err(_) => {},
+        Result.Ok(_) => {},
+    };
+    erg invalid_stage: String = "IE_RESIDENT_PROBE invalid_source_complete";
+    emit_stage(text: abs invalid_stage);
+    erg inline_slot: u32 = 0u32;
+    erg inline_has_open: Bool = false;
+    loop {
+        if inline_slot >= 8u32 {
+            break;
+        }
+        if fabric.columns[0u32].axons[inline_slot] == NULL_INDEX {
+            inline_has_open = true;
+            break;
+        }
+        inline_slot += 1u32;
+    }
+    if !inline_has_open {
+        return 3;
+    }
+    erg inline_stage: String = "IE_RESIDENT_PROBE inline_source_check_complete";
+    emit_stage(text: abs inline_stage);
+    erg extra_shard_id: u32 = 1u32;
+    erg extra_generation: u64 = 2u64;
+    erg extra_checksum: u64 = 2u64;
+    erg extra_insert = shard_cache_insert(
+        cache: ins cache,
+        shard_id: erg extra_shard_id,
+        generation: erg extra_generation,
+        checksum: erg extra_checksum
+    );
+    case dat extra_insert {
+        Result.Err(_) => {},
+        Result.Ok(_) => {},
+    };
+    erg extra_stage: String = "IE_RESIDENT_PROBE extra_insert_complete";
+    emit_stage(text: abs extra_stage);
+    erg resident_fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](
+    ), free_list_head: 0u32, active_count: 0u32};
+    fabric_init(fabric: ins resident_fabric);
+    erg resident_source: u32 = allocate_column_index(fabric: ins resident_fabric);
+    erg resident_cache: ShardCache = ShardCache {entries: Array[ShardCacheEntry, 4](), clock: 0u64};
+    shard_cache_init(cache: ins resident_cache);
+    erg resident_setup_stage: String = "IE_RESIDENT_PROBE resident_setup_complete";
+    emit_stage(text: abs resident_setup_stage);
+    erg manual_fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](
+    ), free_list_head: 0u32, active_count: 0u32};
+    fabric_init(fabric: ins manual_fabric);
+    erg manual_source: u32 = allocate_column_index(fabric: ins manual_fabric);
+    erg manual_cache: ShardCache = ShardCache {entries: Array[ShardCacheEntry, 4](), clock: 0u64};
+    shard_cache_init(cache: ins manual_cache);
+    erg manual_shard_id: u32 = 2u32;
+    erg manual_generation: u64 = 1u64;
+    erg manual_checksum: u64 = 0u64;
+    erg manual_insert = shard_cache_insert(
+        cache: ins manual_cache,
+        shard_id: erg manual_shard_id,
+        generation: erg manual_generation,
+        checksum: erg manual_checksum
+    );
+    erg manual_slot: u8 = case dat manual_insert {
+        Result.Err(_) => 4u8,
+        Result.Ok(value) => value,
+    };
+    if manual_slot == 4u8 {
+        return 4;
+    }
+    shard_cache_mark_dirty(cache: ins manual_cache, slot: erg manual_slot);
+    erg manual_wave: Wavefront = Wavefront {mask_low: 1u64, mask_high: 0u64, energy: 1u8};
+    neurogenesis(
+        fabric: ins manual_fabric,
+        wave: abs manual_wave,
+        source_idx: erg manual_source
+    );
+    erg manual_stage: String = "IE_RESIDENT_PROBE manual_sequence_complete";
+    emit_stage(text: abs manual_stage);
+    erg wave: Wavefront = Wavefront {mask_low: 1u64, mask_high: 0u64, energy: 1u8};
+    erg resident_shard_id: u32 = 2u32;
+    erg result = neurogenesis_with_resident_cache_result(
+        fabric: ins resident_fabric,
+        cache: ins resident_cache,
+        wave: abs wave,
+        source_idx: erg resident_source,
+        shard_id: erg resident_shard_id,
+        generation: erg generation,
+        checksum: erg checksum
+    );
+    case dat result {
+        Result.Err(_) => {},
+        Result.Ok(_) => {},
+    };
+    erg complete: String = "IE_RESIDENT_PROBE complete";
+    emit_stage(text: abs complete);
+    return 0;
+}

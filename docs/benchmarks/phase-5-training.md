@@ -8,9 +8,9 @@ the persistence evidence.
 ## Command
 
 ```sh
-actus build --strict --emit exe benchmarks/aie_training.act \
-  -o /tmp/twin-e-training-benchmark.aie
-/tmp/twin-e-training-benchmark.aie
+actus build --strict --emit exe benchmarks/ie_training.act \
+  -o /tmp/twin-e-training-benchmark.ie
+/tmp/twin-e-training-benchmark.ie
 ```
 
 ## Conditions
@@ -28,11 +28,11 @@ actus build --strict --emit exe benchmarks/aie_training.act \
 ## Captured output
 
 ```text
-AIE_TRAINING events=32 recall_profile=AB bounded=1
-AIE_TRAINING training_ns=14087
-AIE_TRAINING allocated_columns=3
-AIE_TRAINING active_bindings=3
-AIE_TRAINING snapshot_bytes=5702
+IE_TRAINING events=32 recall_profile=AB bounded=1
+IE_TRAINING training_ns=14087
+IE_TRAINING allocated_columns=3
+IE_TRAINING active_bindings=3
+IE_TRAINING snapshot_bytes=5702
 ```
 
 The training time is a host debug-profile observation and may vary between

@@ -2,7 +2,7 @@
 
 ## Scenario
 
-`tests/aie_logical_persistence.act` now exercises three complete generations
+`tests/ie_logical_persistence.act` now exercises three complete generations
 with a fresh `LogicalTeachingBrain` for every restart boundary:
 
 1. train the initial sequences and publish generation `1`;
@@ -22,7 +22,7 @@ assuming that every generation contains exactly two shards.
 Command:
 
 ```sh
-actus fmt --check tests/aie_logical_persistence.act
+actus fmt --check tests/ie_logical_persistence.act
 actus check --strict
 actus test --strict
 ```
@@ -30,7 +30,7 @@ actus test --strict
 Observed on the Arch Linux host on 2026-10-22:
 
 ```text
-tests/aie_logical_persistence.act::test_logical_teaching_save_load_restart_recall ... ok
+tests/ie_logical_persistence.act::test_logical_teaching_save_load_restart_recall ... ok
 test result: ok. 169 passed; 0 failed
 ```
 

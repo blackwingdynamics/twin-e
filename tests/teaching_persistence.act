@@ -1,5 +1,5 @@
 """Acceptance tests for resident teaching and explicit persistence boundaries."""
-import aie;
+import ie;
 
 import teaching;
 

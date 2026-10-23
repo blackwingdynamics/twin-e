@@ -8,15 +8,15 @@ is connected to a different successor state.
 
 ```text
 actus build --strict --emit exe \
-  -o /tmp/twin-e-context-ambiguity.aie \
-  benchmarks/aie_context_ambiguity.act
-/tmp/twin-e-context-ambiguity.aie
+  -o /tmp/twin-e-context-ambiguity.ie \
+  benchmarks/ie_context_ambiguity.act
+/tmp/twin-e-context-ambiguity.ie
 ```
 
 ## Recorded result
 
 ```text
-AIE_CONTEXT_AMBIGUITY contexts=2 successors=2 isolated=1
+IE_CONTEXT_AMBIGUITY contexts=2 successors=2 isolated=1
 ```
 
 The fixture verifies that the two context neurons are distinct, that their

@@ -1,5 +1,5 @@
 """Runner teaching dispatch for file and standard-input sources."""
-import aie;
+import ie;
 
 import cli;
 
@@ -7,7 +7,7 @@ import std::path;
 
 import teaching;
 
-open aie;
+open ie;
 
 open cli;
 

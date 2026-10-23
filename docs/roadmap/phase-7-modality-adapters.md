@@ -16,7 +16,7 @@ training, and persistence contracts can validate.
 
 The phase preserves the current boundary:
 
-- the AIE core remains modality-neutral and owns associative state;
+- the IE core remains modality-neutral and owns associative state;
 - adapters do not write directly to arena or persistence internals;
 - inference, forwarding, coincidence evaluation, and neurogenesis remain free
   of synchronous filesystem and network I/O;
@@ -72,7 +72,7 @@ Excluded:
 - LLMs, OpenAI, chat UI, provider-specific network clients, or teacher
   services;
 - automatic `.brain` save or load from an adapter;
-- changes to the AIE arena layout, shard format, binding layout, or codebook
+- changes to the IE arena layout, shard format, binding layout, or codebook
   width;
 - floating-point engine state or unbounded dynamic collections;
 - Cortex-M firmware and hardware claims, which remain in Phase 6;
@@ -129,7 +129,7 @@ Gate 7.3 evidence.
 - [x] Define deterministic replay requirements and tie-breaking rules.
 - [x] Define ownership and lifetime at the adapter/facade call boundary.
 - [x] Define which fields may feed tokenizer, encoding, observation, and
-      training APIs without exposing private AIE state.
+      training APIs without exposing private IE state.
 
 ### Gate 7.2 design draft
 
@@ -144,7 +144,7 @@ are recorded in ADR-0010; implementation must not silently widen these limits.
 
 ### Gate 7.2 test evidence
 
-The contract is covered by `tests/aie_adapter_contract.act` and the full strict
+The contract is covered by `tests/ie_adapter_contract.act` and the full strict
 suite. The executable tests cover ordered acceptance, unsupported versions,
 empty input, invalid source ordering, source-offset bounds, payload bounds,
 and normalized-value bounds:
@@ -157,7 +157,7 @@ actus test --strict
 Evidence compiler: Actus `cf1cbda75bf4e14d1ad6c9f1bbf7a12c57f808eb`, the
 compiler revision pinned by Twin-e CI. Result: `53 passed; 0 failed`. The
 validator accepts only immutable input, performs no I/O, and returns before
-any AIE state API is called; adapter facade integration remains a later Gate
+any IE state API is called; adapter facade integration remains a later Gate
 7.3 concern.
 
 ### Gate evidence
@@ -187,7 +187,7 @@ any AIE state API is called; adapter facade integration remains a later Gate
 
 ### Gate 7.3 test evidence
 
-`tests/aie_adapter_contract.act::test_adapter_facade_imports_all_public_namespaces`
+`tests/ie_adapter_contract.act::test_adapter_facade_imports_all_public_namespaces`
 checks the six public namespace markers through the canonical `adapters`
 facade. The strict package and full test commands were run with the pinned
 Actus compiler from the Gate 7.2 evidence.
@@ -223,7 +223,7 @@ delegates tokenization and BPE merging to the existing tokenizer facade,
 preserves token identity and source spans, and validates the common envelope
 before returning it. It does not access filesystem or network APIs.
 
-`tests/aie_text_adapter.act` covers valid byte text, empty input, oversized
+`tests/ie_text_adapter.act` covers valid byte text, empty input, oversized
 raw input, malformed/non-UTF-8 bytes, repeated bytes, one deterministic BPE
 merge with its two-byte source span, and repeated-run determinism. Existing
 byte-fallback tests remain part of the same strict suite.
@@ -256,7 +256,7 @@ Result: `60 passed; 0 failed`.
 - [x] Structured and binary acceptance/rejection fixtures are reproducible.
 - [x] Round-trip or deterministic replay evidence is recorded where lossless
       representation is promised.
-- [x] Oversized input is rejected before live AIE state changes.
+- [x] Oversized input is rejected before live IE state changes.
 
 ### Gate 7.5 test evidence
 
@@ -268,10 +268,10 @@ range, and source offsets must remain inside the declared source length.
 event with its exact identity and source offset, without guessing protocol
 semantics.
 
-`tests/aie_structured_binary_adapter.act` covers valid structured conversion,
+`tests/ie_structured_binary_adapter.act` covers valid structured conversion,
 unknown, duplicate, missing, and oversized fields, exact binary bytes,
 empty/oversized binary input, and canonical-facade consumption. The returned
-envelopes are validated before publication and no AIE state is mutated.
+envelopes are validated before publication and no IE state is mutated.
 
 Commands, using the pinned Actus compiler from the earlier compiler evidence
 (`cf1cbda75bf4e14d1ad6c9f1bbf7a12c57f808eb`):
@@ -280,7 +280,7 @@ Commands, using the pinned Actus compiler from the earlier compiler evidence
 actus lock --check
 actus check --strict
 actus test --strict
-actus build --strict --emit exe -o /tmp/twin-e-structured-binary.aie
+actus build --strict --emit exe -o /tmp/twin-e-structured-binary.ie
 ```
 
 Result: `67 passed; 0 failed`; native IR verification reported no
@@ -316,7 +316,7 @@ integer feature values per window; video uses at most `16` ordered frames,
 each capped at `64 x 64` and `4` channels. All modalities remain subject to
 the common `256` event limit and make no lossless-conversion claim.
 
-`tests/aie_modality_envelope_policy.act` provides executable policy fixtures
+`tests/ie_modality_envelope_policy.act` provides executable policy fixtures
 for valid bounds and empty/oversized image, audio, and video inputs. These are
 representation-policy tests, not encoders; Gate 7.7 must implement the
 source-specific adapters only after this contract is accepted.
@@ -337,7 +337,7 @@ Result: `71 passed; 0 failed`.
 - [x] Implement the accepted audio representation behind `adapter::audio`.
 - [x] Implement the accepted video representation behind `adapter::video`.
 - [x] Keep decoding, normalization, and validation source-specific.
-- [x] Feed only the common bounded contract into the AIE-facing boundary.
+- [x] Feed only the common bounded contract into the IE-facing boundary.
 - [x] Add deterministic replay and rejection tests for each modality.
 - [x] Audit all three call paths for allocation, blocking I/O, and unbounded
       work.
@@ -360,10 +360,10 @@ over-capacity input. `adapter::video` accepts sparse integer frame features and
 enforces frame identity, coordinate bounds, deterministic temporal ordering,
 and the bounded frame/resource envelope.
 
-`tests/aie_media_adapter.act` covers valid conversion and rejection fixtures
+`tests/ie_media_adapter.act` covers valid conversion and rejection fixtures
 for all three modalities through the canonical `adapters` facade. The three
 implementations perform no filesystem/network I/O, allocation, container
-decoding, floating-point conversion, or AIE-state mutation.
+decoding, floating-point conversion, or IE-state mutation.
 
 Commands, using the pinned Actus compiler from the earlier compiler evidence
 (`cf1cbda75bf4e14d1ad6c9f1bbf7a12c57f808eb`):
@@ -372,7 +372,7 @@ Commands, using the pinned Actus compiler from the earlier compiler evidence
 actus lock --check
 actus check --strict
 actus test --strict
-actus build --strict --emit exe -o /tmp/twin-e-media-adapters.aie
+actus build --strict --emit exe -o /tmp/twin-e-media-adapters.ie
 ```
 
 Result: `77 passed; 0 failed`; native IR verification reported no
@@ -383,7 +383,7 @@ floating-point instructions.
 - [x] Define an in-memory adapter invocation boundary for callers that already
       possess input data.
 - [x] Define how a future chat or teacher integration submits adapter input
-      without becoming part of the AIE core or adapter contract.
+      without becoming part of the IE core or adapter contract.
 - [x] Keep provider credentials, network retries, UI state, and transport
       outside `src/adapters/` unless a later ADR explicitly changes the
       boundary.
@@ -401,10 +401,10 @@ floating-point instructions.
 
 ### Gate 7.8 test evidence
 
-`tests/aie_adapter_integration.act` invokes `adapter::text`, validates the
+`tests/ie_adapter_integration.act` invokes `adapter::text`, validates the
 returned envelope through `adapter::contract`, and maps its first event to the
 existing public `ObservationEvent` boundary. The fixture then calls both
-`accept_sensor_observation` and `encode_observation` through the public `aie`
+`accept_sensor_observation` and `encode_observation` through the public `ie`
 facade. It imports neither private arena modules nor persistence APIs, and the
 adapter call performs no save or path selection.
 
@@ -439,7 +439,7 @@ Final acceptance was run with Actus compiler commit
 `cf1cbda75bf4e14d1ad6c9f1bbf7a12c57f808eb` on hosted Linux x86-64 using the
 strict profile. The touched Actus fixture was formatter-clean, the lock and
 strict checks passed, and the complete suite reported `78 passed; 0 failed`.
-The native artifact was built as `/tmp/twin-e-phase-7.aie`; native IR
+The native artifact was built as `/tmp/twin-e-phase-7.ie`; native IR
 verification reported no floating-point instructions.
 
 The accepted hosted limits are: 256 common events; `u32` source length;
@@ -455,11 +455,11 @@ are unsupported by this phase.
 The exact reproducible commands were:
 
 ```sh
-actus fmt --check tests/aie_adapter_integration.act
+actus fmt --check tests/ie_adapter_integration.act
 actus lock --check
 actus check --strict
 actus test --strict
-actus build --strict --emit exe -o /tmp/twin-e-phase-7.aie
+actus build --strict --emit exe -o /tmp/twin-e-phase-7.ie
 ```
 
 All evidence above is hosted Linux evidence only. It does not establish

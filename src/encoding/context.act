@@ -1,4 +1,4 @@
-"""Deterministic bounded context identity for sequence-aware AIE state."""
+"""Deterministic bounded context identity for sequence-aware IE state."""
 import config;
 
 """Combine adjacent token IDs into a deterministic versioned context key.

@@ -1,7 +1,7 @@
 """Bounded cross-modality association over public adapter envelopes."""
 import adapters;
 
-import aie;
+import ie;
 
 import config;
 
@@ -69,7 +69,7 @@ verb empty_association_metrics() -> TeachingAssociationMetrics {
 """Teach one compatible text-plus-structured pair in resident memory.
 
 Each envelope is validated through the public adapter contract before a
-bounded combined sequence reaches public AIE training. The adapters do not
+bounded combined sequence reaches public IE training. The adapters do not
 mutate fabric state, allocate a queue, or perform I/O.
 """
 open verb teach_association(

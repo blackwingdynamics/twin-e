@@ -38,16 +38,16 @@ from that directory without introducing a per-shard configuration list.
 - `actus check --strict` passes for `src/main.act`.
 - `actus fmt --check` passes for the touched path, logical persistence,
   manifest loading, and multi-shard fixture sources.
-- `tests/aie_shard_filename.act` covers indexes `0`, `9`, `10`, `99`, `100`,
+- `tests/ie_shard_filename.act` covers indexes `0`, `9`, `10`, `99`, `100`,
   and `999999`.
 - `actus test --strict`: 178 passed, 0 failed, including ordered dataset-index
   acceptance, unsorted-entry rejection, public writer round-trip tests, and
   resumable batch continuation from the last published relative name plus
   indexed teaching checkpoint/reload evidence.
 - `actus check --strict`: passed.
-- `actus build --strict --emit exe -o /tmp/twin-e-engine.aie`: passed;
+- `actus build --strict --emit exe -o /tmp/twin-e-engine.ie`: passed;
   generated native IR contains no floating-point instructions.
-- `actus build --strict --emit exe benchmarks/aie_logical_latency.act`: passed;
+- `actus build --strict --emit exe benchmarks/ie_logical_latency.act`: passed;
   generated native IR contains no floating-point instructions.
 
 Directory training evidence: `source=directory` processed all three accepted
@@ -145,7 +145,7 @@ count remains governed by the brain manifest, not by resident cache capacity.
 
 Gate 12.3 first-check evidence: the dataset boundary now preserves the typed
 `FlushRequired` signal from logical admission instead of collapsing it into
-`ResidentCapacityExceeded`. `tests/aie_logical_teaching.act::test_dataset_boundary_reports_flush_request`
+`ResidentCapacityExceeded`. `tests/ie_logical_teaching.act::test_dataset_boundary_reports_flush_request`
 proves that three dirty resident shards are detected before the next dataset
 file is admitted. The check itself is allocation-free and performs no
 filesystem I/O; the following flush boundary consumes this signal explicitly.
@@ -153,7 +153,7 @@ filesystem I/O; the following flush boundary consumes this signal explicitly.
 Gate 12.3 second-check evidence: `logical_teaching_flush_dirty_residents`
 publishes the dirty resident generation through the explicit persistence
 boundary and marks entries persisted only after successful publication.
-`tests/aie_logical_flush.act::test_logical_teaching_flush_marks_dirty_entries_persisted`
+`tests/ie_logical_flush.act::test_logical_teaching_flush_marks_dirty_entries_persisted`
 proves that the dirty count reaches zero after a successful flush, while the
 existing failed-flush evidence proves that a failed publication preserves the
 dirty resident state.
@@ -162,18 +162,18 @@ Gate 12.3 third-check evidence: the dataset-only
 `teach_logical_file_with_flush` transport retries the same validated TWF
 record after a successful dirty-resident publication. It does not replay the
 whole file, and ordinary file/stdin teaching remains free of implicit flush
-I/O. `tests/aie_logical_flush.act::test_logical_teaching_retries_current_twf_record_after_flush`
+I/O. `tests/ie_logical_flush.act::test_logical_teaching_retries_current_twf_record_after_flush`
 proves one record is accepted exactly once after crossing the resident
 boundary; the strict suite remains at 186 passed and 0 failed.
 
 Gate 12.3 fourth-check evidence: a failed explicit flush returns an error
-before resident lifecycle state changes. `tests/aie_logical_flush.act::test_logical_teaching_failed_flush_preserves_dirty_state`
+before resident lifecycle state changes. `tests/ie_logical_flush.act::test_logical_teaching_failed_flush_preserves_dirty_state`
 proves the dirty resident count is unchanged, while
-`tests/aie_logical_teaching.act::test_runner_failed_flush_preserves_dirty_state`
+`tests/ie_logical_teaching.act::test_runner_failed_flush_preserves_dirty_state`
 proves a pending admission is not treated as successful after a failed
 flush. The strict suite remains at 187 passed and 0 failed.
 
-Gate 12.3 fifth-check evidence: `tests/aie_logical_flush.act::test_logical_teaching_keeps_cache_bounded_for_published_shards`
+Gate 12.3 fifth-check evidence: `tests/ie_logical_flush.act::test_logical_teaching_keeps_cache_bounded_for_published_shards`
 teaches enough bounded sequences to publish five logical shards, performs
 explicit flush checkpoints while crossing the four-slot resident cache, and
 verifies that the live cache never exceeds four entries. A fresh brain then
@@ -190,9 +190,9 @@ entries after reload. The restore boundary now loads the newest resident
 window rather than the first four shards, so the next file continues from the
 current shard. The strict suite reports 188 passed and 0 failed.
 
-Gate 12.3 seventh-check evidence: `tests/aie_logical_teaching.act::test_runner_failed_flush_preserves_dirty_state`
+Gate 12.3 seventh-check evidence: `tests/ie_logical_teaching.act::test_runner_failed_flush_preserves_dirty_state`
 injects a failed explicit flush at the pending rotation boundary. The runner
 returns typed `FlushRequired`, leaves the dirty resident state available, and
 does not retry admission as though publication had succeeded. The companion
-`tests/aie_logical_flush.act::test_logical_teaching_failed_flush_preserves_dirty_state`
+`tests/ie_logical_flush.act::test_logical_teaching_failed_flush_preserves_dirty_state`
 verifies that the dirty count is unchanged after the failed publication.

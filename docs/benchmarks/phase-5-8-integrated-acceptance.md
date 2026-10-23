@@ -13,27 +13,27 @@ same host profile and compiler:
 ## Codebook stress
 
 ```text
-AIE_CODEBOOK_REGION population=token_ids size=5000000 codebook_version=1 active_bits=12 seed=11400714819323198485 generation=sequential_u32
-AIE_CODEBOOK_REGION occupied_slots=5000000
-AIE_CODEBOOK_REGION exact_duplicate_count=0
-AIE_CODEBOOK_REGION first_duplicate_token=5000000
-AIE_CODEBOOK_REGION table_exhausted=false
-AIE_CODEBOOK_REGION elapsed_ms=1635
+IE_CODEBOOK_REGION population=token_ids size=5000000 codebook_version=1 active_bits=12 seed=11400714819323198485 generation=sequential_u32
+IE_CODEBOOK_REGION occupied_slots=5000000
+IE_CODEBOOK_REGION exact_duplicate_count=0
+IE_CODEBOOK_REGION first_duplicate_token=5000000
+IE_CODEBOOK_REGION table_exhausted=false
+IE_CODEBOOK_REGION elapsed_ms=1635
 ```
 
 ## Fallback persistence stress
 
 ```text
-AIE_FALLBACK_PERSISTENCE first_brain_bytes=5702
+IE_FALLBACK_PERSISTENCE first_brain_bytes=5702
  repeated_brain_bytes=5702
-AIE_FALLBACK_PERSISTENCE training_passes=2 events=62 active_bindings=62 active_columns=64 shard_columns=64 binding_slots=64
+IE_FALLBACK_PERSISTENCE training_passes=2 events=62 active_bindings=62 active_columns=64 shard_columns=64 binding_slots=64
  growth_bytes=0 oversized_rejected=1 unchanged=1 failed_save_unchanged=1
 ```
 
 ## Cache pressure stress
 
 ```text
-AIE_CACHE capacity=4 working_set=4 dirty_rejected=1 pinned_rejected=1 clean_evicted=1 replacement=1 full_pressure_rejected=1 high_watermark=3 dirty_before_signal=2 dirty_at_signal=3 flush_requested=1
+IE_CACHE capacity=4 working_set=4 dirty_rejected=1 pinned_rejected=1 clean_evicted=1 replacement=1 full_pressure_rejected=1 high_watermark=3 dirty_before_signal=2 dirty_at_signal=3 flush_requested=1
 ```
 
 Together these runs show bounded codebook occupancy, no repeated-training

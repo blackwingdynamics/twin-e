@@ -1,0 +1,142 @@
+"""Acceptance test for rejecting conflicting action successors."""
+import ie;
+
+import config;
+
+verb conflict_fabric() -> CorticalFabric[64] {
+    erg fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](), free_list_head: 0u32, active_count: 0u32};
+    fabric_init(fabric: ins fabric);
+    return fabric;
+}
+
+verb bind_conflict_source(
+    ins bindings: Array[TokenBinding, 64],
+    erg source_idx: u32,
+    abs previous: ObservationEvent,
+    abs current: ObservationEvent
+) {
+    erg context_result = observation_context_key(previous: abs previous, current: abs current);
+    erg context_value: u64 = 0u64;
+    case dat context_result {
+        Result.Err(_) => {},
+        Result.Ok(value) => {
+            context_value = value;
+        },
+    };
+    erg current_token_id: u32 = observation_token_id(event: abs current);
+    bind_token_context(
+        bindings: ins bindings,
+        slot: erg source_idx,
+        token_id: erg current_token_id,
+        context_key: erg context_value
+    );
+}
+
+verb bind_conflict_action(
+    ins bindings: Array[TokenBinding, 64],
+    erg slot: u32,
+    erg current_token_id: u32,
+    abs action_token_id: u32
+) {
+    erg action_token: u32 = 0u32;
+    action_token = action_token_id;
+    erg context_value: u64 = context_key(previous_token_id: erg current_token_id, token_id: erg action_token);
+    bind_token_context(
+        bindings: ins bindings,
+        slot: erg slot,
+        token_id: erg action_token,
+        context_key: erg context_value
+    );
+}
+
+verb bind_conflicting_targets(
+    ins bindings: Array[TokenBinding, 64],
+    erg source_idx: u32,
+    erg stop_idx: u32,
+    erg move_idx: u32,
+    abs previous: ObservationEvent,
+    abs current: ObservationEvent
+) {
+    bind_conflict_source(
+        bindings: ins bindings,
+        source_idx: erg source_idx,
+        previous: abs previous,
+        current: abs current
+    );
+    erg current_token_id: u32 = observation_token_id(event: abs current);
+    erg stop_token: u32 = ACTION_TOKEN_STOP;
+    erg move_token: u32 = ACTION_TOKEN_MOVE;
+    bind_conflict_action(
+        bindings: ins bindings,
+        slot: erg stop_idx,
+        current_token_id: erg current_token_id,
+        action_token_id: abs stop_token
+    );
+    bind_conflict_action(
+        bindings: ins bindings,
+        slot: erg move_idx,
+        current_token_id: erg current_token_id,
+        action_token_id: abs move_token
+    );
+}
+
+verb prepare_conflicting_route(
+    ins fabric: CorticalFabric[64],
+    ins bindings: Array[TokenBinding, 64],
+    abs previous: ObservationEvent,
+    abs current: ObservationEvent
+) {
+    erg source_idx: u32 = allocate_column_index(fabric: ins fabric);
+    erg stop_idx: u32 = allocate_column_index(fabric: ins fabric);
+    erg move_idx: u32 = allocate_column_index(fabric: ins fabric);
+    bind_conflicting_targets(
+        bindings: ins bindings,
+        source_idx: erg source_idx,
+        stop_idx: erg stop_idx,
+        move_idx: erg move_idx,
+        previous: abs previous,
+        current: abs current
+    );
+    fabric.columns[source_idx].axons[0u32] = stop_idx;
+    fabric.columns[source_idx].axons[1u32] = move_idx;
+}
+
+verb conflicting_route(
+    abs previous: ObservationEvent,
+    abs current: ObservationEvent
+) -> Result[ActionEvent, ActionError] {
+    erg fabric = conflict_fabric();
+    erg bindings: Array[TokenBinding,64] = Array[TokenBinding, 64]();
+    erg no_state: Bool = false;
+    erg zero_value: u32 = 0u32;
+    prepare_conflicting_route(
+        fabric: ins fabric,
+        bindings: ins bindings,
+        previous: abs previous,
+        current: abs current
+    );
+    return route_observation_action(
+        fabric: ins fabric,
+        bindings: abs bindings,
+        previous: abs previous,
+        current: abs current,
+        has_last_sequence: erg no_state,
+        last_sequence: erg zero_value,
+        has_last_action: erg no_state,
+        last_action_token_id: erg zero_value
+    );
+}
+
+meta test
+verb test_action_routing_rejects_conflicting_successors() -> Int {
+    erg previous: ObservationEvent = ObservationEvent {kind: ObservationKind.Motion, primary_value: 0u16, secondary_value: 0u16, sequence: 30u32, version: OBSERVATION_VERSION, valid: true};
+    erg current: ObservationEvent = ObservationEvent {kind: ObservationKind.Obstacle, primary_value: 2u16, secondary_value: 0u16, sequence: 31u32, version: OBSERVATION_VERSION, valid: true};
+    erg result = conflicting_route(previous: abs previous, current: abs current);
+    return case dat result {
+        Result.Err(error) => case error {
+            ActionError.ConflictingActions => 0,
+            _ => 1,
+        },
+        Result.Ok(_) => 1,
+    };
+}

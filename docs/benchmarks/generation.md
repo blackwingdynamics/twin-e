@@ -10,16 +10,16 @@ stops it after three generated tokens.
 
 ```text
 actus build --strict --emit exe \
-  -o /tmp/twin-e-generation.aie \
-  benchmarks/aie_generation.act
-/tmp/twin-e-generation.aie
+  -o /tmp/twin-e-generation.ie \
+  benchmarks/ie_generation.act
+/tmp/twin-e-generation.ie
 ```
 
 ## Recorded result
 
 ```text
-AIE_GENERATION generated=2 decoded_bytes=1 termination=eos cycle_generated=3 loop_guard=1 selected=highest_myelination
-AIE_GENERATION generation_ns=<machine-dependent>
+IE_GENERATION generated=2 decoded_bytes=1 termination=eos cycle_generated=3 loop_guard=1 selected=highest_myelination
+IE_GENERATION generation_ns=<machine-dependent>
 ```
 
 The generation API is bounded by the caller's maximum token count and the

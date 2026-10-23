@@ -8,18 +8,18 @@ It verifies both code cardinality and pairwise collision behavior.
 
 ```text
 actus build --strict --emit exe \
-  -o /tmp/twin-e-context-collision.aie \
-  benchmarks/aie_context_collision.act
-/tmp/twin-e-context-collision.aie
+  -o /tmp/twin-e-context-collision.ie \
+  benchmarks/ie_context_collision.act
+/tmp/twin-e-context-collision.ie
 ```
 
 ## Recorded result
 
 ```text
-AIE_CONTEXT_CODEBOOK contexts=5000 active_bits=8
-AIE_CONTEXT_CODEBOOK max_different_overlap=6
-AIE_CONTEXT_CODEBOOK duplicate_pairs=0
-AIE_CONTEXT_CODEBOOK invalid_code_count=0
+IE_CONTEXT_CODEBOOK contexts=5000 active_bits=8
+IE_CONTEXT_CODEBOOK max_different_overlap=6
+IE_CONTEXT_CODEBOOK duplicate_pairs=0
+IE_CONTEXT_CODEBOOK invalid_code_count=0
 ```
 
 The two-stage context hash and codebook preserve exactly eight active bits for

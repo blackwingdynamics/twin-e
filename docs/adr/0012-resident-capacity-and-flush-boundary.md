@@ -113,9 +113,9 @@ valid (`partial_rejected=1`, `active_unchanged=1`).
 
 Checksum failures are also covered at both required boundaries: resident shard
 load rejects corrupted bytes without mutating the fabric
-(`AIE_BRAIN_SHARDS ... corrupted_rejected=1 fabric_unchanged=1`), while the
+(`IE_BRAIN_SHARDS ... corrupted_rejected=1 fabric_unchanged=1`), while the
 staged binding-aware flush rejects invalid data before publication
-(`AIE_BINDING_STAGE validation_rejected error=IoError.InvalidData`).
+(`IE_BINDING_STAGE validation_rejected error=IoError.InvalidData`).
 
 Recovery evidence preserves the previous complete generation across staged
 checksum corruption and truncation (`partial_rejected=1`,
@@ -142,9 +142,9 @@ resident/persisted, and has a zero pin count.
 
 ## Evidence and remaining work
 
-`benchmarks/aie_cache.act` records four-entry working-set behavior, dirty and
+`benchmarks/ie_cache.act` records four-entry working-set behavior, dirty and
 pinned rejection, clean replacement, and all-dirty full-pressure rejection.
-`tests/aie_api.act` records typed resident-capacity failure without discarding
+`tests/ie_api.act` records typed resident-capacity failure without discarding
 the live fabric. The remaining Gate 5.8.3 work is to implement/measure the
 high-watermark trigger, flush ordering, latency separation, and failure/retry
 recovery fixtures. This ADR does not claim those later gates are complete.

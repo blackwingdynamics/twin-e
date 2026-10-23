@@ -20,7 +20,7 @@ Fresh verification command:
 ```sh
 actus build --strict --emit exe \
   -o /tmp/twin-e-gate-11-8-native-evidence \
-  benchmarks/aie_logical_scale_profiles.act
+  benchmarks/ie_logical_scale_profiles.act
 ```
 
 Observed compiler result: `verified generated native IR: no floating-point
@@ -53,15 +53,15 @@ Dataset root:
 
 ```sh
 actus build --strict --emit exe -o /tmp/twin-e-gate-11-8-scale \
-  benchmarks/aie_logical_scale_profiles.act
+  benchmarks/ie_logical_scale_profiles.act
 actus build --strict --emit exe -o /tmp/twin-e-gate-11-8-latency \
-  benchmarks/aie_logical_latency.act
+  benchmarks/ie_logical_latency.act
 actus build --strict --emit exe -o /tmp/twin-e-gate-11-8-memory \
-  benchmarks/aie_logical_profile.act
+  benchmarks/ie_logical_profile.act
 /tmp/twin-e-gate-11-8-scale
 /tmp/twin-e-gate-11-8-latency
 /tmp/twin-e-gate-11-8-memory
-actus fmt --check tests/aie_logical_save_failure.act
+actus fmt --check tests/ie_logical_save_failure.act
 actus lock --check
 actus check --strict
 actus test --strict
@@ -93,7 +93,7 @@ Audit command:
 
 ```sh
 rg -n "write_file|read_to_bytes|rename|delete|open_file|path_from" \
-  src/aie/runtime src/aie/persistence/logical/teaching.act \
+  src/ie/runtime src/ie/persistence/logical/teaching.act \
   src/runner/teaching.act src/runner/logical_teaching.act src/teaching
 ```
 

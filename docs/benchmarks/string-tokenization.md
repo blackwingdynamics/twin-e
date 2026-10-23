@@ -1,21 +1,21 @@
 # String Tokenization and Codebook Recall Evidence
 
 This fixture verifies the current text path from a native Actus `String` to
-tokenizer output, sparse token codes, AIE training, and recalled UTF-8 bytes.
+tokenizer output, sparse token codes, IE training, and recalled UTF-8 bytes.
 
 ## Command
 
 ```text
 actus build --strict --emit exe \
-  -o /tmp/twin-e-token-code-string.aie \
-  benchmarks/aie_string_example.act
-/tmp/twin-e-token-code-string.aie
+  -o /tmp/twin-e-token-code-string.ie \
+  benchmarks/ie_string_example.act
+/tmp/twin-e-token-code-string.ie
 ```
 
 ## Recorded result
 
 ```text
-AIE_STRING_HELLO arena=1000 recalled=12/12
+IE_STRING_HELLO arena=1000 recalled=12/12
 Hello Giorgi
 9470
 3092

@@ -1,5 +1,5 @@
 """Explicit correction and competition policy for direct text teaching."""
-import aie;
+import ie;
 
 import config;
 

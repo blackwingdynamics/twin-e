@@ -7,7 +7,7 @@ import teaching;
 
 import tokenizer;
 
-open aie;
+open ie;
 
 open tokenizer;
 

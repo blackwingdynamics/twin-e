@@ -1,7 +1,7 @@
 """Logical-brain stdin ingestion kept separate from the legacy fabric path."""
 import adapters;
 
-import aie;
+import ie;
 
 import config;
 

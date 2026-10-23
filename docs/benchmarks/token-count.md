@@ -4,15 +4,15 @@ This benchmark tokenizes the same fixed text through the byte adapter and the
 bounded BPE merge pass:
 
 ```text
-actus build benchmarks/aie_token_count.act --strict --emit exe \
-  -o /tmp/twin-e-token-count.aie
-/tmp/twin-e-token-count.aie
+actus build benchmarks/ie_token_count.act --strict --emit exe \
+  -o /tmp/twin-e-token-count.ie
+/tmp/twin-e-token-count.ie
 ```
 
 Expected output:
 
 ```text
-AIE_TOKEN_COUNTS text=Hello Giorgi byte_tokens=12
+IE_TOKEN_COUNTS text=Hello Giorgi byte_tokens=12
  bpe_tokens=11
  reduction=1
 ```

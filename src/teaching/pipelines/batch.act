@@ -1,7 +1,7 @@
 """Bounded caller-driven batch teaching for accepted adapter envelopes."""
 import adapters;
 
-import aie;
+import ie;
 
 import config;
 

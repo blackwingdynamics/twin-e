@@ -1,6 +1,6 @@
-# AIE Phase 3 Roadmap
+# IE Phase 3 Roadmap
 
-Phase 3 turns the verified AIE core into an observable, callable, and
+Phase 3 turns the verified IE core into an observable, callable, and
 measurable runtime package.
 
 **Current status:** `[~] Partially complete` — P3.1, P3.2, P3.3, and the
@@ -37,7 +37,7 @@ facade.
 - [x] Add tests for no-free-slot and invalid-index behavior.
 
 P3.1 evidence: `step_wavefront`, `engine_clock_step`, and `neurogenesis` are
-exported through the AIE facade. The strict suite contains 15 passing tests,
+exported through the IE facade. The strict suite contains 15 passing tests,
 including public lifecycle, no-free-slot, and invalid-index coverage.
 
 ## P3.2 — Observable executable demo
@@ -53,14 +53,14 @@ including public lifecycle, no-free-slot, and invalid-index coverage.
   specific memory addresses.
 
 P3.2 evidence: build and run the package entry with `actus build --strict
---emit exe -o /tmp/twin-e-p3-2-final.aie` produced the following output and
+--emit exe -o /tmp/twin-e-p3-2-final.ie` produced the following output and
 exit code `0`:
 
 ```text
-AIE_DEMO firing payload=41 destination=2 inhibition=1
-AIE_DEMO neurogenesis linked=1
-AIE_DEMO decay reclaimed=1
-AIE_DEMO complete
+IE_DEMO firing payload=41 destination=2 inhibition=1
+IE_DEMO neurogenesis linked=1
+IE_DEMO decay reclaimed=1
+IE_DEMO complete
 ```
 
 The output directly reports firing and payload propagation, lateral
@@ -79,7 +79,7 @@ inhibition, novel-column linking, and decay reclamation.
   regressions where the compiler exposes stable evidence.
 - [x] Keep benchmark results separate from correctness tests.
 
-P3.3 evidence: `benchmarks/aie_p3_3.act` builds with strict checking and the
+P3.3 evidence: `benchmarks/ie_p3_3.act` builds with strict checking and the
 zero-float IR audit, then exits with status `0`. A 10,000-iteration debug-host
 run is recorded in `docs/benchmarks/p3-3.md` with the compiler digest, target,
 profile, arena size, input masks, and elapsed nanosecond measurements.
@@ -88,9 +88,9 @@ profile, arena size, input masks, and elapsed nanosecond measurements.
 
 - [ ] Verify `src/config/config.act` and `src/config/values.act` through the
   package facade in `actus check --strict`.
-- [ ] Verify package constants imported by nested AIE modules during native
+- [ ] Verify package constants imported by nested IE modules during native
   object emission.
-- [ ] Verify package constants imported by nested AIE modules during native
+- [ ] Verify package constants imported by nested IE modules during native
   executable emission.
 - [ ] Verify constant use in scalar initializers, predicates, case guards, and
   aggregate literals.
@@ -117,7 +117,7 @@ profile, arena size, input masks, and elapsed nanosecond measurements.
 
 - [x] Add canonical tokenizer and encoding facades under `src/`.
 - [x] Add a versioned byte-token transition contract.
-- [x] Route a String input through tokenizer, codebook, Wavefront, and AIE
+- [x] Route a String input through tokenizer, codebook, Wavefront, and IE
   recall.
 - [x] Add a deterministic bounded context-key contract and probe.
 - [x] Add a deterministic integer-only 128-bit token code encoder.
@@ -139,7 +139,7 @@ collision executable reports `max_different_overlap=6`,
 
 Phase 3 is complete when:
 
-- [ ] A caller can submit a wavefront through the public AIE API and observe a
+- [ ] A caller can submit a wavefront through the public IE API and observe a
   deterministic firing result.
 - [ ] The executable demo shows firing, inhibition, neurogenesis, decay, and
   reclamation.

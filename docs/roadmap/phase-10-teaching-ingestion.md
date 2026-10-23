@@ -13,7 +13,7 @@ Provide a documented, bounded, testable way to submit teaching data to Twin-e.
 The first usable path is local and in-memory. File, stdin, and `std::wire`
 inputs are added only through the same public teaching contract. HTTP,
 WebSocket, and Unix-socket support remain later transport implementations;
-they must not force network code into the AIE core or the learning hot path.
+they must not force network code into the IE core or the learning hot path.
 
 This phase answers the practical question: “What do I call, what data do I
 send, what result do I receive, and what happens when the input is rejected?”
@@ -105,7 +105,7 @@ One request contains one example. A finite batch is represented separately by
 offsets remain event metadata. A sequence boundary is the end of one request;
 batch ordering is the active request prefix order.
 
-Request identity is intentionally not stored in the AIE learning unit. A
+Request identity is intentionally not stored in the IE learning unit. A
 future transport may attach a correlation ID at its own boundary, but the core
 teaching contract remains deterministic and transport-neutral. Source buffers
 and envelopes are caller-owned borrowed inputs at validation and teaching
@@ -115,7 +115,7 @@ The current limits are the existing bounded protocol constants: adapter
 envelopes accept at most `ADAPTER_MAX_EVENTS` events, replay accepts one
 through `TEACHING_MAX_REPLAY_PASSES` passes, and batches accept one through
 `TEACHING_MAX_BATCH_ITEMS` requests. Invalid version, validity, envelope, and
-replay state is rejected before any pipeline can reach resident AIE state.
+replay state is rejected before any pipeline can reach resident IE state.
 
 ### Required evidence
 
@@ -141,7 +141,7 @@ persistence operation, so every rejection occurs before resident mutation.
       shared `TeachingMetrics` result contract.
 - [x] Keep batch, replay, correction, and multimodal operations behind the
       same facade while preserving their distinct typed result contracts.
-- [x] Reject any direct request that bypasses admission or calls private AIE
+- [x] Reject any direct request that bypasses admission or calls private IE
       state directly.
 - [x] Prove direct teaching remains the lowest-overhead path with no I/O.
 - [x] Document one minimal caller example for teaching the sequence `AB` and
@@ -246,9 +246,9 @@ instructions in the generated native IR. The installed compiler revision is
 
 ```sh
 actus build --strict --emit exe \
-  -o /tmp/twin-e-teaching-stdin.aie \
-  benchmarks/aie_teaching_stdin.act
-printf 'AB\n' | /tmp/twin-e-teaching-stdin.aie
+  -o /tmp/twin-e-teaching-stdin.ie \
+  benchmarks/ie_teaching_stdin.act
+printf 'AB\n' | /tmp/twin-e-teaching-stdin.ie
 ```
 
 The valid fixture returns `exit 0` and reports `records=1`, `accepted=1`,
@@ -266,10 +266,10 @@ strict suite reports `140 passed; 0 failed` after these checks.
 
 ## Gate 10.4.1 — Replace the demo entry point with a production teaching runner
 
-The current package entry point is an AIE demonstration program. It is useful
+The current package entry point is an IE demonstration program. It is useful
 for a smoke check, but it is not a training runtime and must not be published
 as the executable used by `twin-e-training`. This gate defines the first real
-operator-facing entry point without changing the AIE hot path.
+operator-facing entry point without changing the IE hot path.
 
 ### Production command contract
 
@@ -307,7 +307,7 @@ teaching input, and `5` for a failed explicit save.
 - [Completed in Phase 11] Define typed startup failures for missing, incompatible, corrupt, or
       partially published brain generations.
 - [Completed in Phase 11] Route file and stdin teaching through the canonical `teaching::` facade;
-      the runner must not access resident AIE state directly.
+      the runner must not access resident IE state directly.
 - [Completed in Phase 11] Define stable process exit codes and bounded operator output. Default
       output must not print raw source records.
 - [Completed in Phase 11] Keep the demo output and all fixed benchmark paths out of the production
@@ -391,7 +391,7 @@ only after an explicit save request.
 - [ ] Reject unsupported versions, bad checksums, truncated frames, and
       oversized payloads before admission.
 - [ ] Preserve request ordering and deterministic response correlation.
-- [ ] Keep wire parsing independent from modality adapters and AIE state.
+- [ ] Keep wire parsing independent from modality adapters and IE state.
 
 ### Required evidence
 
@@ -460,7 +460,7 @@ only after an explicit save request.
       std, a reviewed host bridge, or a later phase.
 - [ ] Do not implement a network transport until the ownership, blocking-I/O,
       shutdown, and error contracts are accepted.
-- [ ] If a host bridge is selected, define its ABI and keep it outside the AIE
+- [ ] If a host bridge is selected, define its ABI and keep it outside the IE
       and teaching hot paths.
 - [ ] If deferred, record the exact missing Actus capability and leave the
       transport modules planned rather than creating placeholders that claim
@@ -498,7 +498,7 @@ are recorded in `docs/benchmarks/phase-11-production-acceptance.md` and
 `docs/roadmap/phase-11-production-multi-shard-runtime.md`. This handoff does
 not mark the separate Phase 10 transport or lifecycle gates complete.
 
-Phase 10 is complete when a production runner, rather than the AIE demo entry
+Phase 10 is complete when a production runner, rather than the IE demo entry
 point, can load a selected complete brain generation, accept bounded teaching
 data by direct API, file, stdin, and the selected framed transport, and publish
 an explicit new generation. Every path must reach the same public teaching

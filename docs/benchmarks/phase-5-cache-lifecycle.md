@@ -6,9 +6,9 @@ latency claim.
 
 ## Command and environment
 
-- Source: `benchmarks/aie_cache.act`
-- Command: `actus build --strict --emit exe -o /tmp/twin-e-cache-pressure.aie benchmarks/aie_cache.act`
-- Run: `/tmp/twin-e-cache-pressure.aie`
+- Source: `benchmarks/ie_cache.act`
+- Command: `actus build --strict --emit exe -o /tmp/twin-e-cache-pressure.ie benchmarks/ie_cache.act`
+- Run: `/tmp/twin-e-cache-pressure.ie`
 - Profile: strict native executable
 - Compiler binary digest: `322711227604bc52452f2ad015748f17df7facee1a9233c114a2bc4bdc6817bb`
 - Floating point: native IR verification reported no floating-point instructions
@@ -17,9 +17,9 @@ latency claim.
 ## Captured result
 
 ```text
-built `/tmp/twin-e-cache-pressure.aie` (strict)
+built `/tmp/twin-e-cache-pressure.ie` (strict)
 verified generated native IR: no floating-point instructions
-AIE_CACHE capacity=4 working_set=4 dirty_rejected=1 pinned_rejected=1 clean_evicted=1 replacement=1 full_pressure_rejected=1 high_watermark=3 dirty_before_signal=2 dirty_at_signal=3 flush_requested=1
+IE_CACHE capacity=4 working_set=4 dirty_rejected=1 pinned_rejected=1 clean_evicted=1 replacement=1 full_pressure_rejected=1 high_watermark=3 dirty_before_signal=2 dirty_at_signal=3 flush_requested=1
 ```
 
 ## Meaning
@@ -46,15 +46,15 @@ publication is implemented; those remain later P5.1A gates.
 
 ## Caller-driven flush evidence
 
-- Source: `benchmarks/aie_shards_dynamic.act`
-- Command: `actus build --strict --emit exe -o /tmp/twin-e-dynamic-flush.aie benchmarks/aie_shards_dynamic.act`
-- Run: `/tmp/twin-e-dynamic-flush.aie`
+- Source: `benchmarks/ie_shards_dynamic.act`
+- Command: `actus build --strict --emit exe -o /tmp/twin-e-dynamic-flush.ie benchmarks/ie_shards_dynamic.act`
+- Run: `/tmp/twin-e-dynamic-flush.ie`
 - Compiler binary digest: `322711227604bc52452f2ad015748f17df7facee1a9233c114a2bc4bdc6817bb`
 
 ```text
-built `/tmp/twin-e-dynamic-flush.aie` (strict)
+built `/tmp/twin-e-dynamic-flush.ie` (strict)
 verified generated native IR: no floating-point instructions
-AIE_SHARDS_DYNAMIC files=3 generated=1 staged_shard=1 validated=3 partial_rejected=1 truncated_rejected=1 active_unchanged=1 manifest_bound=2 swapped_rejected=1 dynamic_loaded=1 dynamic_collection=3 manifest_selected=1 dynamic_failed_unchanged=1 free_chain=5-2-0-null reallocated=2 payload_bytes=128
+IE_SHARDS_DYNAMIC files=3 generated=1 staged_shard=1 validated=3 partial_rejected=1 truncated_rejected=1 active_unchanged=1 manifest_bound=2 swapped_rejected=1 dynamic_loaded=1 dynamic_collection=3 manifest_selected=1 dynamic_failed_unchanged=1 free_chain=5-2-0-null reallocated=2 payload_bytes=128
 ```
 
 The benchmark now exercises the public `flush_dynamic_shard` boundary. The
@@ -67,7 +67,7 @@ checksum before publication and records `partial_rejected=1` with
 ## Resident neurogenesis API evidence
 
 The public resident-neurogenesis APIs are covered by
-`tests/aie_api.act::test_resident_shard_precedes_neurogenesis_link`. The test
+`tests/ie_api.act::test_resident_shard_precedes_neurogenesis_link`. The test
 verifies that a column is linked, the shard is present in the cache, and its
 lifecycle is `Dirty` after the result-returning operation. The compatibility
 wrapper `neurogenesis_with_resident_cache` keeps the optional success shape.

@@ -9,20 +9,20 @@ as the restored merged token `256`.
 
 ```sh
 actus build --strict --emit exe \
-  -o /tmp/twin-e-p5-vocab-restart-write.aie \
-  benchmarks/aie_text_brain_vocabulary_restart_write.act
+  -o /tmp/twin-e-p5-vocab-restart-write.ie \
+  benchmarks/ie_text_brain_vocabulary_restart_write.act
 actus build --strict --emit exe \
-  -o /tmp/twin-e-p5-vocab-restart-read.aie \
-  benchmarks/aie_text_brain_vocabulary_restart_read.act
-/tmp/twin-e-p5-vocab-restart-write.aie
-/tmp/twin-e-p5-vocab-restart-read.aie
+  -o /tmp/twin-e-p5-vocab-restart-read.ie \
+  benchmarks/ie_text_brain_vocabulary_restart_read.act
+/tmp/twin-e-p5-vocab-restart-write.ie
+/tmp/twin-e-p5-vocab-restart-read.ie
 ```
 
 ## Recorded result
 
 ```text
-AIE_P5_VOCAB_RESTART save=1 bytes=11106 process=writer
-AIE_P5_VOCAB_RESTART reload=1 recalled=1 merged_decode=1 process=reader
+IE_P5_VOCAB_RESTART save=1 bytes=11106 process=writer
+IE_P5_VOCAB_RESTART reload=1 recalled=1 merged_decode=1 process=reader
 ```
 
 Both executables were built with strict native IR verification and reported no

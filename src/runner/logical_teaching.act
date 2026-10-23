@@ -6,15 +6,15 @@ successful flush is committed before the pending sequence is retried; a
 failed flush returns the typed teaching error and leaves the dirty resident
 state available for retry.
 """
-import aie;
+import ie;
 
 import std::io;
 
-open aie;
+open ie;
 
 open io;
 
-open aie;
+open ie;
 
 verb runner_retry_after_flush(
     ins brain: LogicalTeachingBrain,

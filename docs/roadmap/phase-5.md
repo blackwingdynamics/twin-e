@@ -1,4 +1,4 @@
-# AIE Phase 5 Roadmap
+# IE Phase 5 Roadmap
 
 Phase 5 turns the working context-aware persistence engine into a durable,
 trainable, and hardware-testable runtime. The phase covers the remaining
@@ -39,13 +39,13 @@ the corresponding implementation and executable measurement exist.
 
 ### Current implementation status
 
-`src/aie/persistence/text_file.act` now provides a combined host save/load
+`src/ie/persistence/text_file.act` now provides a combined host save/load
 boundary for the fixed fabric, TokenBinding state, and bounded BPE vocabulary.
 The vocabulary-aware format has a fixed header, compatibility metadata,
 complete fabric, binding, and vocabulary sections, and an integer checksum.
 Loading validates the complete byte buffer before mutating live state.
 
-The first executable evidence fixture is `benchmarks/aie_text_brain_file.act`,
+The first executable evidence fixture is `benchmarks/ie_text_brain_file.act`,
 with instructions in `docs/benchmarks/phase-5-brain-file.md`. It proves an
 in-process save/clear/load round trip; it does not claim process-restart
 recovery.
@@ -55,13 +55,13 @@ rejection with unchanged live state, and strict native IR verification with no
 floating-point instructions. The vocabulary-aware evidence is recorded
 separately below.
 
-The separate `benchmarks/aie_text_brain_bounds.act` fixture now covers
+The separate `benchmarks/ie_text_brain_bounds.act` fixture now covers
 truncated and oversized rejection with unchanged live state. Its command and
 output are recorded in `docs/benchmarks/phase-5-brain-bounds.md`. Vocabulary
 artifacts and final size reporting are now covered by the vocabulary fixture.
 
-The paired `aie_text_brain_restart_write.act` and
-`aie_text_brain_restart_read.act` fixtures now define the separate-process
+The paired `ie_text_brain_restart_write.act` and
+`ie_text_brain_restart_read.act` fixtures now define the separate-process
 restart check. The exact commands and recorded evidence are in
 `docs/benchmarks/phase-5-brain-restart.md`; the writer and reader both passed.
 The vocabulary-aware process and corruption evidence is recorded in
@@ -132,17 +132,17 @@ first; persistence is a later operation with an explicit lifecycle.
 Acceptance evidence:
 
 ```text
-AIE_HOT_PATH samples=64 filesystem_writes=0
+IE_HOT_PATH samples=64 filesystem_writes=0
  inference_clean_ns=17444 inference_dirty_ns=17349
  neurogenesis_clean_ns=36744 neurogenesis_dirty_ns=39681
 ```
 
-The benchmark source is `benchmarks/aie_hot_path_clean_dirty.act`. The
+The benchmark source is `benchmarks/ie_hot_path_clean_dirty.act`. The
 negative source audit is:
 
 ```sh
 ! rg -n 'std::io|write_file|read_file|remove_file|rename' \
-  benchmarks/aie_hot_path_clean_dirty.act
+  benchmarks/ie_hot_path_clean_dirty.act
 ```
 
 ### P5.1A save-boundary acceptance gates
@@ -201,11 +201,11 @@ not evidence that a staged file was written, validated, or published.
   size.
 
 The deterministic successor gate is covered by
-`tests/aie_training.act::test_training_competing_successors_use_lowest_index_on_tie`.
+`tests/ie_training.act::test_training_competing_successors_use_lowest_index_on_tie`.
 The fixture gives two valid successors equal myelination and verifies that
 generation selects the lower arena index, preserving repeatable output.
 The save/reload gate is covered by
-`tests/aie_training.act::test_training_recall_survives_snapshot_reload`: it
+`tests/ie_training.act::test_training_recall_survives_snapshot_reload`: it
 trains `AB`, serializes the trained state, restores it into fresh resident
 state, and verifies that `A` recalls `B`.
 The training benchmark and captured output are recorded in
@@ -223,16 +223,16 @@ The training benchmark and captured output are recorded in
 - [x] Reject malformed, unknown, or over-sized observation events.
 - [x] Add an observation round-trip benchmark and serialized fixture.
 
-The round-trip evidence fixture is `benchmarks/aie_observation_roundtrip.act`.
+The round-trip evidence fixture is `benchmarks/ie_observation_roundtrip.act`.
 It builds and runs in strict mode, prints
-`AIE_OBSERVATION_ROUNDTRIP bytes=20 code_roundtrip=1 active_bits=8`, and the
+`IE_OBSERVATION_ROUNDTRIP bytes=20 code_roundtrip=1 active_bits=8`, and the
 compiler verifies that generated native IR contains no floating-point
 instructions.
 
 ## P5.5 — Sensor and action routing
 
 - [x] Add a sensor adapter boundary that accepts observation events without
-  coupling the AIE core to a device driver.
+  coupling the IE core to a device driver.
 - [x] Route an observation through context lookup and successor selection.
 - [x] Define bounded actions such as stop, move, turn, follow, and signal.
 - [x] Add an action adapter boundary that emits validated action events.
@@ -249,7 +249,7 @@ P5.5 evidence 2026-10-06:
   `u64` observation hash was narrowed directly to `u32`. The adapter now masks
   the hash with configured `OBSERVATION_TOKEN_MASK` before the checked cast.
 - No filesystem or device I/O was added to the routing path.
-- The action module is exported through the canonical AIE runtime facade.
+- The action module is exported through the canonical IE runtime facade.
 
 ## P5.6 — Hardware and scale validation
 

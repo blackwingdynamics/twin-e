@@ -7,7 +7,7 @@
 
 ## Context
 
-The current `.brain` design stores one fixed AIE fabric snapshot. The initial format is intentionally small:
+The current `.brain` design stores one fixed IE fabric snapshot. The initial format is intentionally small:
 
 ```text
 header                 12 bytes

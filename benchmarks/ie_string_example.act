@@ -1,0 +1,199 @@
+"""String-driven IE training and recall evidence for Hello Giorgi."""
+import ie;
+
+import config;
+
+import encoding;
+
+import std::io;
+
+import std::time;
+
+import std::string;
+
+import tokenizer;
+
+const ARENA_COLUMNS: u32 = 1000u32;
+
+
+const PHRASE_LENGTH: u32 = 12u32;
+
+
+verb configure_character(
+    ins fabric: CorticalFabric[1000],
+    erg index: u32,
+    erg payload: u8
+) -> u32 {
+    fabric.columns[index].threshold = TOKEN_CODE_ACTIVE_BITS;
+    fabric.columns[index].payload = payload;
+    return index;
+}
+
+verb train_character(
+    ins fabric: CorticalFabric[1000],
+    abs wave: Wavefront,
+    erg source_idx: u32,
+    erg payload: u8
+) -> u32 {
+    erg created: Option[u32] = neurogenesis(
+        fabric: ins fabric,
+        wave: abs wave,
+        source_idx: erg source_idx
+    );
+    return case dat created {
+        Option.Some(index) => configure_character(
+            fabric: ins fabric,
+            index: erg index,
+            payload: erg payload
+        ),
+        Option.None => NULL_INDEX,
+    };
+}
+
+verb recall_character(
+    ins fabric: CorticalFabric[1000],
+    abs wave: Wavefront,
+    erg index: u32
+) -> u8 {
+    erg result: Option[u8] = evaluate_minicolumn(
+        fabric: ins fabric,
+        wave: abs wave,
+        target_idx: erg index
+    );
+    return case dat result {
+        Option.Some(payload) => payload,
+        Option.None => 255u8,
+    };
+}
+
+verb emit_utf8_value(dat text: Utf8Buffer) -> Int {
+    printlnb(text: abs text.storage);
+    return 0;
+}
+
+verb emit_recalled_text(dat storage: Buffer) -> Int {
+    erg result = utf8_from_buffer(storage: dat storage);
+    return case dat result {
+        Result.Ok(value) => emit_utf8_value(text: dat value),
+        Result.Err(_) => 1,
+    };
+}
+
+verb fill_arena(ins fabric: CorticalFabric[1000]) -> Void {
+    loop {
+        if fabric.active_count >= ARENA_COLUMNS {
+            break;
+        }
+        allocate_column_index(fabric: ins fabric);
+    }
+}
+
+meta limitless("verb")
+verb main() -> Int {
+    erg phrase: String = "Hello Giorgi";
+    erg direct_index: Int = 0;
+    erg direct_result = string_byte_at(text: abs phrase, index: erg direct_index);
+    case dat direct_result {
+        Result.Ok(_) => {},
+        Result.Err(_) => {
+            erg direct_error: String = "IE_STRING direct_byte_error";
+            println(text: abs direct_error);
+            return 1;
+        },
+    };
+    erg token_sequence: TokenSequence = tokenize_string(text: abs phrase);
+    erg phrase_length: u32 = token_sequence.length;
+    if !token_sequence.valid {
+        erg invalid_message: String = "IE_STRING tokenizer_invalid";
+        println(text: abs invalid_message);
+        return 1;
+    }
+    if phrase_length != PHRASE_LENGTH {
+        erg length_message: String = "IE_STRING tokenizer_length_mismatch";
+        println(text: abs length_message);
+        return 1;
+    }
+    erg fabric: CorticalFabric[1000] = CorticalFabric[1000] {columns: Array[Minicolumn, 1000](
+    ), free_list_head: 0u32, active_count: 0u32};
+    fabric_init(fabric: ins fabric);
+    erg root_idx: u32 = allocate_column_index(fabric: ins fabric);
+    erg indices: Array[u32,12] = Array[u32, 12]();
+    erg bytes: Array[u8,12] = Array[u8, 12]();
+    erg started: u64 = monotonic_nanos();
+    erg position: u32 = 0u32;
+    loop {
+        if position >= phrase_length {
+            break;
+        }
+        erg token_id: u32 = token_sequence.tokens[position].id;
+        erg token: u8 = token_id as u8;
+        erg code: TokenCode = encode_token_id(token_id: erg token_id);
+        erg code_low: u64 = code.mask_low;
+        erg code_high: u64 = code.mask_high;
+        erg source_idx: u32 = root_idx;
+        if position >= 8u32 {
+            source_idx = 1u32;
+        }
+        erg wave: Wavefront = Wavefront {mask_low: code_low, mask_high: code_high, energy: 1u8};
+        indices[position] = train_character(
+            fabric: ins fabric,
+            wave: abs wave,
+            source_idx: erg source_idx,
+            payload: erg token
+        );
+        bytes[position] = token;
+        position += 1u32;
+    }
+    fill_arena(fabric: ins fabric);
+    erg trained_at: u64 = monotonic_nanos();
+    erg recalled: u32 = 0u32;
+    erg recalled_bytes: Buffer = Buffer[12];
+    position = 0u32;
+    loop {
+        if position >= phrase_length {
+            break;
+        }
+        erg token_id: u32 = token_sequence.tokens[position].id;
+        erg code: TokenCode = encode_token_id(token_id: erg token_id);
+        erg code_low: u64 = code.mask_low;
+        erg code_high: u64 = code.mask_high;
+        erg wave: Wavefront = Wavefront {mask_low: code_low, mask_high: code_high, energy: 1u8};
+        erg payload: u8 = recall_character(
+            fabric: ins fabric,
+            wave: abs wave,
+            index: erg indices[position]
+        );
+        if payload != 255u8 {
+            erg expected_byte: u8 = bytes[position];
+            if payload == expected_byte {
+                recalled_bytes[position] = payload;
+                recalled += 1u32;
+            }
+        }
+        position += 1u32;
+    }
+    erg finished: u64 = monotonic_nanos();
+    if recalled != phrase_length || fabric.active_count != ARENA_COLUMNS {
+        return 1;
+    }
+    erg title_message: String = "TWIN-E HUMAN DEMO";
+    println(text: abs title_message);
+    erg learned_message: String = "I learned this phrase:";
+    println(text: abs learned_message);
+    erg phrase_message: String = "Hello Giorgi";
+    println(text: abs phrase_message);
+    erg answer_message: String = "I was asked to recall it. My answer is:";
+    println(text: abs answer_message);
+    emit_recalled_text(storage: dat recalled_bytes);
+    erg result_message: String = "Result: 12 of 12 characters recalled correctly.";
+    println(text: abs result_message);
+    erg training_nanos: Int = (trained_at - started) as Int;
+    erg recall_nanos: Int = (finished - trained_at) as Int;
+    erg training_time_message: String = "Training time in nanoseconds:";
+    println(text: abs training_time_message);
+    print_int(value: erg training_nanos);
+    erg recall_time_message: String = "Recall time in nanoseconds:";
+    println(text: abs recall_time_message);
+    print_int(value: erg recall_nanos);
+    return 0;
+}

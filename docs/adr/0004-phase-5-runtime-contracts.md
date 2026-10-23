@@ -144,7 +144,7 @@ the prompt `A`. This proves state continuity through the snapshot API without
 claiming process restart behavior; the separate restart evidence remains part
 of the persistence gates.
 
-The repeatable training benchmark is `benchmarks/aie_training.act`. It reports
+The repeatable training benchmark is `benchmarks/ie_training.act`. It reports
 training duration separately from deterministic fields for processed events,
 allocated columns, active bindings, and snapshot size. Its command, compiler
 digest, conditions, and captured output are recorded in
@@ -158,7 +158,7 @@ tokenizer.
 Observation events are bounded, modality-neutral values. They describe facts
 such as obstacle, distance, person, motion, or direction without depending on
 a camera, board, or device-driver ABI. Sensor adapters convert device data
-into these events; the AIE core consumes only validated events. Action adapters
+into these events; the IE core consumes only validated events. Action adapters
 receive bounded, validated actions such as `stop`, `move`, `turn`, `follow`,
 or `signal`.
 
@@ -187,14 +187,14 @@ flush/save operation.
 The canonical evidence line uses stable `key=value` fields, for example:
 
 ```text
-AIE_P5_CONTRACT profile=integer_v1 brain_format=1 tokenizer=1 context=1 codebook=1 deterministic=1 zero_float=1
+IE_P5_CONTRACT profile=integer_v1 brain_format=1 tokenizer=1 context=1 codebook=1 deterministic=1 zero_float=1
 ```
 
 Hot-path and persistence measurements use separate records:
 
 ```text
-AIE_P5_HOT_PATH inference_ns=<value> training_ns=<value> neurogenesis_ns=<value> disk_writes=0
-AIE_P5_PERSISTENCE save=1 flush_ns=<value> restart_recall=1 recovery=1
+IE_P5_HOT_PATH inference_ns=<value> training_ns=<value> neurogenesis_ns=<value> disk_writes=0
+IE_P5_PERSISTENCE save=1 flush_ns=<value> restart_recall=1 recovery=1
 ```
 
 The placeholders above are a format contract, not unmeasured claims. A result

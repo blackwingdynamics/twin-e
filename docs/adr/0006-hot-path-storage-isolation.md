@@ -96,7 +96,7 @@ Hot-path evidence and persistence evidence must be reported separately. A
 valid P5.1A benchmark records:
 
 ```text
-AIE_HOT_PATH inference_ns=<value> neurogenesis_ns=<value>
+IE_HOT_PATH inference_ns=<value> neurogenesis_ns=<value>
  disk_writes_hot_path=0 dirty_shards=<value> flush_ns=<value>
  committed_generation=<value> recovery=1
 ```

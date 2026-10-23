@@ -1,7 +1,7 @@
 """Bounded length-delimited offline teaching-file ingestion."""
 import adapters;
 
-import aie;
+import ie;
 
 import config;
 

@@ -1,0 +1,1057 @@
+meta limitless("file")
+
+
+"""Prove that runtime shard payloads create, validate, and load three files."""
+import ie;
+
+import std::io;
+
+import std::path;
+
+meta limitless("verb")
+verb append_shard_path_prefix(ins raw: Buffer) {
+    append(raw, 47u8);
+    append(raw, 116u8);
+    append(raw, 109u8);
+    append(raw, 112u8);
+    append(raw, 47u8);
+    append(raw, 116u8);
+    append(raw, 119u8);
+    append(raw, 105u8);
+    append(raw, 110u8);
+    append(raw, 45u8);
+    append(raw, 101u8);
+    append(raw, 45u8);
+    append(raw, 100u8);
+    append(raw, 121u8);
+    append(raw, 110u8);
+    append(raw, 97u8);
+    append(raw, 109u8);
+    append(raw, 105u8);
+    append(raw, 99u8);
+    append(raw, 45u8);
+    append(raw, 115u8);
+    append(raw, 104u8);
+    append(raw, 97u8);
+    append(raw, 114u8);
+    append(raw, 100u8);
+    append(raw, 45u8);
+}
+
+verb make_path(erg suffix: u8) -> Result[Path, PathError] {
+    erg raw = Buffer[0];
+    append_shard_path_prefix(raw: ins raw);
+    append(raw, suffix);
+    append(raw, 46u8);
+    append(raw, 98u8);
+    append(raw, 114u8);
+    append(raw, 97u8);
+    append(raw, 105u8);
+    append(raw, 110u8);
+    append(raw, 0u8);
+    return path_from_ascii(storage: dat raw);
+}
+
+verb make_brain_dir() -> Result[Path, PathError] {
+    erg raw = Buffer[0];
+    append(raw, 47u8);
+    append(raw, 116u8);
+    append(raw, 109u8);
+    append(raw, 112u8);
+    append(raw, 47u8);
+    append(raw, 116u8);
+    append(raw, 119u8);
+    append(raw, 105u8);
+    append(raw, 110u8);
+    append(raw, 45u8);
+    append(raw, 101u8);
+    append(raw, 45u8);
+    append(raw, 100u8);
+    append(raw, 121u8);
+    append(raw, 110u8);
+    append(raw, 97u8);
+    append(raw, 109u8);
+    append(raw, 105u8);
+    append(raw, 99u8);
+    append(raw, 45u8);
+    append(raw, 98u8);
+    append(raw, 114u8);
+    append(raw, 97u8);
+    append(raw, 105u8);
+    append(raw, 110u8);
+    append(raw, 0u8);
+    return path_from_ascii(storage: dat raw);
+}
+
+verb make_payload(erg marker: u8) -> Buffer {
+    erg payload: Buffer = Buffer[0];
+    erg capacity: Int = 128;
+    erg reserved = reserve(buffer: ins payload, capacity: erg capacity);
+    append(payload, marker);
+    erg index: u32 = 1u32;
+    loop {
+        if index >= 128u32 {
+            break;
+        }
+        append(payload, 0u8);
+        index += 1u32;
+    }
+    return payload;
+}
+
+verb write_payload_u32(ins output: Buffer, abs offset: u32, abs value: u32) {
+    output[offset] = (value & 255u32) as u8;
+    output[offset + 1u32] = ((value / 256u32) & 255u32) as u8;
+    output[offset + 2u32] = ((value / 65536u32) & 255u32) as u8;
+    output[offset + 3u32] = ((value / 16777216u32) & 255u32) as u8;
+}
+
+verb write_status(
+    abs path: Path,
+    erg shard_id: u32,
+    erg first_column: u32,
+    abs payload: Buffer
+) -> Int {
+    erg column_count: u32 = 2u32;
+    erg result = write_dynamic_shard(
+        path: abs path,
+        shard_id: erg shard_id,
+        first_column_index: erg first_column,
+        column_count: erg column_count,
+        payload: abs payload
+    );
+    return case dat result {
+        Result.Err(_) => 1,
+        Result.Ok(_) => 0,
+    };
+}
+
+verb validate_status(abs path: Path, erg shard_id: u32, erg first_column: u32) -> Int {
+    erg loaded = read_to_bytes(path: abs path);
+    return case dat loaded {
+        Result.Err(_) => 1,
+        Result.Ok(bytes) => {
+            erg column_count: u32 = 2u32;
+            erg result = validate_dynamic_shard_bytes(
+                bytes: dat bytes,
+                expected_shard_id: erg shard_id,
+                expected_first_column_index: erg first_column,
+                expected_column_count: erg column_count
+            );
+            return case dat result {
+                Result.Err(_) => 2,
+                Result.Ok(_) => 0,
+            };
+        },
+    };
+}
+
+verb verify_staged_shard_publication(abs active_path: Path) -> Int {
+    erg staged_suffix: u8 = 51u8;
+    erg staged_result = make_path(suffix: erg staged_suffix);
+    return case dat staged_result {
+        Result.Err(_) => 20,
+        Result.Ok(staged_path) => {
+            erg marker: u8 = 10u8;
+            erg payload: Buffer = make_payload(marker: erg marker);
+            erg null_index_value: u32 = NULL_INDEX;
+            erg first_link_offset: u32 = 56u32;
+            erg second_link_offset: u32 = 120u32;
+            write_payload_u32(
+                output: ins payload,
+                offset: abs first_link_offset,
+                value: abs null_index_value
+            );
+            write_payload_u32(
+                output: ins payload,
+                offset: abs second_link_offset,
+                value: abs null_index_value
+            );
+            erg shard_id: u32 = 0u32;
+            erg first_column: u32 = 0u32;
+            erg column_count: u32 = 2u32;
+            erg written = flush_dynamic_shard(
+                staged: abs staged_path,
+                active: abs active_path,
+                shard_id: erg shard_id,
+                first_column_index: erg first_column,
+                column_count: erg column_count,
+                payload: abs payload
+            );
+            erg write_status_value: Int = case dat written {
+                Result.Err(_) => 21,
+                Result.Ok(_) => 0,
+            };
+            if write_status_value != 0 {
+                return write_status_value;
+            }
+            return validate_status(
+                path: abs active_path,
+                shard_id: erg shard_id,
+                first_column: erg first_column
+            );
+        },
+    };
+}
+
+verb verify_partial_generation_is_unpublished(abs active_path: Path) -> Int {
+    erg staged_suffix: u8 = 52u8;
+    erg staged_result = make_path(suffix: erg staged_suffix);
+    return case dat staged_result {
+        Result.Err(_) => 30,
+        Result.Ok(staged_path) => {
+            erg marker: u8 = 99u8;
+            erg payload: Buffer = make_payload(marker: erg marker);
+            erg shard_id: u32 = 0u32;
+            erg first_column: u32 = 0u32;
+            erg column_count: u32 = 2u32;
+            erg staged = write_dynamic_shard(
+                path: abs staged_path,
+                shard_id: erg shard_id,
+                first_column_index: erg first_column,
+                column_count: erg column_count,
+                payload: abs payload
+            );
+            case dat staged {
+                Result.Err(_) => 31,
+                Result.Ok(_) => {
+                    erg loaded = read_to_bytes(path: abs staged_path);
+                    case dat loaded {
+                        Result.Err(_) => 32,
+                        Result.Ok(bytes) => {
+                            erg checksum_offset: u32 = 40u32;
+                            bytes[checksum_offset] = bytes[checksum_offset] + 1u8;
+                            erg rewritten = write_file(path: abs staged_path, contents: abs bytes);
+                            case dat rewritten {
+                                Result.Err(_) => 33,
+                                Result.Ok(_) => {
+                                    erg published = publish_dynamic_shard(
+                                        staged: abs staged_path,
+                                        active: abs active_path,
+                                        expected_shard_id: erg shard_id,
+                                        expected_first_column_index: erg first_column,
+                                        expected_column_count: erg column_count
+                                    );
+                                    erg rejected: Bool = case dat published {
+                                        Result.Err(_) => true,
+                                        Result.Ok(_) => false,
+                                    };
+                                    erg active_status: Int = validate_status(
+                                        path: abs active_path,
+                                        shard_id: erg shard_id,
+                                        first_column: erg first_column
+                                    );
+                                    remove_file(path: abs staged_path);
+                                    if !rejected || active_status != 0 {
+                                        return 34;
+                                    }
+                                    erg truncated: Buffer = Buffer[0];
+                                    append(truncated, 0u8);
+                                    erg truncated_write = write_file(path: abs staged_path, contents: abs truncated);
+                                    case dat truncated_write {
+                                        Result.Err(_) => 35,
+                                        Result.Ok(_) => {
+                                            erg truncated_publish = publish_dynamic_shard(
+                                                staged: abs staged_path,
+                                                active: abs active_path,
+                                                expected_shard_id: erg shard_id,
+                                                expected_first_column_index: erg first_column,
+                                                expected_column_count: erg column_count
+                                            );
+                                            erg truncated_rejected: Bool = case dat truncated_publish {
+                                                Result.Err(_) => true,
+                                                Result.Ok(_) => false,
+                                            };
+                                            erg truncated_active_status: Int = validate_status(
+                                                path: abs active_path,
+                                                shard_id: erg shard_id,
+                                                first_column: erg first_column
+                                            );
+                                            remove_file(path: abs staged_path);
+                                            if truncated_rejected && truncated_active_status == 0 {
+                                                return 0;
+                                            }
+                                            return 36;
+                                        },
+                                    };
+                                },
+                            };
+                        },
+                    };
+                },
+            };
+        },
+    };
+}
+
+verb validate_all(
+    abs path_zero: Path,
+    abs path_one: Path,
+    abs path_two: Path,
+    erg zero_id: u32,
+    erg one_id: u32,
+    erg two_id: u32
+) -> Int {
+    erg first_zero: u32 = 0u32;
+    erg first_one: u32 = 2u32;
+    erg first_two: u32 = 4u32;
+    if validate_status(
+        path: abs path_zero,
+        shard_id: erg zero_id,
+        first_column: erg first_zero
+    ) != 0 {
+        return 4;
+    }
+    if validate_status(
+        path: abs path_one,
+        shard_id: erg one_id,
+        first_column: erg first_one
+    ) != 0 {
+        return 5;
+    }
+    if validate_status(
+        path: abs path_two,
+        shard_id: erg two_id,
+        first_column: erg first_two
+    ) != 0 {
+        return 6;
+    }
+    return 0;
+}
+
+verb append_manifest_u32_local(ins output: Buffer, abs value: u32) {
+    append(output, (value & 255u32) as u8);
+    append(output, ((value / 256u32) & 255u32) as u8);
+    append(output, ((value / 65536u32) & 255u32) as u8);
+    append(output, ((value / 16777216u32) & 255u32) as u8);
+}
+
+verb append_manifest_u64_local(ins output: Buffer, abs value: u64) {
+    erg low: u32 = (value & 4294967295u64) as u32;
+    erg high: u32 = (value / 4294967296u64) as u32;
+    append_manifest_u32_local(output: ins output, value: abs low);
+    append_manifest_u32_local(output: ins output, value: abs high);
+}
+
+verb append_manifest_descriptor(
+    ins output: Buffer,
+    erg shard_id: u32,
+    erg checksum: u64
+) {
+    erg first_column: u32 = shard_id * 2u32;
+    erg column_count: u32 = 2u32;
+    erg payload_offset: u32 = 48u32;
+    erg payload_bytes: u32 = 128u32;
+    erg auxiliary_offset: u32 = payload_offset + payload_bytes;
+    erg zero: u32 = 0u32;
+    erg state: u32 = 1u32;
+    append_manifest_u32_local(output: ins output, value: abs shard_id);
+    append_manifest_u32_local(output: ins output, value: abs first_column);
+    append_manifest_u32_local(output: ins output, value: abs column_count);
+    append_manifest_u32_local(output: ins output, value: abs payload_offset);
+    append_manifest_u32_local(output: ins output, value: abs payload_bytes);
+    append_manifest_u32_local(output: ins output, value: abs zero);
+    append_manifest_u32_local(output: ins output, value: abs zero);
+    append_manifest_u32_local(output: ins output, value: abs auxiliary_offset);
+    append_manifest_u32_local(output: ins output, value: abs zero);
+    append_manifest_u64_local(output: ins output, value: abs checksum);
+    append_manifest_u32_local(output: ins output, value: abs state);
+}
+
+verb build_manifest_descriptors() -> Buffer {
+    erg descriptors: Buffer = Buffer[0];
+    erg id_zero: u32 = 0u32;
+    erg id_one: u32 = 1u32;
+    erg id_two: u32 = 2u32;
+    erg checksum_zero: u64 = 184630u64;
+    erg checksum_one: u64 = 124970u64;
+    erg checksum_two: u64 = 59942u64;
+    append_manifest_descriptor(
+        output: ins descriptors,
+        shard_id: erg id_zero,
+        checksum: erg checksum_zero
+    );
+    append_manifest_descriptor(
+        output: ins descriptors,
+        shard_id: erg id_one,
+        checksum: erg checksum_one
+    );
+    append_manifest_descriptor(
+        output: ins descriptors,
+        shard_id: erg id_two,
+        checksum: erg checksum_two
+    );
+    return descriptors;
+}
+
+verb write_manifest_status(abs path: Path) -> Int {
+    erg descriptors: Buffer = build_manifest_descriptors();
+    erg generation: u64 = 1u64;
+    erg active_count: u32 = 3u32;
+    erg free_list_head: u32 = 5u32;
+    erg total_columns: u32 = 6u32;
+    erg shard_count: u32 = 3u32;
+    erg result = write_manifest_dynamic(
+        path: abs path,
+        generation: erg generation,
+        active_count: erg active_count,
+        free_list_head: erg free_list_head,
+        total_column_count: erg total_columns,
+        shard_count: erg shard_count,
+        descriptors: abs descriptors
+    );
+    return case dat result {
+        Result.Err(_) => 7,
+        Result.Ok(_) => 0,
+    };
+}
+
+verb validate_pair(
+    abs manifest_path: Path,
+    abs shard_path: Path,
+    erg descriptor_index: u32
+) -> Int {
+    erg manifest_result = read_to_bytes(path: abs manifest_path);
+    return case dat manifest_result {
+        Result.Err(_) => 8,
+        Result.Ok(manifest) => {
+            erg shard_result = read_to_bytes(path: abs shard_path);
+            return case dat shard_result {
+                Result.Err(_) => 9,
+                Result.Ok(shard) => {
+                    erg result = validate_dynamic_manifest_shard(
+                        manifest: abs manifest,
+                        shard: dat shard,
+                        descriptor_index: erg descriptor_index
+                    );
+                    return case dat result {
+                        Result.Err(_) => 1,
+                        Result.Ok(_) => 0,
+                    };
+                },
+            };
+        },
+    };
+}
+
+verb load_pair(
+    ins fabric: CorticalFabric[64],
+    abs shard_path: Path,
+    erg shard_id: u32,
+    erg first_column: u32
+) -> Int {
+    erg loaded = read_to_bytes(path: abs shard_path);
+    return case dat loaded {
+        Result.Err(_) => 1,
+        Result.Ok(bytes) => {
+            erg column_count: u32 = 2u32;
+            erg destination_index: u32 = 0u32;
+            erg result = load_dynamic_shard_bytes(
+                fabric: ins fabric,
+                bytes: dat bytes,
+                destination_index: erg destination_index,
+                expected_shard_id: erg shard_id,
+                expected_first_column_index: erg first_column,
+                expected_column_count: erg column_count
+            );
+            return case dat result {
+                Result.Err(_) => 2,
+                Result.Ok(_) => 0,
+            };
+        },
+    };
+}
+
+verb verify_load_plan(abs value: DynamicLoadPlan) -> Int {
+    if value.shard_id != 1u32 || value.local_index != 0u32 {
+        return 19;
+    }
+    return 0;
+}
+
+verb load_planned_shard(
+    ins fabric: CorticalFabric[64],
+    abs shard_path: Path,
+    abs plan: DynamicLoadPlan
+) -> Int {
+    erg loaded = read_to_bytes(path: abs shard_path);
+    return case dat loaded {
+        Result.Err(_) => 17,
+        Result.Ok(shard) => {
+            erg result = load_dynamic_from_plan(
+                fabric: ins fabric,
+                shard: dat shard,
+                plan: abs plan
+            );
+            return case dat result {
+                Result.Err(_) => 18,
+                Result.Ok(_) => 0,
+            };
+        },
+    };
+}
+
+verb load_verified_plan(
+    ins fabric: CorticalFabric[64],
+    abs shard_path: Path,
+    abs plan: DynamicLoadPlan
+) -> Int {
+    if verify_load_plan(value: abs plan) != 0 {
+        return 19;
+    }
+    return load_planned_shard(
+        fabric: ins fabric,
+        shard_path: abs shard_path,
+        plan: abs plan
+    );
+}
+
+verb load_manifest_pair(
+    ins fabric: CorticalFabric[64],
+    abs manifest_path: Path,
+    abs shard_path: Path,
+    erg global_index: u32
+) -> Int {
+    erg manifest_result = read_to_bytes(path: abs manifest_path);
+    return case dat manifest_result {
+        Result.Err(_) => 16,
+        Result.Ok(manifest) => {
+            erg plan_result = plan_dynamic_load(manifest: abs manifest, global_index: erg global_index);
+            return case dat plan_result {
+                Result.Err(_) => 18,
+                Result.Ok(plan) => load_verified_plan(
+                    fabric: ins fabric,
+                    shard_path: abs shard_path,
+                    plan: abs plan
+                ),
+            };
+        },
+    };
+}
+
+verb verify_dynamic_loader(abs manifest_path: Path, abs brain_dir: Path) -> Int {
+    erg fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](), free_list_head: 0u32, active_count: 0u32};
+    fabric_init(fabric: ins fabric);
+    erg query: u32 = 2u32;
+    erg dynamic_shard_count: u32 = 3u32;
+    erg loaded = load_column_from_dynamic_shards(
+        fabric: ins fabric,
+        manifest_path: abs manifest_path,
+        brain_dir: abs brain_dir,
+        shard_count: erg dynamic_shard_count,
+        global_index: erg query
+    );
+    erg load_status: Int = case dat loaded {
+        Result.Err(_) => 14,
+        Result.Ok(_) => 0,
+    };
+    if load_status != 0 {
+        return load_status;
+    }
+    if fabric.columns[0u32].storage[0u32] != 20u8 {
+        return 14;
+    }
+    erg invalid_shard_count: u32 = 1u32;
+    erg invalid_loaded = load_column_from_dynamic_shards(
+        fabric: ins fabric,
+        manifest_path: abs manifest_path,
+        brain_dir: abs brain_dir,
+        shard_count: erg invalid_shard_count,
+        global_index: erg query
+    );
+    erg invalid_status: Int = case dat invalid_loaded {
+        Result.Err(_) => 1,
+        Result.Ok(_) => 0,
+    };
+    if invalid_status == 0 {
+        return 15;
+    }
+    return 0;
+}
+
+verb verify_free_head_plan(abs value: AllocationPlan) -> Int {
+    if value.global_index != 5u32 || value.shard_id != 2u32 || value.local_index != 1u32 || value.creates_shard {
+        return 20;
+    }
+    return 0;
+}
+
+verb read_free_link_path(abs path: Path, erg local_index: u32) -> Result[u32, IoError] {
+    erg loaded = read_to_bytes(path: abs path);
+    return case dat loaded {
+        Result.Err(_) => Err(IoError.Failed),
+        Result.Ok(bytes) => {
+            erg count: u32 = 2u32;
+            return dynamic_shard_free_link(
+                bytes: abs bytes,
+                local_index: erg local_index,
+                expected_column_count: erg count
+            );
+        },
+    };
+}
+
+verb verify_free_links(abs path_zero: Path, abs path_one: Path, abs path_two: Path) -> Int {
+    erg local_one: u32 = 1u32;
+    erg local_zero: u32 = 0u32;
+    erg link_two = read_free_link_path(path: abs path_two, local_index: erg local_one);
+    erg link_two_value: u32 = case dat link_two {
+        Result.Err(_) => NULL_INDEX,
+        Result.Ok(value) => value,
+    };
+    if link_two_value != 2u32 {
+        return 21;
+    }
+    erg link_one = read_free_link_path(path: abs path_one, local_index: erg local_zero);
+    erg link_one_value: u32 = case dat link_one {
+        Result.Err(_) => NULL_INDEX,
+        Result.Ok(value) => value,
+    };
+    if link_one_value != 0u32 {
+        return 22;
+    }
+    erg link_zero = read_free_link_path(path: abs path_zero, local_index: erg local_zero);
+    erg link_zero_value: u32 = case dat link_zero {
+        Result.Err(_) => 0u32,
+        Result.Ok(value) => value,
+    };
+    if link_zero_value != NULL_INDEX {
+        return 23;
+    }
+    return 0;
+}
+
+verb verify_planned_free_chain(
+    abs value: AllocationPlan,
+    abs path_zero: Path,
+    abs path_one: Path,
+    abs path_two: Path
+) -> Int {
+    erg plan_status: Int = verify_free_head_plan(value: abs value);
+    if plan_status != 0 {
+        return plan_status;
+    }
+    return verify_free_links(
+        path_zero: abs path_zero,
+        path_one: abs path_one,
+        path_two: abs path_two
+    );
+}
+
+verb verify_free_chain(
+    abs manifest_path: Path,
+    abs path_zero: Path,
+    abs path_one: Path,
+    abs path_two: Path
+) -> Int {
+    erg loaded = read_to_bytes(path: abs manifest_path);
+    return case dat loaded {
+        Result.Err(_) => 24,
+        Result.Ok(manifest) => {
+            erg planned = plan_dynamic_free_list(bytes: abs manifest);
+            return case dat planned {
+                Result.Err(_) => 25,
+                Result.Ok(value) => verify_planned_free_chain(
+                    value: abs value,
+                    path_zero: abs path_zero,
+                    path_one: abs path_one,
+                    path_two: abs path_two
+                ),
+            };
+        },
+    };
+}
+
+verb load_arena_shard(
+    ins fabric: CorticalFabric[64],
+    abs path: Path,
+    erg shard_id: u32,
+    erg first_column: u32,
+    erg destination_index: u32
+) -> Int {
+    erg loaded = read_to_bytes(path: abs path);
+    return case dat loaded {
+        Result.Err(_) => 26,
+        Result.Ok(bytes) => {
+            erg count: u32 = 2u32;
+            erg result = load_dynamic_shard_bytes(
+                fabric: ins fabric,
+                bytes: dat bytes,
+                destination_index: erg destination_index,
+                expected_shard_id: erg shard_id,
+                expected_first_column_index: erg first_column,
+                expected_column_count: erg count
+            );
+            return case dat result {
+                Result.Err(_) => 27,
+                Result.Ok(_) => 0,
+            };
+        },
+    };
+}
+
+verb restore_allocator(ins fabric: CorticalFabric[64], abs manifest_path: Path) -> Int {
+    erg loaded = read_to_bytes(path: abs manifest_path);
+    return case dat loaded {
+        Result.Err(_) => 28,
+        Result.Ok(bytes) => {
+            fabric.free_list_head = dynamic_manifest_free_list_head(bytes: abs bytes);
+            fabric.active_count = dynamic_manifest_active_count(bytes: abs bytes);
+            return 0;
+        },
+    };
+}
+
+verb expect_index(erg actual: u32, erg expected: u32) -> Int {
+    if actual != expected {
+        return 29;
+    }
+    return 0;
+}
+
+verb verify_reallocation_cycle(
+    abs manifest_path: Path,
+    abs path_zero: Path,
+    abs path_one: Path,
+    abs path_two: Path
+) -> Int {
+    erg fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](), free_list_head: 0u32, active_count: 0u32};
+    fabric_init(fabric: ins fabric);
+    erg zero_id: u32 = 0u32;
+    erg one_id: u32 = 1u32;
+    erg two_id: u32 = 2u32;
+    erg zero_first: u32 = 0u32;
+    erg one_first: u32 = 2u32;
+    erg two_first: u32 = 4u32;
+    erg zero_destination: u32 = 0u32;
+    erg one_destination: u32 = 2u32;
+    erg two_destination: u32 = 4u32;
+    erg zero_loaded = load_arena_shard(
+        fabric: ins fabric,
+        path: abs path_zero,
+        shard_id: erg zero_id,
+        first_column: erg zero_first,
+        destination_index: erg zero_destination
+    );
+    erg one_loaded = load_arena_shard(
+        fabric: ins fabric,
+        path: abs path_one,
+        shard_id: erg one_id,
+        first_column: erg one_first,
+        destination_index: erg one_destination
+    );
+    erg two_loaded = load_arena_shard(
+        fabric: ins fabric,
+        path: abs path_two,
+        shard_id: erg two_id,
+        first_column: erg two_first,
+        destination_index: erg two_destination
+    );
+    erg load_status: Int = 0;
+    if zero_loaded != 0 || one_loaded != 0 || two_loaded != 0 {
+        load_status = 30;
+    }
+    if load_status != 0 {
+        return 30;
+    }
+    if restore_allocator(fabric: ins fabric, manifest_path: abs manifest_path) != 0 {
+        return 31;
+    }
+    erg first_allocated: u32 = allocate_column_index(fabric: ins fabric);
+    erg second_allocated: u32 = allocate_column_index(fabric: ins fabric);
+    erg third_allocated: u32 = allocate_column_index(fabric: ins fabric);
+    erg expected_first: u32 = 5u32;
+    erg expected_second: u32 = 2u32;
+    erg expected_third: u32 = 0u32;
+    if expect_index(actual: erg first_allocated, expected: erg expected_first) != 0 || expect_index(
+        actual: erg second_allocated,
+        expected: erg expected_second
+    ) != 0 || expect_index(actual: erg third_allocated, expected: erg expected_third) != 0 {
+        return 32;
+    }
+    free_column(fabric: ins fabric, slot: erg second_allocated);
+    erg reallocated: u32 = allocate_column_index(fabric: ins fabric);
+    erg expected_reallocated: u32 = 2u32;
+    if expect_index(actual: erg reallocated, expected: erg expected_reallocated) != 0 || fabric.active_count != 6u32 {
+        return 33;
+    }
+    return 0;
+}
+
+verb verify_manifest_bindings(
+    abs manifest_path: Path,
+    abs path_zero: Path,
+    abs path_one: Path,
+    abs path_two: Path
+) -> Int {
+    if write_manifest_status(path: abs manifest_path) != 0 {
+        return 10;
+    }
+    erg index_zero: u32 = 0u32;
+    erg index_one: u32 = 1u32;
+    erg valid_zero: Int = validate_pair(
+        manifest_path: abs manifest_path,
+        shard_path: abs path_zero,
+        descriptor_index: erg index_zero
+    );
+    if valid_zero != 0 {
+        return 11;
+    }
+    erg swapped: Int = validate_pair(
+        manifest_path: abs manifest_path,
+        shard_path: abs path_one,
+        descriptor_index: erg index_zero
+    );
+    if swapped == 0 {
+        return 12;
+    }
+    erg valid_one: Int = validate_pair(
+        manifest_path: abs manifest_path,
+        shard_path: abs path_one,
+        descriptor_index: erg index_one
+    );
+    if valid_one != 0 {
+        return 13;
+    }
+    return 0;
+}
+
+verb write_all(abs path_zero: Path, abs path_one: Path, abs path_two: Path) -> Int {
+    erg marker_zero: u8 = 10u8;
+    erg marker_one: u8 = 20u8;
+    erg marker_two: u8 = 30u8;
+    erg payload_zero: Buffer = make_payload(marker: erg marker_zero);
+    erg payload_one: Buffer = make_payload(marker: erg marker_one);
+    erg payload_two: Buffer = make_payload(marker: erg marker_two);
+    erg null_index_value: u32 = NULL_INDEX;
+    erg first_free_global: u32 = 0u32;
+    erg second_free_global: u32 = 2u32;
+    erg first_link_offset: u32 = 56u32;
+    erg second_link_offset: u32 = 120u32;
+    write_payload_u32(
+        output: ins payload_zero,
+        offset: abs first_link_offset,
+        value: abs null_index_value
+    );
+    write_payload_u32(
+        output: ins payload_zero,
+        offset: abs second_link_offset,
+        value: abs null_index_value
+    );
+    write_payload_u32(
+        output: ins payload_one,
+        offset: abs first_link_offset,
+        value: abs first_free_global
+    );
+    write_payload_u32(
+        output: ins payload_one,
+        offset: abs second_link_offset,
+        value: abs null_index_value
+    );
+    write_payload_u32(
+        output: ins payload_two,
+        offset: abs first_link_offset,
+        value: abs null_index_value
+    );
+    write_payload_u32(
+        output: ins payload_two,
+        offset: abs second_link_offset,
+        value: abs second_free_global
+    );
+    erg zero_id: u32 = 0u32;
+    erg one_id: u32 = 1u32;
+    erg two_id: u32 = 2u32;
+    erg first_zero: u32 = 0u32;
+    erg first_one: u32 = 2u32;
+    erg first_two: u32 = 4u32;
+    erg zero_status: Int = write_status(
+        path: abs path_zero,
+        shard_id: erg zero_id,
+        first_column: erg first_zero,
+        payload: abs payload_zero
+    );
+    if zero_status != 0 {
+        return 1;
+    }
+    erg one_status: Int = write_status(
+        path: abs path_one,
+        shard_id: erg one_id,
+        first_column: erg first_one,
+        payload: abs payload_one
+    );
+    if one_status != 0 {
+        return 2;
+    }
+    erg two_status: Int = write_status(
+        path: abs path_two,
+        shard_id: erg two_id,
+        first_column: erg first_two,
+        payload: abs payload_two
+    );
+    if two_status != 0 {
+        return 3;
+    }
+    return 0;
+}
+
+verb run_paths(
+    abs brain_dir: Path,
+    abs path_zero: Path,
+    abs path_one: Path,
+    abs path_two: Path,
+    abs manifest_path: Path
+) -> Int {
+    erg write_status_all: Int = write_all(
+        path_zero: abs path_zero,
+        path_one: abs path_one,
+        path_two: abs path_two
+    );
+    if write_status_all != 0 {
+        return write_status_all;
+    }
+    erg staged_status: Int = verify_staged_shard_publication(active_path: abs path_zero);
+    if staged_status != 0 {
+        return staged_status;
+    }
+    erg partial_status: Int = verify_partial_generation_is_unpublished(active_path: abs path_zero);
+    if partial_status != 0 {
+        return partial_status;
+    }
+    erg zero_id: u32 = 0u32;
+    erg one_id: u32 = 1u32;
+    erg two_id: u32 = 2u32;
+    erg validation_status: Int = validate_all(
+        path_zero: abs path_zero,
+        path_one: abs path_one,
+        path_two: abs path_two,
+        zero_id: erg zero_id,
+        one_id: erg one_id,
+        two_id: erg two_id
+    );
+    if validation_status != 0 {
+        return validation_status;
+    }
+    erg manifest_status: Int = verify_manifest_bindings(
+        manifest_path: abs manifest_path,
+        path_zero: abs path_zero,
+        path_one: abs path_one,
+        path_two: abs path_two
+    );
+    if manifest_status != 0 {
+        return manifest_status;
+    }
+    erg loader_status: Int = verify_dynamic_loader(manifest_path: abs manifest_path, brain_dir: abs brain_dir);
+    if loader_status != 0 {
+        return loader_status;
+    }
+    erg chain_status: Int = verify_free_chain(
+        manifest_path: abs manifest_path,
+        path_zero: abs path_zero,
+        path_one: abs path_one,
+        path_two: abs path_two
+    );
+    if chain_status != 0 {
+        return chain_status;
+    }
+    erg cycle_status: Int = verify_reallocation_cycle(
+        manifest_path: abs manifest_path,
+        path_zero: abs path_zero,
+        path_one: abs path_one,
+        path_two: abs path_two
+    );
+    if cycle_status != 0 {
+        return cycle_status;
+    }
+    erg message: String = "IE_SHARDS_DYNAMIC files=3 generated=1 staged_shard=1 validated=3 partial_rejected=1 truncated_rejected=1 active_unchanged=1 manifest_bound=2 swapped_rejected=1 dynamic_loaded=1 dynamic_collection=3 manifest_selected=1 dynamic_failed_unchanged=1 free_chain=5-2-0-null reallocated=2 payload_bytes=128";
+    println(text: abs message);
+    return 0;
+}
+
+verb run_with_brain_dir(abs brain_dir: Path) -> Int {
+    erg zero_id: u32 = 0u32;
+    erg one_id: u32 = 1u32;
+    erg two_id: u32 = 2u32;
+    erg path_zero_result = persistence_format_shard_path(brain_dir: abs brain_dir, shard_id: erg zero_id);
+    return case dat path_zero_result {
+        Result.Err(_) => 2,
+        Result.Ok(path_zero) => {
+            erg path_one_result = persistence_format_shard_path(brain_dir: abs brain_dir, shard_id: erg one_id);
+            return case dat path_one_result {
+                Result.Err(_) => 3,
+                Result.Ok(path_one) => {
+                    erg path_two_result = persistence_format_shard_path(brain_dir: abs brain_dir, shard_id: erg two_id);
+                    return case dat path_two_result {
+                        Result.Err(_) => 4,
+                        Result.Ok(path_two) => {
+                            erg manifest_result = persistence_manifest_path(brain_dir: abs brain_dir);
+                            return case dat manifest_result {
+                                Result.Err(_) => 5,
+                                Result.Ok(manifest_path) => run_paths(
+                                    brain_dir: abs brain_dir,
+                                    path_zero: abs path_zero,
+                                    path_one: abs path_one,
+                                    path_two: abs path_two,
+                                    manifest_path: abs manifest_path
+                                ),
+                            };
+                        },
+                    };
+                },
+            };
+        },
+    };
+}
+
+verb cleanup_brain_dir(abs brain_dir: Path) {
+    erg zero_id: u32 = 0u32;
+    erg one_id: u32 = 1u32;
+    erg two_id: u32 = 2u32;
+    erg zero_path = persistence_format_shard_path(brain_dir: abs brain_dir, shard_id: erg zero_id);
+    case dat zero_path {
+        Result.Err(_) => {},
+        Result.Ok(path) => {
+            remove_file(path: abs path);
+        },
+    };
+    erg one_path = persistence_format_shard_path(brain_dir: abs brain_dir, shard_id: erg one_id);
+    case dat one_path {
+        Result.Err(_) => {},
+        Result.Ok(path) => {
+            remove_file(path: abs path);
+        },
+    };
+    erg two_path = persistence_format_shard_path(brain_dir: abs brain_dir, shard_id: erg two_id);
+    case dat two_path {
+        Result.Err(_) => {},
+        Result.Ok(path) => {
+            remove_file(path: abs path);
+        },
+    };
+    erg manifest_path = persistence_manifest_path(brain_dir: abs brain_dir);
+    case dat manifest_path {
+        Result.Err(_) => {},
+        Result.Ok(path) => {
+            remove_file(path: abs path);
+        },
+    };
+    remove_dir(path: abs brain_dir);
+}
+
+verb main() -> Int {
+    erg brain_dir_result = make_brain_dir();
+    return case dat brain_dir_result {
+        Result.Err(_) => 1,
+        Result.Ok(brain_dir) => {
+            cleanup_brain_dir(brain_dir: abs brain_dir);
+            erg created = create_dir(path: abs brain_dir);
+            return case dat created {
+                Result.Err(_) => 2,
+                Result.Ok(_) => {
+                    erg status = run_with_brain_dir(brain_dir: abs brain_dir);
+                    cleanup_brain_dir(brain_dir: abs brain_dir);
+                    status;
+                },
+            };
+        },
+    };
+}

@@ -20,26 +20,26 @@ CPU frequency scaling was active during the run. The numbers must therefore
 be treated as a baseline for this machine and profile, not as fixed latency
 guarantees.
 
-## AIE core baseline
+## IE core baseline
 
 Command:
 
 ```sh
-actus fmt --check benchmarks/aie_p3_3.act
-actus build benchmarks/aie_p3_3.act --strict --emit exe \
-  -o /tmp/twin-e-p5-6-aie-baseline.aie
-/tmp/twin-e-p5-6-aie-baseline.aie
+actus fmt --check benchmarks/ie_p3_3.act
+actus build benchmarks/ie_p3_3.act --strict --emit exe \
+  -o /tmp/twin-e-p5-6-ie-baseline.ie
+/tmp/twin-e-p5-6-ie-baseline.ie
 ```
 
 Output:
 
 ```text
 verified generated native IR: no floating-point instructions
-AIE_BENCH iterations=10000 arena_columns=64
-AIE_BENCH coincidence_ns=684293
-AIE_BENCH forwarding_8axon_ns=3852296
-AIE_BENCH free_list_ns=148345
-AIE_BENCH full_step_ns=4465076
+IE_BENCH iterations=10000 arena_columns=64
+IE_BENCH coincidence_ns=684293
+IE_BENCH forwarding_8axon_ns=3852296
+IE_BENCH free_list_ns=148345
+IE_BENCH full_step_ns=4465076
 ```
 
 These are aggregate timings for 10,000 iterations. Dividing by the iteration
@@ -53,21 +53,21 @@ claims.
 Command:
 
 ```sh
-actus fmt --check benchmarks/aie_training.act
-actus build benchmarks/aie_training.act --strict --emit exe \
-  -o /tmp/twin-e-p5-6-training.aie
-/tmp/twin-e-p5-6-training.aie
+actus fmt --check benchmarks/ie_training.act
+actus build benchmarks/ie_training.act --strict --emit exe \
+  -o /tmp/twin-e-p5-6-training.ie
+/tmp/twin-e-p5-6-training.ie
 ```
 
 Output:
 
 ```text
 verified generated native IR: no floating-point instructions
-AIE_TRAINING events=32 recall_profile=AB bounded=1
-AIE_TRAINING training_ns=11695
-AIE_TRAINING allocated_columns=3
-AIE_TRAINING active_bindings=3
-AIE_TRAINING snapshot_bytes=5702
+IE_TRAINING events=32 recall_profile=AB bounded=1
+IE_TRAINING training_ns=11695
+IE_TRAINING allocated_columns=3
+IE_TRAINING active_bindings=3
+IE_TRAINING snapshot_bytes=5702
 ```
 
 ## Generation baseline
@@ -75,19 +75,19 @@ AIE_TRAINING snapshot_bytes=5702
 Command:
 
 ```sh
-actus fmt --check benchmarks/aie_generation.act
-actus build benchmarks/aie_generation.act --strict --emit exe \
-  -o /tmp/twin-e-p5-6-generation.aie
-/tmp/twin-e-p5-6-generation.aie
+actus fmt --check benchmarks/ie_generation.act
+actus build benchmarks/ie_generation.act --strict --emit exe \
+  -o /tmp/twin-e-p5-6-generation.ie
+/tmp/twin-e-p5-6-generation.ie
 ```
 
 Output:
 
 ```text
 verified generated native IR: no floating-point instructions
-AIE_GENERATION generated=2 decoded_bytes=1 termination=eos \
+IE_GENERATION generated=2 decoded_bytes=1 termination=eos \
 cycle_generated=3 loop_guard=1 selected=highest_myelination
-AIE_GENERATION generation_ns=26709
+IE_GENERATION generation_ns=26709
 ```
 
 ## Acceptance boundary
@@ -103,28 +103,28 @@ The host filesystem recovery fixtures were also executed under the same strict
 compiler profile:
 
 ```sh
-actus fmt --check benchmarks/aie_shard_bindings_dynamic.act
+actus fmt --check benchmarks/ie_shard_bindings_dynamic.act
 actus build --strict --emit exe \
-  -o /tmp/twin-e-p5-6-save.aie \
-  benchmarks/aie_shard_bindings_dynamic.act
-/tmp/twin-e-p5-6-save.aie
+  -o /tmp/twin-e-p5-6-save.ie \
+  benchmarks/ie_shard_bindings_dynamic.act
+/tmp/twin-e-p5-6-save.ie
 
-actus fmt --check benchmarks/aie_shards_dynamic.act
+actus fmt --check benchmarks/ie_shards_dynamic.act
 actus build --strict --emit exe \
-  -o /tmp/twin-e-p5-6-recovery.aie \
-  benchmarks/aie_shards_dynamic.act
-/tmp/twin-e-p5-6-recovery.aie
+  -o /tmp/twin-e-p5-6-recovery.ie \
+  benchmarks/ie_shards_dynamic.act
+/tmp/twin-e-p5-6-recovery.ie
 ```
 
 Observed output:
 
 ```text
-AIE_BINDING_STAGE previous_generation_preserved
-AIE_BINDING_STAGE dirty_after_failed_save
-AIE_BINDING_STAGE validation_rejected error=IoError.InvalidData status=13
-AIE_BINDING_STAGE persisted_after_successful_save
-AIE_BINDING_STAGE payload_bindings_checksum_metadata_ok
-AIE_SHARDS_DYNAMIC files=3 generated=1 staged_shard=1 validated=3 manifest_bound=2 swapped_rejected=1 dynamic_loaded=1 dynamic_collection=3 manifest_selected=1 dynamic_failed_unchanged=1 free_chain=5-2-0-null reallocated=2 payload_bytes=128
+IE_BINDING_STAGE previous_generation_preserved
+IE_BINDING_STAGE dirty_after_failed_save
+IE_BINDING_STAGE validation_rejected error=IoError.InvalidData status=13
+IE_BINDING_STAGE persisted_after_successful_save
+IE_BINDING_STAGE payload_bindings_checksum_metadata_ok
+IE_SHARDS_DYNAMIC files=3 generated=1 staged_shard=1 validated=3 manifest_bound=2 swapped_rejected=1 dynamic_loaded=1 dynamic_collection=3 manifest_selected=1 dynamic_failed_unchanged=1 free_chain=5-2-0-null reallocated=2 payload_bytes=128
 ```
 
 This proves the staged publication and incomplete-generation recovery contract
@@ -146,11 +146,11 @@ pack-backed `CorticalFabric[N]` through an `ins` parameter and is built with
 the Actus native lowering fix recorded in ADR-0072.
 
 ```sh
-actus fmt --check benchmarks/aie_scale_sweep.act
-actus check --strict benchmarks/aie_scale_sweep.act
-actus build --strict --emit exe benchmarks/aie_scale_sweep.act \
-  -o /tmp/twin-e-scale-sweep.aie
-/tmp/twin-e-scale-sweep.aie
+actus fmt --check benchmarks/ie_scale_sweep.act
+actus check --strict benchmarks/ie_scale_sweep.act
+actus build --strict --emit exe benchmarks/ie_scale_sweep.act \
+  -o /tmp/twin-e-scale-sweep.ie
+/tmp/twin-e-scale-sweep.ie
 ```
 
 Compiler digest:
@@ -169,11 +169,11 @@ each value on its own line):
 
 ```text
 verified generated native IR: no floating-point instructions
-AIE_SCALE columns=64
+IE_SCALE columns=64
  elapsed_ns=720423
-AIE_SCALE columns=256
+IE_SCALE columns=256
  elapsed_ns=710475
-AIE_SCALE columns=1024
+IE_SCALE columns=1024
  elapsed_ns=701248
 ```
 
@@ -196,15 +196,15 @@ cpu=Intel(R) Core(TM) i7-14700KF
 logical_cpus=28
 compiler_sha256=f8f3a659e3b8a589018a833559ead567b2ad5dd0742192b656c1bf5d69dc0430
 
-AIE_SCALE columns=64 elapsed_ns=470344
-AIE_SCALE columns=256 elapsed_ns=462497
-AIE_SCALE columns=1024 elapsed_ns=480865
-AIE_HOT_PATH samples=64 filesystem_writes=0
+IE_SCALE columns=64 elapsed_ns=470344
+IE_SCALE columns=256 elapsed_ns=462497
+IE_SCALE columns=1024 elapsed_ns=480865
+IE_HOT_PATH samples=64 filesystem_writes=0
  inference_clean_ns=10500
  inference_dirty_ns=9902
  neurogenesis_clean_ns=21149
  neurogenesis_dirty_ns=22333
-AIE_HOT_PATH_RESIDENT_LOOKUP iterations=10000 filesystem_calls=0
+IE_HOT_PATH_RESIDENT_LOOKUP iterations=10000 filesystem_calls=0
  clean_ns=199820
  dirty_ns=212370
 ```
@@ -248,22 +248,22 @@ compiler_sha256=14181544766f3b8af67bc48b73170a339ff857cadcb2a1ff9c75bc6732d7fdb2
 target=host
 profile=debug
 
-AIE_BENCH iterations=10000 arena_columns=64
-AIE_BENCH coincidence_ns=687733
-AIE_BENCH forwarding_8axon_ns=3825425
-AIE_BENCH free_list_ns=147404
-AIE_BENCH full_step_ns=4445861
-AIE_TRAINING events=32 recall_profile=AB bounded=1
-AIE_TRAINING training_ns=13078
-AIE_TRAINING allocated_columns=3 active_bindings=3 snapshot_bytes=5702
-AIE_GENERATION generated=2 decoded_bytes=1 termination=eos cycle_generated=3
+IE_BENCH iterations=10000 arena_columns=64
+IE_BENCH coincidence_ns=687733
+IE_BENCH forwarding_8axon_ns=3825425
+IE_BENCH free_list_ns=147404
+IE_BENCH full_step_ns=4445861
+IE_TRAINING events=32 recall_profile=AB bounded=1
+IE_TRAINING training_ns=13078
+IE_TRAINING allocated_columns=3 active_bindings=3 snapshot_bytes=5702
+IE_GENERATION generated=2 decoded_bytes=1 termination=eos cycle_generated=3
 loop_guard=1 selected=highest_myelination
-AIE_GENERATION generation_ns=45934
-AIE_HOT_PATH_RESIDENT_LOOKUP iterations=10000 filesystem_calls=0
-AIE_HOT_PATH_RESIDENT_LOOKUP clean_ns=307346 dirty_ns=215276
-AIE_CACHE capacity=4 working_set=4 dirty_rejected=1 pinned_rejected=1
+IE_GENERATION generation_ns=45934
+IE_HOT_PATH_RESIDENT_LOOKUP iterations=10000 filesystem_calls=0
+IE_HOT_PATH_RESIDENT_LOOKUP clean_ns=307346 dirty_ns=215276
+IE_CACHE capacity=4 working_set=4 dirty_rejected=1 pinned_rejected=1
 clean_evicted=1 replacement=1 full_pressure_rejected=1
-AIE_SCALE small_write_ns=41308 medium_write_ns=21869 large_write_ns=52917
+IE_SCALE small_write_ns=41308 medium_write_ns=21869 large_write_ns=52917
 sequential_ns=20050 random_lookup_ns=4233 selective_load_ns=2553
 flush_ns=20819 restart_validation_ns=4841 files=3 max_profile_columns=32
 ```

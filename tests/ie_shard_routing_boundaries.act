@@ -1,0 +1,233 @@
+"""Executable boundary and non-mutation evidence for logical shard routing."""
+import ie;
+
+import config;
+
+import encoding;
+
+verb round_trip_boundary_index(
+    erg candidate: u32,
+    erg expected_shard: u32,
+    erg expected_local: u32
+) -> Int {
+    erg location = logical_column_location(global_index: erg candidate);
+    return case dat location {
+        Result.Err(_) => 1,
+        Result.Ok(value) => {
+            if value.shard_id != expected_shard || value.local_index != expected_local {
+                return 2;
+            }
+            erg rebuilt_shard_id: u32 = value.shard_id;
+            erg rebuilt_local_index: u32 = value.local_index;
+            erg rebuilt = logical_global_index(shard_id: erg rebuilt_shard_id, local_index: erg rebuilt_local_index);
+            return case dat rebuilt {
+                Result.Err(_) => 3,
+                Result.Ok(index) => {
+                    if index != candidate {
+                        return 4;
+                    }
+                    0;
+                },
+            };
+        },
+    };
+}
+
+verb test_zero_boundary() -> Int {
+    erg zero_index: u32 = 0u32;
+    erg first_shard_id: u32 = 0u32;
+    erg first_local_index: u32 = 0u32;
+    return round_trip_boundary_index(
+        candidate: erg zero_index,
+        expected_shard: erg first_shard_id,
+        expected_local: erg first_local_index
+    );
+}
+
+verb test_first_shard_boundary() -> Int {
+    erg first_shard_last: u32 = BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY - 1u32;
+    erg first_shard_last_id: u32 = 0u32;
+    erg first_shard_last_local: u32 = BRAIN_LOGICAL_SHARD_MASK;
+    return round_trip_boundary_index(
+        candidate: erg first_shard_last,
+        expected_shard: erg first_shard_last_id,
+        expected_local: erg first_shard_last_local
+    );
+}
+
+verb test_second_shard_boundary() -> Int {
+    erg second_shard_first: u32 = BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY;
+    erg second_shard_id: u32 = 1u32;
+    erg second_shard_local: u32 = 0u32;
+    return round_trip_boundary_index(
+        candidate: erg second_shard_first,
+        expected_shard: erg second_shard_id,
+        expected_local: erg second_shard_local
+    );
+}
+
+verb test_terminal_routing_boundary() -> Int {
+    erg last_index: u32 = BRAIN_LOGICAL_MAX_COLUMNS - 1u32;
+    erg last_shard_id: u32 = BRAIN_LOGICAL_MAX_SHARDS - 1u32;
+    erg last_local_index: u32 = BRAIN_LOGICAL_SHARD_MASK;
+    return round_trip_boundary_index(
+        candidate: erg last_index,
+        expected_shard: erg last_shard_id,
+        expected_local: erg last_local_index
+    );
+}
+
+meta test
+verb test_logical_shard_routing_round_trips_all_boundaries() -> Int {
+    erg zero_status: Int = test_zero_boundary();
+    if zero_status != 0 {
+        return zero_status;
+    }
+    erg first_status: Int = test_first_shard_boundary();
+    if first_status != 0 {
+        return first_status + 10;
+    }
+    erg second_status: Int = test_second_shard_boundary();
+    if second_status != 0 {
+        return second_status + 20;
+    }
+    return test_terminal_routing_boundary();
+}
+
+meta test
+verb test_logical_shard_routing_rejects_unknown_shard_and_overflowed_indexes() -> Int {
+    erg unknown_shard: u32 = BRAIN_LOGICAL_MAX_SHARDS;
+    erg unknown_local: u32 = 0u32;
+    erg unknown_result = logical_global_index(shard_id: erg unknown_shard, local_index: erg unknown_local);
+    erg unknown_status: Int = case dat unknown_result {
+        Result.Ok(_) => 1,
+        Result.Err(_) => 0,
+    };
+    if unknown_status != 0 {
+        return 1;
+    }
+    erg overflowed_global: u32 = BRAIN_LOGICAL_MAX_COLUMNS;
+    erg overflowed_location = logical_column_location(global_index: erg overflowed_global);
+    erg overflowed_status: Int = case dat overflowed_location {
+        Result.Ok(_) => 1,
+        Result.Err(_) => 0,
+    };
+    if overflowed_status != 0 {
+        return 2;
+    }
+    erg zero_shard: u32 = 0u32;
+    erg overflowed_local: u32 = BRAIN_LOGICAL_SHARD_COLUMN_CAPACITY;
+    erg overflowed_local_result = logical_global_index(shard_id: erg zero_shard, local_index: erg overflowed_local);
+    return case dat overflowed_local_result {
+        Result.Ok(_) => 3,
+        Result.Err(_) => 0,
+    };
+}
+
+verb routing_state_is_unchanged(
+    abs fabric: CorticalFabric[64],
+    abs bindings: Array[TokenBinding, 64],
+    abs table: AuxAxonTable[64],
+    abs metrics: TrainingMetrics,
+    erg expected_active: u32,
+    erg expected_target: u32,
+    erg expected_binding_token: u32,
+    erg expected_auxiliary_id: u16,
+    erg expected_auxiliary_count: u32
+) -> Bool {
+    return fabric.active_count == expected_active && fabric.columns[0u32].axons[0u32] == expected_target && bindings[0u32].token_id == expected_binding_token && table.source_to_record[0u32] == expected_auxiliary_id && table.active_count == expected_auxiliary_count && metrics.processed_events == 23u32;
+}
+
+verb initialize_routing_state(
+    ins fabric: CorticalFabric[64],
+    ins bindings: Array[TokenBinding, 64],
+    ins table: AuxAxonTable[64]
+) {
+    fabric_init(fabric: ins fabric);
+    erg source: u32 = allocate_column_index(fabric: ins fabric);
+    erg binding_slot: u32 = 0u32;
+    erg token_id: u32 = 41u32;
+    erg context_key: u64 = 59u64;
+    bind_token_context(
+        bindings: ins bindings,
+        slot: erg binding_slot,
+        token_id: erg token_id,
+        context_key: erg context_key
+    );
+    aux_table_init(table: ins table);
+    erg record_result = allocate_aux_record(table: ins table);
+    erg record_index: u32 = case dat record_result {
+        Option.None => AUX_AXON_INVALID_ID as u32,
+        Option.Some(index) => index,
+    };
+    if record_index != AUX_AXON_INVALID_ID {
+        attach_aux_record(
+            table: ins table,
+            source: erg source,
+            record_index: erg record_index
+        );
+    }
+}
+
+verb invalid_shard_is_rejected() -> Bool {
+    erg invalid_shard: u32 = BRAIN_LOGICAL_MAX_SHARDS;
+    erg invalid_local: u32 = 0u32;
+    erg invalid_route = logical_global_index(shard_id: erg invalid_shard, local_index: erg invalid_local);
+    return case dat invalid_route {
+        Result.Ok(_) => false,
+        Result.Err(_) => true,
+    };
+}
+
+verb invalid_route_preserves_state(
+    abs fabric: CorticalFabric[64],
+    abs bindings: Array[TokenBinding, 64],
+    abs table: AuxAxonTable[64],
+    abs metrics: TrainingMetrics
+) -> Bool {
+    if !invalid_shard_is_rejected() {
+        return false;
+    }
+    erg expected_active: u32 = fabric.active_count;
+    erg expected_target: u32 = fabric.columns[0u32].axons[0u32];
+    erg expected_token: u32 = 41u32;
+    erg expected_auxiliary_id: u16 = table.source_to_record[0u32];
+    erg expected_auxiliary_count: u32 = table.active_count;
+    return routing_state_is_unchanged(
+        fabric: abs fabric,
+        bindings: abs bindings,
+        table: abs table,
+        metrics: abs metrics,
+        expected_active: erg expected_active,
+        expected_target: erg expected_target,
+        expected_binding_token: erg expected_token,
+        expected_auxiliary_id: erg expected_auxiliary_id,
+        expected_auxiliary_count: erg expected_auxiliary_count
+    );
+}
+
+meta test
+verb test_invalid_routing_preserves_resident_state() -> Int {
+    erg fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](), free_list_head: 0u32, active_count: 0u32};
+    erg bindings: Array[TokenBinding,64] = Array[TokenBinding, 64]();
+    erg table: AuxAxonTable[64] = AuxAxonTable[64] {source_to_record: Array[u16, 64](), records: Array[AuxAxonRecord, 8](
+    ), free_list_head: NULL_INDEX, active_count: 0u32};
+    initialize_routing_state(
+        fabric: ins fabric,
+        bindings: ins bindings,
+        table: ins table
+    );
+    if fabric.active_count != 1u32 || table.active_count != 1u32 {
+        return 1;
+    }
+    erg metrics: TrainingMetrics = TrainingMetrics {processed_events: 23u32, allocated_columns: 3u32, reinforced_transitions: 5u32, active_bindings: 1u32};
+    if !invalid_route_preserves_state(
+        fabric: abs fabric,
+        bindings: abs bindings,
+        table: abs table,
+        metrics: abs metrics
+    ) {
+        return 2;
+    }
+    return 0;
+}

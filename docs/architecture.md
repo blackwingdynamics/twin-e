@@ -5,7 +5,7 @@
 Twin-e is a two-engine system written around Actus. The name describes the
 two future computational halves:
 
-1. **Actus Impulse Engine (AIE):** bounded associative state, sparse codes,
+1. **Actus Impulse Engine (IE):** bounded associative state, sparse codes,
    minicolumns, impulse propagation, training, decay, and persistence.
 2. **Actus Cognitive Engine:** deterministic symbolic state tracking and
    reasoning over validated Actus thought structures.
@@ -14,7 +14,7 @@ The two engines must remain separate. They communicate through explicit
 protocol and adapter boundaries rather than importing each other's internal
 types.
 
-The current implementation priority is AIE. The Cognitive Engine, USTARI
+The current implementation priority is IE. The Cognitive Engine, USTARI
 transport, bridge adapters, and artificial endocrine system are architectural
 targets for later phases unless a roadmap explicitly opens their work.
 
@@ -25,7 +25,7 @@ targets for later phases unless a roadmap explicitly opens their work.
                             |
         +-------------------+-------------------+
         |                                       |
-   AIE Impulse Engine                    Cognitive Engine
+   IE Impulse Engine                    Cognitive Engine
         |                                       |
         +-------------------+-------------------+
                             |
@@ -47,12 +47,12 @@ tests are complete.
 
 ```text
 src/
-├── aie/                 # Current primary implementation
+├── ie/                 # Current primary implementation
 │   ├── layout/           # 64-byte minicolumn and fixed arena layout
 │   ├── runtime/          # Coincidence, forwarding, training, generation,
 │   │                      # observations, neurogenesis, and decay
 │   ├── persistence/      # .brain files, shards, manifests, and snapshots
-│   └── aie.act            # Canonical AIE facade
+│   └── ie.act            # Canonical IE facade
 │
 ├── config/               # Shared protocol and policy constants
 ├── encoding/             # Token, context, binding, and sparse codebook logic
@@ -60,13 +60,13 @@ src/
 │
 ├── cognitive/            # Reserved for the future Cognitive Engine
 ├── wire/                 # Reserved for the USTARI frame protocol
-├── bridge/               # Reserved for AIE/Cognitive adapters
+├── bridge/               # Reserved for IE/Cognitive adapters
 └── endocrine/            # Reserved for the future endocrine layer
 ```
 
 The reserved directories are architectural boundaries. They must not be
 created merely to hold speculative code, and their future code must not be
-placed inside `src/aie/` as a shortcut.
+placed inside `src/ie/` as a shortcut.
 
 Documentation follows the same separation:
 
@@ -78,9 +78,9 @@ docs/
 └── roadmap/               # Ordered implementation phases and gates
 ```
 
-## 4. AIE: current primary engine
+## 4. IE: current primary engine
 
-AIE is the only engine currently under active implementation in Twin-e. Its
+IE is the only engine currently under active implementation in Twin-e. Its
 responsibilities are:
 
 - fixed 64-byte cortical minicolumn storage;
@@ -93,16 +93,16 @@ responsibilities are:
 - position-independent `.brain` persistence and shard recovery;
 - modality-neutral observation input and future action routing.
 
-AIE must not contain symbolic reasoning, LLM integration, device-driver
+IE must not contain symbolic reasoning, LLM integration, device-driver
 types, transport framing, or endocrine policy.
 
 The current priority order is:
 
-1. finish the Phase 5 AIE runtime gates;
+1. finish the Phase 5 IE runtime gates;
 2. validate sensor-to-action routing with host-side deterministic fixtures;
 3. complete persistence and restart evidence;
 4. record hardware evidence only after a target is selected;
-5. freeze a stable AIE boundary before starting the Cognitive Engine.
+5. freeze a stable IE boundary before starting the Cognitive Engine.
 
 ## 5. Cognitive Engine: future reasoning half
 
@@ -117,14 +117,14 @@ associative state. Its planned responsibilities are:
 - return deterministic verified state to a synthesis or host layer.
 
 The Cognitive Engine must own its own AST, scratchpad, verifier, and state
-model. It may consume a public protocol message from AIE, but it must not
-reach into AIE arena columns or mutate AIE storage directly.
+model. It may consume a public protocol message from IE, but it must not
+reach into IE arena columns or mutate IE storage directly.
 
-The Cognitive Engine is not part of the current AIE implementation phase.
+The Cognitive Engine is not part of the current IE implementation phase.
 
 ## 6. USTARI wire protocol
 
-USTARI (`std::wire`) is the planned transport contract between embedded AIE
+USTARI (`std::wire`) is the planned transport contract between embedded IE
 runtime and host-side components. It is a protocol layer, not an engine.
 
 Its planned frame is:
@@ -147,7 +147,7 @@ USTARI owns:
 - sequence and replay-window validation;
 - typed transport errors.
 
-USTARI does not own AIE learning, Cognitive reasoning, sensor drivers, or
+USTARI does not own IE learning, Cognitive reasoning, sensor drivers, or
 motor control. A wire frame must carry a versioned message payload, not an
 internal engine struct whose layout can change without protocol approval.
 
@@ -156,8 +156,8 @@ internal engine struct whose layout can change without protocol approval.
 The bridge connects the two engines without merging them:
 
 ```text
-sensor adapter → observation message → AIE
-AIE result     → action/event message → bridge
+sensor adapter → observation message → IE
+IE result     → action/event message → bridge
 bridge         → verified cognitive message → Cognitive Engine
 ```
 
@@ -168,7 +168,7 @@ versioned protocol messages. They must:
 - preserve bounded sizes and integer-only semantics;
 - make ownership transfer explicit;
 - reject unknown versions and malformed messages;
-- avoid synchronous filesystem I/O in the AIE hot path;
+- avoid synchronous filesystem I/O in the IE hot path;
 - remain hardware-neutral until target hardware evidence exists.
 
 No adapter may bypass the canonical facade of an engine or expose private
@@ -183,16 +183,16 @@ and decay.
 
 AES must not:
 
-- replace AIE's local firing laws;
+- replace IE's local firing laws;
 - create or delete topology directly;
 - add floating-point operations;
 - add heap allocation or unbounded state;
 - make unsupported hardware or power claims;
-- become a dependency required for ordinary AIE execution.
+- become a dependency required for ordinary IE execution.
 
-Its future location is `src/endocrine/`. AIE integration should occur through
+Its future location is `src/endocrine/`. IE integration should occur through
 a narrow modulation interface, for example an effective-parameter calculation,
-so the unmodulated AIE profile remains testable and deterministic.
+so the unmodulated IE profile remains testable and deterministic.
 
 The endocrine specification is a design target. Its cycle counts, power
 figures, stability claims, and hardware behavior require target-specific
@@ -207,7 +207,7 @@ config ───────────────┐
 encoding ─────────────┤
 tokenizer ────────────┤
                       ▼
-                    AIE
+                    IE
                       ▲
                       │ public messages only
                   bridge / wire
@@ -215,14 +215,14 @@ tokenizer ────────────┤
                       ▼
                  Cognitive Engine
 
-endocrine ──► optional AIE modulation boundary
+endocrine ──► optional IE modulation boundary
 ```
 
 The following dependencies are forbidden:
 
-- AIE importing Cognitive Engine internals;
-- Cognitive Engine indexing AIE arena storage;
-- AIE importing USTARI transport implementation into hot-path logic;
+- IE importing Cognitive Engine internals;
+- Cognitive Engine indexing IE arena storage;
+- IE importing USTARI transport implementation into hot-path logic;
 - wire code depending on engine-private structs;
 - endocrine code silently changing serialized layouts;
 - sensor or motor drivers inside the engine core.
@@ -236,13 +236,13 @@ Create or update an ADR before changing any of the following:
 - a serialized layout or wire frame;
 - token, context, observation, or action identity;
 - a dependency direction or module boundary;
-- AIE modulation or endocrine behavior;
+- IE modulation or endocrine behavior;
 - a hardware or performance claim.
 
 Roadmap checkboxes are evidence gates. They are marked only after the
 implementation, tests, documentation, and known limitations are recorded.
 
 Until a later roadmap phase explicitly opens another layer, implementation
-work stays inside AIE and its existing public contracts. This keeps the
+work stays inside IE and its existing public contracts. This keeps the
 impulse engine reviewable while preserving a clear path for the second engine,
 USTARI, adapters, and endocrine modulation.

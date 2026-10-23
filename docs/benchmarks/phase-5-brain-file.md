@@ -8,14 +8,14 @@ compatibility metadata return.
 ## Command
 
 ```sh
-actus build --strict --emit exe -o /tmp/twin-e-p5-brain.aie benchmarks/aie_text_brain_file.act
-/tmp/twin-e-p5-brain.aie
+actus build --strict --emit exe -o /tmp/twin-e-p5-brain.ie benchmarks/ie_text_brain_file.act
+/tmp/twin-e-p5-brain.ie
 ```
 
 ## Expected evidence shape
 
 ```text
-AIE_P5_BRAIN roundtrip=1 bytes=5702 fabric=1 bindings=1 compatibility=1 corrupted_rejected=1 unchanged=1
+IE_P5_BRAIN roundtrip=1 bytes=5702 fabric=1 bindings=1 compatibility=1 corrupted_rejected=1 unchanged=1
 ```
 
 The benchmark is an in-process save/clear/load round trip. It does not yet
@@ -29,16 +29,16 @@ P5.1.
 Command:
 
 ```text
-actus build --strict --emit exe -o /tmp/twin-e-p5-brain.aie benchmarks/aie_text_brain_file.act
-/tmp/twin-e-p5-brain.aie
+actus build --strict --emit exe -o /tmp/twin-e-p5-brain.ie benchmarks/ie_text_brain_file.act
+/tmp/twin-e-p5-brain.ie
 ```
 
 Result:
 
 ```text
-built `/tmp/twin-e-p5-brain.aie` (strict)
+built `/tmp/twin-e-p5-brain.ie` (strict)
 verified generated native IR: no floating-point instructions
-AIE_P5_BRAIN roundtrip=1 bytes=5702 fabric=1 bindings=1 compatibility=1 corrupted_rejected=1 unchanged=1
+IE_P5_BRAIN roundtrip=1 bytes=5702 fabric=1 bindings=1 compatibility=1 corrupted_rejected=1 unchanged=1
 ```
 
 Recorded source base: `4ad2aa2`.

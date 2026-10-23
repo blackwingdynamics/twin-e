@@ -11,10 +11,10 @@ not included in teaching latency.
 ## Command
 
 ```sh
-actus fmt --check benchmarks/aie_logical_latency.act
+actus fmt --check benchmarks/ie_logical_latency.act
 actus build --strict --emit exe \
   -o /tmp/twin-e-gate-11-8-latency \
-  benchmarks/aie_logical_latency.act
+  benchmarks/ie_logical_latency.act
 /tmp/twin-e-gate-11-8-latency
 ```
 
@@ -27,7 +27,7 @@ instructions.
 ## Observed output
 
 ```text
-AIE_LOGICAL_LATENCY adapter_ns=15536
+IE_LOGICAL_LATENCY adapter_ns=15536
  admission_ns=1450
  routing_ns=109
  teaching_ns=97367

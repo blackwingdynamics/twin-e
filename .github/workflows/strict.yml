@@ -50,11 +50,11 @@ jobs:
         run: ${ACTUS} test --strict
 
       - name: Strict native build and zero-float verification
-        run: ${ACTUS} build --strict --emit exe -o /tmp/twin-e-engine.aie
+        run: ${ACTUS} build --strict --emit exe -o /tmp/twin-e-engine.ie
 
       - name: Upload strict executable
         uses: actions/upload-artifact@v4
         with:
           name: twin-e-strict-engine
-          path: /tmp/twin-e-engine.aie
+          path: /tmp/twin-e-engine.ie
           if-no-files-found: error

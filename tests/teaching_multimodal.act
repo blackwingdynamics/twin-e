@@ -5,7 +5,7 @@ import config;
 
 import teaching;
 
-open aie;
+open ie;
 
 verb text_pair_envelope() -> AdapterEnvelope {
     erg input: Buffer = Buffer[2];

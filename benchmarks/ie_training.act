@@ -1,0 +1,66 @@
+"""Measure bounded text training and the resulting snapshot size."""
+import ie;
+
+import tokenizer;
+
+import std::io;
+
+import std::time;
+
+verb emit_metric(abs label: String, erg value: u64) -> Int {
+    print(text: abs label);
+    erg display_value: Int = value as Int;
+    print_int(value: erg display_value);
+    return 0;
+}
+
+verb training_text() -> String {
+    return "ABABABABABABABABABABABABABABABAB";
+}
+
+verb snapshot_size() -> Int {
+    return BRAIN_TEXT_TOTAL_BYTES as Int;
+}
+
+meta limitless("verb")
+verb main() -> Int {
+    erg fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](), free_list_head: 0u32, active_count: 0u32};
+    erg bindings: Array[TokenBinding,64] = Array[TokenBinding, 64]();
+    fabric_init(fabric: ins fabric);
+    erg text: String = training_text();
+    erg sequence: TokenSequence = tokenize_string(text: abs text);
+    erg started: u64 = monotonic_nanos();
+    erg trained = train_token_sequence(
+        fabric: ins fabric,
+        bindings: ins bindings,
+        sequence: abs sequence
+    );
+    erg finished: u64 = monotonic_nanos();
+    erg training_nanos: u64 = finished - started;
+    erg metrics: TrainingMetrics = TrainingMetrics {processed_events: 0u32, allocated_columns: 0u32, reinforced_transitions: 0u32, active_bindings: 0u32};
+    case dat trained {
+        Result.Err(_) => {
+            erg failure: String = "IE_TRAINING_ERROR admission_or_capacity";
+            println(text: abs failure);
+            return 1;
+        },
+        Result.Ok(value) => {
+            metrics = value;
+        },
+    };
+    erg size: Int = snapshot_size();
+    erg output: String = "IE_TRAINING events=32 recall_profile=AB bounded=1";
+    println(text: abs output);
+    erg training_label: String = "IE_TRAINING training_ns=";
+    erg columns_label: String = "IE_TRAINING allocated_columns=";
+    erg bindings_label: String = "IE_TRAINING active_bindings=";
+    erg snapshot_label: String = "IE_TRAINING snapshot_bytes=";
+    erg allocated_columns: u64 = metrics.allocated_columns as u64;
+    erg active_bindings: u64 = metrics.active_bindings as u64;
+    erg snapshot_bytes: u64 = size as u64;
+    emit_metric(label: abs training_label, value: erg training_nanos);
+    emit_metric(label: abs columns_label, value: erg allocated_columns);
+    emit_metric(label: abs bindings_label, value: erg active_bindings);
+    emit_metric(label: abs snapshot_label, value: erg snapshot_bytes);
+    return 0;
+}

@@ -13,15 +13,15 @@ to the same two bytes.
 
 ```text
 actus build --strict --emit exe \
-  -o /tmp/twin-e-bpe.aie \
-  benchmarks/aie_bpe.act
-/tmp/twin-e-bpe.aie
+  -o /tmp/twin-e-bpe.ie \
+  benchmarks/ie_bpe.act
+/tmp/twin-e-bpe.ie
 ```
 
 ## Recorded result
 
 ```text
-AIE_BPE input_bytes=2 output_tokens=3 special_tokens=2 decoded_bytes=2 merged_decode=2 artifact=valid rejected=1 invalid_rank_rejected=1 oversized_span_rejected=1 unknown_rejected=1
+IE_BPE input_bytes=2 output_tokens=3 special_tokens=2 decoded_bytes=2 merged_decode=2 artifact=valid rejected=1 invalid_rank_rejected=1 oversized_span_rejected=1 unknown_rejected=1
 ```
 
 The implementation is bounded by the configured tokenizer size and merge-rule

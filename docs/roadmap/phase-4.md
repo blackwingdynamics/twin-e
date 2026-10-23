@@ -1,9 +1,9 @@
-# AIE Phase 4 Roadmap
+# IE Phase 4 Roadmap
 
 Phase 4 turns the accepted context-bound text architecture in ADR-0002 into
 measurable Actus implementations. The phase starts with contracts and
 evidence gates so that context routing, BPE, and generation remain compatible
-with the existing 64-byte AIE core.
+with the existing 64-byte IE core.
 
 **Current status:** Active. Phase 3 remains partially complete while the
 configuration and compiler-parity items that Phase 4 depends on are closed.
@@ -26,7 +26,7 @@ configuration and compiler-parity items that Phase 4 depends on are closed.
 - [x] Add and verify the 24-byte serialized layout fixture for `TokenBinding`.
 - [x] Add a context-code cardinality and collision benchmark for context pairs.
 
-## P4.1 — Context-bound AIE state
+## P4.1 — Context-bound IE state
 
 - [x] Add a position-independent `TokenBinding` sidecar indexed by arena slot.
 - [x] Serialize and restore the sidecar with tokenizer and context versions.
@@ -111,6 +111,6 @@ and crash recovery remain open there.
 ## Phase 4 completion criteria
 
 Phase 4 is complete when a persisted BPE tokenizer produces context-bound
-wavefronts, the AIE routes ambiguous tokens through distinct learned paths,
+wavefronts, the IE routes ambiguous tokens through distinct learned paths,
 and the bounded generation API returns decoded text while safely terminating
 on EOS, maximum length, missing successors, or a detected cycle.

@@ -1,7 +1,7 @@
 """Logical-brain TWF ingestion kept separate from the legacy fabric adapter."""
 import adapters;
 
-import aie;
+import ie;
 
 import config;
 

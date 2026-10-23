@@ -8,11 +8,11 @@
 
 ## Context
 
-Twin-e must accept more than one kind of external data while keeping the AIE
+Twin-e must accept more than one kind of external data while keeping the IE
 core modality-neutral. Text, images, audio, video, structured records, and
 binary payloads have different parsing, feature extraction, validation, and
 source-boundary requirements. A single modality-specific encoder cannot safely
-represent all of those inputs, and putting those concerns inside `src/aie/`
+represent all of those inputs, and putting those concerns inside `src/ie/`
 would couple the engine to external formats and violate its boundary.
 
 The project also needs one stable call surface for future chat, teacher, and
@@ -54,7 +54,7 @@ The naming decision has no migration cost because the adapter directory and
 facade do not exist yet. Before implementation, a path or namespace change
 must be made as one documented design change. If implementation is rolled
 back, the adapter directory and its tests are removed together; existing
-tokenizer, sensor, action, AIE, and persistence APIs remain unchanged.
+tokenizer, sensor, action, IE, and persistence APIs remain unchanged.
 
 ### 2. Modality modules
 
@@ -70,7 +70,7 @@ The first adapter set is fixed as follows:
   results.
 
 Each modality owns its source-specific decoding and normalization. It must not
-write directly into AIE arena state, choose successor links, or alter the
+write directly into IE arena state, choose successor links, or alter the
 serialized `.brain` layout.
 
 ### 3. Common contract
@@ -111,7 +111,7 @@ The initial hosted envelope limits are `256` events and a `u32` source length;
 the event representation uses fixed-width integer fields only. These limits
 are admission limits, not promises that every modality can represent every
 source losslessly. A modality must reject input that cannot be represented
-within its documented envelope before the AIE state is touched.
+within its documented envelope before the IE state is touched.
 
 The contract defines these rejection classes: unsupported contract version,
 unsupported modality, empty input where the modality forbids it, source or
@@ -177,18 +177,18 @@ The initial implementations follow this boundary. `adapter::image` consumes
 already-quantized bytes, `adapter::audio` consumes bounded integer feature
 events, and `adapter::video` consumes sparse integer frame features. None of
 them decodes containers, performs floating-point conversion, performs external
-I/O, or mutates AIE state; each returns only a validated common envelope.
+I/O, or mutates IE state; each returns only a validated common envelope.
 
 ### 4. Boundary and ownership
 
-Adapters are translation boundaries, not a second AIE runtime. They may reject
-malformed or oversized input before it reaches the engine, but AIE remains the
+Adapters are translation boundaries, not a second IE runtime. They may reject
+malformed or oversized input before it reaches the engine, but IE remains the
 owner of bounded associative state, training, forwarding, neurogenesis, decay,
-and persistence semantics. Adapter code must use the canonical AIE facade and
+and persistence semantics. Adapter code must use the canonical IE facade and
 must not access private arena or persistence fields.
 
 External I/O, network clients, UI integration, and provider-specific logic
-remain outside the AIE hot path. An adapter invocation may receive already
+remain outside the IE hot path. An adapter invocation may receive already
 available input, but inference, forwarding, coincidence evaluation, and
 neurogenesis must not perform synchronous filesystem or network I/O.
 
@@ -198,7 +198,7 @@ The caller owns the source input and invokes a modality adapter with an
 immutable, already-available value. The adapter returns a self-contained
 `Result<AdapterEnvelope, AdapterError>`; it does not retain the source view or
 choose the next engine operation. The caller then validates the envelope and
-explicitly maps its events into an existing public AIE input contract such as
+explicitly maps its events into an existing public IE input contract such as
 `ObservationEvent`, `encode_observation`, or a later public training entry
 point. This mapping belongs to the caller-facing integration layer, not to a
 modality decoder and not to private arena code.
@@ -207,8 +207,8 @@ A future chat or teacher integration therefore submits its bounded text,
 image, audio, video, structured, or binary input through the same in-memory
 call boundary after its transport layer has completed. Credentials, network
 retries, UI state, provider protocol, and message/session state remain outside
-`src/adapters/` and outside the AIE core. The integration may choose which
-public AIE operation to call, but it may not bypass the canonical adapter
+`src/adapters/` and outside the IE core. The integration may choose which
+public IE operation to call, but it may not bypass the canonical adapter
 contract or mutate private arena state.
 
 ### 5. Persistence and reproducibility
@@ -235,7 +235,7 @@ Implementation will proceed in this order:
 5. add image, audio, and video adapters only after their bounded feature
    representation and resource envelope are documented;
 6. add external chat or teacher integrations as separate boundary modules,
-   without changing the core adapter contract or AIE persistence behavior.
+   without changing the core adapter contract or IE persistence behavior.
 
 ## Rejected alternatives
 
@@ -245,9 +245,9 @@ Rejected because source-specific decoding and feature extraction cannot be
 made correct or bounded by one generic encoder without hiding modality policy
 and weakening validation.
 
-### Modality code inside `src/aie/`
+### Modality code inside `src/ie/`
 
-Rejected because it couples the engine to external formats and makes the AIE
+Rejected because it couples the engine to external formats and makes the IE
 core responsible for device, transport, or presentation concerns.
 
 ### Provider-specific adapters as the common contract

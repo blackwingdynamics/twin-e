@@ -1,13 +1,13 @@
-# ADR-0001: Subword Tokens with Sparse Binary Encoding for AIE Language Input
+# ADR-0001: Subword Tokens with Sparse Binary Encoding for IE Language Input
 
 - **Status:** Accepted
 - **Date:** 2026-10-04
-- **Scope:** AIE language input, training, recall, and text readout
+- **Scope:** IE language input, training, recall, and text readout
 - **Related work:** P3.1 public engine API, P3.2 executable demo, P3.3 performance baseline
 
 ## Context
 
-Actus Impulse Engine (AIE) is a sparse, event-driven neural runtime. Its core
+Actus Impulse Engine (IE) is a sparse, event-driven neural runtime. Its core
 does not use dense matrix multiplication, floating-point embeddings, or a
 global activation pass. It receives a bounded `Wavefront`, evaluates binary
 coincidence, propagates impulses through fixed axon slots, creates new
@@ -25,7 +25,7 @@ We need a text representation that provides:
 
 - compact handling of common words and word fragments;
 - a bounded vocabulary with a defined unknown and boundary policy;
-- deterministic conversion into AIE's 128-bit receptive-field format;
+- deterministic conversion into IE's 128-bit receptive-field format;
 - stable persistence and replay across training and recall;
 - a clean boundary between text processing and the low-level neural engine;
 - compatibility with sparse event-driven execution.
@@ -34,19 +34,19 @@ We need a text representation that provides:
 
 Use a **subword tokenizer** followed by a **versioned sparse binary codebook**.
 The tokenizer produces subword token IDs. The encoder maps each token ID to a
-128-bit sparse distributed representation composed of two `u64` masks. AIE
+128-bit sparse distributed representation composed of two `u64` masks. IE
 receives only the encoded `Wavefront`; it does not parse UTF-8, own tokenizer
 vocabulary rules, or inspect token strings during coincidence evaluation.
 
 The first tokenizer implementation will use a deterministic BPE-style
 subword vocabulary. The tokenizer algorithm is behind a package facade so the
-vocabulary format and AIE input contract remain stable if a later experiment
+vocabulary format and IE input contract remain stable if a later experiment
 selects another subword training algorithm.
 
 The tokenization and neural layers have these responsibilities:
 
 ```text
-text -> tokenizer -> token IDs -> sparse codebook -> Wavefront -> AIE
+text -> tokenizer -> token IDs -> sparse codebook -> Wavefront -> IE
                                                         |
                                                         v
                          token IDs <- readout <- active columns and paths
@@ -65,7 +65,7 @@ The tokenizer owns:
 
 Token IDs are opaque values outside the tokenizer. A token ID must not be
 treated as a binary mask by taking its numeric bits directly. Numeric IDs are
-labels; the codebook is the representation used by AIE.
+labels; the codebook is the representation used by IE.
 
 The tokenizer artifact must be persisted with the vocabulary, merge rules,
 normalization version, fallback policy, and codebook version. A network state
@@ -116,7 +116,7 @@ recognition, the initial profile should normally use `theta = k` and verify
 that different codewords do not duplicate. If noise tolerance requires a lower
 threshold, a second-stage codebook or identity verification is required.
 
-The current AIE policy threshold is a separate engine setting and must not be
+The current IE policy threshold is a separate engine setting and must not be
 copied blindly into a token profile. For example, a code with `k = 8` active
 bits cannot reach a threshold of `20`. Token code density and coincidence
 threshold therefore belong to one tested encoding profile.
@@ -129,13 +129,13 @@ when it is recorded in the ADRs and benchmark documentation. After persisted
 trained artifacts become compatible data, codebook changes require a new
 version and an explicit migration or retraining decision.
 
-### 3. AIE training contract
+### 3. IE training contract
 
 Training a token sequence follows this bounded event flow:
 
 1. Normalize and tokenize the input text.
 2. Encode each token ID using the versioned sparse codebook.
-3. Submit the resulting wavefronts in sequence through the public AIE API.
+3. Submit the resulting wavefronts in sequence through the public IE API.
 4. Let existing columns fire when their coincidence score reaches the profile
    threshold.
 5. Reinforce the active path and its axon transition when the sequence is
@@ -168,7 +168,7 @@ Training is associative and incremental. It strengthens observed paths and
 creates bounded new state. It does not claim to reproduce transformer
 backpropagation or dense next-token probability estimation.
 
-### 4. AIE recall contract
+### 4. IE recall contract
 
 Recall uses the same tokenizer and codebook versions as training:
 
@@ -178,7 +178,7 @@ Recall uses the same tokenizer and codebook versions as training:
 4. Read fired payloads, destination columns, and reinforced paths.
 5. Decode the selected token IDs through the tokenizer.
 
-The readout policy is a separate layer. AIE returns bounded engine results; a
+The readout policy is a separate layer. IE returns bounded engine results; a
 decoder chooses whether to return a recalled token, the next linked token, a
 ranked bounded set, or a failure/unknown result. The low-level engine must not
 embed text formatting into minicolumn evaluation.
@@ -199,7 +199,7 @@ validation. The next benchmark must use a persisted tokenizer vocabulary and
 add the overlap distribution, candidate threshold sweep, noisy recall, and
 context-sensitive sequence cases described above.
 
-## Why this decision fits AIE
+## Why this decision fits IE
 
 Subwords provide a practical middle ground:
 
@@ -231,7 +231,7 @@ TokenBinding {
 ```
 
 The sidecar is part of the serialized network state and is addressed by the
-same `u32` column index. The AIE core can continue to return column indexes and
+same `u32` column index. The IE core can continue to return column indexes and
 small event payloads; the readout layer resolves the index through the binding
 table and returns the tokenizer's `u32` token ID. A future layout revision may
 embed a wider identity, but that requires a new layout and persistence version.
@@ -262,11 +262,11 @@ change neural input semantics.
 
 Dense embeddings and GEMM-based processing are outside this engine's core
 contract. They would change the memory, execution, and zero-floating-point
-properties that AIE is designed to measure.
+properties that IE is designed to measure.
 
 ### Transformer-compatible next-token probabilities
 
-AIE may eventually expose a bounded ranking or readout layer, but matching a
+IE may eventually expose a bounded ranking or readout layer, but matching a
 transformer's dense probability distribution is not part of this decision.
 The first target is sparse associative sequence recall with measurable local
 updates and bounded memory behavior.
@@ -304,12 +304,12 @@ The following modules should remain separate:
 ```text
 src/tokenizer/        vocabulary, normalization, BPE encode/decode
 src/encoding/         token ID -> versioned 128-bit sparse code
-src/aie/              wavefront evaluation, plasticity, propagation, decay
+src/ie/              wavefront evaluation, plasticity, propagation, decay
 src/readout/          fired columns and token IDs -> text or structured result
 ```
 
 The current repository may introduce these as package facades incrementally.
-The AIE facade should accept encoded wavefronts and expose engine results. It
+The IE facade should accept encoded wavefronts and expose engine results. It
 should not import tokenizer implementation details into minicolumn or runtime
 modules.
 
@@ -333,7 +333,7 @@ persisted subword vocabulary and BPE merge implementation are still pending.
 
 ## Delivery plan
 
-1. Define tokenizer and codebook data contracts without changing AIE core.
+1. Define tokenizer and codebook data contracts without changing IE core.
 2. Add deterministic subword vocabulary loading and tokenization.
 3. Add the 128-bit sparse encoder and collision/threshold benchmarks for 2,000
    and 5,000 token profiles.
@@ -350,7 +350,7 @@ persisted subword vocabulary and BPE merge implementation are still pending.
 This decision is considered implemented when:
 
 - the same tokenizer and codebook reproduce identical wavefronts across runs;
-- a subword sequence can be trained and recalled through the public AIE API;
+- a subword sequence can be trained and recalled through the public IE API;
 - the codebook benchmark reports pairwise overlap, duplicate codes, and false
   fires for the declared vocabulary sizes;
 - a bounded context window routes ambiguous repeated tokens to the correct

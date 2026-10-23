@@ -10,10 +10,10 @@ training, or hardware performance.
 ## Command
 
 ```sh
-actus fmt --check benchmarks/aie_logical_scale_profiles.act
+actus fmt --check benchmarks/ie_logical_scale_profiles.act
 actus build --strict --emit exe \
   -o /tmp/twin-e-gate-11-8-scale \
-  benchmarks/aie_logical_scale_profiles.act
+  benchmarks/ie_logical_scale_profiles.act
 /tmp/twin-e-gate-11-8-scale
 ```
 
@@ -26,21 +26,21 @@ instructions.
 ## Observed output
 
 ```text
-AIE_LOGICAL_SCALE profile=one shards=1
+IE_LOGICAL_SCALE profile=one shards=1
  logical_columns=1024
  resident_capacity=4
  binding_capacity=1024
  auxiliary_capacity=8
  restore_ns=1025
 
-AIE_LOGICAL_SCALE profile=two shards=2
+IE_LOGICAL_SCALE profile=two shards=2
  logical_columns=2048
  resident_capacity=4
  binding_capacity=1024
  auxiliary_capacity=8
  restore_ns=362
 
-AIE_LOGICAL_SCALE profile=maximum shards=8
+IE_LOGICAL_SCALE profile=maximum shards=8
  logical_columns=8192
  resident_capacity=4
  binding_capacity=1024

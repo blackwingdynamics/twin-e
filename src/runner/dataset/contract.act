@@ -1,9 +1,9 @@
 """Typed outcomes and aggregate evidence for directory teaching."""
-import aie;
+import ie;
 
 import teaching;
 
-open aie;
+open ie;
 
 open teaching;
 

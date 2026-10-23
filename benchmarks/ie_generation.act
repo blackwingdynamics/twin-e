@@ -1,0 +1,199 @@
+"""Verify deterministic associative continuation and EOS termination."""
+import ie;
+
+import config;
+
+import tokenizer;
+
+import std::io;
+
+import std::time;
+
+verb emit_metric(abs label: String, erg value: u64) -> Int {
+    print(text: abs label);
+    erg display_value: Int = value as Int;
+    print_int(value: erg display_value);
+    return 0;
+}
+
+meta limitless("verb")
+verb main() -> Int {
+    erg fabric: CorticalFabric[64] = CorticalFabric[64] {columns: Array[Minicolumn, 64](), free_list_head: 0u32, active_count: 0u32};
+    fabric_init(fabric: ins fabric);
+    erg root: u32 = allocate_column_index(fabric: ins fabric);
+    erg next: u32 = allocate_column_index(fabric: ins fabric);
+    erg eos: u32 = allocate_column_index(fabric: ins fabric);
+    if root == NULL_INDEX || next == NULL_INDEX || eos == NULL_INDEX {
+        return 1;
+    }
+    fabric.columns[root].axons[0u32] = next;
+    fabric.columns[next].axons[0u32] = eos;
+    fabric.columns[next].myelination = 9u8;
+    fabric.columns[eos].myelination = 4u8;
+    erg bindings: Array[TokenBinding,64] = Array[TokenBinding, 64]();
+    erg bos_token: u32 = BPE_BOS_TOKEN_ID;
+    erg eos_token: u32 = BPE_EOS_TOKEN_ID;
+    erg root_current_token: u32 = 65u32;
+    erg root_context: u64 = context_key(previous_token_id: erg bos_token, token_id: erg root_current_token);
+    erg next_previous_token: u32 = 65u32;
+    erg next_context_token: u32 = 66u32;
+    erg next_context: u64 = context_key(previous_token_id: erg next_previous_token, token_id: erg next_context_token);
+    erg eos_previous_token: u32 = 66u32;
+    erg eos_context_token: u32 = eos_token;
+    erg eos_context: u64 = context_key(previous_token_id: erg eos_previous_token, token_id: erg eos_context_token);
+    erg root_bind_token: u32 = 65u32;
+    erg root_bind_context: u64 = root_context;
+    if !bind_token_context(
+        bindings: ins bindings,
+        slot: erg root,
+        token_id: erg root_bind_token,
+        context_key: erg root_bind_context
+    ) {
+        return 1;
+    }
+    erg next_bind_token: u32 = 66u32;
+    erg next_bind_context: u64 = next_context;
+    if !bind_token_context(
+        bindings: ins bindings,
+        slot: erg next,
+        token_id: erg next_bind_token,
+        context_key: erg next_bind_context
+    ) {
+        return 1;
+    }
+    erg eos_bind_token: u32 = BPE_EOS_TOKEN_ID;
+    erg eos_bind_context: u64 = eos_context;
+    if !bind_token_context(
+        bindings: ins bindings,
+        slot: erg eos,
+        token_id: erg eos_bind_token,
+        context_key: erg eos_bind_context
+    ) {
+        return 1;
+    }
+    erg prompt: TokenSequence = TokenSequence {tokens: Array[Token, 256](), length: 1u32, valid: true};
+    prompt.tokens[0u32] = Token {id: 65u32, byte_offset: 0u32, byte_length: 1u16, tokenizer_version: TOKENIZER_VERSION};
+    erg rules: Array[BpeMergeRule,128] = Array[BpeMergeRule, 128]();
+    erg records: Array[BpeTokenRecord,256] = Array[BpeTokenRecord, 256]();
+    erg vocabulary: BpeVocabulary = BpeVocabulary {magic: BPE_VOCAB_MAGIC, version: BPE_VOCAB_VERSION, tokenizer_version: TOKENIZER_VERSION, bos_token_id: BPE_BOS_TOKEN_ID, eos_token_id: BPE_EOS_TOKEN_ID, unknown_token_id: BPE_UNKNOWN_TOKEN_ID, rule_count: 0u32, rules: rules, token_count: 0u32, tokens: records};
+    erg max_tokens: u32 = 4u32;
+    erg generation_started: u64 = monotonic_nanos();
+    erg generated: GenerationResult = generate_associative(
+        fabric: ins fabric,
+        bindings: abs bindings,
+        prompt: abs prompt,
+        vocabulary: abs vocabulary,
+        max_tokens: erg max_tokens
+    );
+    erg generation_finished: u64 = monotonic_nanos();
+    erg generation_nanos: u64 = generation_finished - generation_started;
+    if !generated.valid {
+        erg invalid_message: String = "IE_GENERATION_ERROR invalid";
+        println(text: abs invalid_message);
+        return 2;
+    }
+    if generated.generated_count != 2u32 {
+        return 2;
+    }
+    if generated.tokens.tokens[0u32].id != 66u32 {
+        erg first_message: String = "IE_GENERATION_ERROR first_token";
+        println(text: abs first_message);
+        return 2;
+    }
+    if generated.tokens.tokens[1u32].id != BPE_EOS_TOKEN_ID {
+        erg second_message: String = "IE_GENERATION_ERROR second_token";
+        println(text: abs second_message);
+        return 2;
+    }
+    if generated.termination_reason != GENERATION_STOP_EOS {
+        erg stop_message: String = "IE_GENERATION_ERROR termination";
+        println(text: abs stop_message);
+        return 2;
+    }
+    erg output: Buffer = Buffer[0];
+    erg decoded = bpe_decode_bytes(
+        sequence: abs generated.tokens,
+        vocabulary: abs vocabulary,
+        storage: ins output
+    );
+    erg decoded_length: Int = case dat decoded {
+        Result.Ok(value) => value,
+        Result.Err(_) => -1,
+    };
+    if decoded_length != 1 {
+        return 3;
+    }
+    erg cycle_a: u32 = allocate_column_index(fabric: ins fabric);
+    erg cycle_b: u32 = allocate_column_index(fabric: ins fabric);
+    erg cycle_c: u32 = allocate_column_index(fabric: ins fabric);
+    erg cycle_d: u32 = allocate_column_index(fabric: ins fabric);
+    if cycle_a == NULL_INDEX || cycle_b == NULL_INDEX || cycle_c == NULL_INDEX || cycle_d == NULL_INDEX {
+        return 4;
+    }
+    fabric.columns[cycle_a].axons[0u32] = cycle_b;
+    fabric.columns[cycle_b].axons[0u32] = cycle_c;
+    fabric.columns[cycle_c].axons[0u32] = cycle_d;
+    fabric.columns[cycle_d].axons[0u32] = cycle_b;
+    erg cycle_a_previous: u32 = BPE_BOS_TOKEN_ID;
+    erg cycle_a_token: u32 = 70u32;
+    erg cycle_a_context: u64 = context_key(previous_token_id: erg cycle_a_previous, token_id: erg cycle_a_token);
+    erg cycle_b_previous: u32 = 70u32;
+    erg cycle_b_token: u32 = 71u32;
+    erg cycle_b_context: u64 = context_key(previous_token_id: erg cycle_b_previous, token_id: erg cycle_b_token);
+    erg cycle_c_previous: u32 = 71u32;
+    erg cycle_c_token: u32 = 72u32;
+    erg cycle_c_context: u64 = context_key(previous_token_id: erg cycle_c_previous, token_id: erg cycle_c_token);
+    erg cycle_a_again_previous: u32 = 72u32;
+    erg cycle_a_again_token: u32 = 70u32;
+    erg cycle_a_again_context: u64 = context_key(previous_token_id: erg cycle_a_again_previous, token_id: erg cycle_a_again_token);
+    if !bind_token_context(
+        bindings: ins bindings,
+        slot: erg cycle_a,
+        token_id: erg cycle_a_token,
+        context_key: erg cycle_a_context
+    ) {
+        return 4;
+    }
+    if !bind_token_context(
+        bindings: ins bindings,
+        slot: erg cycle_b,
+        token_id: erg cycle_b_token,
+        context_key: erg cycle_b_context
+    ) {
+        return 4;
+    }
+    if !bind_token_context(
+        bindings: ins bindings,
+        slot: erg cycle_c,
+        token_id: erg cycle_c_token,
+        context_key: erg cycle_c_context
+    ) {
+        return 4;
+    }
+    if !bind_token_context(
+        bindings: ins bindings,
+        slot: erg cycle_d,
+        token_id: erg cycle_a_again_token,
+        context_key: erg cycle_a_again_context
+    ) {
+        return 4;
+    }
+    erg cycle_prompt: TokenSequence = TokenSequence {tokens: Array[Token, 256](), length: 1u32, valid: true};
+    cycle_prompt.tokens[0u32] = Token {id: 70u32, byte_offset: 0u32, byte_length: 1u16, tokenizer_version: TOKENIZER_VERSION};
+    erg cycle_limit: u32 = 4u32;
+    erg cycle_result: GenerationResult = generate_associative(
+        fabric: ins fabric,
+        bindings: abs bindings,
+        prompt: abs cycle_prompt,
+        vocabulary: abs vocabulary,
+        max_tokens: erg cycle_limit
+    );
+    if !cycle_result.valid || cycle_result.generated_count != 3u32 || cycle_result.termination_reason != GENERATION_STOP_LOOP_GUARD {
+        return 5;
+    }
+    erg heading: String = "IE_GENERATION generated=2 decoded_bytes=1 termination=eos cycle_generated=3 loop_guard=1 selected=highest_myelination";
+    println(text: abs heading);
+    erg latency_label: String = "IE_GENERATION generation_ns=";
+    emit_metric(label: abs latency_label, value: erg generation_nanos);
+    return 0;
+}
