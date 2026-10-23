@@ -1,0 +1,2 @@
+"""Canonical facade for the bounded Twin-e teaching wire transport."""
+open contract;

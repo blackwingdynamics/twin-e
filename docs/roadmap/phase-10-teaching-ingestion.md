@@ -403,21 +403,21 @@ profile is checked before resident state loading.
 
 ## Gate 10.5 — Add framed `std::wire` transport
 
-- [ ] Define the wire message type for a teaching request and its version.
-- [ ] Define frame length, payload length, checksum, and maximum frame size.
-- [ ] Define whether one frame is one request or whether a frame may contain a
+- [x] Define the wire message type for a teaching request and its version.
+- [x] Define frame length, payload length, checksum, and maximum frame size.
+- [x] Define whether one frame is one request or whether a frame may contain a
       bounded batch.
-- [ ] Reject unsupported versions, bad checksums, truncated frames, and
+- [x] Reject unsupported versions, bad checksums, truncated frames, and
       oversized payloads before admission.
-- [ ] Preserve request ordering and deterministic response correlation.
-- [ ] Keep wire parsing independent from modality adapters and IE state.
+- [x] Preserve request ordering and deterministic response correlation.
+- [x] Keep wire parsing independent from modality adapters and IE state.
 
 ### Required evidence
 
-- [ ] A split-frame fixture reconstructs one valid request deterministically.
-- [ ] Corrupted, replayed, truncated, and oversized frames are rejected.
-- [ ] A failed frame causes no partial teaching mutation.
-- [ ] Native output confirms no floating-point instructions are introduced.
+- [x] A split-frame fixture reconstructs one valid request deterministically.
+- [x] Corrupted, replayed, truncated, and oversized frames are rejected.
+- [x] A failed frame causes no partial teaching mutation.
+- [x] Native output confirms no floating-point instructions are introduced.
 
 ## Gate 10.6 — Define transport-independent batching and backpressure
 

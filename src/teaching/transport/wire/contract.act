@@ -1,0 +1,143 @@
+"""Application-level message identity carried inside a bounded std::wire frame."""
+import config;
+
+import std::wire;
+
+open wire;
+
+"""Message discriminator for a request that enters the teaching facade."""
+open const TEACHING_WIRE_MESSAGE_ID: u8 = 1u8;
+
+
+"""Application message schema version for teaching requests."""
+open const TEACHING_WIRE_MESSAGE_VERSION: u8 = 1u8;
+
+
+"""Maximum number of teaching messages carried by one wire frame."""
+open const TEACHING_WIRE_MAX_MESSAGES_PER_FRAME: u8 = 1u8;
+
+
+"""Supported application-level teaching messages inside a wire frame."""
+open enum TeachingWireMessageType {
+    TeachingRequest,
+}
+
+"""Bounded metadata for one teaching request carried by std::wire.
+
+The frame version and CRC remain owned by `std::wire`. This type describes
+only the Twin-e application message and does not own or decode the payload.
+"""
+open struct TeachingWireMessage {
+    erg frame_version: u8,
+    erg message_id: u8,
+    erg message_version: u8,
+    erg message_type: TeachingWireMessageType,
+    erg sequence_num: u32,
+    erg payload_length: u32,
+}
+
+"""Construct one versioned teaching-request message metadata value."""
+open verb teaching_wire_request_message(
+    erg sequence_num: u32,
+    erg payload_length: u32
+) -> TeachingWireMessage {
+    return TeachingWireMessage {frame_version: WIRE_VERSION, message_id: TEACHING_WIRE_MESSAGE_ID, message_version: TEACHING_WIRE_MESSAGE_VERSION, message_type: TeachingWireMessageType.TeachingRequest, sequence_num: sequence_num, payload_length: payload_length};
+}
+
+"""Validate message identity and the std::wire payload bound before admission."""
+open verb teaching_wire_message_is_valid(abs message: TeachingWireMessage) -> Bool {
+    return message.frame_version == WIRE_VERSION && message.message_id == TEACHING_WIRE_MESSAGE_ID && message.message_version == TEACHING_WIRE_MESSAGE_VERSION && message.payload_length <= WIRE_MAX_PAYLOAD_BYTES;
+}
+
+"""Calculate the complete frame length for one teaching request.
+
+The result includes the canonical `std::wire` header, the declared payload,
+and its CRC trailer. It does not inspect or allocate a frame buffer.
+"""
+open verb teaching_wire_frame_length(abs message: TeachingWireMessage) -> u32 {
+    return WIRE_HEADER_BYTES + message.payload_length + WIRE_CRC_BYTES;
+}
+
+"""Validate one complete teaching frame boundary before dispatch.
+
+The supplied length must match the declared payload plus the canonical header
+and checksum trailer, and the resulting frame must fit `std::wire`'s bound.
+CRC calculation and validation remain in `std::wire`; this verb only checks
+the application boundary and never mutates IE state.
+"""
+open verb teaching_wire_frame_is_valid(
+    abs message: TeachingWireMessage,
+    erg frame_length: u32
+) -> Bool {
+    if !teaching_wire_message_is_valid(message: abs message) {
+        return false;
+    }
+    erg expected_length: u32 = teaching_wire_frame_length(message: abs message);
+    return frame_length == expected_length && expected_length <= WIRE_MAX_FRAME_BYTES;
+}
+
+"""Validate the one-request-per-frame teaching transport boundary.
+
+Batching is intentionally a separate transport concern. A frame carrying
+anything other than one teaching request is rejected before admission.
+"""
+open verb teaching_wire_message_count_is_valid(erg message_count: u8) -> Bool {
+    return message_count == TEACHING_WIRE_MAX_MESSAGES_PER_FRAME;
+}
+
+"""Decode one complete teaching request before admission.
+
+`std::wire` validates the magic, frame version, flags, payload bound, frame
+length, and CRC before this facade exposes the application message. The
+caller owns both buffers; the payload buffer is written only after successful
+wire validation. An unknown teaching message identity is rejected as a wire
+policy failure and never reaches IE state.
+"""
+open verb teaching_wire_decode_request(
+    abs frame: Buffer,
+    ins payload_output: Buffer
+) -> Result[TeachingWireMessage, WireError] {
+    erg decoded = wire_frame_decode(input: abs frame, payload_output: ins payload_output);
+    return case dat decoded {
+        Result.Err(error) => Result[TeachingWireMessage, WireError].Err(error),
+        Result.Ok(header) => teaching_wire_message_from_header(header: abs header),
+    };
+}
+
+"""Convert a validated standard-wire header into teaching metadata.
+
+This adapter is pure metadata conversion. It does not read or write payload
+bytes, invoke an adapter, or access IE state.
+"""
+open verb teaching_wire_message_from_header(abs header: WireHeader) -> Result[TeachingWireMessage, WireError] {
+    if header.message_id != TEACHING_WIRE_MESSAGE_ID {
+        return Result[TeachingWireMessage, WireError].Err(WireError.PolicyRejected);
+    }
+    erg message = TeachingWireMessage {frame_version: header.version, message_id: header.message_id, message_version: TEACHING_WIRE_MESSAGE_VERSION, message_type: TeachingWireMessageType.TeachingRequest, sequence_num: header.sequence_num, payload_length: header.payload_len as u32};
+    if !teaching_wire_message_is_valid(message: abs message) {
+        return Result[TeachingWireMessage, WireError].Err(WireError.PolicyRejected);
+    }
+    return Result[TeachingWireMessage, WireError].Ok(message);
+}
+
+"""Accept a decoded request in its caller-owned deterministic sequence window.
+
+The message sequence is the response-correlation key and is passed unchanged
+to `std::wire` replay protection. Duplicate, stale, context-mismatched, and
+unreasonable sequence values are rejected without changing the window.
+"""
+open verb teaching_wire_accept_request(
+    ins window: WireSequenceWindow,
+    erg context_id: u32,
+    abs message: TeachingWireMessage
+) -> Result[Int, WireError] {
+    if !teaching_wire_message_is_valid(message: abs message) {
+        return Result[Int, WireError].Err(WireError.PolicyRejected);
+    }
+    erg sequence_num: u32 = message.sequence_num;
+    return wire_sequence_accept(
+        window: ins window,
+        context_id: erg context_id,
+        sequence_num: erg sequence_num
+    );
+}
