@@ -88,3 +88,57 @@ verb test_teaching_queue_admission_updates_both_occupancy_bounds() -> Int {
         },
     };
 }
+
+meta test
+verb test_teaching_queue_count_never_grows_past_bound() -> Int {
+    erg count_state = TeachingQueueState {request_count: 0u32, queued_bytes: 0u32};
+    for erg index: u32 in 0u32 .. TEACHING_MAX_QUEUED_REQUESTS {
+        erg one_byte: u32 = 1u32;
+        erg admitted = teaching_queue_admit(state: ins count_state, request_bytes: erg one_byte);
+        erg accepted: Bool = case dat admitted {
+            Result.Ok(_) => true,
+            Result.Err(_) => false,
+        };
+        if !accepted {
+            return 1;
+        }
+    }
+    erg one_byte: u32 = 1u32;
+    erg rejected_count = teaching_queue_admit(state: ins count_state, request_bytes: erg one_byte);
+    erg count_rejected: Bool = case dat rejected_count {
+        Result.Err(error) => if error != TeachingQueueAdmissionError.RequestCapacityExceeded {
+            false;
+        } else {
+            true;
+        },
+        Result.Ok(_) => false,
+    };
+    if !count_rejected || count_state.request_count != TEACHING_MAX_QUEUED_REQUESTS {
+        return 2;
+    }
+    return 0;
+}
+
+meta test
+verb test_teaching_queue_bytes_never_grows_past_bound() -> Int {
+    erg byte_state = TeachingQueueState {request_count: 0u32, queued_bytes: 0u32};
+    erg full_bytes: u32 = TEACHING_MAX_QUEUED_BYTES;
+    erg one_byte: u32 = 1u32;
+    erg full = teaching_queue_admit(state: ins byte_state, request_bytes: erg full_bytes);
+    erg full_accepted: Bool = case dat full {
+        Result.Err(_) => false,
+        Result.Ok(_) => true,
+    };
+    if !full_accepted {
+        return 5;
+    }
+    erg rejected_bytes = teaching_queue_admit(state: ins byte_state, request_bytes: erg one_byte);
+    return case dat rejected_bytes {
+        Result.Err(error) => if error == TeachingQueueAdmissionError.ByteCapacityExceeded && byte_state.queued_bytes == TEACHING_MAX_QUEUED_BYTES {
+            0;
+        } else {
+            1;
+        },
+        Result.Ok(_) => 2,
+    };
+}

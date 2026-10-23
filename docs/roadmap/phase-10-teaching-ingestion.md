@@ -431,7 +431,8 @@ profile is checked before resident state loading.
 - [Completed in Phase 11] Keep transport latency, adapter latency, admission
       latency, teaching latency, and persistence latency separate in benchmark
       output.
-- [ ] Prove that no transport queue can grow without a fixed bound.
+- [x] Prove that no transport queue can grow without a fixed bound through
+      count- and byte-bound admission regressions.
 
 ### Required evidence
 
