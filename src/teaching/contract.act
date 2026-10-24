@@ -64,7 +64,7 @@ The fixed array is the complete storage for the batch. The count field selects
 the active prefix and must not exceed TEACHING_MAX_BATCH_ITEMS.
 """
 open struct TeachingBatch {
-    erg requests: Array[TeachingRequest, 8],
+    erg requests: Array[TeachingRequest, TEACHING_MAX_BATCH_ITEMS],
     erg count: u16,
     erg valid: Bool,
 }
@@ -75,7 +75,7 @@ open struct TeachingBatchMetrics {
     erg accepted_count: u16,
     erg rejected_count: u16,
     erg stopped_on_training_error: Bool,
-    erg items: Array[TeachingBatchItemResult, 8],
+    erg items: Array[TeachingBatchItemResult, TEACHING_MAX_BATCH_ITEMS],
 }
 
 """Caller-owned correction event with an explicit replacement example.

@@ -227,7 +227,21 @@ open const TEACHING_CONTRACT_VERSION: u16 = 1u16;
 open const TEACHING_MAX_REPLAY_PASSES: u16 = 16u16;
 
 
-open const TEACHING_MAX_BATCH_ITEMS: u16 = 8u16;
+"""Maximum requests processed in one caller-driven teaching batch.
+
+This compile-time profile value sizes the batch and metrics arrays. Change it
+for a deployment profile; total training capacity remains independent because
+callers can submit successive batches and use multiple queues or shards.
+"""
+open const TEACHING_MAX_BATCH_ITEMS: Usize = 8u64 as Usize;
+
+
+"""Initial host profile maximum for requests retained by one teaching queue."""
+open const TEACHING_MAX_QUEUED_REQUESTS: u32 = 64u32;
+
+
+"""Initial host profile maximum encoded bytes retained by one teaching queue."""
+open const TEACHING_MAX_QUEUED_BYTES: u32 = 65536u32;
 
 
 """Byte length of the bounded teaching file magic and version header."""

@@ -1,0 +1,86 @@
+"""Bounded queue capacity contract for caller-owned teaching transport state.
+
+The profile limits one queue instance by both complete request count and
+encoded bytes. It does not limit the number of queues or shards in a Twin-e
+deployment; those are deployment and manifest concerns. Queue storage and
+processing policy remain separate contracts.
+"""
+import config;
+
+import std::wire;
+
+"""The configured request and byte bounds for one teaching queue instance."""
+open struct TeachingQueueProfile {
+    erg max_requests: u32,
+    erg max_bytes: u32,
+}
+
+"""Scheduler boundary selected for teaching queue processing."""
+open enum TeachingQueueProcessingMode {
+    CallerDriven,
+}
+
+"""Reason why a teaching request cannot enter a bounded queue."""
+open enum TeachingQueueAdmissionError {
+    RequestCapacityExceeded,
+    ByteCapacityExceeded,
+}
+
+"""Caller-owned occupancy counters for one bounded teaching queue."""
+open struct TeachingQueueState {
+    erg request_count: u32,
+    erg queued_bytes: u32,
+}
+
+"""Return the explicit scheduler boundary for teaching queue processing.
+
+The caller owns the processing cadence and invokes bounded work explicitly.
+The queue does not create a background loop, block on transport input, or
+perform implicit filesystem I/O.
+"""
+open verb teaching_queue_processing_mode() -> TeachingQueueProcessingMode {
+    return TeachingQueueProcessingMode.CallerDriven;
+}
+
+"""Admit one complete encoded request or reject it without mutation.
+
+The caller supplies the complete encoded request size. Admission rejects a
+request when either configured bound would be exceeded; it never silently
+drops the request and never partially increments the occupancy counters.
+"""
+open verb teaching_queue_admit(
+    ins state: TeachingQueueState,
+    erg request_bytes: u32
+) -> Result[Int, TeachingQueueAdmissionError] {
+    erg profile = teaching_queue_profile();
+    if state.request_count >= profile.max_requests {
+        return Result[Int, TeachingQueueAdmissionError].Err(TeachingQueueAdmissionError.RequestCapacityExceeded);
+    }
+    if request_bytes == 0u32 || request_bytes > profile.max_bytes {
+        return Result[Int, TeachingQueueAdmissionError].Err(TeachingQueueAdmissionError.ByteCapacityExceeded);
+    }
+    if state.queued_bytes > profile.max_bytes - request_bytes {
+        return Result[Int, TeachingQueueAdmissionError].Err(TeachingQueueAdmissionError.ByteCapacityExceeded);
+    }
+    state.request_count += 1u32;
+    state.queued_bytes += request_bytes;
+    return Result[Int, TeachingQueueAdmissionError].Ok(0);
+}
+
+"""Return the canonical bounded teaching queue profile.
+
+The result is configuration-only metadata. It allocates no queue storage and
+does not perform filesystem or transport I/O.
+"""
+open verb teaching_queue_profile() -> TeachingQueueProfile {
+    return TeachingQueueProfile {max_requests: TEACHING_MAX_QUEUED_REQUESTS, max_bytes: TEACHING_MAX_QUEUED_BYTES};
+}
+
+"""Validate that a queue profile can retain at least one complete wire frame.
+
+Both dimensions must be non-zero, and the byte bound must cover the maximum
+complete teaching frame. This check does not allocate state or accept data.
+"""
+open verb teaching_queue_profile_is_valid(abs profile: TeachingQueueProfile) -> Bool {
+    return profile.max_requests > 0u32 && profile.max_bytes >= WIRE_MAX_FRAME_BYTES;
+}

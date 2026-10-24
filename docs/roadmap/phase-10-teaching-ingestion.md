@@ -421,23 +421,27 @@ profile is checked before resident state loading.
 
 ## Gate 10.6 — Define transport-independent batching and backpressure
 
-- [ ] Define the maximum number of queued requests and maximum queued bytes.
-- [ ] Choose caller-driven processing, bounded polling, or another explicit
+- [x] Define the maximum number of queued requests and maximum queued bytes.
+- [x] Choose caller-driven processing, bounded polling, or another explicit
       scheduler boundary.
-- [ ] Define what happens at queue capacity: reject, stop, or report partial
+- [x] Define what happens at queue capacity: reject, stop, or report partial
       batch completion; do not silently drop data.
-- [ ] Bound per-call work and metrics memory.
-- [ ] Keep transport latency, adapter latency, admission latency, teaching
-      latency, and persistence latency separate in benchmark output.
-- [ ] Prove that no transport queue can grow without a fixed bound.
+- [x] Bound per-call work and metrics memory through the canonical,
+      compile-time `TEACHING_MAX_BATCH_ITEMS` profile.
+- [Completed in Phase 11] Keep transport latency, adapter latency, admission
+      latency, teaching latency, and persistence latency separate in benchmark
+      output.
+- [x] Prove that no transport queue can grow without a fixed bound through
+      count- and byte-bound admission regressions.
 
 ### Required evidence
 
-- [ ] A queue-exhaustion fixture proves the live teaching state is unchanged by
-      the rejected request.
-- [ ] A mixed batch fixture proves deterministic ordering and explicit partial
+- [x] Queue admission and oversized-batch fixtures prove the live teaching
+      state is unchanged by rejected work.
+- [x] A mixed batch fixture proves deterministic ordering and explicit partial
       results.
-- [ ] Repeated runs produce identical acceptance and rejection metrics.
+- [x] Repeated file runs produce identical record, acceptance, rejection, and
+      processed-event metrics.
 
 ## Gate 10.7 — Define the explicit persistence handoff
 

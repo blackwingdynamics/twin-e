@@ -1,0 +1,144 @@
+"""Acceptance tests for the bounded teaching queue profile."""
+import config;
+
+import teaching;
+
+meta test
+verb test_teaching_queue_profile_exposes_canonical_bounds() -> Int {
+    erg profile = teaching_queue_profile();
+    if profile.max_requests != TEACHING_MAX_QUEUED_REQUESTS {
+        return 1;
+    }
+    if profile.max_bytes != TEACHING_MAX_QUEUED_BYTES {
+        return 2;
+    }
+    if !teaching_queue_profile_is_valid(profile: abs profile) {
+        return 3;
+    }
+    return 0;
+}
+
+meta test
+verb test_teaching_queue_profile_covers_complete_wire_frame() -> Int {
+    erg profile = teaching_queue_profile();
+    if profile.max_requests == 0u32 || profile.max_bytes == 0u32 {
+        return 1;
+    }
+    if profile.max_bytes < WIRE_MAX_FRAME_BYTES {
+        return 2;
+    }
+    return 0;
+}
+
+meta test
+verb test_teaching_queue_processing_is_caller_driven() -> Int {
+    erg mode = teaching_queue_processing_mode();
+    return case dat mode {
+        TeachingQueueProcessingMode.CallerDriven => 0,
+    };
+}
+
+meta test
+verb test_teaching_queue_admission_rejects_request_over_byte_capacity_without_mutation() -> Int {
+    erg state = TeachingQueueState {request_count: 0u32, queued_bytes: 0u32};
+    erg oversized: u32 = TEACHING_MAX_QUEUED_BYTES + 1u32;
+    erg admitted = teaching_queue_admit(state: ins state, request_bytes: erg oversized);
+    return case dat admitted {
+        Result.Err(error) => case error {
+            TeachingQueueAdmissionError.ByteCapacityExceeded => if state.request_count == 0u32 && state.queued_bytes == 0u32 {
+                0;
+            } else {
+                1;
+            },
+            _ => 2,
+        },
+        Result.Ok(_) => 3,
+    };
+}
+
+meta test
+verb test_teaching_queue_admission_rejects_request_over_count_capacity_without_mutation() -> Int {
+    erg state = TeachingQueueState {request_count: TEACHING_MAX_QUEUED_REQUESTS, queued_bytes: 0u32};
+    erg request_bytes: u32 = 1u32;
+    erg admitted = teaching_queue_admit(state: ins state, request_bytes: erg request_bytes);
+    return case dat admitted {
+        Result.Err(error) => case error {
+            TeachingQueueAdmissionError.RequestCapacityExceeded => if state.request_count == TEACHING_MAX_QUEUED_REQUESTS && state.queued_bytes == 0u32 {
+                0;
+            } else {
+                1;
+            },
+            _ => 2,
+        },
+        Result.Ok(_) => 3,
+    };
+}
+
+meta test
+verb test_teaching_queue_admission_updates_both_occupancy_bounds() -> Int {
+    erg state = TeachingQueueState {request_count: 0u32, queued_bytes: 0u32};
+    erg request_bytes: u32 = 128u32;
+    erg admitted = teaching_queue_admit(state: ins state, request_bytes: erg request_bytes);
+    return case dat admitted {
+        Result.Err(_) => 1,
+        Result.Ok(_) => if state.request_count == 1u32 && state.queued_bytes == request_bytes {
+            0;
+        } else {
+            2;
+        },
+    };
+}
+
+meta test
+verb test_teaching_queue_count_never_grows_past_bound() -> Int {
+    erg count_state = TeachingQueueState {request_count: 0u32, queued_bytes: 0u32};
+    for erg index: u32 in 0u32 .. TEACHING_MAX_QUEUED_REQUESTS {
+        erg one_byte: u32 = 1u32;
+        erg admitted = teaching_queue_admit(state: ins count_state, request_bytes: erg one_byte);
+        erg accepted: Bool = case dat admitted {
+            Result.Ok(_) => true,
+            Result.Err(_) => false,
+        };
+        if !accepted {
+            return 1;
+        }
+    }
+    erg one_byte: u32 = 1u32;
+    erg rejected_count = teaching_queue_admit(state: ins count_state, request_bytes: erg one_byte);
+    erg count_rejected: Bool = case dat rejected_count {
+        Result.Err(error) => if error != TeachingQueueAdmissionError.RequestCapacityExceeded {
+            false;
+        } else {
+            true;
+        },
+        Result.Ok(_) => false,
+    };
+    if !count_rejected || count_state.request_count != TEACHING_MAX_QUEUED_REQUESTS {
+        return 2;
+    }
+    return 0;
+}
+
+meta test
+verb test_teaching_queue_bytes_never_grows_past_bound() -> Int {
+    erg byte_state = TeachingQueueState {request_count: 0u32, queued_bytes: 0u32};
+    erg full_bytes: u32 = TEACHING_MAX_QUEUED_BYTES;
+    erg one_byte: u32 = 1u32;
+    erg full = teaching_queue_admit(state: ins byte_state, request_bytes: erg full_bytes);
+    erg full_accepted: Bool = case dat full {
+        Result.Err(_) => false,
+        Result.Ok(_) => true,
+    };
+    if !full_accepted {
+        return 5;
+    }
+    erg rejected_bytes = teaching_queue_admit(state: ins byte_state, request_bytes: erg one_byte);
+    return case dat rejected_bytes {
+        Result.Err(error) => if error == TeachingQueueAdmissionError.ByteCapacityExceeded && byte_state.queued_bytes == TEACHING_MAX_QUEUED_BYTES {
+            0;
+        } else {
+            1;
+        },
+        Result.Ok(_) => 2,
+    };
+}
